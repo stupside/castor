@@ -1,0 +1,73 @@
+device:
+  name: "Samsung Q80CA 55 TV"
+  type: "dlna"
+
+network:
+  timeout: 5s
+  interface: "en0"
+
+resolver:
+  ffmpeg_path: "/opt/homebrew/bin/ffmpeg"
+  ffprobe_path: "/opt/homebrew/bin/ffprobe"
+
+browser:
+  timeout: 30s
+  headless: true
+  no_sandbox: true
+  chrome_path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+transcode:
+  read_rate: 2
+  read_rate_burst: 5
+  video_codec: "copy"
+  audio_codec: "aac"
+  audio_sample_rate: 48000
+  audio_bitrate: "320k"
+  output_format: "mpegts"
+
+scrapers:
+  - name: "godriveplayer"
+    proxies:
+      - "https://godriveplayer.com"
+    templates:
+      movie: "/player.php?imdb={itemID}"
+      episode: "/player.php?type=series&tmdb={itemID}&season={season}&episode={episode}"
+    capture:
+      extensions: [".m3u8"]
+      substrings: ["master.m3u8", "index.m3u8", "/playlist/"]
+      collection_window: 3s
+
+  - name: "autoembed"
+    proxies:
+      - "https://player.autoembed.cc"
+    templates:
+      movie: "/embed/movie/{itemID}"
+      episode: "/embed/tv/{itemID}/{season}/{episode}"
+    capture:
+      extensions: [".m3u8"]
+      substrings: ["master.m3u8", "index.m3u8", "/playlist/"]
+      collection_window: 3s
+
+  - name: "vidsrc"
+    proxies:
+      - "https://vidsrcme.ru"
+      - "https://vidsrcme.su"
+      - "https://vidsrc-me.ru"
+    templates:
+      movie: "/embed/movie/{itemID}"
+      episode: "/embed/tv/{itemID}/{season}/{episode}"
+    capture:
+      extensions: [".m3u8"]
+      substrings: ["master.m3u8", "index.m3u8", "/playlist/"]
+      collection_window: 3s
+
+  - name: "vidsrc-icu"
+    proxies:
+      - "https://vidsrc.icu"
+    templates:
+      movie: "/embed/movie/{itemID}"
+      episode: "/embed/tv/{itemID}/{season}/{episode}"
+    capture:
+      extensions: [".m3u8"]
+      substrings: ["master.m3u8", "index.m3u8", "/playlist/"]
+      collection_window: 3s
