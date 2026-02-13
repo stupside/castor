@@ -1,0 +1,19 @@
+name: Lint
+description: Run Go linters
+
+runs:
+  using: composite
+  steps:
+    - run: go mod download
+      shell: bash
+    - run: go vet ./...
+      shell: bash
+    - name: Check formatting
+      run: |
+        unformatted=$(gofmt -s -l .)
+        if [ -n "$unformatted" ]; then
+          echo "Files not formatted:"
+          echo "$unformatted"
+          exit 1
+        fi
+      shell: bash

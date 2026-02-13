@@ -1,0 +1,84 @@
+device:
+  # Run `castor scan` to discover devices on your network, then paste the name here.
+  name: "Samsung Q80CA 55 TV"
+  type: "dlna"
+
+network:
+  timeout: 5s
+  # Run `castor scan` to find the right interface name (e.g. en0 on macOS, eth0 on Linux).
+  interface: "en0"
+
+resolver:
+  hls_timeout: 30s
+  # Use a bare binary name to rely on PATH, or provide an absolute path.
+  ffprobe_path: "ffprobe"
+  probe_timeout: 30s
+  probe_max_concurrency: 8
+
+browser:
+  timeout: 30s
+  headless: true
+  no_sandbox: true
+  # Leave empty to let castor find Chrome automatically, or set an absolute path.
+  # e.g. "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" on macOS
+  chrome_path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+capture:
+  patterns: ['\.m3u8', 'master\.m3u8', 'index\.m3u8', '/playlist/']
+  max_candidates: 100
+  max_concurrency: 2
+  collection_window: 10s
+  grace_after_actions: 15s
+
+actions:
+  navigate_iframe_timeout: 10s
+  turnstile_retry_timeout: 10s
+  bypass_turnstile_timeout: 20s
+
+transcode:
+  # Use a bare binary name to rely on PATH, or provide an absolute path.
+  ffmpeg_path: "ffmpeg"
+  read_rate: 2
+  read_rate_burst: 5
+  video_codec: "copy"
+  audio_codec: "aac"
+  audio_bitrate: "320k"
+  audio_sample_rate: 48000
+  output_format: "mpegts"
+  buffer_capacity: 104857600
+  read_buffer_size: 32768
+  initial_data_threshold: 65536
+
+# Define your streaming sources here. Each source maps an embed service to URL templates.
+# sources:
+#   - name: "example"
+#     proxies:
+#       - "https://example.com"
+#     templates:
+#       movie: "/embed/movie/{itemID}"
+#       episode: "/embed/tv/{itemID}/{season}/{episode}"
+
+sources:
+  - name: "godriveplayer"
+    proxies:
+      - "https://godriveplayer.com"
+    templates:
+      movie: "/player.php?imdb={itemID}"
+      episode: "/player.php?type=series&tmdb={itemID}&season={season}&episode={episode}"
+
+  - name: "autoembed"
+    proxies:
+      - "https://player.autoembed.cc"
+    templates:
+      movie: "/embed/movie/{itemID}"
+      episode: "/embed/tv/{itemID}/{season}/{episode}"
+
+  - name: "vidsrc"
+    proxies:
+      - "https://vidsrc.icu"
+      - "https://vidsrcme.ru"
+      - "https://vidsrcme.su"
+      - "https://vidsrc-me.ru"
+    templates:
+      movie: "/embed/movie/{itemID}"
+      episode: "/embed/tv/{itemID}/{season}/{episode}"

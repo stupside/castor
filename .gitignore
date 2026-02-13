@@ -1,0 +1,8 @@
+.claude
+
+.debug/
+
+.DS_Store
+
+# Personal config override (keeps private sources/paths out of version control)
+config.local.yaml

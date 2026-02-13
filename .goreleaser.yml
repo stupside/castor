@@ -1,0 +1,63 @@
+version: 2
+project_name: castor
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X 'github.com/stupside/castor/internal/version.Commit={{.Commit}}'
+      - -X 'github.com/stupside/castor/internal/version.BuildTime={{.Date}}'
+      - -X 'github.com/stupside/castor/internal/version.Version={{.Version}}'
+    binary: castor
+
+kos:
+  - repositories:
+      - ghcr.io/stupside/castor
+    tags: [latest, "{{.Tag}}"]
+    bare: true
+    labels:
+      org.opencontainers.image.url: "{{.GitURL}}"
+      org.opencontainers.image.title: "{{.ProjectName}}"
+      org.opencontainers.image.source: "{{.GitURL}}"
+      org.opencontainers.image.version: "{{.Version}}"
+      org.opencontainers.image.licenses: "MIT"
+      org.opencontainers.image.revision: "{{.FullCommit}}"
+      org.opencontainers.image.description: "Cast video streams to networked devices"
+      org.opencontainers.image.documentation: "{{.GitURL}}/blob/main/README.md"
+    preserve_import_paths: false
+    platforms: [linux/amd64, linux/arm64]
+
+changelog:
+  sort: asc
+  use: git
+  format: "{{ .SHA }}: {{ .Message }}{{ with .AuthorUsername }} (@{{ . }}){{ end }}"
+  filters:
+    exclude: ["^docs:", "^test:", "^chore:"]
+
+release:
+  name_template: "v{{ .Version }}"
+  footer: |
+    **Full Changelog**: https://github.com/stupside/castor/compare/{{ .PreviousTag }}...{{ if .IsNightly }}nightly{{ else }}{{ .Tag }}{{ end }}
+
+homebrew_casks:
+  - name: castor
+    description: "Cast video streams to networked devices"
+    commit_author:
+      name: castor
+      email: git@castor.dev
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    zap:
+      trash: ["~/.castor/config.yml"]
+      delete: ["~/.castor/config.yml"]
+    repository:
+      name: "homebrew-tap"
+      owner: "stupside"
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"

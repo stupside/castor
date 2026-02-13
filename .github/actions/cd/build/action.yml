@@ -1,0 +1,10 @@
+name: Build
+description: Build Go binary
+
+runs:
+  using: composite
+  steps:
+    - run: go mod download
+      shell: bash
+    - run: go build -o castor .
+      shell: bash
