@@ -1,8 +1,10 @@
 package cast
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"slices"
@@ -76,12 +78,12 @@ func CastStream(ctx context.Context, cfg *app.Config, stream *media.Stream) erro
 		if err != nil {
 			return fmt.Errorf("starting transcode: %w", err)
 		}
-		defer reader.Close()
 		defer func() {
 			if err := wait(); err != nil {
 				slog.WarnContext(ctx, "ffmpeg exited with error", "error", err)
 			}
 		}()
+		defer reader.Close()
 
 		localIP, err := localIPFromInterface(iface)
 		if err != nil {
@@ -93,21 +95,22 @@ func CastStream(ctx context.Context, cfg *app.Config, stream *media.Stream) erro
 			streamHeaders = dlna.StreamHeaders(fmtInfo.ContentType)
 		}
 
-		srv, err = transcode.NewStreamServer(ctx, transcode.StreamServerConfig{
-			LocalIP:        localIP,
-			ContentType:    fmtInfo.ContentType,
-			Extension:      fmtInfo.Extension,
-			Headers:        streamHeaders,
-			BufferCapacity: cfg.Transcode.BufferCapacity,
-		}, reader)
+		initial := make([]byte, cfg.Transcode.InitialDataThreshold)
+		n, err := io.ReadFull(reader, initial)
+		if err != nil && err != io.ErrUnexpectedEOF {
+			return fmt.Errorf("waiting for initial transcode data: %w", err)
+		}
+
+		srv, err = transcode.NewStreamServer(transcode.StreamServerConfig{
+			LocalIP:     localIP,
+			ContentType: fmtInfo.ContentType,
+			Extension:   fmtInfo.Extension,
+			Headers:     streamHeaders,
+		}, io.MultiReader(bytes.NewReader(initial[:n]), reader))
 		if err != nil {
 			return fmt.Errorf("starting stream server: %w", err)
 		}
-		defer srv.Stop()
-
-		if err := srv.WaitForData(ctx, cfg.Transcode.InitialDataThreshold); err != nil {
-			return fmt.Errorf("waiting for initial stream data: %w", err)
-		}
+		defer srv.Close()
 
 		streamURL = srv.URL()
 		contentType = fmtInfo.ContentType

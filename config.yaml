@@ -46,7 +46,6 @@ transcode:
   audio_bitrate: "320k"
   audio_sample_rate: 48000
   output_format: "mpegts"
-  buffer_capacity: 104857600
   initial_data_threshold: 65536
 
 # Define your streaming sources here. Each source maps an embed service to URL templates.

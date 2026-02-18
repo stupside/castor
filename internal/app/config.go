@@ -77,7 +77,6 @@ type TranscodeConfig struct {
 	AudioSampleRate      int    `koanf:"audio_sample_rate" validate:"required"`
 	AudioBitrate         string `koanf:"audio_bitrate" validate:"required"`
 	OutputFormat         string `koanf:"output_format" validate:"required"`
-	BufferCapacity       int    `koanf:"buffer_capacity" validate:"required"`
 	InitialDataThreshold int    `koanf:"initial_data_threshold" validate:"required"`
 }
 
