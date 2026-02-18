@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -51,6 +52,7 @@ func solveTurnstile(ctx context.Context, solveTimeout time.Duration) bool {
 		if err := chromedp.Run(tCtx,
 			chromedp.Poll(turnstileIframePosJS, &pos, chromedp.WithPollingTimeout(0)),
 		); err != nil {
+			slog.DebugContext(ctx, "error polling for turnstile iframe", "error", err)
 			return
 		}
 
@@ -63,6 +65,7 @@ func solveTurnstile(ctx context.Context, solveTimeout time.Duration) bool {
 			chromedp.Poll(turnstileGoneJS, &gone, chromedp.WithPollingTimeout(0)),
 			chromedp.WaitReady("body"),
 		); err != nil {
+			slog.DebugContext(ctx, "error solving turnstile", "error", err)
 			return
 		}
 		ch <- struct{}{}
@@ -75,6 +78,7 @@ func solveTurnstile(ctx context.Context, solveTimeout time.Duration) bool {
 			chromedp.Poll(turnstileGoneJS, &gone, chromedp.WithPollingTimeout(0)),
 			chromedp.WaitReady("body"),
 		); err != nil {
+			slog.DebugContext(ctx, "error polling for turnstile gone", "error", err)
 			return
 		}
 		ch <- struct{}{}
@@ -97,9 +101,10 @@ func BypassTurnstile(ctx context.Context, solveTimeout, retryTimeout time.Durati
 
 	if solveTurnstile(ctx, solveTimeout) {
 		return nil
+	} else {
+		slog.DebugContext(ctx, "initial turnstile solve attempt failed, retrying after reload")
 	}
 
-	// Retry: reload and try again
 	retryCtx, retryCancel := context.WithTimeout(ctx, retryTimeout)
 	defer retryCancel()
 	if err := chromedp.Run(retryCtx, chromedp.Reload(), chromedp.WaitReady("body")); err != nil {
@@ -110,6 +115,7 @@ func BypassTurnstile(ctx context.Context, solveTimeout, retryTimeout time.Durati
 		if !solveTurnstile(ctx, solveTimeout) {
 			return fmt.Errorf("turnstile solve failed after retry")
 		}
+		slog.DebugContext(ctx, "turnstile solved after retry")
 	}
 
 	return nil

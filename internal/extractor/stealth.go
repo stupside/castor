@@ -114,6 +114,7 @@ func allocatorOpts(cfg app.BrowserConfig, profile *Profile) []chromedp.ExecAlloc
 		chromedp.Flag("webrtc-ip-handling-policy", "disable_non_proxied_udp"),
 
 		chromedp.Flag("autoplay-policy", "no-user-gesture-required"),
+		chromedp.Flag("incognito", true),
 
 		chromedp.WindowSize(profile.ScreenWidth, profile.ScreenHeight),
 

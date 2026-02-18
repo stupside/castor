@@ -26,12 +26,13 @@ browser:
 capture:
   patterns: ['\.m3u8', 'master\.m3u8', 'index\.m3u8', '/playlist/']
   max_candidates: 100
-  max_concurrency: 2
+  max_concurrency: 4
   collection_window: 10s
   grace_after_actions: 15s
 
 actions:
   navigate_iframe_timeout: 10s
+  navigate_iframe_max_depth: 5
   turnstile_retry_timeout: 10s
   bypass_turnstile_timeout: 20s
 
@@ -46,7 +47,6 @@ transcode:
   audio_sample_rate: 48000
   output_format: "mpegts"
   buffer_capacity: 104857600
-  read_buffer_size: 32768
   initial_data_threshold: 65536
 
 # Define your streaming sources here. Each source maps an embed service to URL templates.

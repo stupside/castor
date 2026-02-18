@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
@@ -48,6 +49,7 @@ func newSession(ctx context.Context, e *Extractor, targetURL string) (*session, 
 		navDone <- chromedp.Run(taskCtx,
 			runtime.Enable(),
 			network.Enable(),
+			browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorDeny),
 			injectStealth(profile),
 			injectCDPStealth(profile),
 			chromedp.Navigate(targetURL),
@@ -90,14 +92,14 @@ func (s *session) RunActions(actionCfg app.ActionConfig) {
 	snapshot(s.ctx, s.snapshotDir, "pipeline_start")
 
 	if !s.collector.HasHits() {
-		if err := action.ClickCenter(s.ctx, s.centerX, s.centerY); err != nil {
+		if err := action.Click(s.ctx, s.centerX, s.centerY); err != nil {
 			slog.DebugContext(s.ctx, "pipeline: click center failed", "error", err)
 		}
 		snapshot(s.ctx, s.snapshotDir, "step_0")
 	}
 
 	if !s.collector.HasHits() {
-		if err := action.NavigateIframe(s.ctx, actionCfg.NavigateIframeTimeout); err != nil {
+		if err := action.NavigateIframe(s.ctx, actionCfg.NavigateIframeTimeout, actionCfg.NavigateIframeMaxDepth); err != nil {
 			slog.DebugContext(s.ctx, "pipeline: navigate iframe failed", "error", err)
 		}
 		snapshot(s.ctx, s.snapshotDir, "step_1")
@@ -111,7 +113,7 @@ func (s *session) RunActions(actionCfg app.ActionConfig) {
 	}
 
 	if !s.collector.HasHits() {
-		if err := action.ClickCenter(s.ctx, s.centerX, s.centerY); err != nil {
+		if err := action.Click(s.ctx, s.centerX, s.centerY); err != nil {
 			slog.DebugContext(s.ctx, "pipeline: click center failed", "error", err)
 		}
 		snapshot(s.ctx, s.snapshotDir, "step_3")

@@ -78,7 +78,6 @@ type TranscodeConfig struct {
 	AudioBitrate         string `koanf:"audio_bitrate" validate:"required"`
 	OutputFormat         string `koanf:"output_format" validate:"required"`
 	BufferCapacity       int    `koanf:"buffer_capacity" validate:"required"`
-	ReadBufferSize       int    `koanf:"read_buffer_size" validate:"required"`
 	InitialDataThreshold int    `koanf:"initial_data_threshold" validate:"required"`
 }
 
@@ -94,6 +93,7 @@ type CaptureConfig struct {
 // ActionConfig holds timeouts for browser automation actions.
 type ActionConfig struct {
 	NavigateIframeTimeout  time.Duration `koanf:"navigate_iframe_timeout" validate:"required"`
+	NavigateIframeMaxDepth int           `koanf:"navigate_iframe_max_depth" validate:"required,min=1"`
 	BypassTurnstileTimeout time.Duration `koanf:"bypass_turnstile_timeout" validate:"required"`
 	TurnstileRetryTimeout  time.Duration `koanf:"turnstile_retry_timeout" validate:"required"`
 }

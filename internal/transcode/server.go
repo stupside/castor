@@ -2,22 +2,25 @@ package transcode
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
-	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/smallnest/ringbuffer"
 )
 
-// StreamServer serves transcode output over HTTP using a fixed-size ring
-// buffer instead of an unbounded append-only buffer.
+const defaultReadBufSize = 32 * 1024 / 2
+
+// StreamServer serves transcode output over HTTP using a blocking ring
+// buffer. Write blocks when full, applying backpressure to ffmpeg so
+// no data is ever silently overwritten.
 type StreamServer struct {
-	ring        *ringBuffer
-	pool        *sync.Pool
-	localIP     string
+	ring        *ringbuffer.RingBuffer
+	cancel      context.CancelFunc
+	active      atomic.Bool
 	contentType string
 	extension   string
 	headers     map[string]string
@@ -33,26 +36,21 @@ type StreamServerConfig struct {
 	Extension      string
 	Headers        map[string]string
 	BufferCapacity int
-	ReadBufSize    int
 }
 
-// NewStreamServer creates a new StreamServer. The stream data source is
-// provided later via Start.
-func NewStreamServer(cfg StreamServerConfig) (*StreamServer, error) {
+// NewStreamServer creates, starts, and returns a StreamServer. It begins
+// ingesting from stream and serving HTTP immediately.
+func NewStreamServer(ctx context.Context, cfg StreamServerConfig, stream io.Reader) (*StreamServer, error) {
 	ln, err := net.Listen("tcp", cfg.LocalIP+":0")
 	if err != nil {
-		return nil, fmt.Errorf("listening: %w", err)
+		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+
 	s := &StreamServer{
-		ring: newRingBuffer(cfg.BufferCapacity),
-		pool: &sync.Pool{
-			New: func() any {
-				b := make([]byte, cfg.ReadBufSize)
-				return &b
-			},
-		},
-		localIP:     cfg.LocalIP,
+		ring:        ringbuffer.New(cfg.BufferCapacity).SetBlocking(true),
+		cancel:      cancel,
 		contentType: cfg.ContentType,
 		extension:   cfg.Extension,
 		headers:     cfg.Headers,
@@ -60,17 +58,17 @@ func NewStreamServer(cfg StreamServerConfig) (*StreamServer, error) {
 		errCh:       make(chan error, 1),
 	}
 
+	s.ring.WithCancel(ctx)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/stream"+cfg.Extension, s.handleStream)
 
 	s.server = &http.Server{Handler: mux}
 
-	return s, nil
-}
-
-// Start begins the ingestion goroutine and HTTP server.
-func (s *StreamServer) Start(stream io.Reader) {
-	go s.ingest(stream)
+	go func() {
+		s.ring.ReadFrom(stream)
+		s.ring.CloseWriter()
+	}()
 
 	go func() {
 		if err := s.server.Serve(s.listener); err != nil && err != http.ErrServerClosed {
@@ -78,52 +76,60 @@ func (s *StreamServer) Start(stream io.Reader) {
 		}
 		close(s.errCh)
 	}()
+
+	return s, nil
 }
 
-// ingest reads from the stream source and writes into the ring buffer.
-func (s *StreamServer) ingest(r io.Reader) {
-	bp := s.pool.Get().(*[]byte)
-	defer s.pool.Put(bp)
-
-	var closeErr error
-	for {
-		n, err := r.Read(*bp)
-		if n > 0 {
-			s.ring.Write((*bp)[:n])
-		}
-		if err != nil {
-			if err != io.EOF {
-				closeErr = err
-			}
-			break
-		}
-	}
-	s.ring.Close(closeErr)
-}
-
-// Stop forcibly closes the server and all active connections.
+// Stop cancels ingestion and closes the server.
 func (s *StreamServer) Stop() {
+	s.cancel()
 	s.server.Close()
 }
 
 // URL returns the full URL the server is listening on.
-func (s *StreamServer) URL() (*url.URL, error) {
-	addr := s.listener.Addr().String()
-	return url.Parse(fmt.Sprintf("http://%s/stream%s", addr, s.extension))
+func (s *StreamServer) URL() *url.URL {
+	return &url.URL{
+		Scheme: "http",
+		Host:   s.listener.Addr().String(),
+		Path:   "/stream" + s.extension,
+	}
 }
 
-// Err returns a channel that receives any server error.
-func (s *StreamServer) Err() <-chan error {
-	return s.errCh
+// Wait blocks until the server exits or the context is cancelled.
+func (s *StreamServer) Wait(ctx context.Context) error {
+	select {
+	case err := <-s.errCh:
+		return err
+	case <-ctx.Done():
+		return nil
+	}
 }
 
 // WaitForData blocks until the buffer has at least minBytes of data or
 // the context is cancelled.
 func (s *StreamServer) WaitForData(ctx context.Context, minBytes int) error {
-	return s.ring.WaitForData(ctx, int64(minBytes))
+	const tick = 50 * time.Millisecond
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+
+	for {
+		if s.ring.Length() >= minBytes {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (s *StreamServer) handleStream(w http.ResponseWriter, r *http.Request) {
+	if !s.active.CompareAndSwap(false, true) {
+		http.Error(w, "stream already has an active reader", http.StatusServiceUnavailable)
+		return
+	}
+	defer s.active.Store(false)
 
 	w.Header().Set("Content-Type", s.contentType)
 	for k, v := range s.headers {
@@ -141,29 +147,19 @@ func (s *StreamServer) handleStream(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	ctx := r.Context()
+	buf := make([]byte, defaultReadBufSize)
 
-	bp := s.pool.Get().(*[]byte)
-	defer s.pool.Put(bp)
-
-	var offset int64
 	for {
-		n, err := s.ring.ReadAt(ctx, *bp, offset)
+		n, err := s.ring.Read(buf)
 		if n > 0 {
-			if _, writeErr := w.Write((*bp)[:n]); writeErr != nil {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
 				return
 			}
-			offset += int64(n)
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
 		}
 		if err != nil {
-			if errors.Is(err, errDataOverwritten) {
-				offset = s.ring.OldestOffset()
-				slog.Warn("stream reader fell behind, skipping ahead", "new_offset", offset)
-				continue
-			}
 			return
 		}
 	}

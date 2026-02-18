@@ -3,6 +3,7 @@ package action
 import (
 	"context"
 	_ "embed"
+	"log/slog"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -14,19 +15,31 @@ import (
 //go:embed js/iframe_src.js
 var iframeSrcJS string
 
-// NavigateIframe polls for the largest iframe and navigates to it.
-func NavigateIframe(ctx context.Context, timeout time.Duration) error {
+// NavigateIframe polls for the largest iframe and navigates into it,
+// repeating through nested iframes until no more are found.
+func NavigateIframe(ctx context.Context, timeout time.Duration, maxDepth int) error {
 	iframeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	var iframeSrc string
-	return chromedp.Run(iframeCtx,
-		chromedp.Poll(iframeSrcJS, &iframeSrc, chromedp.WithPollingTimeout(0)),
-		// Pointer indirection is required: the action chain is constructed before
-		// execution, so iframeSrc is empty at build time.
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			return chromedp.Navigate(iframeSrc).Do(ctx)
-		}),
-		chromedp.WaitReady("body"),
-	)
+	for depth := range maxDepth {
+		var iframeSrc string
+
+		err := chromedp.Run(iframeCtx,
+			chromedp.Poll(iframeSrcJS, &iframeSrc, chromedp.WithPollingTimeout(0)),
+			chromedp.ActionFunc(func(ctx context.Context) error {
+				slog.DebugContext(ctx, "navigating to iframe", "src", iframeSrc, "depth", depth+1)
+				return chromedp.Navigate(iframeSrc).Do(ctx)
+			}),
+			chromedp.WaitReady("body"),
+		)
+
+		if err != nil {
+			if depth == 0 {
+				return err // No iframe found at all — real error
+			}
+			return nil // Reached leaf — no more iframes, that's fine
+		}
+	}
+
+	return nil
 }

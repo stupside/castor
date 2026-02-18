@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"slices"
 
-	"golang.org/x/sync/errgroup"
+	"sync"
 
 	"github.com/stupside/castor/internal/app"
 	"github.com/stupside/castor/internal/media"
@@ -40,37 +40,49 @@ func Resolve(ctx context.Context, cfg app.ResolverConfig, stream *media.Stream) 
 // highest bandwidth. Failed probes are logged and skipped. Returns an error
 // only if ALL streams fail probing.
 func RankStreams(ctx context.Context, cfg app.ResolverConfig, streams []*media.Stream) (*media.Stream, error) {
-	var g errgroup.Group
-	g.SetLimit(cfg.ProbeMaxConcurrency)
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, cfg.ProbeMaxConcurrency)
 
 	probed := make([]*media.Stream, len(streams))
 
 	for i, s := range streams {
-		g.Go(func() error {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			slog.DebugContext(ctx, "rank: probing", "url", s.URL, "index", i+1, "total", len(streams))
+
 			info, err := probeStream(ctx, cfg.FFprobePath, cfg.ProbeTimeout, s.URL, s.Headers)
 			if err != nil {
-				return fmt.Errorf("probing stream %q: %w", s.URL, err)
+				slog.WarnContext(ctx, "rank: probe failed", "url", s.URL, "error", err)
+				return
 			}
+
 			probed[i] = &media.Stream{
 				URL:         s.URL,
 				Headers:     s.Headers,
 				ContentType: s.ContentType,
 				Bandwidth:   max(info.BitRate, 1),
 			}
-			return nil
-		})
+			slog.DebugContext(ctx, "rank: probed", "url", s.URL, "bitrate", info.BitRate)
+		}()
 	}
 
-	if err := g.Wait(); err != nil {
-		slog.Warn("some streams failed probing", "error", err)
-	}
+	wg.Wait()
 
 	var best *media.Stream
 	for _, s := range probed {
-		if s != nil && (best == nil || s.Bandwidth > best.Bandwidth) {
-			best = s
+		if s != nil {
+			if best == nil || s.Bandwidth > best.Bandwidth {
+				best = s
+			}
 		}
 	}
+
+	slog.InfoContext(ctx, "rank: complete", "total", len(streams))
 
 	if best == nil {
 		return nil, fmt.Errorf("all %d streams failed probing", len(streams))

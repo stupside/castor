@@ -63,7 +63,7 @@ func CastStream(ctx context.Context, cfg *app.Config, stream *media.Stream) erro
 	contentType := resolved.ContentType
 	streamURL := resolved.URL
 
-	var srvErr <-chan error
+	var srv *transcode.StreamServer
 
 	if !slices.Contains(dev.SupportedContentTypes(), contentType) {
 		slog.InfoContext(ctx, "device does not support content type, transcoding", "content_type", contentType, "output_format", cfg.Transcode.OutputFormat)
@@ -93,32 +93,24 @@ func CastStream(ctx context.Context, cfg *app.Config, stream *media.Stream) erro
 			streamHeaders = dlna.StreamHeaders(fmtInfo.ContentType)
 		}
 
-		srv, err := transcode.NewStreamServer(transcode.StreamServerConfig{
+		srv, err = transcode.NewStreamServer(ctx, transcode.StreamServerConfig{
 			LocalIP:        localIP,
 			ContentType:    fmtInfo.ContentType,
 			Extension:      fmtInfo.Extension,
 			Headers:        streamHeaders,
 			BufferCapacity: cfg.Transcode.BufferCapacity,
-			ReadBufSize:    cfg.Transcode.ReadBufferSize,
-		})
+		}, reader)
 		if err != nil {
 			return fmt.Errorf("starting stream server: %w", err)
 		}
-		srv.Start(reader)
 		defer srv.Stop()
 
 		if err := srv.WaitForData(ctx, cfg.Transcode.InitialDataThreshold); err != nil {
 			return fmt.Errorf("waiting for initial stream data: %w", err)
 		}
 
-		srvURL, err := srv.URL()
-		if err != nil {
-			return fmt.Errorf("getting stream server URL: %w", err)
-		}
-
-		streamURL = srvURL
+		streamURL = srv.URL()
 		contentType = fmtInfo.ContentType
-		srvErr = srv.Err()
 	}
 
 	slog.InfoContext(ctx, "starting playback on device", "stream_url", streamURL.String(), "content_type", contentType)
@@ -127,13 +119,8 @@ func CastStream(ctx context.Context, cfg *app.Config, stream *media.Stream) erro
 		return fmt.Errorf("starting playback: %w", err)
 	}
 
-	if srvErr != nil {
-		select {
-		case err := <-srvErr:
-			return fmt.Errorf("stream server failed: %w", err)
-		case <-ctx.Done():
-			return nil
-		}
+	if srv != nil {
+		return srv.Wait(ctx)
 	}
 
 	return nil

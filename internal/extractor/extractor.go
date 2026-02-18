@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"regexp"
 
-	"golang.org/x/sync/errgroup"
+	"sync"
 
 	"github.com/stupside/castor/internal/app"
 	"github.com/stupside/castor/internal/media"
@@ -84,30 +84,42 @@ func (e *Extractor) Extract(ctx context.Context, targetURL string) ([]*media.Str
 // ExtractAll runs Extract concurrently on all given URLs (bounded by the
 // extractor's MaxConcurrency) and returns deduplicated streams.
 func ExtractAll(ctx context.Context, e *Extractor, urls []string) ([]*media.Stream, error) {
-	var g errgroup.Group
-	g.SetLimit(e.capture.MaxConcurrency)
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, e.capture.MaxConcurrency)
 
 	results := make([][]*media.Stream, len(urls))
 
 	for i, targetURL := range urls {
-		g.Go(func() error {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			slog.DebugContext(ctx, "extract: starting", "url", targetURL, "index", i+1, "total", len(urls))
+
 			streams, err := e.Extract(ctx, targetURL)
 			if err != nil {
-				return fmt.Errorf("%s: %w", targetURL, err)
+				slog.WarnContext(ctx, "extract: failed", "url", targetURL, "error", err)
+				return
 			}
+
 			results[i] = streams
-			return nil
-		})
+			slog.DebugContext(ctx, "extract: found streams", "url", targetURL, "count", len(streams))
+		}()
 	}
 
-	if err := g.Wait(); err != nil {
-		slog.Warn("some URLs failed extraction", "error", err)
-	}
+	wg.Wait()
 
 	var allStreams []*media.Stream
 	for _, ss := range results {
-		allStreams = append(allStreams, ss...)
+		if ss != nil {
+			allStreams = append(allStreams, ss...)
+		}
 	}
+
+	slog.InfoContext(ctx, "extract: complete", "total", len(urls), "streams", len(allStreams))
 
 	return deduplicateStreams(allStreams), nil
 }

@@ -67,7 +67,7 @@ func newCollector(patterns []*regexp.Regexp, maxCandidates int) *collector {
 // and the candidate list is not full.
 func (c *collector) Add(u string, headers map[string]string) {
 	if !matchesPattern(u, c.patterns) {
-		slog.Debug("collector: URL did not match patterns", "url", u)
+		// slog.Debug("collector: URL did not match patterns", "url", u)
 		return
 	}
 	c.add(u, headers, "")
@@ -77,7 +77,7 @@ func (c *collector) Add(u string, headers map[string]string) {
 // stream type. Pattern matching is skipped — the confirmed MIME takes precedence.
 func (c *collector) AddByMIME(u string, mime string, headers map[string]string) {
 	if !streamMIMETypes[strings.ToLower(mime)] {
-		slog.Debug("collector: MIME type not a stream type", "url", u, "mime", mime)
+		// slog.Debug("collector: MIME type not a stream type", "url", u, "mime", mime)
 		return
 	}
 	c.add(u, headers, strings.ToLower(mime))
@@ -97,6 +97,8 @@ func (c *collector) add(u string, headers map[string]string, mimeType string) {
 		slog.Debug("collector: duplicate URL, skipping", "url", u)
 		return
 	}
+
+	slog.Info("collector: captured stream URL", "url", u, "mime", mimeType)
 
 	c.candidates = append(c.candidates, candidate{
 		rawURL:   u,

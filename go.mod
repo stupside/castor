@@ -10,9 +10,9 @@ require (
 	github.com/knadh/koanf/parsers/yaml v1.1.0
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/v2 v2.3.2
+	github.com/smallnest/ringbuffer v0.1.1
 	github.com/urfave/cli/v3 v3.6.2
 	github.com/vishen/go-chromecast v0.3.4
-	golang.org/x/sync v0.19.0
 )
 
 require (
@@ -38,6 +38,7 @@ require (
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	gopkg.in/ini.v1 v1.67.1 // indirect
