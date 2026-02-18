@@ -1,3 +1,22 @@
+
+<p align="center">
+  <a href="https://github.com/stupside/castor/releases/latest">
+    <img src="https://img.shields.io/github/v/release/stupside/castor?style=flat-square" alt="Latest Release">
+  </a>
+  <a href="https://pkg.go.dev/github.com/stupside/castor">
+    <img src="https://img.shields.io/badge/Go-Reference-00ADD8?style=flat-square&logo=go" alt="Go Reference">
+  </a>
+  <a href="https://github.com/stupside/homebrew-tap/blob/main/Casks/castor.rb">
+    <img src="https://img.shields.io/badge/Homebrew-Available-FBB040?style=flat-square&logo=homebrew" alt="Homebrew">
+  </a>
+  <a href="https://github.com/stupside/castor/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/stupside/castor?style=flat-square" alt="License">
+  </a>
+  <a href="https://github.com/stupside/castor/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/stupside/castor/ci.yml?style=flat-square" alt="Build Status">
+  </a>
+</p>
+
 # Castor
 
 Imagine buying a very nice TV and figuring out it doesn't allow casting from random websites...
