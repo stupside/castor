@@ -41,6 +41,7 @@ transcode:
   ffmpeg_path: "ffmpeg"
   read_rate: 2
   read_rate_burst: 5
+  rw_timeout: 30s
   video_codec: "copy"
   audio_codec: "aac"
   audio_bitrate: "320k"

@@ -19,6 +19,11 @@ import (
 // for the process, and any startup error.
 func Transcode(ctx context.Context, cfg app.TranscodeConfig, sourceURL *url.URL, headers map[string]string) (io.ReadCloser, func() error, error) {
 	args := []string{
+		// Network timeout and reconnection for HTTP(S) inputs
+		"-rw_timeout", strconv.FormatInt(cfg.RWTimeout.Microseconds(), 10),
+		"-reconnect", "1",
+		"-reconnect_streamed", "1",
+		"-reconnect_delay_max", "5",
 		// Throttle input reading to roughly real-time playback speed
 		"-readrate", strconv.Itoa(cfg.ReadRate),
 		// Allow an initial burst of data before rate-limiting kicks in

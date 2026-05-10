@@ -69,15 +69,16 @@ type TemplateConfig struct {
 
 // TranscodeConfig holds ffmpeg transcode settings.
 type TranscodeConfig struct {
-	FFmpegPath           string `koanf:"ffmpeg_path" validate:"required"`
-	ReadRate             int    `koanf:"read_rate" validate:"required"`
-	ReadRateBurst        int    `koanf:"read_rate_burst" validate:"required"`
-	VideoCodec           string `koanf:"video_codec" validate:"required"`
-	AudioCodec           string `koanf:"audio_codec" validate:"required"`
-	AudioSampleRate      int    `koanf:"audio_sample_rate" validate:"required"`
-	AudioBitrate         string `koanf:"audio_bitrate" validate:"required"`
-	OutputFormat         string `koanf:"output_format" validate:"required"`
-	InitialDataThreshold int    `koanf:"initial_data_threshold" validate:"required"`
+	FFmpegPath           string        `koanf:"ffmpeg_path" validate:"required"`
+	ReadRate             int           `koanf:"read_rate" validate:"required"`
+	ReadRateBurst        int           `koanf:"read_rate_burst" validate:"required"`
+	RWTimeout            time.Duration `koanf:"rw_timeout" validate:"required"`
+	VideoCodec           string        `koanf:"video_codec" validate:"required"`
+	AudioCodec           string        `koanf:"audio_codec" validate:"required"`
+	AudioSampleRate      int           `koanf:"audio_sample_rate" validate:"required"`
+	AudioBitrate         string        `koanf:"audio_bitrate" validate:"required"`
+	OutputFormat         string        `koanf:"output_format" validate:"required"`
+	InitialDataThreshold int           `koanf:"initial_data_threshold" validate:"required"`
 }
 
 // CaptureConfig holds patterns for intercepting stream URLs.
