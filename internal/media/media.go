@@ -2,6 +2,7 @@ package media
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"path"
 	"strings"
@@ -23,15 +24,6 @@ var HLSInputArgs = []string{
 	"-allowed_segment_extensions", "ALL",
 	"-extension_picky", "0",
 	"-seg_format_options", "extension_picky=0",
-}
-
-var extensionMap = map[string]string{
-	".mp4":  MP4,
-	".mkv":  MKV,
-	".webm": WebM,
-	".avi":  AVI,
-	".mov":  MOV,
-	".m3u8": HLS,
 }
 
 // Stream represents a resolved media stream.
@@ -63,8 +55,7 @@ var formatRegistry = map[string]FormatInfo{
 }
 
 // FormatForContentType returns the ffmpeg output format name and info for a
-// content type, or ok=false if no producible format matches. Caller controls
-// preference by iterating its own candidate list.
+// content type, or ok=false if no producible format matches.
 func FormatForContentType(ct string) (string, FormatInfo, bool) {
 	for name, info := range formatRegistry {
 		if info.ContentType == ct {
@@ -74,11 +65,19 @@ func FormatForContentType(ct string) (string, FormatInfo, bool) {
 	return "", FormatInfo{}, false
 }
 
+var extensionMap = map[string]string{
+	".mp4":  MP4,
+	".mkv":  MKV,
+	".webm": WebM,
+	".avi":  AVI,
+	".mov":  MOV,
+	".m3u8": HLS,
+}
+
 // DetectFromExtension returns a content type based on the URL's file extension,
 // or empty string if unrecognized.
 func DetectFromExtension(u *url.URL) string {
-	ext := strings.ToLower(path.Ext(u.Path))
-	return extensionMap[ext]
+	return extensionMap[strings.ToLower(path.Ext(u.Path))]
 }
 
 var mimeContentTypes = map[string]string{
@@ -97,15 +96,16 @@ func DetectFromMIME(mime string) string {
 	return mimeContentTypes[strings.ToLower(mime)]
 }
 
-// FormatHTTPHeaders formats a map of headers into the ffmpeg/ffprobe
-// -headers flag value: "Key: Value\r\nKey2: Value2\r\n".
+// FormatHTTPHeaders renders headers as ffmpeg's -headers flag value
+// ("Key: Value\r\n…"), skipping HTTP/2 pseudo-headers that ffmpeg's HTTP
+// stack won't accept.
 func FormatHTTPHeaders(headers map[string]string) string {
 	if len(headers) == 0 {
 		return ""
 	}
 	var b strings.Builder
 	for k, v := range headers {
-		if strings.HasPrefix(k, ":") { // skip HTTP/2 pseudo-headers (:method, :path, …)
+		if isPseudoHeader(k) {
 			continue
 		}
 		b.WriteString(k)
@@ -115,6 +115,19 @@ func FormatHTTPHeaders(headers map[string]string) string {
 	}
 	return b.String()
 }
+
+// ApplyHTTPHeaders copies headers onto req, skipping HTTP/2 pseudo-headers
+// (:method, :path, …) which net/http won't accept.
+func ApplyHTTPHeaders(req *http.Request, headers map[string]string) {
+	for k, v := range headers {
+		if isPseudoHeader(k) {
+			continue
+		}
+		req.Header.Set(k, v)
+	}
+}
+
+func isPseudoHeader(name string) bool { return strings.HasPrefix(name, ":") }
 
 // FormatToContentType maps an ffprobe format_name to a content type.
 func FormatToContentType(format string) (string, error) {
