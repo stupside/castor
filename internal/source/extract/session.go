@@ -1,4 +1,4 @@
-package extractor
+package extract
 
 import (
 	"context"
@@ -11,9 +11,6 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
-
-	"github.com/stupside/castor/internal/action"
-	"github.com/stupside/castor/internal/app"
 )
 
 // session owns the chromedp lifecycle for a single proxy attempt.
@@ -87,36 +84,34 @@ func newSession(ctx context.Context, e *Extractor, targetURL string) (*session, 
 	}, nil
 }
 
-// RunActions executes the action pipeline, skipping remaining steps once URLs are captured.
-func (s *session) RunActions(actionCfg app.ActionConfig) {
+// RunActions executes the action pipeline, skipping remaining steps once URLs
+// are captured. Each step is best-effort: failures are logged at DEBUG and
+// the next step still runs.
+func (s *session) RunActions(actionCfg ActionConfig) {
 	snapshot(s.ctx, s.snapshotDir, "pipeline_start")
 
-	if !s.collector.HasHits() {
-		if err := action.Click(s.ctx, s.centerX, s.centerY); err != nil {
-			slog.DebugContext(s.ctx, "click center failed", "error", err)
-		}
-		snapshot(s.ctx, s.snapshotDir, "step_0")
+	steps := []struct {
+		name string
+		do   func() error
+	}{
+		{"click", func() error { return click(s.ctx, s.centerX, s.centerY) }},
+		{"navigate iframe", func() error {
+			return navigateIframe(s.ctx, actionCfg.NavigateIframeTimeout, actionCfg.NavigateIframeMaxDepth)
+		}},
+		{"bypass turnstile", func() error {
+			return bypassTurnstile(s.ctx, actionCfg.BypassTurnstileTimeout, actionCfg.TurnstileRetryTimeout)
+		}},
+		{"click", func() error { return click(s.ctx, s.centerX, s.centerY) }},
 	}
 
-	if !s.collector.HasHits() {
-		if err := action.NavigateIframe(s.ctx, actionCfg.NavigateIframeTimeout, actionCfg.NavigateIframeMaxDepth); err != nil {
-			slog.DebugContext(s.ctx, "navigate iframe failed", "error", err)
+	for i, step := range steps {
+		if s.collector.HasHits() {
+			return
 		}
-		snapshot(s.ctx, s.snapshotDir, "step_1")
-	}
-
-	if !s.collector.HasHits() {
-		if err := action.BypassTurnstile(s.ctx, actionCfg.BypassTurnstileTimeout, actionCfg.TurnstileRetryTimeout); err != nil {
-			slog.DebugContext(s.ctx, "bypass turnstile failed", "error", err)
+		if err := step.do(); err != nil {
+			slog.DebugContext(s.ctx, step.name+" failed", "error", err)
 		}
-		snapshot(s.ctx, s.snapshotDir, "step_2")
-	}
-
-	if !s.collector.HasHits() {
-		if err := action.Click(s.ctx, s.centerX, s.centerY); err != nil {
-			slog.DebugContext(s.ctx, "click center failed", "error", err)
-		}
-		snapshot(s.ctx, s.snapshotDir, "step_3")
+		snapshot(s.ctx, s.snapshotDir, fmt.Sprintf("step_%d", i))
 	}
 }
 

@@ -1,4 +1,4 @@
-package action
+package extract
 
 import (
 	"context"
@@ -15,9 +15,9 @@ import (
 //go:embed js/iframe_src.js
 var iframeSrcJS string
 
-// NavigateIframe polls for the largest iframe and navigates into it,
+// navigateIframe polls for the largest iframe and navigates into it,
 // repeating through nested iframes until no more are found.
-func NavigateIframe(ctx context.Context, timeout time.Duration, maxDepth int) error {
+func navigateIframe(ctx context.Context, timeout time.Duration, maxDepth int) error {
 	iframeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 

@@ -1,4 +1,4 @@
-package action
+package extract
 
 import (
 	"context"
@@ -93,8 +93,8 @@ func solveTurnstile(ctx context.Context, solveTimeout time.Duration) bool {
 	}
 }
 
-// BypassTurnstile attempts to bypass a Cloudflare Turnstile challenge.
-func BypassTurnstile(ctx context.Context, solveTimeout, retryTimeout time.Duration) error {
+// bypassTurnstile attempts to bypass a Cloudflare Turnstile challenge.
+func bypassTurnstile(ctx context.Context, solveTimeout, retryTimeout time.Duration) error {
 	if !detectTurnstile(ctx) {
 		return nil
 	}

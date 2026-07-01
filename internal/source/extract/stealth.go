@@ -1,4 +1,4 @@
-package extractor
+package extract
 
 import (
 	"context"
@@ -9,8 +9,6 @@ import (
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
-
-	"github.com/stupside/castor/internal/app"
 )
 
 //go:embed js/stealth_tostring.js
@@ -90,7 +88,7 @@ func buildStealthJS(profile *Profile) string {
 
 // allocatorOpts returns chromedp exec-allocator options that avoid common
 // headless-detection flags. It reads window size and UA from the profile.
-func allocatorOpts(cfg app.BrowserConfig, profile *Profile) []chromedp.ExecAllocatorOption {
+func allocatorOpts(cfg BrowserConfig, profile *Profile) []chromedp.ExecAllocatorOption {
 	var headlessVal string
 	if cfg.Headless {
 		headlessVal = "new"

@@ -10,35 +10,30 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/stupside/castor/internal/media"
 )
 
 var bandwidthRe = regexp.MustCompile(`BANDWIDTH=(\d+)`)
 
-// hlsVariant holds a single variant stream from an HLS master playlist.
+// hlsVariant is a single variant stream listed in an HLS master playlist.
 type hlsVariant struct {
 	URL       *url.URL
 	Bandwidth int64
 }
 
-// resolveAllVariants fetches an HLS master playlist and returns all variant
-// streams with their bandwidth. If the playlist has no #EXT-X-STREAM-INF tags
-// (i.e. it is already a media playlist), a single entry with the original URL
-// and bandwidth 0 is returned.
-func resolveAllVariants(ctx context.Context, hlsTimeout time.Duration, masterURL *url.URL, headers map[string]string) ([]hlsVariant, error) {
-	client := &http.Client{Timeout: hlsTimeout}
-
+// parsePlaylist fetches an HLS playlist and returns its variants. When the
+// playlist is a media playlist (no #EXT-X-STREAM-INF tags) it returns a
+// single variant pointing at the original URL with zero bandwidth — the
+// caller can treat that uniformly.
+func parsePlaylist(ctx context.Context, hlsTimeout time.Duration, masterURL *url.URL, headers map[string]string) ([]hlsVariant, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, masterURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
+	media.ApplyHTTPHeaders(req, headers)
 
-	for k, v := range headers {
-		if strings.HasPrefix(k, ":") {
-			continue
-		}
-		req.Header.Set(k, v)
-	}
-
+	client := &http.Client{Timeout: hlsTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching playlist: %w", err)
@@ -54,7 +49,6 @@ func resolveAllVariants(ctx context.Context, hlsTimeout time.Duration, masterURL
 		nextIsBW  bool
 		currentBW int64
 	)
-
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -73,24 +67,20 @@ func resolveAllVariants(ctx context.Context, hlsTimeout time.Duration, masterURL
 		}
 
 		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
-			m := bandwidthRe.FindStringSubmatch(line)
-			if len(m) == 2 {
-				bw, err := strconv.ParseInt(m[1], 10, 64)
-				if err == nil {
+			if m := bandwidthRe.FindStringSubmatch(line); len(m) == 2 {
+				if bw, err := strconv.ParseInt(m[1], 10, 64); err == nil {
 					currentBW = bw
 					nextIsBW = true
 				}
 			}
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("reading playlist: %w", err)
 	}
 
 	if len(variants) == 0 {
-		return []hlsVariant{{URL: masterURL, Bandwidth: 0}}, nil
+		variants = []hlsVariant{{URL: masterURL, Bandwidth: 0}}
 	}
-
 	return variants, nil
 }

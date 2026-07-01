@@ -1,36 +1,36 @@
-package extractor
+package extract
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"regexp"
-
+	"slices"
 	"sync"
 
-	"github.com/stupside/castor/internal/app"
 	"github.com/stupside/castor/internal/media"
 )
 
 // Extractor captures video stream URLs from a page using headless Chrome.
 // It holds only capture and action config (patterns, timing) — no proxies or templates.
 type Extractor struct {
-	browser  app.BrowserConfig
-	capture  app.CaptureConfig
-	actions  app.ActionConfig
+	browser  BrowserConfig
+	capture  CaptureConfig
+	actions  ActionConfig
 	patterns []*regexp.Regexp
 }
 
-// NewExtractor creates an Extractor from a BrowserConfig, CaptureConfig, and ActionConfig.
-func NewExtractor(browserCfg app.BrowserConfig, cfg app.CaptureConfig, actionCfg app.ActionConfig) (*Extractor, error) {
+// New creates an Extractor from a Config.
+func New(cfg Config) (*Extractor, error) {
 	e := &Extractor{
-		browser: browserCfg,
-		capture: cfg,
-		actions: actionCfg,
+		browser: cfg.Browser,
+		capture: cfg.Capture,
+		actions: cfg.Actions,
 	}
 
-	for i, p := range cfg.Patterns {
+	for i, p := range cfg.Capture.Patterns {
 		re, err := regexp.Compile(p)
 		if err != nil {
 			return nil, fmt.Errorf("pattern #%d: %w", i, err)
@@ -63,10 +63,9 @@ func (e *Extractor) Extract(ctx context.Context, targetURL string) ([]*media.Str
 			slog.DebugContext(ctx, "skipping entry, invalid URL", "raw_url", entry.RawURL, "error", err)
 			continue
 		}
-		ct := media.DetectFromExtension(u)
-		if ct == "" {
-			ct = media.DetectFromMIME(entry.MimeType)
-		}
+		// Prefer the extension, fall back to the captured MIME type; both are
+		// pure lookups, so cmp.Or's eager evaluation costs nothing.
+		ct := cmp.Or(media.DetectFromExtension(u), media.DetectFromMIME(entry.MimeType))
 		if ct == "" {
 			slog.DebugContext(ctx, "skipping entry, unknown content type", "url", u.String())
 			continue
@@ -83,19 +82,15 @@ func (e *Extractor) Extract(ctx context.Context, targetURL string) ([]*media.Str
 
 // ExtractAll runs Extract concurrently on all given URLs (bounded by the
 // extractor's MaxConcurrency) and returns deduplicated streams.
-func ExtractAll(ctx context.Context, e *Extractor, urls []string) ([]*media.Stream, error) {
+func (e *Extractor) ExtractAll(ctx context.Context, urls []string) ([]*media.Stream, error) {
 	slog.InfoContext(ctx, "extracting streams", "urls", len(urls))
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, e.capture.MaxConcurrency)
-
 	results := make([][]*media.Stream, len(urls))
 
 	for i, targetURL := range urls {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
@@ -109,35 +104,29 @@ func ExtractAll(ctx context.Context, e *Extractor, urls []string) ([]*media.Stre
 
 			results[i] = streams
 			slog.DebugContext(ctx, "extracted", "url", targetURL, "count", len(streams))
-		}()
+		})
 	}
-
 	wg.Wait()
 
 	var allStreams []*media.Stream
 	for _, ss := range results {
-		if ss != nil {
-			allStreams = append(allStreams, ss...)
-		}
+		allStreams = append(allStreams, ss...)
 	}
 
 	deduped := deduplicateStreams(allStreams)
 	slog.InfoContext(ctx, "extraction complete", "urls", len(urls), "streams", len(deduped))
-
 	return deduped, nil
 }
 
 // deduplicateStreams removes duplicate streams by URL string.
 func deduplicateStreams(streams []*media.Stream) []*media.Stream {
-	out := make([]*media.Stream, 0, len(streams))
 	seen := make(map[string]struct{}, len(streams))
-	for _, s := range streams {
+	return slices.DeleteFunc(slices.Clone(streams), func(s *media.Stream) bool {
 		key := s.URL.String()
 		if _, ok := seen[key]; ok {
-			continue
+			return true
 		}
-		out = append(out, s)
 		seen[key] = struct{}{}
-	}
-	return out
+		return false
+	})
 }

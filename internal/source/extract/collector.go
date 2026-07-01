@@ -1,4 +1,4 @@
-package extractor
+package extract
 
 import (
 	"cmp"
@@ -129,18 +129,44 @@ func (c *collector) HasHits() bool {
 	return len(c.candidates) > 0
 }
 
+// hasMaster reports whether a master playlist has been captured. A master is
+// the top of the HLS tree, so once one is seen there's nothing better to wait
+// for and the collection window can be cut short.
+func (c *collector) hasMaster() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.ContainsFunc(c.candidates, func(cand candidate) bool {
+		return cand.score >= masterScore
+	})
+}
+
 // Wait blocks until streams are found or the grace period expires.
 // If streams are already captured, it waits collectionWindow for more, then returns.
 // If no streams are found, it waits up to graceAfterActions before giving up.
 func (c *collector) Wait(ctx context.Context, graceAfterActions, collectionWindow time.Duration) ([]capturedStream, error) {
 	collectMore := func() []capturedStream {
+		// Once a master playlist is in hand there's nothing better to wait for —
+		// it already enumerates every variant — so return immediately instead of
+		// burning the rest of collectionWindow. These source URLs are short-lived
+		// signed links; every second spent here is a second of the token's life
+		// gone before the puller can touch it. Without a master we keep collecting
+		// (a late master or fallback variant may still arrive) up to the window.
 		timer := time.NewTimer(collectionWindow)
 		defer timer.Stop()
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
+		poll := time.NewTicker(100 * time.Millisecond)
+		defer poll.Stop()
+		for {
+			if c.hasMaster() {
+				return c.Entries()
+			}
+			select {
+			case <-timer.C:
+				return c.Entries()
+			case <-poll.C:
+			case <-ctx.Done():
+				return c.Entries()
+			}
 		}
-		return c.Entries()
 	}
 
 	if entries := c.Entries(); len(entries) > 0 {
@@ -223,6 +249,11 @@ var variantPatterns = []string{
 	"/chunklist", "/media-", "/segment",
 }
 
+// masterScore is the rankURL bonus for a path containing "master". A candidate
+// scoring at least this high is a master playlist: the variant penalty can't
+// drag a non-master candidate up to it, so the threshold cleanly identifies one.
+const masterScore = 100
+
 // rankURL assigns a score to a captured URL for quality/variant selection.
 // Higher score = more preferred (master playlists over variants).
 func rankURL(rawURL string) int {
@@ -236,7 +267,7 @@ func rankURL(rawURL string) int {
 	p := strings.ToLower(parsed.Path)
 
 	if strings.Contains(p, "master") {
-		score += 100
+		score += masterScore
 	}
 	if strings.Contains(p, "playlist") {
 		score += 50
@@ -253,9 +284,7 @@ func rankURL(rawURL string) int {
 
 // sortedEntries sorts candidates by score descending and returns CapturedStream entries.
 func sortedEntries(candidates []candidate) []capturedStream {
-	sorted := make([]candidate, len(candidates))
-	copy(sorted, candidates)
-	slices.SortFunc(sorted, func(a, b candidate) int {
+	sorted := slices.SortedFunc(slices.Values(candidates), func(a, b candidate) int {
 		return cmp.Compare(b.score, a.score)
 	})
 	entries := make([]capturedStream, len(sorted))
