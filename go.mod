@@ -19,7 +19,7 @@ require (
 	github.com/knadh/koanf/v2 v2.3.2
 	github.com/urfave/cli/v3 v3.6.2
 	github.com/vishen/go-chromecast v0.3.4
-	golang.org/x/sync v0.19.0
+	golang.org/x/sync v0.20.0
 )
 
 // The whisper.cpp Go bindings are vendored as a git submodule at
@@ -70,8 +70,8 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/image v0.20.0 // indirect
+	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.34.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/ini.v1 v1.67.1 // indirect
 )
