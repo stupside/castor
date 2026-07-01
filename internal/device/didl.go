@@ -1,4 +1,4 @@
-package dlna
+package device
 
 import (
 	"encoding/xml"
@@ -28,9 +28,11 @@ type didlRes struct {
 	Value        string `xml:",chardata"`
 }
 
+// buildDIDLMetadata returns the DIDL-Lite XML the renderer needs to play
+// streamURL. Subtitles are not advertised here: the cast pipeline hardsubs
+// them into the video before this point, so the renderer plays a single
+// video resource with no caption track.
 func buildDIDLMetadata(streamURL *url.URL, contentType string) (string, error) {
-	protocolInfo := fmt.Sprintf("http-get:*:%s:%s", contentType, ContentFeatures(contentType))
-
 	item := didlLite{
 		XMLNS: "urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/",
 		DC:    "http://purl.org/dc/elements/1.1/",
@@ -42,7 +44,7 @@ func buildDIDLMetadata(streamURL *url.URL, contentType string) (string, error) {
 			Title:      "Castor Stream",
 			Class:      "object.item.videoItem",
 			Res: didlRes{
-				ProtocolInfo: protocolInfo,
+				ProtocolInfo: fmt.Sprintf("http-get:*:%s:%s", contentType, contentFeatures(contentType)),
 				Value:        streamURL.String(),
 			},
 		},
@@ -52,6 +54,5 @@ func buildDIDLMetadata(streamURL *url.URL, contentType string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("marshaling DIDL-Lite: %w", err)
 	}
-
 	return string(data), nil
 }

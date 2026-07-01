@@ -1,3 +1,7 @@
+// Package device discovers media renderers on the local network and speaks
+// their control protocols (DLNA/UPnP AVTransport, Chromecast). The Device
+// interface is deliberately small: the cast pipeline decides what to send
+// (subtitles are burned in upstream), a Device only needs to fetch and play.
 package device
 
 import (
@@ -26,12 +30,33 @@ type Info struct {
 	Address string
 }
 
-// Device is the interface for all casting devices.
+// Device is a connected renderer, ready to play. Obtain one via Connect.
 type Device interface {
+	// Play points the renderer at streamURL, advertised as contentType.
 	Play(ctx context.Context, streamURL *url.URL, contentType string) error
-	Close() error
-	Connect() error
+
+	// SupportedContentTypes lists MIME types the renderer accepts directly
+	// (pass-through without transcoding).
 	SupportedContentTypes() []string
+
+	// StreamHeaders returns protocol-specific HTTP headers the local stream
+	// server must send when this renderer fetches contentType. Nil when the
+	// protocol needs none.
+	StreamHeaders(contentType string) map[string]string
+
+	// Close releases the connection to the renderer.
+	Close() error
+}
+
+// Connect establishes a control connection to the device described by info.
+func Connect(ctx context.Context, info Info) (Device, error) {
+	switch info.Type {
+	case TypeDLNA:
+		return connectDLNA(ctx, info)
+	case TypeChromecast:
+		return connectChromecast(info)
+	}
+	return nil, fmt.Errorf("unknown device type: %q", info.Type)
 }
 
 // FindInfo discovers a specific device by type and name on the network.
@@ -40,39 +65,28 @@ func FindInfo(ctx context.Context, timeout time.Duration, dtype Type, name strin
 	if err != nil {
 		return Info{}, err
 	}
-
 	for _, d := range devices {
 		if d.Type == dtype && strings.EqualFold(d.Name, name) {
 			return d, nil
 		}
 	}
-
 	return Info{}, fmt.Errorf("device %q (type %s) not found", name, dtype)
 }
 
-// Discover scans the local network for DLNA and Chromecast devices.
+// Discover scans the local network for DLNA renderers. (Chromecast discovery
+// requires mDNS which the current dependency set doesn't ship; callers
+// connect to known Chromecast addresses directly.)
 func Discover(ctx context.Context, timeout time.Duration) ([]Info, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	var devices []Info
-
-	dlnaDevices, err := discoverDLNA(ctx)
-	if err != nil {
-		slog.WarnContext(ctx, "DLNA discovery error", "error", err)
-	}
-	devices = append(devices, dlnaDevices...)
-
-	return devices, nil
-}
-
-func discoverDLNA(ctx context.Context) ([]Info, error) {
 	results, err := goupnp.DiscoverDevicesCtx(ctx, "urn:schemas-upnp-org:device:MediaRenderer:1")
 	if err != nil {
-		return nil, fmt.Errorf("SSDP discovery: %w", err)
+		slog.WarnContext(ctx, "DLNA discovery error", "error", err)
+		return nil, nil
 	}
 
-	var devices []Info
+	devices := make([]Info, 0, len(results))
 	for _, r := range results {
 		if r.Root == nil {
 			continue
