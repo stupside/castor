@@ -1,10 +1,20 @@
 name: Test
-description: Run Go tests
+description: Build libwhisper.a (cached) and run Go tests
 
 runs:
   using: composite
   steps:
+    - id: whisper
+      run: echo "rev=$(git -C third_party/whisper.cpp rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      shell: bash
+    - uses: actions/cache@v4
+      with:
+        path: third_party/whisper.cpp/build_go
+        key: libwhisper-${{ runner.os }}-${{ steps.whisper.outputs.rev }}
     - run: go mod download
       shell: bash
-    - run: go test -v ./...
+    # The whisper.cpp Go bindings are cgo: make builds libwhisper.a once
+    # (a no-op on cache hit) and exports the include/library paths that a
+    # plain `go test` would miss.
+    - run: make test
       shell: bash

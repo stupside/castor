@@ -15,7 +15,7 @@ FRAMEWORKS := -framework Foundation -framework Metal -framework MetalKit
 LDFLAGS := -ldflags "-extldflags '$(FRAMEWORKS)'"
 endif
 
-.PHONY: build run vet env clean
+.PHONY: build run vet test whisper-lib env clean
 
 build: $(LIB)
 	go build $(LDFLAGS) -o castor .
@@ -25,6 +25,11 @@ run: $(LIB)
 
 vet: $(LIB)
 	go vet ./...
+
+test: $(LIB)
+	go test $(LDFLAGS) ./...
+
+whisper-lib: $(LIB)
 
 # eval "$(make env)" once per shell, then plain `go run .` / `go build` work.
 env:

@@ -1,16 +1,27 @@
 name: Lint
-description: Run Go linters
+description: Build libwhisper.a (cached), vet, and check formatting
 
 runs:
   using: composite
   steps:
+    - id: whisper
+      run: echo "rev=$(git -C third_party/whisper.cpp rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      shell: bash
+    - uses: actions/cache@v4
+      with:
+        path: third_party/whisper.cpp/build_go
+        key: libwhisper-${{ runner.os }}-${{ steps.whisper.outputs.rev }}
     - run: go mod download
       shell: bash
-    - run: go vet ./...
+    # go vet type-checks the module, which needs the cgo library and env
+    # that make provides.
+    - run: make vet
       shell: bash
     - name: Check formatting
+      # First-party code only — the vendored whisper.cpp tree is not ours
+      # to format.
       run: |
-        unformatted=$(gofmt -s -l .)
+        unformatted=$(gofmt -s -l cmd internal main.go)
         if [ -n "$unformatted" ]; then
           echo "Files not formatted:"
           echo "$unformatted"
