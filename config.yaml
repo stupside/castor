@@ -1,51 +1,13 @@
+# Castor ships working defaults for everything mechanical (timeouts, probing,
+# capture, transcoding, network interface, Chrome discovery). This file only
+# holds what identifies your install: the device to cast to, the sources to
+# cast from, and explicit opt-ins. Any default can still be overridden here
+# or via CASTOR_SECTION__FIELD environment variables.
+
 device:
   # Run `castor scan` to discover devices on your network, then paste the name here.
   name: "Samsung Q80CA 55 TV"
   type: "dlna"
-
-network:
-  timeout: 5s
-  # Run `castor scan` to find the right interface name (e.g. en0 on macOS, eth0 on Linux).
-  interface: "en0"
-
-browser:
-  timeout: 30s
-  headless: true
-  no_sandbox: true
-  # Leave empty to let castor find Chrome automatically, or set an absolute path.
-  # e.g. "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" on macOS
-  chrome_path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-
-resolver:
-  hls_timeout: 30s
-  # Use a bare binary name to rely on PATH, or provide an absolute path.
-  ffprobe_path: "ffprobe"
-  probe_timeout: 30s
-  probe_max_concurrency: 8
-
-capture:
-  patterns: ['\.m3u8', 'master\.m3u8', 'index\.m3u8', '/playlist/']
-  max_candidates: 100
-  max_concurrency: 4
-  collection_window: 10s
-  grace_after_actions: 15s
-
-actions:
-  navigate_iframe_timeout: 10s
-  navigate_iframe_max_depth: 5
-  turnstile_retry_timeout: 10s
-  bypass_turnstile_timeout: 20s
-
-transcode:
-  # Use a bare binary name to rely on PATH, or provide an absolute path.
-  ffmpeg_path: "ffmpeg"
-  # Upstream HTTP I/O timeout (passed to ffmpeg's -rw_timeout). The codec and
-  # pacing choices used to live here too; they're now picked by the per-device
-  # planner so the same config works regardless of source media.
-  rw_timeout: 30s
-  # Font used when burning generated subtitles into the video. Empty uses the
-  # macOS system Helvetica.
-  # subtitle_font_file: "/System/Library/Fonts/Helvetica.ttc"
 
 sources:
   - name: "vidsrc"
@@ -63,22 +25,14 @@ sources:
       episode: "/embed/tv/{itemID}/{season}/{episode}"
 
 whisper:
-  # Settings for the in-process whisper.cpp transcriber. Setting `enable: true`
-  # is the only way to turn on auto-generated subtitles; there is no CLI flag.
-  # The model is auto-downloaded once to your user cache directory
-  # (e.g. ~/Library/Caches/castor/whisper/ggml-tiny.en.bin on macOS); set
-  # model_path explicitly to use a different model.
+  # Auto-generated subtitles, burned into the video. This is the only toggle
+  # (no CLI flag). The transcription and VAD models download once to your
+  # user cache; language defaults to English — set `language` for anything
+  # else, and `model_path` to trade speed for accuracy.
   enable: true
-  model_path: ""
-  # BCP-47 language tag, or "auto" to let whisper detect.
-  language: "auto"
-  # Length of each audio window passed to the whisper context. Larger windows
-  # produce better transcripts but increase end-to-end latency.
-  chunk_seconds: 15
-  # CPU threads for whisper-cli. 0 lets whisper-cli pick a default.
-  threads: 0
 
 tmdb:
   # Used by `castor cast browse`. Get a free key at https://www.themoviedb.org/settings/api
-  # Or set TMDB_API_KEY in the environment (overrides this value).
+  # Put the real key in git-ignored config.local.yaml (overlays this file),
+  # or set CASTOR_TMDB__API_KEY in the environment.
   api_key: "<YOUR_TMDB_API_KEY>"

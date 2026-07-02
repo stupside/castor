@@ -76,6 +76,13 @@ type EncodeOptions struct {
 	SubtitleFontFile string
 }
 
+// EncodeReadrateBurstSeconds is how much of the stream the subtitle-burning
+// encoder may race through at full speed before -readrate pins it to
+// realtime. Exported because the playback gate's transcription lead must
+// cover it: frames encoded during the burst need their cues committed before
+// the encode starts.
+const EncodeReadrateBurstSeconds = 10
+
 // EncodeArgs assembles the encode command line. No "magic" flags: every
 // argument is either part of the standard input/output setup or comes
 // straight from a field in EncodeOptions.
@@ -86,6 +93,19 @@ func EncodeArgs(opts EncodeOptions) []string {
 	args := []string{"-hide_banner", "-nostats", "-fflags", "+genpts+discardcorrupt"}
 
 	if opts.PipeFormat != "" {
+		if opts.SubtitleTextFile != "" {
+			// The cue writer swaps drawtext's textfile on wall-clock ticks
+			// (-progress + -stats_period), so text lands on the right frames
+			// only if encoding advances at wall-clock speed. Unpaced, the
+			// encoder rips through the spool at CPU speed: every tick then
+			// covers seconds of video (cues smear or are skipped outright)
+			// and the encode overtakes the transcriber's commit frontier,
+			// after which every cue lookup misses and subtitles stop.
+			args = append(args,
+				"-readrate", "1.0",
+				"-readrate_initial_burst", strconv.Itoa(EncodeReadrateBurstSeconds),
+			)
+		}
 		args = append(args, "-f", opts.PipeFormat, "-i", "pipe:0")
 	} else {
 		args = append(args,
@@ -170,8 +190,10 @@ func EncodeArgs(opts EncodeOptions) []string {
 	if opts.SubtitleTextFile != "" {
 		// Progress reporting drives the live subtitle writer: it tells us
 		// the encoder's output position so the writer can swap the active
-		// cue in the textfile. fd 3 is the runner's extra pipe.
-		args = append(args, "-progress", "pipe:3", "-stats_period", "0.2")
+		// cue in the textfile. fd 3 is the runner's extra pipe. With the
+		// encode paced at realtime, the period is also the cue placement
+		// granularity in video time.
+		args = append(args, "-progress", "pipe:3", "-stats_period", "0.1")
 	}
 
 	args = append(args, "-f", opts.OutputFormat, "pipe:1")

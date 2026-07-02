@@ -113,9 +113,9 @@ func (s *subtitles) runCueWriter(ctx context.Context, progress io.Reader) {
 		calls++
 		lookup := seconds + cueLeadBias
 		text := wrapCue(s.tr.CueAt(lookup), cueWrapColumns)
-		// A run that never produces a cue is the failure we're chasing: surface
-		// the encoder position against how far transcription has reached, so a
-		// silent gap (encoder ahead of cues, or out_time stuck) is visible.
+		// Surface the encoder position against how far transcription has
+		// reached until the first cue lands, so a silent gap (encoder ahead
+		// of the commit frontier, or out_time stuck) is visible in --debug.
 		if !wroteCue && (calls == 1 || calls%50 == 0) {
 			slog.DebugContext(ctx, "cue writer waiting",
 				"calls", calls,

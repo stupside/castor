@@ -16,6 +16,11 @@ const (
 	defaultModelName = "ggml-tiny.en.bin"
 	modelBaseURL     = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 
+	// vadModelName is the ggml conversion of Silero VAD v5.1.2, the model
+	// whisper.cpp's built-in voice activity detection runs.
+	vadModelName    = "ggml-silero-v5.1.2.bin"
+	vadModelBaseURL = "https://huggingface.co/ggml-org/whisper-vad/resolve/main"
+
 	downloadTimeout = 10 * time.Minute
 )
 
@@ -44,12 +49,22 @@ func EnsureModel(ctx context.Context, configured string) (string, error) {
 		}
 		return configured, nil
 	}
+	return ensure(ctx, defaultModelName, modelBaseURL)
+}
 
+// EnsureVADModel does the same for the Silero VAD model that gates the
+// transcriber. It is deliberately not configurable: VAD is an implementation
+// detail of the streaming pipeline, not a knob.
+func EnsureVADModel(ctx context.Context) (string, error) {
+	return ensure(ctx, vadModelName, vadModelBaseURL)
+}
+
+func ensure(ctx context.Context, name, baseURL string) (string, error) {
 	dir, err := cacheDir()
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, defaultModelName)
+	path := filepath.Join(dir, name)
 
 	if _, err := os.Stat(path); err == nil {
 		return path, nil
@@ -57,8 +72,8 @@ func EnsureModel(ctx context.Context, configured string) (string, error) {
 		return "", fmt.Errorf("stat model: %w", err)
 	}
 
-	url := modelBaseURL + "/" + defaultModelName
-	slog.InfoContext(ctx, "downloading whisper model (one-time)", "name", defaultModelName, "url", url, "dest", path)
+	url := baseURL + "/" + name
+	slog.InfoContext(ctx, "downloading whisper model (one-time)", "name", name, "url", url, "dest", path)
 	if err := downloadFile(ctx, url, path); err != nil {
 		return "", fmt.Errorf("downloading model: %w", err)
 	}

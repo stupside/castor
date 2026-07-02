@@ -110,18 +110,20 @@ Castor can generate subtitles locally via
 `whisper.enable: true` in `config.yaml` (or `CASTOR_WHISPER__ENABLE=true`).
 There is no CLI flag — config is the only toggle. The whisper.cpp engine is
 linked statically into the castor binary; no separate `whisper-cli` install
-is required. The default `ggml-tiny.en` model auto-downloads (once, ~75MB)
-to your user cache the first time it runs.
+is required. The default `ggml-tiny.en` model (~75MB) and the Silero VAD
+model auto-download once to your user cache the first time it runs.
 
 Subtitles are burned into the video (TVs cannot be trusted to render
 DLNA-delivered caption tracks, sidecar or in-band). The pipeline reads the
 source exactly once: a single puller downloads the stream into a local
-spool while teeing the audio to whisper, and the encoder follows behind,
-stamping the live transcript onto the frames. Playback starts as soon as
-whisper has a ~30-second head start — a few seconds of wall time — and the
-transcript keeps racing ahead of the encoder for the rest of the film.
-Override `whisper.model_path` / `whisper.language` in `config.yaml` to
-customize.
+spool while teeing the audio to whisper, and the realtime-paced encoder
+follows behind, stamping the live transcript onto the frames. Transcription
+streams with the LocalAgreement-2 policy — words are committed once two
+consecutive passes agree on them — gated by Silero VAD so silence and music
+never reach the model. Playback starts as soon as whisper has a ~20-second
+head start — a few seconds of wall time — and the transcript keeps pulling
+ahead of the encoder for the rest of the film. Override
+`whisper.model_path` / `whisper.language` in `config.yaml` to customize.
 
 #### Building from source
 
@@ -165,6 +167,9 @@ Prints version, commit, and build time.
 ## Configuration
 
 Castor uses a YAML config file (`config.yaml` by default, override with `--config`).
+A sibling `config.local.yaml`, if present, overlays it with personal values
+(API keys, device names) and is git-ignored — put secrets there, never in
+`config.yaml`.
 Everything except the device and the sources has a sane default, so a minimal
 config is just:
 

@@ -6,18 +6,19 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/stupside/castor/internal/cast/ffmpeg"
 	"github.com/stupside/castor/internal/cast/spool"
 	"github.com/stupside/castor/internal/cast/whisper"
 )
 
 const (
 	// transcriptionLeadSeconds is how far ahead of the encoder whisper must
-	// be before playback starts. Whisper transcribes many times faster than
-	// realtime while the encoder is paced at ~playback rate, so the lead
-	// only ever grows after this gate — it exists to guarantee the opening
-	// scene has cues ready when its frames are encoded. Reaching it costs a
-	// few seconds of wall time, not minutes.
-	transcriptionLeadSeconds = 30
+	// be before playback starts. The encoder is pinned to realtime after an
+	// initial burst while the pull feeds whisper at up to 2x, so once this
+	// gate opens the lead only grows. The margin past the burst covers the
+	// streaming policy's commit lag: LocalAgreement holds words back until a
+	// second hypothesis confirms them.
+	transcriptionLeadSeconds = ffmpeg.EncodeReadrateBurstSeconds + 10
 
 	// gateStallTimeout aborts the playback gate when the upstream stops
 	// delivering bytes entirely. ffmpeg's own -rw_timeout/-reconnect handle

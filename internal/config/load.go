@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -42,7 +44,9 @@ var defaults = map[string]any{
 	"transcode.ffmpeg_path": "ffmpeg",
 	"transcode.rw_timeout":  "30s",
 
-	"whisper.language": "auto",
+	// Pinned rather than "auto": the streaming transcriber re-detects on
+	// every buffer with auto, which misfires on music and quiet stretches.
+	"whisper.language": "en",
 }
 
 // envPrefix is the prefix for environment overrides. Convention:
@@ -64,6 +68,15 @@ func Load(path string) (*Config, error) {
 	}
 	if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
 		return nil, fmt.Errorf("loading %s: %w", path, err)
+	}
+	// A sibling *.local.yaml overlays the tracked config with personal
+	// values (API keys, device names) that must stay out of version
+	// control; .gitignore covers config.local.yaml.
+	local := strings.TrimSuffix(path, filepath.Ext(path)) + ".local" + filepath.Ext(path)
+	if _, err := os.Stat(local); err == nil {
+		if err := k.Load(file.Provider(local), yaml.Parser()); err != nil {
+			return nil, fmt.Errorf("loading %s: %w", local, err)
+		}
 	}
 	if err := k.Load(env.Provider(envPrefix, ".", envKey), nil); err != nil {
 		return nil, fmt.Errorf("loading environment overrides: %w", err)
