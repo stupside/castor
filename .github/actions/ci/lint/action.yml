@@ -7,7 +7,7 @@ runs:
     - id: whisper
       run: echo "rev=$(git -C third_party/whisper.cpp rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       shell: bash
-    - uses: actions/cache@v4
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: third_party/whisper.cpp/build_go
         key: libwhisper-${{ runner.os }}-${{ steps.whisper.outputs.rev }}

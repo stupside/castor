@@ -1,39 +1,100 @@
 version: 2
 project_name: castor
 
-before:
-  hooks:
-    - go mod tidy
-
 builds:
-  - main: .
+  - id: linux-amd64
+    main: .
+    goos: [linux]
+    goarch: [amd64]
     env:
-      - CGO_ENABLED=0
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
-    ldflags:
+      - CGO_ENABLED=1
+      - "CGO_CFLAGS=-I{{ .Env.WHISPER_INCLUDE }} -I{{ .Env.WHISPER_GGML_INCLUDE }}"
+      - "CGO_LDFLAGS=-L{{ .Env.WHISPER_BUILD_AMD64 }}/src -L{{ .Env.WHISPER_BUILD_AMD64 }}/ggml/src"
+    ldflags: &ldflags
       - -s -w
       - -X 'github.com/stupside/castor/internal/version.Commit={{.Commit}}'
       - -X 'github.com/stupside/castor/internal/version.BuildTime={{.Date}}'
       - -X 'github.com/stupside/castor/internal/version.Version={{.Version}}'
     binary: castor
 
-kos:
-  - repositories:
-      - ghcr.io/stupside/castor
-    tags: [latest, "{{.Tag}}"]
-    bare: true
-    labels:
-      org.opencontainers.image.url: "{{.GitURL}}"
-      org.opencontainers.image.title: "{{.ProjectName}}"
-      org.opencontainers.image.source: "{{.GitURL}}"
-      org.opencontainers.image.version: "{{.Version}}"
-      org.opencontainers.image.licenses: "MIT"
-      org.opencontainers.image.revision: "{{.FullCommit}}"
-      org.opencontainers.image.description: "Cast video streams to networked devices"
-      org.opencontainers.image.documentation: "{{.GitURL}}/blob/main/README.md"
-    preserve_import_paths: false
-    platforms: [linux/amd64, linux/arm64]
+  - id: linux-arm64
+    main: .
+    goos: [linux]
+    goarch: [arm64]
+    env:
+      - CGO_ENABLED=1
+      - CC=zcc-arm64
+      - "CGO_CFLAGS=-I{{ .Env.WHISPER_INCLUDE }} -I{{ .Env.WHISPER_GGML_INCLUDE }}"
+      - "CGO_LDFLAGS=-L{{ .Env.WHISPER_BUILD_ARM64 }}/src -L{{ .Env.WHISPER_BUILD_ARM64 }}/ggml/src"
+    ldflags: *ldflags
+    binary: castor
+
+  - id: darwin-amd64
+    main: .
+    goos: [darwin]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=1
+      - "CGO_CFLAGS=-I{{ .Env.WHISPER_INCLUDE }} -I{{ .Env.WHISPER_GGML_INCLUDE }}"
+      - "CGO_LDFLAGS=-L{{ .Env.WHISPER_BUILD_AMD64 }}/src -L{{ .Env.WHISPER_BUILD_AMD64 }}/ggml/src -L{{ .Env.WHISPER_BUILD_AMD64 }}/ggml/src/ggml-blas -L{{ .Env.WHISPER_BUILD_AMD64 }}/ggml/src/ggml-metal"
+    ldflags: *ldflags
+    binary: castor
+
+  - id: darwin-arm64
+    main: .
+    goos: [darwin]
+    goarch: [arm64]
+    env:
+      - CGO_ENABLED=1
+      - "CGO_CFLAGS=-I{{ .Env.WHISPER_INCLUDE }} -I{{ .Env.WHISPER_GGML_INCLUDE }}"
+      - "CGO_LDFLAGS=-L{{ .Env.WHISPER_BUILD_ARM64 }}/src -L{{ .Env.WHISPER_BUILD_ARM64 }}/ggml/src -L{{ .Env.WHISPER_BUILD_ARM64 }}/ggml/src/ggml-blas -L{{ .Env.WHISPER_BUILD_ARM64 }}/ggml/src/ggml-metal"
+    ldflags: *ldflags
+    binary: castor
+
+dockers:
+  - ids: [linux-amd64]
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile
+    use: buildx
+    image_templates:
+      - ghcr.io/stupside/castor:{{ .Tag }}-amd64
+      - ghcr.io/stupside/castor:latest-amd64
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.source={{ .GitURL }}
+      - --label=org.opencontainers.image.description=Cast video streams to networked devices
+      - --label=org.opencontainers.image.licenses=MIT
+
+  - ids: [linux-arm64]
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile
+    use: buildx
+    image_templates:
+      - ghcr.io/stupside/castor:{{ .Tag }}-arm64
+      - ghcr.io/stupside/castor:latest-arm64
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.source={{ .GitURL }}
+      - --label=org.opencontainers.image.description=Cast video streams to networked devices
+      - --label=org.opencontainers.image.licenses=MIT
+
+docker_manifests:
+  - name_template: ghcr.io/stupside/castor:{{ .Tag }}
+    image_templates:
+      - ghcr.io/stupside/castor:{{ .Tag }}-amd64
+      - ghcr.io/stupside/castor:{{ .Tag }}-arm64
+  - name_template: ghcr.io/stupside/castor:latest
+    image_templates:
+      - ghcr.io/stupside/castor:latest-amd64
+      - ghcr.io/stupside/castor:latest-arm64
 
 changelog:
   sort: asc

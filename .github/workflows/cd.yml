@@ -9,25 +9,133 @@ permissions:
   packages: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            artifact: dist-linux
+            goreleaser_args: release --split
+          - runner: macos-latest
+            artifact: dist-darwin
+            goreleaser_args: release --split --skip=docker
+    runs-on: ${{ matrix.runner }}
+    env:
+      WHISPER: ${{ github.workspace }}/third_party/whisper.cpp
+      WHISPER_INCLUDE: ${{ github.workspace }}/third_party/whisper.cpp/include
+      WHISPER_GGML_INCLUDE: ${{ github.workspace }}/third_party/whisper.cpp/ggml/include
+      WHISPER_BUILD_AMD64: ${{ github.workspace }}/third_party/whisper.cpp/build_amd64
+      WHISPER_BUILD_ARM64: ${{ github.workspace }}/third_party/whisper.cpp/build_arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+          submodules: true
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
-      - uses: docker/login-action@v3
+
+      # ── zig (Linux cross-compilation) ───────────────────────────────────
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        if: runner.os == 'Linux'
+        with:
+          version: latest
+      - name: Create zig cross-compile wrappers
+        if: runner.os == 'Linux'
+        run: |
+          printf '#!/bin/sh\nexec zig cc  -target aarch64-linux-gnu.2.17 "$@"\n' | sudo tee /usr/local/bin/zcc-arm64 > /dev/null
+          printf '#!/bin/sh\nexec zig c++ -target aarch64-linux-gnu.2.17 "$@"\n' | sudo tee /usr/local/bin/zxx-arm64 > /dev/null
+          sudo chmod +x /usr/local/bin/zcc-arm64 /usr/local/bin/zxx-arm64
+
+      # ── libwhisper (amd64) ──────────────────────────────────────────────
+      - name: Build libwhisper (amd64, linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S $WHISPER -B $WHISPER_BUILD_AMD64 \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF
+          cmake --build $WHISPER_BUILD_AMD64 --target whisper -j$(nproc)
+      - name: Build libwhisper (amd64, macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S $WHISPER -B $WHISPER_BUILD_AMD64 \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64
+          cmake --build $WHISPER_BUILD_AMD64 --target whisper -j$(sysctl -n hw.logicalcpu)
+
+      # ── libwhisper (arm64) ──────────────────────────────────────────────
+      - name: Build libwhisper (arm64, linux via zig)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S $WHISPER -B $WHISPER_BUILD_ARM64 \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER=zcc-arm64 -DCMAKE_CXX_COMPILER=zxx-arm64
+          cmake --build $WHISPER_BUILD_ARM64 --target whisper -j$(nproc)
+      - name: Build libwhisper (arm64, macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S $WHISPER -B $WHISPER_BUILD_ARM64 \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DCMAKE_OSX_ARCHITECTURES=arm64
+          cmake --build $WHISPER_BUILD_ARM64 --target whisper -j$(sysctl -n hw.logicalcpu)
+
+      # ── Docker (Linux only — darwin builds no container images) ──────────
+      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        if: runner.os == 'Linux'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        if: runner.os == 'Linux'
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        if: runner.os == 'Linux'
+
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
-          distribution: goreleaser
           version: latest
-          args: release --clean
+          args: ${{ matrix.goreleaser_args }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist-linux
+          path: dist/linux/
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist-darwin
+          path: dist/darwin/
+      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: latest
+          args: continue --merge
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
