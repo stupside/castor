@@ -13,9 +13,8 @@ runs:
         key: libwhisper-${{ runner.os }}-${{ steps.whisper.outputs.rev }}
     - run: go mod download
       shell: bash
-    # go vet type-checks the module, which needs the cgo library and env
-    # that make provides.
-    - run: make vet
+    # go vet type-checks the module, which needs the cgo env that make exports.
+    - run: eval "$(make env)" && go vet ./...
       shell: bash
     - name: Check formatting
       # First-party code only — the vendored whisper.cpp tree is not ours

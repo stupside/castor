@@ -13,8 +13,7 @@ runs:
         key: libwhisper-${{ runner.os }}-${{ steps.whisper.outputs.rev }}
     - run: go mod download
       shell: bash
-    # The whisper.cpp Go bindings are cgo: make builds libwhisper.a once
-    # (a no-op on cache hit) and exports the include/library paths that a
-    # plain `go test` would miss.
-    - run: make test
+    # The whisper.cpp Go bindings are cgo: build libwhisper.a once (no-op on
+    # cache hit) then run tests with the cgo env exported from make.
+    - run: make build && eval "$(make env)" && go test ./...
       shell: bash
