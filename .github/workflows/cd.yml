@@ -9,48 +9,44 @@ permissions:
   packages: write
 
 jobs:
-  # ── Build libwhisper.a for each target in parallel ──────────────────────
+  # Build libwhisper.a on the platform that owns it — no cross-compile hacks.
+  # macOS runner gets native Metal/BLAS; Linux arm64 uses zig (legitimate CGO
+  # cross-compiler, not a workaround).
   build-whisper:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: build_linux_amd64
-            zig_triple: x86_64-linux-gnu.2.17
-            cmake_args: ""
-          - target: build_linux_arm64
+          - runner: ubuntu-latest
+            artifact: build_linux_amd64
+          - runner: ubuntu-latest
+            artifact: build_linux_arm64
             zig_triple: aarch64-linux-gnu.2.17
             cmake_args: >-
               -DCMAKE_SYSTEM_NAME=Linux
               -DCMAKE_SYSTEM_PROCESSOR=aarch64
-          - target: build_darwin_amd64
-            zig_triple: x86_64-macos.12.0.0
-            cmake_args: >-
-              -DGGML_METAL=OFF -DGGML_BLAS=OFF
-              -DCMAKE_SYSTEM_NAME=Darwin
-              -DCMAKE_SYSTEM_PROCESSOR=x86_64
-              -DCMAKE_INSTALL_NAME_TOOL=/usr/bin/true
-            stubs: true
-          - target: build_darwin_arm64
-            zig_triple: aarch64-macos.12.0.0
-            cmake_args: >-
-              -DGGML_METAL=OFF -DGGML_BLAS=OFF
-              -DCMAKE_SYSTEM_NAME=Darwin
-              -DCMAKE_SYSTEM_PROCESSOR=arm64
-              -DCMAKE_INSTALL_NAME_TOOL=/usr/bin/true
-            stubs: true
-    runs-on: ubuntu-latest
+              -DCMAKE_C_COMPILER=zcc
+              -DCMAKE_CXX_COMPILER=zxx
+          - runner: macos-latest
+            artifact: build_darwin_amd64
+            cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64
+          - runner: macos-latest
+            artifact: build_darwin_arm64
+            cmake_args: -DCMAKE_OSX_ARCHITECTURES=arm64
+    runs-on: ${{ matrix.runner }}
     env:
       WHISPER: ${{ github.workspace }}/third_party/whisper.cpp
-      BUILD: ${{ github.workspace }}/third_party/whisper.cpp/${{ matrix.target }}
+      BUILD: ${{ github.workspace }}/third_party/whisper.cpp/${{ matrix.artifact }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: true
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        if: matrix.zig_triple
         with:
           version: latest
       - name: Create zig wrappers
+        if: matrix.zig_triple
         run: |
           printf '#!/bin/sh\nexec zig cc  -target ${{ matrix.zig_triple }} "$@"\n' | sudo tee /usr/local/bin/zcc > /dev/null
           printf '#!/bin/sh\nexec zig c++ -target ${{ matrix.zig_triple }} "$@"\n' | sudo tee /usr/local/bin/zxx > /dev/null
@@ -60,25 +56,17 @@ jobs:
           cmake -S $WHISPER -B $BUILD \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
             -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF \
-            -DCMAKE_C_COMPILER=zcc -DCMAKE_CXX_COMPILER=zxx \
             ${{ matrix.cmake_args }}
-          cmake --build $BUILD --target whisper -j$(nproc)
-      - name: Stub missing darwin libs
-        if: matrix.stubs
-        run: |
-          for backend in ggml-metal ggml-blas; do
-            dir="$BUILD/ggml/src/$backend"
-            mkdir -p "$dir"
-            echo "void __${backend//-/_}_stub(void) {}" \
-              | zig cc -target ${{ matrix.zig_triple }} -c -x c - -o /tmp/"$backend".o
-            ar crs "$dir/lib$backend.a" /tmp/"$backend".o
-          done
+          cmake --build $BUILD --target whisper \
+            -j$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ matrix.target }}
+          name: ${{ matrix.artifact }}
           path: ${{ env.BUILD }}
 
-  # ── Single goreleaser run once all whisper libs are ready ────────────────
+  # Single goreleaser run once all whisper libs are ready.
+  # Runs on ubuntu so Docker buildx is available; uses zig only for the thin
+  # CGO wrapper layer (Go ↔ whisper.h) — not for compiling whisper itself.
   release:
     needs: build-whisper
     runs-on: ubuntu-latest
@@ -111,8 +99,8 @@ jobs:
             printf '#!/bin/sh\nexec zig c++ -target %s "$@"\n' "$triple" | sudo tee /usr/local/bin/zxx-"$name" > /dev/null
           done
           sudo chmod +x /usr/local/bin/zcc-* /usr/local/bin/zxx-*
-      # Artifact name == dir name, so downloading all build_* into whisper.cpp/
-      # restores the exact paths goreleaser expects via WHISPER_BUILD_* vars.
+      # Artifact name == dir name, so this restores the exact paths goreleaser
+      # expects via WHISPER_BUILD_* env vars.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: build_*
