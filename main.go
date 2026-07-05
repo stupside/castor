@@ -8,15 +8,22 @@ import (
 	"slices"
 	"syscall"
 
+	"github.com/charmbracelet/log"
 	"github.com/stupside/castor/cmd"
 )
 
 func main() {
-	level := slog.LevelInfo
+	level := log.InfoLevel
 	if slices.Contains(os.Args, "--debug") {
-		level = slog.LevelDebug
+		level = log.DebugLevel
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+	slog.SetDefault(slog.New(
+		log.NewWithOptions(os.Stderr, log.Options{
+			ReportTimestamp: true,
+			TimeFormat:      "15:04:05.000",
+			Level:           level,
+		}),
+	))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -32,3 +39,4 @@ func main() {
 		os.Exit(1)
 	}
 }
+

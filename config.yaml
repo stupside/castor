@@ -27,7 +27,7 @@ whisper:
   # (no CLI flag). The transcription and VAD models download once to your
   # user cache; language defaults to English — set `language` for anything
   # else, and `model_path` to trade speed for accuracy.
-  enable: true
+  enable: false
 
 tmdb:
   # Used by `castor cast browse`. Get a free key at https://www.themoviedb.org/settings/api

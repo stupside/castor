@@ -104,7 +104,7 @@ func (p *pull) logProgress(ctx context.Context) {
 			return
 		case <-tick.C:
 			size := p.spool.Size()
-			slog.InfoContext(ctx, "pull progress",
+			slog.DebugContext(ctx, "pull progress",
 				"spooled_bytes", size,
 				"rate_bytes_per_sec", (size-last)/int64(interval.Seconds()),
 			)
