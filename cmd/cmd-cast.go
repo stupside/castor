@@ -6,6 +6,8 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/stupside/castor/internal/browse"
+	"github.com/stupside/castor/internal/browse/tmdb"
 	"github.com/stupside/castor/internal/cast"
 	"github.com/stupside/castor/internal/media"
 	"github.com/stupside/castor/internal/source/extract"
@@ -15,7 +17,7 @@ import (
 func (a *app) castCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "cast",
-		Usage: "Cast a video to the default device",
+		Usage: "Browse and cast to a device",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",
@@ -23,14 +25,51 @@ func (a *app) castCommand() *cli.Command {
 				Usage:   "Print found streaming URLs instead of casting",
 			},
 		},
+		Action: a.castInteractive,
 		Commands: []*cli.Command{
 			a.castURLCommand(),
 			a.castMovieCommand(),
 			a.castEpisodeCommand(),
 			a.castPlayerCommand(),
-			a.castBrowseCommand(),
 		},
 	}
+}
+
+func (a *app) castInteractive(ctx context.Context, cmd *cli.Command) error {
+	cfg, err := a.config()
+	if err != nil {
+		return err
+	}
+
+	devInfo, err := browse.PickDevice(ctx, cfg.Network.Timeout, cfg.Device.Name)
+	if err != nil {
+		return fmt.Errorf("picking device: %w", err)
+	}
+	_ = devInfo
+
+	if cfg.TMDB.APIKey == "" {
+		return fmt.Errorf("TMDB API key missing: set tmdb.api_key in config.yaml or CASTOR_TMDB__API_KEY env var")
+	}
+
+	sel, err := browse.Run(ctx, tmdb.New(cfg.TMDB.APIKey, cfg.Network.Timeout))
+	if err != nil {
+		return fmt.Errorf("browse: %w", err)
+	}
+	if sel.Kind == browse.KindNone {
+		return nil
+	}
+
+	var urls []string
+	switch sel.Kind {
+	case browse.KindMovie:
+		urls = cfg.AllMovieURLs(sel.TMDBID)
+	case browse.KindEpisode:
+		urls = cfg.AllEpisodeURLs(sel.TMDBID, sel.Season, sel.Episode)
+	}
+
+	fmt.Printf("Casting: %s\n", sel.Title)
+
+	return a.extractAndCast(ctx, cmd, urls)
 }
 
 // extractAndCast creates an extractor, extracts streams from the given URLs,
