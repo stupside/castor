@@ -28,7 +28,7 @@ var defaults = map[string]any{
 	"resolver.hls_timeout":           "30s",
 	"resolver.ffprobe_path":          "ffprobe",
 	"resolver.probe_timeout":         "30s",
-	"resolver.probe_max_concurrency": 8,
+	"resolver.probe_max_concurrency": 2,
 
 	"capture.patterns":            []string{`\.m3u8`, `master\.m3u8`, `index\.m3u8`, `/playlist/`},
 	"capture.max_candidates":      100,

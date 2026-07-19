@@ -26,10 +26,11 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 		// Output as JSON for structured parsing
 		"-print_format", "json",
 		// Format name + bit rate identify the container and rank quality;
+		// duration separates a feature title from a spliced-in pre-roll ad;
 		// the per-stream codec/type/dimensions let us reject decoy playlists
 		// (image-only "video", no audio) that would crash the puller's
 		// stream mapping.
-		"-show_entries", "format=format_name,bit_rate:stream=codec_type,codec_name,width,height",
+		"-show_entries", "format=format_name,bit_rate,duration:stream=codec_type,codec_name,width,height",
 	}
 
 	// Forward any HTTP headers (e.g. Referer, User-Agent) to the stream server
@@ -63,6 +64,7 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 		Format struct {
 			BitRate    string `json:"bit_rate"`
 			FormatName string `json:"format_name"`
+			Duration   string `json:"duration"`
 		} `json:"format"`
 	}
 	if err := json.Unmarshal(out, &result); err != nil {
@@ -87,6 +89,13 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 	}
 
 	info := &media.StreamInfo{BitRate: bitRate, ContentType: contentType}
+
+	// Fractional seconds ("5405.400000"), or absent/"N/A" for live streams.
+	// Unparseable stays zero, which callers read as "unknown", not "short".
+	if secs, err := strconv.ParseFloat(result.Format.Duration, 64); err == nil && secs > 0 {
+		info.Duration = time.Duration(secs * float64(time.Second))
+	}
+
 	for _, s := range result.Streams {
 		switch s.CodecType {
 		case "video":

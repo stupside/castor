@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 )
 
 const (
@@ -36,14 +37,10 @@ type Stream struct {
 // StreamInfo holds metadata returned by ffprobe for a stream.
 type StreamInfo struct {
 	BitRate     int64
+	Duration    time.Duration
 	ContentType string
-	// HasVideo is true when the stream carries a decodable, non-image video
-	// track (real dimensions, not a png/mjpeg placeholder). HasAudio is true
-	// when it carries any audio track. Because probing uses the same ffmpeg
-	// input path as the puller, these predict whether the puller's
-	// "-map 0:v:0 -map 0:a:0" will succeed.
-	HasVideo bool
-	HasAudio bool
+	HasVideo    bool
+	HasAudio    bool
 }
 
 // Playable reports whether the stream carries castable media — a real video
