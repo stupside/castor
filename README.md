@@ -66,7 +66,7 @@ docker run --rm --network host ghcr.io/stupside/castor:latest scan
 docker run --rm --network host \
   -v "$PWD/config.yaml:/config.yaml" \
   -v castor-cache:/root/.cache \
-  ghcr.io/stupside/castor:v1.4.0 \
+  ghcr.io/stupside/castor:latest \
   cast movie tt12300742
 ```
 
