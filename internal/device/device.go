@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/stupside/castor/internal/media"
 )
 
 type Type string
@@ -20,6 +22,22 @@ const (
 	TypeDLNA       Type = "dlna"
 	TypeChromecast Type = "chromecast"
 )
+
+// Capabilities returns what a device of type t can play: the containers it
+// accepts as-is and the video envelopes it decodes natively. It is static per
+// device type (both DLNA and Chromecast expose fixed profiles today), so it
+// needs no connected device, which lets the DLNA planner decide copy-vs-encode
+// before discovery has even finished. The per-type data lives with each device
+// implementation (dlnaCapabilities, chromecastCapabilities).
+func Capabilities(t Type) media.Renderer {
+	switch t {
+	case TypeDLNA:
+		return dlnaCapabilities
+	case TypeChromecast:
+		return chromecastCapabilities
+	}
+	return media.Renderer{}
+}
 
 type Info struct {
 	Name    string
@@ -31,10 +49,6 @@ type Info struct {
 type Device interface {
 	// Play points the renderer at streamURL, advertised as contentType.
 	Play(ctx context.Context, streamURL *url.URL, contentType string) error
-
-	// SupportedContentTypes lists MIME types the renderer accepts directly
-	// (pass-through without transcoding).
-	SupportedContentTypes() []string
 
 	// StreamHeaders returns protocol-specific HTTP headers the local stream
 	// server must send when this renderer fetches contentType. Nil when the

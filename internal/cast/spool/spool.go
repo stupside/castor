@@ -66,6 +66,11 @@ func (s *Spool) Size() int64 {
 	return s.size
 }
 
+// Path returns the backing file path. A reader (e.g. ffprobe) may open it
+// concurrently with the producer: the spool is append-only, so a read sees a
+// consistent prefix of whatever has been written so far.
+func (s *Spool) Path() string { return s.path }
+
 // Remove deletes the backing file. Call after all tails are finished.
 func (s *Spool) Remove() error {
 	return os.Remove(s.path)

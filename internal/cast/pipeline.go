@@ -3,6 +3,7 @@ package cast
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -68,7 +69,50 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 		return err
 	}
 
+	// The spool now holds real bytes. Probe it locally (no upstream round-trip)
+	// to decide whether the source video can be stream-copied into MPEG-TS or
+	// must be re-encoded. A failed or partial probe leaves srcInfo zero, which
+	// canCopyVideo rejects, i.e. it falls back to a transcode.
+	srcInfo, err := ffmpeg.Probe(ctx, cfg.Resolver.FFprobePath, sp.Path())
+	if err != nil {
+		slog.WarnContext(ctx, "spool probe failed; will re-encode video", "error", err)
+	}
+
 	opts := *plan.Transcode
+	hasSubs := subs != nil
+	if !hasSubs && device.Capabilities(cfg.Device.Type).CanCopyVideo(srcInfo) {
+		// Copy path: leave the video bitstream untouched (near-zero CPU); audio
+		// is still re-encoded to AAC (the template sets that) so Samsung accepts
+		// it. Pace from the source's own bit rate.
+		opts.VideoEncoder = nil
+		opts.VideoBitrate = ""
+		opts.VideoMaxHeight = 0
+		bitsPerSec := srcInfo.BitRate
+		if bitsPerSec <= 0 {
+			bitsPerSec = encodedBitrateBPS(dlnaVideoBitrate, dlnaAudioBitrate)
+		}
+		plan.SendRate, plan.SendBurst = dlnaPacing(bitsPerSec)
+	} else {
+		// Re-encode with the best H.264 encoder that works on this host (a
+		// hardware encoder if a real test encode passes, else libx264).
+		enc := ffmpeg.SelectH264Encoder(ctx, cfg.Transcode.FFmpegPath)
+		opts.VideoEncoder = &enc
+		plan.SendRate, plan.SendBurst = dlnaPacing(encodedBitrateBPS(dlnaVideoBitrate, dlnaAudioBitrate))
+	}
+
+	videoCodec := "copy"
+	if opts.VideoEncoder != nil {
+		videoCodec = opts.VideoEncoder.Name
+	}
+	slog.InfoContext(ctx, "dlna encode decision",
+		"video_codec", videoCodec,
+		"source_codec", string(srcInfo.VideoCodec),
+		"source_profile", srcInfo.VideoProfile,
+		"source_level", srcInfo.VideoLevel,
+		"source_height", srcInfo.VideoHeight,
+		"subtitles", hasSubs,
+	)
+
 	opts.PipeFormat = "mpegts"
 	if subs != nil {
 		if err := subs.attach(&opts); err != nil {

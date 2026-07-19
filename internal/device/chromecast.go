@@ -115,8 +115,11 @@ func (c *chromecastDevice) Close() error {
 	return c.app.Close(false)
 }
 
-func (c *chromecastDevice) SupportedContentTypes() []string {
-	return []string{media.HLS, media.MP4, media.MKV, media.WebM}
+// chromecastCapabilities: Chromecast decides pass-through purely on the
+// container (it never re-encodes video, so it carries no video envelope),
+// accepting these MIME types directly.
+var chromecastCapabilities = media.Renderer{
+	Containers: []string{media.HLS, media.MP4, media.MKV, media.WebM},
 }
 
 // StreamHeaders returns nil: Chromecast needs no protocol-specific headers on

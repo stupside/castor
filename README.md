@@ -157,6 +157,9 @@ docker run --rm --network host \
 
 The container reads config from [`config.yaml`](config.yaml) at `/config.yaml`, so run every command from the directory holding it. The `castor-cache` volume keeps the auto-downloaded whisper models between runs; swap `:latest` for any release tag to pin a version.
 
+> [!NOTE]
+> **DLNA passthrough and hardware encoding.** When the TV can already play the source video (H.264 inside a profile and level it accepts), Castor stream-copies it instead of re-encoding, dropping CPU use to near zero. When a re-encode is unavoidable (a codec the TV rejects, or burned-in subtitles), Castor picks a hardware H.264 encoder if one actually works on the host (VA-API on an Intel Linux box, VideoToolbox on the native macOS binary) and otherwise falls back to software `libx264`. To let the Docker container reach an Intel GPU for VA-API, add `--device /dev/dri` to `docker run` (the `--network host` flag alone does not expose the GPU); without it, or on a host with no working hardware encoder, Castor stays on `libx264`.
+
 
 ## Purpose and disclaimer
 

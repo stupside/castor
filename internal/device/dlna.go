@@ -13,7 +13,22 @@ import (
 	"github.com/stupside/castor/internal/media"
 )
 
-var dlnaSupportedContentTypes = []string{"video/mp2t", media.MP4}
+// dlnaCapabilities describes a Samsung-class DLNA MediaRenderer. Containers are
+// the MIME types it plays as-is; the H.264 envelope is what it decodes without
+// a re-encode. High 10 / 4:2:2 / 4:4:4 (10-bit, wide chroma) are deliberately
+// excluded: they pass a bare "codec == h264" check but the TV black-screens on
+// them. Supporting more codecs (HEVC) is a data change here.
+var dlnaCapabilities = media.Renderer{
+	Containers: []string{"video/mp2t", media.MP4},
+	Video: []media.VideoSupport{
+		{
+			Codec:     media.CodecH264,
+			Profiles:  []string{"Constrained Baseline", "Baseline", "Main", "High"},
+			MaxLevel:  42,
+			MaxHeight: 1080,
+		},
+	},
+}
 
 type dlnaDevice struct {
 	transport *av1.AVTransport1
@@ -106,10 +121,6 @@ func (d *dlnaDevice) Play(ctx context.Context, streamURL *url.URL, contentType s
 
 func (d *dlnaDevice) Close() error {
 	return nil
-}
-
-func (d *dlnaDevice) SupportedContentTypes() []string {
-	return dlnaSupportedContentTypes
 }
 
 // StreamHeaders returns the HTTP headers a DLNA renderer expects on a stream

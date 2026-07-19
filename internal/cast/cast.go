@@ -61,12 +61,12 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 	defer dev.Close()
 
 	plan := BuildPlan(PlanInput{
-		DeviceType:            cfg.Device.Type,
-		SupportedContentTypes: dev.SupportedContentTypes(),
-		SourceURL:             resolved.URL,
-		SourceHeaders:         resolved.Headers,
-		SourceContentType:     resolved.ContentType,
-		HasSubtitles:          cfg.Whisper.Enable,
+		DeviceType:        cfg.Device.Type,
+		Renderer:          device.Capabilities(cfg.Device.Type),
+		SourceURL:         resolved.URL,
+		SourceHeaders:     resolved.Headers,
+		SourceContentType: resolved.ContentType,
+		HasSubtitles:      cfg.Whisper.Enable,
 	})
 	logPlan(ctx, plan)
 
