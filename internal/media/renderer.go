@@ -6,9 +6,9 @@ import "slices"
 // containers it accepts as-is over the network (so the source URL can be handed
 // to it directly), and the video envelopes it decodes natively (so a matching
 // source can be stream-copied instead of re-encoded). It is the single
-// capability model both device types describe themselves with; the device
-// package owns the data (see device.Capabilities), this package owns the type
-// and the matching rules.
+// capability model both device types describe themselves with; each Device
+// resolves its own (DLNA negotiates it over GetProtocolInfo, Chromecast reports
+// its receiver profile) while this package owns the type and the matching rules.
 type Renderer struct {
 	Containers []string
 	Video      []VideoSupport

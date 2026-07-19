@@ -34,26 +34,3 @@ func TestPlanChromecastPassthroughVsRemux(t *testing.T) {
 		t.Errorf("remux output = %q, want %q", p.OutputContentType, media.MP4)
 	}
 }
-
-// TestDLNACapabilitiesCopyEnvelope checks the DLNA device's capability data and
-// the media matching rules wire together end to end: an in-envelope H.264 is
-// copy-eligible, a 10-bit one is not. The exhaustive envelope table lives in
-// the media package.
-func TestDLNACapabilitiesCopyEnvelope(t *testing.T) {
-	dlna := device.Capabilities(device.TypeDLNA)
-	inEnvelope := media.ProbeInfo{
-		VideoCodec:    media.CodecH264,
-		VideoProfile:  "High",
-		VideoLevel:    40,
-		VideoHeight:   1080,
-		VideoBitDepth: 8,
-	}
-	if !dlna.CanCopyVideo(inEnvelope) {
-		t.Error("in-envelope 1080p High H.264 should be copy-eligible on DLNA")
-	}
-	tenBit := inEnvelope
-	tenBit.VideoBitDepth = 10
-	if dlna.CanCopyVideo(tenBit) {
-		t.Error("10-bit H.264 must not be copy-eligible on DLNA")
-	}
-}

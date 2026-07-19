@@ -122,6 +122,11 @@ var chromecastCapabilities = media.Renderer{
 	Containers: []string{media.HLS, media.MP4, media.MKV, media.WebM},
 }
 
+// Capabilities reports Chromecast's known receiver profile. There is no runtime
+// query as there is for DLNA, so this is the documented Cast media support,
+// resolved from the device itself for interface parity with the DLNA path.
+func (c *chromecastDevice) Capabilities() media.Renderer { return chromecastCapabilities }
+
 // StreamHeaders returns nil: Chromecast needs no protocol-specific headers on
 // the local stream server's responses.
 func (c *chromecastDevice) StreamHeaders(string) map[string]string {

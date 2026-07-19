@@ -15,8 +15,9 @@ func h264() ProbeInfo {
 	}
 }
 
-// samsungLike mirrors the DLNA/Samsung H.264 envelope (device.dlnaCapabilities)
-// so the matching rules can be exercised without importing the device package.
+// samsungLike mirrors the H.264 copy envelope the device package pairs with a
+// renderer that advertises H.264, so the matching rules can be exercised here
+// without importing the device package.
 var samsungLike = Renderer{
 	Containers: []string{"video/mp2t", MP4},
 	Video: []VideoSupport{

@@ -2,9 +2,12 @@ package device
 
 import (
 	"net/url"
+	"slices"
 	"testing"
 
 	"github.com/huin/goupnp"
+
+	"github.com/stupside/castor/internal/media"
 )
 
 func TestDLNAInfo(t *testing.T) {
@@ -56,4 +59,52 @@ func TestDLNAInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseSinkProtocolInfo(t *testing.T) {
+	// A representative Samsung-style Sink: many AVC/MPEG entries, no HEVC token.
+	avcSink := "http-get:*:audio/mpeg:*," +
+		"http-get:*:video/mp2t:DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO," +
+		"http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_MP_HD_AAC," +
+		"http-get:*:video/x-msvideo:*"
+
+	caps := parseSinkProtocolInfo(avcSink)
+	if !hasCodec(caps, media.CodecH264) {
+		t.Error("AVC sink should advertise H.264")
+	}
+	if hasCodec(caps, media.CodecHEVC) {
+		t.Error("AVC-only sink must not advertise HEVC")
+	}
+	if !slices.Contains(caps.Containers, "video/mp2t") {
+		t.Errorf("expected video/mp2t container, got %v", caps.Containers)
+	}
+
+	// The discovered H.264 envelope copies an in-envelope stream, not a 10-bit one.
+	inEnvelope := media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: "High", VideoLevel: 40, VideoHeight: 1080, VideoBitDepth: 8}
+	if !caps.CanCopyVideo(inEnvelope) {
+		t.Error("in-envelope 1080p High H.264 should be copy-eligible")
+	}
+	tenBit := inEnvelope
+	tenBit.VideoBitDepth = 10
+	if caps.CanCopyVideo(tenBit) {
+		t.Error("10-bit H.264 must not be copy-eligible")
+	}
+
+	// A renderer advertising an HEVC TS profile lights up HEVC.
+	hevcSink := avcSink + ",http-get:*:video/mp2t:DLNA.ORG_PN=HEVC_TS_MAIN_HD"
+	if !hasCodec(parseSinkProtocolInfo(hevcSink), media.CodecHEVC) {
+		t.Error("HEVC_TS sink should advertise HEVC")
+	}
+
+	// Nothing usable yields no video codecs; the caller substitutes fallbackCaps.
+	if got := parseSinkProtocolInfo("garbage,http-get:*:audio/mpeg:*"); len(got.Video) != 0 {
+		t.Errorf("unusable sink should yield no video, got %v", got.Video)
+	}
+	if !hasCodec(fallbackCaps(), media.CodecH264) {
+		t.Error("fallbackCaps must at least support H.264")
+	}
+}
+
+func hasCodec(r media.Renderer, c media.Codec) bool {
+	return slices.ContainsFunc(r.Video, func(v media.VideoSupport) bool { return v.Codec == c })
 }

@@ -62,7 +62,7 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 
 	plan := BuildPlan(PlanInput{
 		DeviceType:        cfg.Device.Type,
-		Renderer:          device.Capabilities(cfg.Device.Type),
+		Renderer:          dev.Capabilities(),
 		SourceURL:         resolved.URL,
 		SourceHeaders:     resolved.Headers,
 		SourceContentType: resolved.ContentType,

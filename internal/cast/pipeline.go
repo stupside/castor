@@ -70,10 +70,20 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 		return err
 	}
 
+	// The renderer is needed now: its negotiated capabilities drive the
+	// copy-vs-encode decision below. Discovery and connect have been running
+	// since the top and overlap the whole pull+gate window, so this await almost
+	// never blocks; if connect failed, ctx carries the cause.
+	d, err := dev.await(ctx)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+
 	// The spool now holds real bytes. Probe it locally (no upstream round-trip)
 	// to decide whether the source video can be stream-copied into MPEG-TS or
 	// must be re-encoded. A failed or partial probe leaves srcInfo zero, which
-	// canCopyVideo rejects, i.e. it falls back to a transcode.
+	// CanCopyVideo rejects, i.e. it falls back to a transcode.
 	srcInfo, err := ffmpeg.Probe(ctx, cfg.Resolver.FFprobePath, sp.Path())
 	if err != nil {
 		slog.WarnContext(ctx, "spool probe failed; will re-encode video", "error", err)
@@ -81,7 +91,7 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 
 	opts := *plan.Transcode
 	hasSubs := subs != nil
-	if !hasSubs && device.Capabilities(cfg.Device.Type).CanCopyVideo(srcInfo) {
+	if !hasSubs && d.Capabilities().CanCopyVideo(srcInfo) {
 		// Copy path: leave the video bitstream untouched (near-zero CPU); audio
 		// is still re-encoded to AAC (the template sets that) so Samsung accepts
 		// it. Pace from the source's own bit rate.
@@ -142,15 +152,6 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 	if subs != nil && proc.Extra != nil {
 		subs.follow(ctx, g, proc.Extra)
 	}
-
-	// The renderer is needed now. By the time the gate has opened, the
-	// concurrent discovery has almost always finished; if it failed, ctx is
-	// cancelled with that error as the cause.
-	d, err := dev.await(ctx)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
 
 	return serveToDevice(ctx, plan, d, localIP, proc.Stdout, workDir)
 }

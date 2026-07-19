@@ -23,22 +23,6 @@ const (
 	TypeChromecast Type = "chromecast"
 )
 
-// Capabilities returns what a device of type t can play: the containers it
-// accepts as-is and the video envelopes it decodes natively. It is static per
-// device type (both DLNA and Chromecast expose fixed profiles today), so it
-// needs no connected device, which lets the DLNA planner decide copy-vs-encode
-// before discovery has even finished. The per-type data lives with each device
-// implementation (dlnaCapabilities, chromecastCapabilities).
-func Capabilities(t Type) media.Renderer {
-	switch t {
-	case TypeDLNA:
-		return dlnaCapabilities
-	case TypeChromecast:
-		return chromecastCapabilities
-	}
-	return media.Renderer{}
-}
-
 type Info struct {
 	Name    string
 	Type    Type
@@ -49,6 +33,14 @@ type Info struct {
 type Device interface {
 	// Play points the renderer at streamURL, advertised as contentType.
 	Play(ctx context.Context, streamURL *url.URL, contentType string) error
+
+	// Capabilities reports what this renderer can play: the containers it
+	// accepts as-is and the video envelopes it decodes natively. Each device
+	// resolves this from itself at connect time (DLNA negotiates it over
+	// GetProtocolInfo; Chromecast reports its known receiver profile), so the
+	// copy-vs-encode decision follows what the renderer advertises rather than
+	// an assumption baked in per device type.
+	Capabilities() media.Renderer
 
 	// StreamHeaders returns protocol-specific HTTP headers the local stream
 	// server must send when this renderer fetches contentType. Nil when the
