@@ -96,6 +96,16 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 		t.Error("HEVC_TS sink should advertise HEVC")
 	}
 
+	// Resolution is discovered from the PN class: a UHD-advertising renderer
+	// copies 4K, an HD-only one does not.
+	fourK := media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoProfile: "Main", VideoLevel: 153, VideoHeight: 2160, VideoBitDepth: 8}
+	if !parseSinkProtocolInfo("http-get:*:video/mp2t:DLNA.ORG_PN=HEVC_TS_MAIN_UHD").CanCopyVideo(fourK) {
+		t.Error("a UHD-advertising renderer should copy 4K HEVC")
+	}
+	if parseSinkProtocolInfo("http-get:*:video/mp2t:DLNA.ORG_PN=HEVC_TS_MAIN_HD").CanCopyVideo(fourK) {
+		t.Error("an HD-only renderer must not copy 4K")
+	}
+
 	// Nothing usable yields no video codecs; the caller substitutes fallbackCaps.
 	if got := parseSinkProtocolInfo("garbage,http-get:*:audio/mpeg:*"); len(got.Video) != 0 {
 		t.Errorf("unusable sink should yield no video, got %v", got.Video)
