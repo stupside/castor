@@ -17,10 +17,23 @@ sources:
       episode: "/embed/tv/{itemID}/{season}-{episode}"
 
   - proxies:
+      - "https://1embed.cc"
       - "https://www.vidking.net"
     templates:
       movie: "/embed/movie/{itemID}"
       episode: "/embed/tv/{itemID}/{season}/{episode}"
+
+  - proxies:
+      - "https://www.rivestream.app"
+    templates:
+      movie: "/embed/torrent?type=movie&id={itemID}"
+      episode: "/embed/torrent?type=tv&id={itemID}&season={season}&episode={episode}"
+
+  - proxies:
+      - "https://www.rivestream.app"
+    templates:
+      movie: "/embed?type=movie&id={itemID}"
+      episode: "/embed?type=tv&id={itemID}&season={season}&episode={episode}"
 
 whisper:
   # Auto-generated subtitles, burned into the video. This is the only toggle
