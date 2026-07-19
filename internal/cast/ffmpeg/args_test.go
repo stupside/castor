@@ -49,19 +49,46 @@ func TestEncodeArgsCopyRemux(t *testing.T) {
 	if hasFlag(args, "-init_hw_device") {
 		t.Error("copy must not initialise a hardware device")
 	}
+	// A copied bitstream can't be re-rate-controlled, re-formatted, or
+	// re-keyframed: those flags target the encoder, which isn't running.
+	for _, f := range []string{"-maxrate", "-bufsize", "-pix_fmt", "-force_key_frames"} {
+		if hasFlag(args, f) {
+			t.Errorf("copy must not set %s", f)
+		}
+	}
 	if got := argValue(args, "-c:a"); got != "aac" {
 		t.Errorf("audio codec = %q, want aac", got)
 	}
 }
 
+func TestEncodeArgsReadrateHeadroom(t *testing.T) {
+	// Burning subtitles paces the encode with -readrate. It must be just above
+	// realtime (EncodeReadrate), not 1.0: at dead-even playback speed the
+	// renderer's buffer has no headroom to rebuild after jitter and rebuffers.
+	args := EncodeArgs(EncodeOptions{
+		PipeFormat:       "mpegts",
+		OutputFormat:     "mpegts",
+		VideoEncoder:     &libx264,
+		SubtitleTextFile: "/tmp/cue.txt",
+		SubtitleFontFile: "/font.ttf",
+		AudioCodec:       "aac",
+	})
+	if got := argValue(args, "-readrate"); got != EncodeReadrate {
+		t.Errorf("readrate = %q, want %q (headroom above realtime)", got, EncodeReadrate)
+	}
+}
+
 func TestEncodeArgsLibx264(t *testing.T) {
 	args := EncodeArgs(EncodeOptions{
-		PipeFormat:     "mpegts",
-		OutputFormat:   "mpegts",
-		VideoEncoder:   &libx264,
-		VideoBitrate:   "4M",
-		VideoMaxHeight: 1080,
-		AudioCodec:     "aac",
+		PipeFormat:          "mpegts",
+		OutputFormat:        "mpegts",
+		VideoEncoder:        &libx264,
+		VideoBitrate:        "4M",
+		VideoMaxrate:        "4M",
+		VideoBufsize:        "8M",
+		VideoMaxHeight:      1080,
+		KeyframeIntervalSec: 2,
+		AudioCodec:          "aac",
 	})
 
 	if got := argValue(args, "-c:v"); got != "libx264" {
@@ -73,6 +100,18 @@ func TestEncodeArgsLibx264(t *testing.T) {
 	if got := argValue(args, "-b:v"); got != "4M" {
 		t.Errorf("bitrate = %q, want 4M", got)
 	}
+	if got := argValue(args, "-maxrate"); got != "4M" {
+		t.Errorf("maxrate = %q, want 4M (VBV cap)", got)
+	}
+	if got := argValue(args, "-bufsize"); got != "8M" {
+		t.Errorf("bufsize = %q, want 8M (VBV cap)", got)
+	}
+	if got := argValue(args, "-pix_fmt"); got != "yuv420p" {
+		t.Errorf("pix_fmt = %q, want yuv420p (8-bit, Samsung-decodable)", got)
+	}
+	if got := argValue(args, "-force_key_frames"); got != "expr:gte(t,n_forced*2)" {
+		t.Errorf("force_key_frames = %q, want the 2s GOP expression", got)
+	}
 	if vf := argValue(args, "-vf"); !strings.Contains(vf, "scale=-2:'min(1080,ih)'") {
 		t.Errorf("-vf = %q, want software scale", vf)
 	}
@@ -83,12 +122,15 @@ func TestEncodeArgsLibx264(t *testing.T) {
 
 func TestEncodeArgsVAAPI(t *testing.T) {
 	args := EncodeArgs(EncodeOptions{
-		PipeFormat:     "mpegts",
-		OutputFormat:   "mpegts",
-		VideoEncoder:   &h264VAAPI,
-		VideoBitrate:   "4M",
-		VideoMaxHeight: 1080,
-		AudioCodec:     "aac",
+		PipeFormat:          "mpegts",
+		OutputFormat:        "mpegts",
+		VideoEncoder:        &h264VAAPI,
+		VideoBitrate:        "4M",
+		VideoMaxrate:        "4M",
+		VideoBufsize:        "8M",
+		VideoMaxHeight:      1080,
+		KeyframeIntervalSec: 2,
+		AudioCodec:          "aac",
 	})
 
 	if got := argValue(args, "-init_hw_device"); got != "vaapi=va:"+vaapiRenderNode {
@@ -103,6 +145,15 @@ func TestEncodeArgsVAAPI(t *testing.T) {
 	if got := argValue(args, "-b:v"); got != "4M" {
 		t.Errorf("bitrate = %q, want 4M", got)
 	}
+	if got := argValue(args, "-maxrate"); got != "4M" {
+		t.Errorf("maxrate = %q, want 4M (VBV cap applies to VA-API too)", got)
+	}
+	if got := argValue(args, "-bufsize"); got != "8M" {
+		t.Errorf("bufsize = %q, want 8M", got)
+	}
+	if got := argValue(args, "-force_key_frames"); got != "expr:gte(t,n_forced*2)" {
+		t.Errorf("force_key_frames = %q, want the 2s GOP expression", got)
+	}
 	vf := argValue(args, "-vf")
 	if !strings.HasSuffix(vf, "format=nv12,hwupload") {
 		t.Errorf("-vf = %q, want to end with the GPU upload (format=nv12,hwupload)", vf)
@@ -114,16 +165,27 @@ func TestEncodeArgsVAAPI(t *testing.T) {
 	if hasFlag(args, "-preset") {
 		t.Error("h264_vaapi must not set -preset")
 	}
+	// VA-API downconverts via the format=nv12 filter; -pix_fmt would target the
+	// GPU surface and must not appear. Nor VideoToolbox's -g workaround.
+	if hasFlag(args, "-pix_fmt") {
+		t.Error("h264_vaapi must not set -pix_fmt (handled by format=nv12)")
+	}
+	if hasFlag(args, "-g") {
+		t.Error("h264_vaapi must not set -g")
+	}
 }
 
 func TestEncodeArgsVideoToolbox(t *testing.T) {
 	args := EncodeArgs(EncodeOptions{
-		PipeFormat:     "mpegts",
-		OutputFormat:   "mpegts",
-		VideoEncoder:   &h264VideoToolbox,
-		VideoBitrate:   "4M",
-		VideoMaxHeight: 1080,
-		AudioCodec:     "aac",
+		PipeFormat:          "mpegts",
+		OutputFormat:        "mpegts",
+		VideoEncoder:        &h264VideoToolbox,
+		VideoBitrate:        "4M",
+		VideoMaxrate:        "4M",
+		VideoBufsize:        "8M",
+		VideoMaxHeight:      1080,
+		KeyframeIntervalSec: 2,
+		AudioCodec:          "aac",
 	})
 
 	if got := argValue(args, "-c:v"); got != "h264_videotoolbox" {
@@ -131,6 +193,23 @@ func TestEncodeArgsVideoToolbox(t *testing.T) {
 	}
 	if got := argValue(args, "-b:v"); got != "4M" {
 		t.Errorf("bitrate = %q, want 4M", got)
+	}
+	if got := argValue(args, "-maxrate"); got != "4M" {
+		t.Errorf("maxrate = %q, want 4M (VBV cap)", got)
+	}
+	if got := argValue(args, "-bufsize"); got != "8M" {
+		t.Errorf("bufsize = %q, want 8M", got)
+	}
+	if got := argValue(args, "-pix_fmt"); got != "yuv420p" {
+		t.Errorf("pix_fmt = %q, want yuv420p", got)
+	}
+	// VideoToolbox's default GOP is sub-second; -g 600 lifts it so
+	// force_key_frames sets the real cadence.
+	if got := argValue(args, "-g"); got != "600" {
+		t.Errorf("-g = %q, want 600 (lift VideoToolbox's default GOP)", got)
+	}
+	if got := argValue(args, "-force_key_frames"); got != "expr:gte(t,n_forced*2)" {
+		t.Errorf("force_key_frames = %q, want the 2s GOP expression", got)
 	}
 	if hasFlag(args, "-init_hw_device") {
 		t.Error("videotoolbox takes system-memory frames, no hardware device init")

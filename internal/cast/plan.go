@@ -117,6 +117,15 @@ const (
 	// dlnaVideoBitrate is the libx264 target. Kept modest so a 1080p stream
 	// fits comfortably in most TV media buffers without overflowing.
 	dlnaVideoBitrate = "4M"
+	// dlnaVideoMaxrate/dlnaVideoBufsize cap the instantaneous bitrate (VBV) at
+	// the average, so the stream never spikes above the pacer's send rate and
+	// starves the renderer on a complex scene. bufsize ~2s at 4M; the pacer's
+	// preroll (dlnaPrerollSeconds) comfortably covers a full VBV excursion.
+	dlnaVideoMaxrate = "4M"
+	dlnaVideoBufsize = "8M"
+	// dlnaKeyframeSeconds caps the encoded GOP so a renderer joining mid-stream
+	// resyncs within a couple seconds.
+	dlnaKeyframeSeconds = 2
 	// dlnaAudioBitrate is the AAC re-encode target.
 	dlnaAudioBitrate = "256k"
 	// dlnaPrerollSeconds is how much of the encoded output the renderer is
@@ -147,13 +156,16 @@ func planDLNA(in PlanInput) Plan {
 		// short-lived token), so the pipeline resolves VideoEncoder and pacing
 		// from a local spool probe.
 		Transcode: &ffmpeg.EncodeOptions{
-			OutputFormat:    "mpegts",
-			VideoBitrate:    dlnaVideoBitrate,
-			VideoMaxHeight:  1080,
-			AudioCodec:      "aac",
-			AudioBitrate:    dlnaAudioBitrate,
-			AudioSampleRate: 48000,
-			AudioChannels:   2,
+			OutputFormat:        "mpegts",
+			VideoBitrate:        dlnaVideoBitrate,
+			VideoMaxrate:        dlnaVideoMaxrate,
+			VideoBufsize:        dlnaVideoBufsize,
+			VideoMaxHeight:      1080,
+			KeyframeIntervalSec: dlnaKeyframeSeconds,
+			AudioCodec:          "aac",
+			AudioBitrate:        dlnaAudioBitrate,
+			AudioSampleRate:     48000,
+			AudioChannels:       2,
 		},
 	}
 	if in.HasSubtitles {

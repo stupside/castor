@@ -50,9 +50,24 @@ type EncodeOptions struct {
 	// VideoEncoder is nil (copy).
 	VideoBitrate string
 
+	// VideoMaxrate is the VBV peak-rate cap (e.g. "4M"), and VideoBufsize the
+	// VBV buffer (e.g. "8M"). Together they bound the instantaneous bitrate so
+	// the HTTP pacer's fixed send rate is a real ceiling instead of an average
+	// the encoder freely overshoots on complex scenes (which drains the
+	// renderer's buffer and rebuffers playback). Both empty leaves the encoder
+	// in unbounded ABR. Ignored when VideoEncoder is nil (copy).
+	VideoMaxrate string
+	VideoBufsize string
+
 	// VideoMaxHeight caps the output height while preserving aspect ratio.
 	// 0 keeps the source height. Ignored when VideoEncoder is nil (copy).
 	VideoMaxHeight int
+
+	// KeyframeIntervalSec caps the GOP length in seconds via force_key_frames,
+	// so a renderer joining mid-stream resyncs within this bound regardless of
+	// source fps. 0 leaves the encoder default. Ignored when VideoEncoder is
+	// nil (copy): a copied bitstream keeps the source's keyframes.
+	KeyframeIntervalSec int
 
 	// AudioCodec is "copy" or an encoder name like "aac".
 	AudioCodec string
@@ -92,11 +107,10 @@ const EncodeReadrateBurstSeconds = 10
 // must not be exactly 1.0: at dead-even playback speed the renderer's buffer
 // has no steady-state headroom, so any encode or network jitter permanently
 // erodes the initial preroll, and because the encoder never runs ahead it can
-// never rebuild it — the TV rebuffers minutes in. A slight margin lets the
-// encoder's output spool accumulate, so the send pacer's own headroom actually
-// reaches the device instead of being starved by an upstream fixed at 1.0x.
-// Stays well under the puller's 2x, so the encode never overtakes whisper's
-// committed frontier (the gate guarantees a lead before playback opens).
+// never rebuild it. A slight margin lets the encoder's output spool accumulate
+// so the send pacer's own headroom actually reaches the device. Stays well
+// under the puller's 2x, so the encode never overtakes whisper's committed
+// frontier (the gate guarantees a lead before playback opens).
 const EncodeReadrate = "1.15"
 
 // containerInputArgs returns the ffmpeg input flags a source container needs.
@@ -202,6 +216,22 @@ func EncodeArgs(opts EncodeOptions) []string {
 		args = append(args, enc.Flags...)
 		if opts.VideoBitrate != "" {
 			args = append(args, "-b:v", opts.VideoBitrate)
+		}
+		// VBV cap: bound the instantaneous bitrate so the pacer's fixed send
+		// rate is a real ceiling. Both encoders honour this (libx264 VBV,
+		// VideoToolbox/VA-API DataRateLimits).
+		if opts.VideoMaxrate != "" {
+			args = append(args, "-maxrate", opts.VideoMaxrate)
+		}
+		if opts.VideoBufsize != "" {
+			args = append(args, "-bufsize", opts.VideoBufsize)
+		}
+		// Cap the GOP in wall-clock time, fps-independent, so a renderer that
+		// joins mid-stream resyncs within the interval. Works on every encoder
+		// family (VideoToolbox additionally needs -g in its Flags to lift its
+		// wasteful sub-second default so this expression is the real limiter).
+		if opts.KeyframeIntervalSec > 0 {
+			args = append(args, "-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", opts.KeyframeIntervalSec))
 		}
 	}
 

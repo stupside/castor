@@ -25,14 +25,22 @@ const vaapiRenderNode = "/dev/dri/renderD128"
 // unit-testable on any OS; which hardware one is a candidate is decided per
 // GOOS by hardwareH264. veryfast keeps libx264 ahead of realtime in the live
 // pipeline.
+//
+// -pix_fmt yuv420p is a hard delivery invariant on the software and
+// VideoToolbox encoders: without it a 10-bit source yields a High 10 stream
+// that most Samsung firmwares can't decode. VA-API instead downconverts via its
+// "format=nv12" filter, so it must not also carry -pix_fmt (the encoder output
+// is a GPU surface, not a CPU pixel format). VideoToolbox additionally needs
+// -g 600 to lift its wasteful sub-second default GOP, so the planner's
+// force_key_frames interval becomes the real keyframe cadence.
 var (
-	libx264   = Encoder{Name: "libx264", Flags: []string{"-preset", "veryfast"}}
+	libx264   = Encoder{Name: "libx264", Flags: []string{"-preset", "veryfast", "-pix_fmt", "yuv420p"}}
 	h264VAAPI = Encoder{
 		Name:     "h264_vaapi",
 		InitArgs: []string{"-init_hw_device", "vaapi=va:" + vaapiRenderNode, "-filter_hw_device", "va"},
 		Filters:  []string{"format=nv12", "hwupload"},
 	}
-	h264VideoToolbox = Encoder{Name: "h264_videotoolbox"}
+	h264VideoToolbox = Encoder{Name: "h264_videotoolbox", Flags: []string{"-pix_fmt", "yuv420p", "-g", "600"}}
 )
 
 // SelectH264Encoder returns a hardware H.264 encoder if one actually works on
