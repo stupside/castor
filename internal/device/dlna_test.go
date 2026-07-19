@@ -79,12 +79,12 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 		t.Errorf("expected video/mp2t container, got %v", caps.Containers)
 	}
 
-	// The discovered H.264 envelope copies an in-envelope stream, not a 10-bit one.
-	inEnvelope := media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: "High", VideoLevel: 40, VideoHeight: 1080, VideoBitDepth: 8}
-	if !caps.CanCopyVideo(inEnvelope) {
-		t.Error("in-envelope 1080p High H.264 should be copy-eligible")
+	// The H.264 envelope copies a codec-safe stream, not a 10-bit one.
+	safe := media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: "High", VideoBitDepth: 8}
+	if !caps.CanCopyVideo(safe) {
+		t.Error("codec-safe High H.264 should be copy-eligible")
 	}
-	tenBit := inEnvelope
+	tenBit := safe
 	tenBit.VideoBitDepth = 10
 	if caps.CanCopyVideo(tenBit) {
 		t.Error("10-bit H.264 must not be copy-eligible")
@@ -94,16 +94,6 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 	hevcSink := avcSink + ",http-get:*:video/mp2t:DLNA.ORG_PN=HEVC_TS_MAIN_HD"
 	if !hasCodec(parseSinkProtocolInfo(hevcSink), media.CodecHEVC) {
 		t.Error("HEVC_TS sink should advertise HEVC")
-	}
-
-	// Resolution is discovered from the PN class: a UHD-advertising renderer
-	// copies 4K, an HD-only one does not.
-	fourK := media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoProfile: "Main", VideoLevel: 153, VideoHeight: 2160, VideoBitDepth: 8}
-	if !parseSinkProtocolInfo("http-get:*:video/mp2t:DLNA.ORG_PN=HEVC_TS_MAIN_UHD").CanCopyVideo(fourK) {
-		t.Error("a UHD-advertising renderer should copy 4K HEVC")
-	}
-	if parseSinkProtocolInfo("http-get:*:video/mp2t:DLNA.ORG_PN=HEVC_TS_MAIN_HD").CanCopyVideo(fourK) {
-		t.Error("an HD-only renderer must not copy 4K")
 	}
 
 	// Nothing usable yields no video codecs; the caller substitutes fallbackCaps.

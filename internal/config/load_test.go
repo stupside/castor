@@ -26,4 +26,8 @@ func TestLoadLocalOverlay(t *testing.T) {
 	if cfg.Device.Name != "tv" {
 		t.Errorf("base values outside the overlay must survive: device.name = %q", cfg.Device.Name)
 	}
+	// A required-with-default field is present without the user setting it.
+	if cfg.Resolver.MaxHeight != 1080 {
+		t.Errorf("resolver.max_height should default to 1080, got %d", cfg.Resolver.MaxHeight)
+	}
 }

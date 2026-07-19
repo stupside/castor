@@ -13,12 +13,16 @@ import (
 	"time"
 )
 
-var bandwidthRe = regexp.MustCompile(`BANDWIDTH=(\d+)`)
+var (
+	bandwidthRe  = regexp.MustCompile(`BANDWIDTH=(\d+)`)
+	resolutionRe = regexp.MustCompile(`RESOLUTION=\d+x(\d+)`)
+)
 
 // hlsVariant is a single variant stream listed in an HLS master playlist.
 type hlsVariant struct {
 	URL       *url.URL
 	Bandwidth int64
+	Height    int // display height from RESOLUTION; 0 when the master omits it
 }
 
 // parsePlaylist fetches an HLS playlist and returns its variants. When the
@@ -44,16 +48,17 @@ func parsePlaylist(ctx context.Context, hlsTimeout time.Duration, masterURL *url
 	}
 
 	var (
-		variants  []hlsVariant
-		nextIsBW  bool
-		currentBW int64
+		variants      []hlsVariant
+		nextIsURL     bool
+		currentBW     int64
+		currentHeight int
 	)
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
-		if nextIsBW {
-			nextIsBW = false
+		if nextIsURL {
+			nextIsURL = false
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
 			}
@@ -61,17 +66,21 @@ func parsePlaylist(ctx context.Context, hlsTimeout time.Duration, masterURL *url
 			if err != nil {
 				continue
 			}
-			variants = append(variants, hlsVariant{URL: variantURL, Bandwidth: currentBW})
+			variants = append(variants, hlsVariant{URL: variantURL, Bandwidth: currentBW, Height: currentHeight})
 			continue
 		}
 
 		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
+			// The URL is the next non-comment line. BANDWIDTH is mandatory per
+			// the HLS spec and RESOLUTION is optional; take whichever are present.
+			currentBW, currentHeight = 0, 0
 			if m := bandwidthRe.FindStringSubmatch(line); len(m) == 2 {
-				if bw, err := strconv.ParseInt(m[1], 10, 64); err == nil {
-					currentBW = bw
-					nextIsBW = true
-				}
+				currentBW, _ = strconv.ParseInt(m[1], 10, 64)
 			}
+			if m := resolutionRe.FindStringSubmatch(line); len(m) == 2 {
+				currentHeight, _ = strconv.Atoi(m[1])
+			}
+			nextIsURL = true
 		}
 	}
 	if err := scanner.Err(); err != nil {

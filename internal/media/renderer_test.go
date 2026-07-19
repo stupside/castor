@@ -21,7 +21,7 @@ func h264() ProbeInfo {
 var samsungLike = Renderer{
 	Containers: []string{"video/mp2t", MP4},
 	Video: []VideoSupport{
-		{Codec: CodecH264, Profiles: []string{"Constrained Baseline", "Baseline", "Main", "High"}, MaxLevel: 42, MaxHeight: 1080},
+		{Codec: CodecH264, Profiles: []string{"Constrained Baseline", "Baseline", "Main", "High"}},
 	},
 }
 
@@ -44,16 +44,12 @@ func TestRendererCanCopyVideo(t *testing.T) {
 		{"main profile", withProfile(h264(), "Main"), true},
 		{"baseline profile", withProfile(h264(), "Baseline"), true},
 		{"constrained baseline", withProfile(h264(), "Constrained Baseline"), true},
-		{"720p still copies", withHeight(h264(), 720), true},
+		{"resolution is not part of the envelope", withHeight(h264(), 2160), true},
 		{"high 10 rejected", withProfile(h264(), "High 10"), false},
 		{"high 4:2:2 rejected", withProfile(h264(), "High 4:2:2"), false},
 		{"unknown profile rejected", withProfile(h264(), ""), false},
 		{"10-bit rejected", withBitDepth(h264(), 10), false},
 		{"hdr rejected", withHDR(h264()), false},
-		{"over level rejected", withLevel(h264(), 51), false},
-		{"unknown level rejected", withLevel(h264(), 0), false},
-		{"above 1080p rejected", withHeight(h264(), 2160), false},
-		{"unknown height rejected", withHeight(h264(), 0), false},
 		{"hevc rejected", withCodec(h264(), CodecHEVC), false},
 		{"zero value rejected", ProbeInfo{}, false},
 	}
@@ -81,7 +77,6 @@ func TestRendererAcceptsContainer(t *testing.T) {
 }
 
 func withProfile(v ProbeInfo, p string) ProbeInfo { v.VideoProfile = p; return v }
-func withLevel(v ProbeInfo, l int) ProbeInfo      { v.VideoLevel = l; return v }
 func withHeight(v ProbeInfo, h int) ProbeInfo     { v.VideoHeight = h; return v }
 func withBitDepth(v ProbeInfo, d int) ProbeInfo   { v.VideoBitDepth = d; return v }
 func withCodec(v ProbeInfo, c Codec) ProbeInfo    { v.VideoCodec = c; return v }

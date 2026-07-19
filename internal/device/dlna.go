@@ -122,12 +122,12 @@ func negotiateCaps(ctx context.Context, loc *goupnp.RootDevice, u *url.URL) medi
 }
 
 // codecEnvelope is the codec-fixed part of a stream-copy envelope: the profiles
-// and bit depths that are unsafe to copy regardless of the renderer (10-bit
-// H.264 is the rare High 10 profile, and copying it, or any HDR stream, to a TV
-// that can't handle it black-screens or mis-tones with no recovery). Resolution
-// and level are NOT fixed here; they are filled from what the renderer
-// advertises, so a 4K TV copies 4K while an HD-only one stays capped. Adding a
-// codec the pipeline can encode to is one entry here.
+// and bit depths that black-screen or mis-tone a renderer that can't handle them
+// (10-bit H.264 is the rare High 10 profile; HDR needs a TV that engages it).
+// Resolution is deliberately not here: it is the user's cast-quality preference
+// (config max_height), applied at source selection and as the copy gate, not
+// guessed from the renderer. Adding a codec the pipeline can encode to is one
+// entry here.
 type codecEnvelope struct {
 	profiles  []string
 	bitDepths []int // nil == 8-bit only
@@ -138,62 +138,15 @@ var codecEnvelopes = map[media.Codec]codecEnvelope{
 	media.CodecHEVC: {profiles: []string{"Main", "Main 10"}, bitDepths: []int{8, 10}},
 }
 
-// defaultCopyHeight is the resolution ceiling for a codec a renderer advertised
-// without a parseable resolution class. We trust the advertised codec up to 4K
-// rather than force a re-encode: a renderer that decodes a codec almost always
-// decodes it at its own panel resolution, and this keeps 4K passthrough working
-// against the vendor-specific tokens that omit a class. Total negotiation
-// failure is handled more conservatively, by fallbackCaps.
-const defaultCopyHeight = 2160
-
-// videoSupportFor builds the copy envelope for a codec at a discovered maximum
-// display height: the codec-fixed profile/bit-depth safety, plus the resolution
-// and the level that resolution needs.
-func videoSupportFor(codec media.Codec, maxHeight int) media.VideoSupport {
+// videoSupportFor builds the copy envelope for a codec: its decode-safety
+// profile and bit-depth constraints.
+func videoSupportFor(codec media.Codec) media.VideoSupport {
 	env := codecEnvelopes[codec]
 	return media.VideoSupport{
 		Codec:     codec,
 		Profiles:  env.profiles,
 		BitDepths: env.bitDepths,
-		MaxHeight: maxHeight,
-		MaxLevel:  maxLevelForHeight(codec, maxHeight),
 	}
-}
-
-// maxLevelForHeight is the highest codec level a copy of the given height should
-// carry (ffprobe reports H.264 level x10, HEVC x30). 4K needs level 5.2 (H.264
-// 60fps / HEVC); 1080p fits level 4.2 (H.264) / 4.1 (HEVC).
-func maxLevelForHeight(codec media.Codec, height int) int {
-	uhd := height > 1080
-	switch codec {
-	case media.CodecH264:
-		if uhd {
-			return 52
-		}
-		return 42
-	case media.CodecHEVC:
-		if uhd {
-			return 156
-		}
-		return 123
-	}
-	return 0
-}
-
-// resolutionHeight reads a DLNA.ORG_PN token's resolution class (already
-// upper-cased): DLNA encodes it as an infix (SD, HD/FHD up to 1080p, UHD/4K at
-// 2160p, 8K). 0 means the token carried no class we recognise. UHD is checked
-// before HD because "HD" is a substring of "UHD".
-func resolutionHeight(pn string) int {
-	switch {
-	case strings.Contains(pn, "8K") || strings.Contains(pn, "4320"):
-		return 4320
-	case strings.Contains(pn, "UHD") || strings.Contains(pn, "4K") || strings.Contains(pn, "2160"):
-		return 2160
-	case strings.Contains(pn, "FHD") || strings.Contains(pn, "HD") || strings.Contains(pn, "1080"):
-		return 1080
-	}
-	return 0
 }
 
 // discoverableCodecs is the fixed order capabilities are reported in, so a given
@@ -206,7 +159,7 @@ var discoverableCodecs = []media.Codec{media.CodecH264, media.CodecHEVC}
 func fallbackCaps() media.Renderer {
 	return media.Renderer{
 		Containers: []string{"video/mp2t"},
-		Video:      []media.VideoSupport{videoSupportFor(media.CodecH264, 1080)},
+		Video:      []media.VideoSupport{videoSupportFor(media.CodecH264)},
 	}
 }
 
@@ -217,7 +170,6 @@ func fallbackCaps() media.Renderer {
 // and vendor-specific, so anything unrecognised is skipped rather than rejected.
 func parseSinkProtocolInfo(sink string) media.Renderer {
 	present := map[media.Codec]bool{}
-	heights := map[media.Codec]int{} // max advertised display height per codec
 	containers := map[string]bool{}
 	for entry := range strings.SplitSeq(sink, ",") {
 		fields := strings.SplitN(strings.TrimSpace(entry), ":", 4)
@@ -231,7 +183,6 @@ func parseSinkProtocolInfo(sink string) media.Renderer {
 		}
 		if c, ok := codecFromProfile(mime, info); ok {
 			present[c] = true
-			heights[c] = max(heights[c], resolutionHeight(info))
 		}
 		if ct, ok := containerFromMIME(mime); ok {
 			containers[ct] = true
@@ -240,14 +191,9 @@ func parseSinkProtocolInfo(sink string) media.Renderer {
 
 	var r media.Renderer
 	for _, c := range discoverableCodecs {
-		if !present[c] {
-			continue
+		if present[c] {
+			r.Video = append(r.Video, videoSupportFor(c))
 		}
-		height := heights[c]
-		if height == 0 { // advertised, but no resolution class in any of its tokens
-			height = defaultCopyHeight
-		}
-		r.Video = append(r.Video, videoSupportFor(c, height))
 	}
 	for _, ct := range []string{"video/mp2t", media.MP4} {
 		if containers[ct] {

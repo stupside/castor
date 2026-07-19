@@ -37,6 +37,13 @@ whisper:
   # else, and `model_path` to trade speed for accuracy.
   enable: false
 
+resolver:
+  # The tallest video to cast. Source selection prefers the largest stream no
+  # taller than this, and the encoder scales its output down to it. Defaults to
+  # 1080; raise it to your TV's native height (e.g. 2160 for a 4K panel) to pass
+  # 4K through, or lower it to save bandwidth.
+  # max_height: 1080
+
 tmdb:
   # Used by the interactive `castor cast`. Get a free key at https://www.themoviedb.org/settings/api
   # Put the real key in git-ignored config.local.yaml (overlays this file),

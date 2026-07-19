@@ -14,7 +14,8 @@ import (
 
 // Resolve determines the final URL and content type for a stream. When the
 // source is an HLS playlist with multiple variants, it picks the highest-
-// bandwidth one. Stream headers are preserved through resolution.
+// bandwidth one no taller than cfg.MaxHeight. Stream headers are preserved
+// through resolution.
 func Resolve(ctx context.Context, cfg Config, stream *media.Stream) (*media.Stream, error) {
 	streamURL := stream.URL
 	headers := stream.Headers
@@ -33,10 +34,7 @@ func Resolve(ctx context.Context, cfg Config, stream *media.Stream) (*media.Stre
 		if err != nil {
 			slog.WarnContext(ctx, "HLS playlist resolution failed, using original", "error", err)
 		} else {
-			best := slices.MaxFunc(variants, func(a, b hlsVariant) int {
-				return cmp.Compare(a.Bandwidth, b.Bandwidth)
-			})
-			streamURL = best.URL
+			streamURL = pickVariant(variants, cfg.MaxHeight).URL
 		}
 	}
 
@@ -45,6 +43,28 @@ func Resolve(ctx context.Context, cfg Config, stream *media.Stream) (*media.Stre
 		Headers:     headers,
 		ContentType: ct,
 	}, nil
+}
+
+// pickVariant chooses which HLS variant to pull: the highest-bandwidth one no
+// taller than maxHeight (a variant with unknown height, 0, is always eligible).
+// If every variant is taller than the cap, it takes the shortest so the encoder
+// has the least to downscale. variants is never empty (parsePlaylist guarantees
+// at least the synthetic media-playlist entry).
+func pickVariant(variants []hlsVariant, maxHeight int) hlsVariant {
+	var eligible []hlsVariant
+	for _, v := range variants {
+		if v.Height <= maxHeight {
+			eligible = append(eligible, v)
+		}
+	}
+	if len(eligible) > 0 {
+		return slices.MaxFunc(eligible, func(a, b hlsVariant) int {
+			return cmp.Compare(a.Bandwidth, b.Bandwidth)
+		})
+	}
+	return slices.MinFunc(variants, func(a, b hlsVariant) int {
+		return cmp.Compare(a.Height, b.Height)
+	})
 }
 
 // minContentDuration is the shortest runtime treated as real content. Pre-roll

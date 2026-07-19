@@ -46,6 +46,7 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 			SourceURL:         resolved.URL,
 			SourceHeaders:     resolved.Headers,
 			SourceContentType: resolved.ContentType,
+			MaxHeight:         cfg.Resolver.MaxHeight,
 			HasSubtitles:      cfg.Whisper.Enable,
 		})
 		logPlan(ctx, plan)
@@ -66,6 +67,7 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 		SourceURL:         resolved.URL,
 		SourceHeaders:     resolved.Headers,
 		SourceContentType: resolved.ContentType,
+		MaxHeight:         cfg.Resolver.MaxHeight,
 		HasSubtitles:      cfg.Whisper.Enable,
 	})
 	logPlan(ctx, plan)

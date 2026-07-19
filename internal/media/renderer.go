@@ -15,15 +15,15 @@ type Renderer struct {
 }
 
 // VideoSupport is one video envelope a renderer decodes natively. A probed
-// source is copy-eligible when it matches at least one. Zero-valued numeric
-// fields mean "no constraint"; a nil BitDepths means 8-bit only. Every check is
-// fail-closed: an unknown (zero) probe field never matches, so a failed probe
-// falls back to a transcode.
+// source is copy-eligible when it matches at least one on the things that
+// black-screen a TV outright: codec, profile, bit depth, and dynamic range.
+// Resolution is deliberately absent: it is the user's cast-quality preference
+// (config max_height), applied at source selection and as the copy gate, not
+// something guessed from the renderer. A nil Profiles means any profile; a nil
+// BitDepths means 8-bit only.
 type VideoSupport struct {
 	Codec     Codec
 	Profiles  []string // nil = any profile
-	MaxLevel  int      // 0 = any (ffprobe level scale: 42 == H.264 level 4.2)
-	MaxHeight int      // 0 = any
 	BitDepths []int    // nil = {8}
 	AllowHDR  bool
 }
@@ -51,12 +51,6 @@ func (s VideoSupport) accepts(v ProbeInfo) bool {
 		return false
 	}
 	if len(s.Profiles) > 0 && !slices.Contains(s.Profiles, v.VideoProfile) {
-		return false
-	}
-	if s.MaxLevel > 0 && (v.VideoLevel <= 0 || v.VideoLevel > s.MaxLevel) {
-		return false
-	}
-	if s.MaxHeight > 0 && (v.VideoHeight <= 0 || v.VideoHeight > s.MaxHeight) {
 		return false
 	}
 	depths := s.BitDepths

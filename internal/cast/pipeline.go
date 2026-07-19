@@ -91,7 +91,7 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 
 	opts := *plan.Transcode
 	hasSubs := subs != nil
-	if !hasSubs && d.Capabilities().CanCopyVideo(srcInfo) {
+	if !hasSubs && withinMaxHeight(srcInfo, cfg.Resolver.MaxHeight) && d.Capabilities().CanCopyVideo(srcInfo) {
 		// Copy path: leave the video bitstream untouched (near-zero CPU); audio
 		// is still re-encoded to AAC (the template sets that) so Samsung accepts
 		// it. Pace from the source's own bit rate.
@@ -184,6 +184,14 @@ func selectVideoEncoder(caps media.Renderer, selectEncoder func(media.Codec) (ff
 	// codec with no hardware here); fall back to the universal H.264 baseline.
 	enc, _ := selectEncoder(media.CodecH264)
 	return enc
+}
+
+// withinMaxHeight reports whether a probed source fits under the configured cast
+// height ceiling. An unknown height (0) passes: the source is trusted rather
+// than force-transcoded on missing metadata. A source above the cap is not
+// copy-eligible, so it falls through to a transcode that scales it down.
+func withinMaxHeight(src media.ProbeInfo, maxHeight int) bool {
+	return src.VideoHeight == 0 || src.VideoHeight <= maxHeight
 }
 
 // deviceFuture is the async renderer connection. The connect goroutine runs

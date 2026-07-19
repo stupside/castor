@@ -82,6 +82,9 @@ type PlanInput struct {
 	SourceContentType string
 	SourceBitRate     int64 // 0 if unknown
 
+	// MaxHeight caps the re-encode output height (the user's cast resolution
+	// preference); 0 keeps the source height.
+	MaxHeight    int
 	HasSubtitles bool
 }
 
@@ -173,7 +176,7 @@ func planDLNA(in PlanInput) Plan {
 		// capabilities, so the pipeline resolves them from a local spool probe.
 		Transcode: &ffmpeg.EncodeOptions{
 			OutputFormat:        "mpegts",
-			VideoMaxHeight:      1080,
+			VideoMaxHeight:      in.MaxHeight,
 			KeyframeIntervalSec: dlnaKeyframeSeconds,
 			AudioCodec:          "aac",
 			AudioBitrate:        dlnaAudioBitrate,
