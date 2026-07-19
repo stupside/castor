@@ -448,7 +448,7 @@ func (c *Client) get(ctx context.Context, path string, extra url.Values, out any
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode/100 != 2 {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("tmdb: %s: status %d", path, resp.StatusCode)
 	}
 
