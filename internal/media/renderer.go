@@ -40,6 +40,12 @@ func (r Renderer) CanCopyVideo(v ProbeInfo) bool {
 	return slices.ContainsFunc(r.Video, func(s VideoSupport) bool { return s.accepts(v) })
 }
 
+// SupportsCodec reports whether the renderer decodes codec c natively, and so
+// whether the pipeline may target it when re-encoding.
+func (r Renderer) SupportsCodec(c Codec) bool {
+	return slices.ContainsFunc(r.Video, func(s VideoSupport) bool { return s.Codec == c })
+}
+
 func (s VideoSupport) accepts(v ProbeInfo) bool {
 	if v.VideoCodec != s.Codec {
 		return false

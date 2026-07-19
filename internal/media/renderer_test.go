@@ -25,6 +25,15 @@ var samsungLike = Renderer{
 	},
 }
 
+func TestRendererSupportsCodec(t *testing.T) {
+	if !samsungLike.SupportsCodec(CodecH264) {
+		t.Error("an H.264 renderer should support H.264")
+	}
+	if samsungLike.SupportsCodec(CodecHEVC) {
+		t.Error("an H.264-only renderer must not report HEVC support")
+	}
+}
+
 func TestRendererCanCopyVideo(t *testing.T) {
 	tests := []struct {
 		name string

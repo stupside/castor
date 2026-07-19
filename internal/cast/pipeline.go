@@ -96,21 +96,22 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 		// is still re-encoded to AAC (the template sets that) so Samsung accepts
 		// it. Pace from the source's own bit rate.
 		opts.VideoEncoder = nil
-		opts.VideoBitrate = ""
-		opts.VideoMaxHeight = 0
+		opts.VideoBitrate, opts.VideoMaxrate, opts.VideoBufsize, opts.VideoMaxHeight = "", "", "", 0
 		bitsPerSec := srcInfo.BitRate
 		if bitsPerSec <= 0 {
-			bitsPerSec = encodedBitrateBPS(dlnaVideoBitrate, dlnaAudioBitrate)
+			t := dlnaVideoTargets[media.CodecH264]
+			bitsPerSec = encodedBitrateBPS(t.maxrate, dlnaAudioBitrate)
 		}
 		plan.SendRate, plan.SendBurst = dlnaPacing(bitsPerSec)
 	} else {
-		// Re-encode with the best encoder for this host: a verified hardware
-		// encoder, else the software baseline (which always exists for H.264).
-		// The codec is H.264 for now; picking the most efficient codec the
-		// renderer advertises is the next step, once capabilities are discovered.
-		enc, _ := ffmpeg.SelectEncoder(ctx, cfg.Transcode.FFmpegPath, media.CodecH264)
+		// Re-encode. Pick the most efficient codec the renderer advertises and
+		// this host can encode in hardware (HEVC at half the bitrate, else
+		// H.264), then apply that codec's bitrate target and pacing.
+		enc := selectVideoEncoder(ctx, cfg.Transcode.FFmpegPath, d.Capabilities())
 		opts.VideoEncoder = &enc
-		plan.SendRate, plan.SendBurst = dlnaPacing(encodedBitrateBPS(dlnaVideoBitrate, dlnaAudioBitrate))
+		t := dlnaVideoTargets[enc.Codec]
+		opts.VideoBitrate, opts.VideoMaxrate, opts.VideoBufsize = t.bitrate, t.maxrate, t.bufsize
+		plan.SendRate, plan.SendBurst = dlnaPacingFor(enc.Codec)
 	}
 
 	videoCodec := "copy"
@@ -154,6 +155,32 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 	}
 
 	return serveToDevice(ctx, plan, d, localIP, proc.Stdout, workDir)
+}
+
+// codecPreference ranks re-encode target codecs by efficiency, most efficient
+// first. selectVideoEncoder picks the first one the renderer decodes and this
+// host can hardware-encode; H.264 is last and always resolves to at least a
+// software baseline, so selection never fails. Adding a codec is one entry here.
+var codecPreference = []media.Codec{media.CodecHEVC, media.CodecH264}
+
+// selectVideoEncoder chooses the encoder for a re-encode: the most efficient
+// codec both the renderer advertises and this host can produce. A codec above
+// H.264 is taken only when a hardware encoder backs it, since software HEVC
+// cannot hold realtime at 1080p; H.264 is the floor and accepts its software
+// baseline.
+func selectVideoEncoder(ctx context.Context, ffmpegPath string, caps media.Renderer) ffmpeg.Encoder {
+	for _, codec := range codecPreference {
+		if !caps.SupportsCodec(codec) {
+			continue
+		}
+		if enc, ok := ffmpeg.SelectEncoder(ctx, ffmpegPath, codec); ok && (enc.Hardware || codec == media.CodecH264) {
+			return enc
+		}
+	}
+	// The renderer advertised nothing we can encode to (or only a non-H.264
+	// codec with no hardware here); fall back to the universal H.264 baseline.
+	enc, _ := ffmpeg.SelectEncoder(ctx, ffmpegPath, media.CodecH264)
+	return enc
 }
 
 // deviceFuture is the async renderer connection. The connect goroutine runs
