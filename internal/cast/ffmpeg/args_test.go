@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/stupside/castor/internal/media"
 )
 
 // argValue returns the token immediately after the last occurrence of flag, or
@@ -240,11 +242,27 @@ func TestEncodeArgsSubtitlesBurnIn(t *testing.T) {
 	}
 }
 
-func TestSelectH264EncoderFallsBackToSoftware(t *testing.T) {
+func TestSelectEncoderFallsBackToSoftware(t *testing.T) {
 	// A bogus ffmpeg path makes every hardware test-encode fail, so selection
-	// must return the always-available software baseline.
-	enc := SelectH264Encoder(context.Background(), "/nonexistent-ffmpeg-binary")
-	if enc.Name != "libx264" {
-		t.Fatalf("encoder = %q, want libx264 fallback", enc.Name)
+	// returns the always-available software baseline for the codec. Each codec
+	// resolves to its own baseline, which is the whole point of the registry.
+	for _, tc := range []struct {
+		codec media.Codec
+		want  string
+	}{
+		{media.CodecH264, "libx264"},
+		{media.CodecHEVC, "libx265"},
+	} {
+		enc, ok := SelectEncoder(context.Background(), "/nonexistent-ffmpeg-binary", tc.codec)
+		if !ok || enc.Name != tc.want {
+			t.Errorf("SelectEncoder(%s) = %q (ok=%v), want %q", tc.codec, enc.Name, ok, tc.want)
+		}
+	}
+}
+
+func TestSelectEncoderUnknownCodec(t *testing.T) {
+	// A codec with no registered encoder reports ok=false rather than guessing.
+	if _, ok := SelectEncoder(context.Background(), "/nonexistent-ffmpeg-binary", media.CodecAV1); ok {
+		t.Error("SelectEncoder(av1) reported ok, but no AV1 encoder is registered")
 	}
 }

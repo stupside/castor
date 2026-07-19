@@ -13,6 +13,7 @@ import (
 	"github.com/stupside/castor/internal/cast/spool"
 	"github.com/stupside/castor/internal/cast/whisper"
 	"github.com/stupside/castor/internal/device"
+	"github.com/stupside/castor/internal/media"
 )
 
 // runSpooled is the read-once cast: puller → spool (+ PCM → whisper) → tail
@@ -93,9 +94,11 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 		}
 		plan.SendRate, plan.SendBurst = dlnaPacing(bitsPerSec)
 	} else {
-		// Re-encode with the best H.264 encoder that works on this host (a
-		// hardware encoder if a real test encode passes, else libx264).
-		enc := ffmpeg.SelectH264Encoder(ctx, cfg.Transcode.FFmpegPath)
+		// Re-encode with the best encoder for this host: a verified hardware
+		// encoder, else the software baseline (which always exists for H.264).
+		// The codec is H.264 for now; picking the most efficient codec the
+		// renderer advertises is the next step, once capabilities are discovered.
+		enc, _ := ffmpeg.SelectEncoder(ctx, cfg.Transcode.FFmpegPath, media.CodecH264)
 		opts.VideoEncoder = &enc
 		plan.SendRate, plan.SendBurst = dlnaPacing(encodedBitrateBPS(dlnaVideoBitrate, dlnaAudioBitrate))
 	}
