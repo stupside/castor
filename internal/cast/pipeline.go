@@ -107,7 +107,9 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 		// Re-encode. Pick the most efficient codec the renderer advertises and
 		// this host can encode in hardware (HEVC at half the bitrate, else
 		// H.264), then apply that codec's bitrate target and pacing.
-		enc := selectVideoEncoder(ctx, cfg.Transcode.FFmpegPath, d.Capabilities())
+		enc := selectVideoEncoder(d.Capabilities(), func(c media.Codec) (ffmpeg.Encoder, bool) {
+			return ffmpeg.SelectEncoder(ctx, cfg.Transcode.FFmpegPath, c)
+		})
 		opts.VideoEncoder = &enc
 		t := dlnaVideoTargets[enc.Codec]
 		opts.VideoBitrate, opts.VideoMaxrate, opts.VideoBufsize = t.bitrate, t.maxrate, t.bufsize
@@ -167,19 +169,20 @@ var codecPreference = []media.Codec{media.CodecHEVC, media.CodecH264}
 // codec both the renderer advertises and this host can produce. A codec above
 // H.264 is taken only when a hardware encoder backs it, since software HEVC
 // cannot hold realtime at 1080p; H.264 is the floor and accepts its software
-// baseline.
-func selectVideoEncoder(ctx context.Context, ffmpegPath string, caps media.Renderer) ffmpeg.Encoder {
+// baseline. selectEncoder resolves an encoder for a codec (ffmpeg.SelectEncoder
+// in production, a fake in tests); its ok is false for a codec with no encoder.
+func selectVideoEncoder(caps media.Renderer, selectEncoder func(media.Codec) (ffmpeg.Encoder, bool)) ffmpeg.Encoder {
 	for _, codec := range codecPreference {
 		if !caps.SupportsCodec(codec) {
 			continue
 		}
-		if enc, ok := ffmpeg.SelectEncoder(ctx, ffmpegPath, codec); ok && (enc.Hardware || codec == media.CodecH264) {
+		if enc, ok := selectEncoder(codec); ok && (enc.Hardware || codec == media.CodecH264) {
 			return enc
 		}
 	}
 	// The renderer advertised nothing we can encode to (or only a non-H.264
 	// codec with no hardware here); fall back to the universal H.264 baseline.
-	enc, _ := ffmpeg.SelectEncoder(ctx, ffmpegPath, media.CodecH264)
+	enc, _ := selectEncoder(media.CodecH264)
 	return enc
 }
 

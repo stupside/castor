@@ -7,12 +7,18 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/huin/goupnp"
 	"github.com/huin/goupnp/dcps/av1"
 
 	"github.com/stupside/castor/internal/media"
 )
+
+// capsTimeout bounds the GetProtocolInfo round-trip: a slow or unresponsive
+// ConnectionManager degrades to conservative capabilities instead of stalling
+// the cast, since this negotiation now gates the copy-vs-encode decision.
+const capsTimeout = 3 * time.Second
 
 // dlnaDevice is a connected UPnP AVTransport renderer. caps is negotiated once
 // at connect (see negotiateCaps) and reported verbatim thereafter.
@@ -99,6 +105,8 @@ func negotiateCaps(ctx context.Context, loc *goupnp.RootDevice, u *url.URL) medi
 		slog.WarnContext(ctx, "no ConnectionManager service; using conservative capabilities", "error", err)
 		return fallbackCaps()
 	}
+	ctx, cancel := context.WithTimeout(ctx, capsTimeout)
+	defer cancel()
 	_, sink, err := managers[0].GetProtocolInfoCtx(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "GetProtocolInfo failed; using conservative capabilities", "error", err)
