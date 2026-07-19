@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/huin/goupnp"
+	castdns "github.com/vishen/go-chromecast/dns"
 )
 
 type Type string
@@ -68,17 +69,43 @@ func FindInfo(ctx context.Context, timeout time.Duration, dtype Type, name strin
 	return Info{}, fmt.Errorf("device %q (type %s) not found", name, dtype)
 }
 
-// Discover scans the local network for DLNA renderers. (Chromecast discovery
-// requires mDNS which the current dependency set doesn't ship; callers
-// connect to known Chromecast addresses directly.)
+// Discover scans the local network for DLNA and Chromecast renderers.
 func Discover(ctx context.Context, timeout time.Duration) ([]Info, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	type result struct {
+		kind    Type
+		devices []Info
+		err     error
+	}
+	results := make(chan result, 2)
+
+	go func() {
+		devices, err := discoverDLNA(ctx)
+		results <- result{kind: TypeDLNA, devices: devices, err: err}
+	}()
+	go func() {
+		devices, err := discoverChromecasts(ctx)
+		results <- result{kind: TypeChromecast, devices: devices, err: err}
+	}()
+
+	var devices []Info
+	for range 2 {
+		result := <-results
+		if result.err != nil {
+			slog.WarnContext(ctx, "device discovery error", "type", result.kind, "error", result.err)
+			continue
+		}
+		devices = append(devices, result.devices...)
+	}
+	return devices, nil
+}
+
+func discoverDLNA(ctx context.Context) ([]Info, error) {
 	results, err := goupnp.DiscoverDevicesCtx(ctx, "urn:schemas-upnp-org:device:MediaRenderer:1")
 	if err != nil {
-		slog.WarnContext(ctx, "DLNA discovery error", "error", err)
-		return nil, nil
+		return nil, err
 	}
 
 	devices := make([]Info, 0, len(results))
@@ -93,4 +120,32 @@ func Discover(ctx context.Context, timeout time.Duration) ([]Info, error) {
 		})
 	}
 	return devices, nil
+}
+
+func discoverChromecasts(ctx context.Context) ([]Info, error) {
+	entries, err := castdns.DiscoverCastDNSEntries(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var devices []Info
+	for entry := range entries {
+		info, ok := chromecastInfo(entry)
+		if !ok {
+			continue
+		}
+		devices = append(devices, info)
+	}
+	return devices, nil
+}
+
+func chromecastInfo(entry castdns.CastEntry) (Info, bool) {
+	if entry.DeviceName == "" || entry.AddrV4 == nil {
+		return Info{}, false
+	}
+	return Info{
+		Name:    entry.DeviceName,
+		Type:    TypeChromecast,
+		Address: entry.AddrV4.String(),
+	}, true
 }
