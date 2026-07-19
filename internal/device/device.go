@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/huin/goupnp"
@@ -68,17 +69,44 @@ func FindInfo(ctx context.Context, timeout time.Duration, dtype Type, name strin
 	return Info{}, fmt.Errorf("device %q (type %s) not found", name, dtype)
 }
 
-// Discover scans the local network for DLNA renderers. (Chromecast discovery
-// requires mDNS which the current dependency set doesn't ship; callers
-// connect to known Chromecast addresses directly.)
+// Discover scans the local network for renderers: DLNA via SSDP and
+// Chromecast via mDNS (_googlecast._tcp). Both scans run in parallel and
+// share the same timeout window.
 func Discover(ctx context.Context, timeout time.Duration) ([]Info, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		devices []Info
+	)
+	collect := func(found []Info) {
+		mu.Lock()
+		devices = append(devices, found...)
+		mu.Unlock()
+	}
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		collect(discoverDLNA(ctx))
+	}()
+	go func() {
+		defer wg.Done()
+		collect(discoverChromecast(ctx))
+	}()
+	wg.Wait()
+
+	return devices, nil
+}
+
+// discoverDLNA scans for UPnP MediaRenderer devices via SSDP.
+func discoverDLNA(ctx context.Context) []Info {
 	results, err := goupnp.DiscoverDevicesCtx(ctx, "urn:schemas-upnp-org:device:MediaRenderer:1")
 	if err != nil {
 		slog.WarnContext(ctx, "DLNA discovery error", "error", err)
-		return nil, nil
+		return nil
 	}
 
 	devices := make([]Info, 0, len(results))
@@ -92,5 +120,5 @@ func Discover(ctx context.Context, timeout time.Duration) ([]Info, error) {
 			Address: r.Location.String(),
 		})
 	}
-	return devices, nil
+	return devices
 }
