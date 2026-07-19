@@ -25,9 +25,11 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 		"-v", "error",
 		// Output as JSON for structured parsing
 		"-print_format", "json",
-		// Only request format name and bit rate (minimizes probe work)
-		"-show_entries", "format=format_name,bit_rate",
-		"-show_format",
+		// Format name + bit rate identify the container and rank quality;
+		// the per-stream codec/type/dimensions let us reject decoy playlists
+		// (image-only "video", no audio) that would crash the puller's
+		// stream mapping.
+		"-show_entries", "format=format_name,bit_rate:stream=codec_type,codec_name,width,height",
 	}
 
 	// Forward any HTTP headers (e.g. Referer, User-Agent) to the stream server
@@ -52,6 +54,12 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 	}
 
 	var result struct {
+		Streams []struct {
+			Width     int    `json:"width"`
+			Height    int    `json:"height"`
+			CodecName string `json:"codec_name"`
+			CodecType string `json:"codec_type"`
+		} `json:"streams"`
 		Format struct {
 			BitRate    string `json:"bit_rate"`
 			FormatName string `json:"format_name"`
@@ -78,8 +86,27 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 		}
 	}
 
-	return &media.StreamInfo{
-		BitRate:     bitRate,
-		ContentType: contentType,
-	}, nil
+	info := &media.StreamInfo{BitRate: bitRate, ContentType: contentType}
+	for _, s := range result.Streams {
+		switch s.CodecType {
+		case "video":
+			// A real video track has dimensions and a non-image codec. Decoy
+			// playlists carry a single png/mjpeg "video" with no size.
+			if s.Width > 0 && s.Height > 0 && !isImageCodec(s.CodecName) {
+				info.HasVideo = true
+			}
+		case "audio":
+			info.HasAudio = true
+		}
+	}
+	return info, nil
 }
+
+// imageCodecs are ffmpeg codec names that decode to a still image rather than
+// motion video. A playlist whose only "video" track is one of these is a decoy.
+var imageCodecs = map[string]bool{
+	"png": true, "apng": true, "mjpeg": true, "jpeg": true, "jpegls": true,
+	"bmp": true, "gif": true, "tiff": true, "webp": true, "ppm": true,
+}
+
+func isImageCodec(name string) bool { return imageCodecs[name] }

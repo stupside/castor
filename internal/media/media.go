@@ -37,7 +37,19 @@ type Stream struct {
 type StreamInfo struct {
 	BitRate     int64
 	ContentType string
+	// HasVideo is true when the stream carries a decodable, non-image video
+	// track (real dimensions, not a png/mjpeg placeholder). HasAudio is true
+	// when it carries any audio track. Because probing uses the same ffmpeg
+	// input path as the puller, these predict whether the puller's
+	// "-map 0:v:0 -map 0:a:0" will succeed.
+	HasVideo bool
+	HasAudio bool
 }
+
+// Playable reports whether the stream carries castable media — a real video
+// track plus audio. Decoy playlists (an image-only "video" track, or no audio)
+// probe cleanly but cannot be remuxed, so they are not playable.
+func (s StreamInfo) Playable() bool { return s.HasVideo && s.HasAudio }
 
 type FormatInfo struct {
 	ContentType string
