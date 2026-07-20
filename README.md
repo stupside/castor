@@ -102,6 +102,25 @@ sources:
       episode: "/embed/tv/{itemID}/{season}-{episode}"
 ```
 
+### Resolver
+
+Source selection and stream probing. All options have sensible defaults, you normally only need `max_height` to match your TV's resolution.
+
+```yaml
+resolver:
+  # The tallest video to cast. Source selection prefers the largest stream no
+  # taller than this, and the encoder scales its output down to it. Defaults to
+  # 1080; raise it to your TV's native height (e.g. 2160 for a 4K panel) to pass
+  # 4K through, or lower it to save bandwidth.
+  max_height: 2160
+  # hls_timeout: 30s
+  # probe_timeout: 30s
+  # probe_max_concurrency: 2
+  # ffprobe_path: ffprobe
+```
+
+Set `max_height` to your TV's vertical resolution. This caps both the selected stream and the encoder output.
+
 ### TMDB
 
 The interactive browser (`castor cast`) uses a TMDB API key to search titles; direct commands like `cast movie <id>` do not need it. Get a free key from [themoviedb.org](https://www.themoviedb.org/settings/api) and keep it in `config.local.yaml`:
