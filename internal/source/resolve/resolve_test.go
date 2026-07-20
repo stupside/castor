@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/stupside/castor/internal/media"
 )
 
 func TestPickVariant(t *testing.T) {
@@ -80,5 +82,53 @@ func TestParsePlaylistResolution(t *testing.T) {
 	// The cap steers selection end to end.
 	if got := pickVariant(variants, 1080).URL.Path; got != "/1080.m3u8" {
 		t.Errorf("pickVariant(1080) = %q, want /1080.m3u8", got)
+	}
+}
+
+func TestBestCandidate(t *testing.T) {
+	direct := func(path string, height int, bw int64) candidate {
+		return candidate{stream: &media.Stream{URL: &url.URL{Path: path}, Bandwidth: bw, ContentType: media.MP4}, height: height}
+	}
+	hls := func(path string, height int, bw int64) candidate {
+		return candidate{stream: &media.Stream{URL: &url.URL{Path: path}, Bandwidth: bw, ContentType: media.HLS}, height: height}
+	}
+
+	tests := []struct {
+		name      string
+		pool      []candidate
+		maxHeight int
+		want      string
+	}{
+		{
+			name:      "in-cap direct beats over-cap direct despite lower bitrate",
+			pool:      []candidate{direct("/4k", 2160, 20_000_000), direct("/1080", 1080, 6_000_000)},
+			maxHeight: 1080,
+			want:      "/1080",
+		},
+		{
+			name:      "HLS master is exempt from the cap and wins on bandwidth",
+			pool:      []candidate{hls("/master", 2160, 20_000_000), direct("/1080", 1080, 6_000_000)},
+			maxHeight: 1080,
+			want:      "/master",
+		},
+		{
+			name:      "all over cap falls back to highest bandwidth",
+			pool:      []candidate{direct("/4k", 2160, 20_000_000), direct("/1440", 1440, 10_000_000)},
+			maxHeight: 1080,
+			want:      "/4k",
+		},
+		{
+			name:      "unknown height is eligible",
+			pool:      []candidate{direct("/unknown", 0, 20_000_000), direct("/1080", 1080, 6_000_000)},
+			maxHeight: 1080,
+			want:      "/unknown",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := bestCandidate(tt.pool, tt.maxHeight).stream.URL.Path; got != tt.want {
+				t.Errorf("bestCandidate = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

@@ -41,6 +41,10 @@ type StreamInfo struct {
 	ContentType string
 	HasVideo    bool
 	HasAudio    bool
+	// VideoHeight is the display height of the real video track, 0 if unknown.
+	// For an HLS master this is only whichever variant ffprobe chose, not the
+	// master's full range, so it is not a reliable ceiling for a master.
+	VideoHeight int
 }
 
 // Playable reports whether the stream carries castable media — a real video

@@ -102,6 +102,9 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 			// playlists carry a single png/mjpeg "video" with no size.
 			if s.Width > 0 && s.Height > 0 && !isImageCodec(s.CodecName) {
 				info.HasVideo = true
+				if info.VideoHeight == 0 {
+					info.VideoHeight = s.Height
+				}
 			}
 		case "audio":
 			info.HasAudio = true

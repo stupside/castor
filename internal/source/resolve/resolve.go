@@ -104,6 +104,36 @@ func limitPerHost(ctx context.Context, streams []*media.Stream) []*media.Stream 
 	return kept
 }
 
+// candidate is a probed stream plus the signals RankStreams ranks on.
+type candidate struct {
+	stream *media.Stream
+	height int  // probed video height; 0 if unknown or the probe failed
+	decoy  bool // probed cleanly but unplayable (no video+audio) or an ad
+}
+
+// exceedsCap reports whether a candidate's own resolution is a hard limit above
+// maxHeight. HLS masters are exempt: a master lists every variant and is capped
+// when Resolve picks one, so its single-variant probe height is not a ceiling.
+func (c candidate) exceedsCap(maxHeight int) bool {
+	return c.stream.ContentType != media.HLS && c.height > 0 && c.height > maxHeight
+}
+
+// bestCandidate picks the stream to cast: one within the height cap is always
+// preferred over one that exceeds it (so a direct 1080p beats a direct 4K when
+// capped at 1080, even at a lower bitrate); ties, and the all-over-cap case,
+// fall back to highest bandwidth.
+func bestCandidate(pool []candidate, maxHeight int) candidate {
+	return slices.MaxFunc(pool, func(a, b candidate) int {
+		if ao, bo := a.exceedsCap(maxHeight), b.exceedsCap(maxHeight); ao != bo {
+			if bo {
+				return 1 // a is within the cap, b exceeds it: a wins
+			}
+			return -1
+		}
+		return cmp.Compare(a.stream.Bandwidth, b.stream.Bandwidth)
+	})
+}
+
 // RankStreams probes every candidate in parallel and returns the highest-
 // bandwidth playable one. A stream that probes cleanly but carries no castable
 // video+audio, or is too short to be anything but a spliced-in ad, is dropped
@@ -117,11 +147,6 @@ func RankStreams(ctx context.Context, cfg Config, streams []*media.Stream) (*med
 		return nil, fmt.Errorf("no streams to rank")
 	}
 	streams = limitPerHost(ctx, streams)
-
-	type candidate struct {
-		stream *media.Stream
-		decoy  bool
-	}
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, cfg.ProbeMaxConcurrency)
@@ -154,34 +179,35 @@ func RankStreams(ctx context.Context, cfg Config, streams []*media.Stream) (*med
 				return
 			default:
 				out.Bandwidth = max(info.BitRate, 1)
-				slog.DebugContext(ctx, "probed stream", "url", s.URL, "bitrate", info.BitRate)
+				slog.DebugContext(ctx, "probed stream", "url", s.URL, "bitrate", info.BitRate, "height", info.VideoHeight)
 			}
 			cands[i] = candidate{stream: out}
+			if info != nil {
+				cands[i].height = info.VideoHeight
+			}
 		})
 	}
 	wg.Wait()
 
-	pool := make([]*media.Stream, 0, len(cands))
+	pool := make([]candidate, 0, len(cands))
 	decoys := 0
 	for _, c := range cands {
 		if c.decoy {
 			decoys++
 			continue
 		}
-		pool = append(pool, c.stream)
+		pool = append(pool, c)
 	}
 	if len(pool) == 0 {
 		return nil, fmt.Errorf("no castable stream: all %d candidates were unreachable, carried no video+audio, or were ads", len(streams))
 	}
 
-	best := slices.MaxFunc(pool, func(a, b *media.Stream) int {
-		return cmp.Compare(a.Bandwidth, b.Bandwidth)
-	})
+	best := bestCandidate(pool, cfg.MaxHeight)
 	if decoys > 0 {
 		slog.InfoContext(ctx, "rejected decoy streams", "count", decoys, "kept", len(pool))
 	}
-	slog.InfoContext(ctx, "best stream selected", "url", best.URL.String(), "bitrate", best.Bandwidth)
-	return best, nil
+	slog.InfoContext(ctx, "best stream selected", "url", best.stream.URL.String(), "bitrate", best.stream.Bandwidth, "height", best.height)
+	return best.stream, nil
 }
 
 // StreamDetail holds a stream URL and its probed bit rate, for display.
