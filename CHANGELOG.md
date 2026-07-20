@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.2](https://github.com/stupside/castor/compare/1.6.1...1.6.2) (2026-07-20)
+
+
+### Bug Fixes
+
+* drop component prefix from release tags ([612341f](https://github.com/stupside/castor/commit/612341fdc755bf4fd58bef7b5c74cd36badc94c4))
+* remove v prefix from cask download URL ([250bc55](https://github.com/stupside/castor/commit/250bc5537817f07f564274041451294a6feed40f))
+
+
+### Documentation
+
+* document resolver max_height and other options ([9e4a9c4](https://github.com/stupside/castor/commit/9e4a9c410948c175b49ac5a650151da7964d2dda))
+
+
+### Continuous Integration
+
+* skip push CI on main ([ecfc8e2](https://github.com/stupside/castor/commit/ecfc8e225489dd59ad4d946234a8aaf3176c15db))
+
 ## [1.6.1](https://github.com/stupside/castor/compare/castor-1.6.0...castor-1.6.1) (2026-07-20)
 
 
