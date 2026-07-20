@@ -2,8 +2,8 @@ name: continuous-integration
 
 on:
   push:
-    branches: ['**']
     paths-ignore: ['docs/**']
+    branches-ignore: ['main']
   pull_request:
     branches: ['**']
     paths-ignore: ['docs/**']
