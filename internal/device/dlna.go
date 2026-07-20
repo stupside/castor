@@ -124,10 +124,7 @@ func negotiateCaps(ctx context.Context, loc *goupnp.RootDevice, u *url.URL) medi
 // codecEnvelope is the codec-fixed part of a stream-copy envelope: the profiles
 // and bit depths that black-screen or mis-tone a renderer that can't handle them
 // (10-bit H.264 is the rare High 10 profile; HDR needs a TV that engages it).
-// Resolution is deliberately not here: it is the user's cast-quality preference
-// (config max_height), applied at source selection and as the copy gate, not
-// guessed from the renderer. Adding a codec the pipeline can encode to is one
-// entry here.
+// Adding a codec the pipeline can encode to is one entry here.
 type codecEnvelope struct {
 	profiles  []string
 	bitDepths []int // nil == 8-bit only

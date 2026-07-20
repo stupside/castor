@@ -16,16 +16,15 @@ type Renderer struct {
 
 // VideoSupport is one video envelope a renderer decodes natively. A probed
 // source is copy-eligible when it matches at least one on the things that
-// black-screen a TV outright: codec, profile, bit depth, and dynamic range.
-// Resolution is deliberately absent: it is the user's cast-quality preference
-// (config max_height), applied at source selection and as the copy gate, not
-// something guessed from the renderer. A nil Profiles means any profile; a nil
-// BitDepths means 8-bit only.
+// black-screen a TV outright: codec, profile, bit depth, and dynamic range
+// (HDR is always rejected: over DLNA we can't tell whether the renderer engages
+// it). Resolution is deliberately absent: it is the user's cast-quality
+// preference (config max_height), applied at source selection and the copy gate,
+// not something guessed from the renderer.
 type VideoSupport struct {
 	Codec     Codec
 	Profiles  []string // nil = any profile
 	BitDepths []int    // nil = {8}
-	AllowHDR  bool
 }
 
 // AcceptsContainer reports whether the device plays contentType directly over
@@ -60,5 +59,5 @@ func (s VideoSupport) accepts(v ProbeInfo) bool {
 	if !slices.Contains(depths, v.VideoBitDepth) {
 		return false
 	}
-	return s.AllowHDR || !v.VideoHDR
+	return !v.VideoHDR
 }
