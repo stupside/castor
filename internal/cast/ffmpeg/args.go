@@ -51,11 +51,10 @@ type EncodeOptions struct {
 	VideoBitrate string
 
 	// VideoMaxrate is the VBV peak-rate cap (e.g. "4M"), and VideoBufsize the
-	// VBV buffer (e.g. "8M"). Together they bound the instantaneous bitrate so
-	// the HTTP pacer's fixed send rate is a real ceiling instead of an average
-	// the encoder freely overshoots on complex scenes (which drains the
-	// renderer's buffer and rebuffers playback). Both empty leaves the encoder
-	// in unbounded ABR. Ignored when VideoEncoder is nil (copy).
+	// VBV buffer (e.g. "8M"). Together they bound the instantaneous bitrate so a
+	// complex scene can't spike past what the renderer decodes and buffers. Both
+	// empty leaves the encoder in unbounded ABR. Ignored when VideoEncoder is
+	// nil (copy).
 	VideoMaxrate string
 	VideoBufsize string
 
@@ -108,9 +107,9 @@ const EncodeReadrateBurstSeconds = 10
 // has no steady-state headroom, so any encode or network jitter permanently
 // erodes the initial preroll, and because the encoder never runs ahead it can
 // never rebuild it. A slight margin lets the encoder's output spool accumulate
-// so the send pacer's own headroom actually reaches the device. Stays well
-// under the puller's 2x, so the encode never overtakes whisper's committed
-// frontier (the gate guarantees a lead before playback opens).
+// a lead the renderer can draw from. Stays well under the puller's 2x, so the
+// encode never overtakes whisper's committed frontier (the gate guarantees a
+// lead before playback opens).
 const EncodeReadrate = "1.15"
 
 // containerInputArgs returns the ffmpeg input flags a source container needs.
