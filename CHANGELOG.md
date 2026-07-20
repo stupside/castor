@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.1](https://github.com/stupside/castor/compare/castor-1.6.0...castor-1.6.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* **dlna:** drive AVTransport and ConnectionManager v1, v2 and v3 ([#23](https://github.com/stupside/castor/issues/23)) ([b18f045](https://github.com/stupside/castor/commit/b18f0451c31e83e8c168190f91eb17a3eb64ed9b))
+* pass ggml include path to cmake for Metal .m files ([4b70efd](https://github.com/stupside/castor/commit/4b70efd838113af32b9634acc3d96a8a6039f661))
+
+
+### Continuous Integration
+
+* fix empty release version and release on ci commits ([a241612](https://github.com/stupside/castor/commit/a241612fe21fcd4e1039e3a3500fe8c89ca26484))
+
 ## [1.6.0](https://github.com/stupside/castor/compare/castor-v1.5.0...castor-1.6.0) (2026-07-20)
 
 
