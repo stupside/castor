@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/huin/goupnp"
-	"github.com/huin/goupnp/dcps/av1"
 
 	"github.com/stupside/castor/internal/media"
 )
@@ -20,10 +19,24 @@ import (
 // the cast, since this negotiation now gates the copy-vs-encode decision.
 const capsTimeout = 3 * time.Second
 
+// serviceVersions are the UPnP service versions castor looks for, newest
+// first. Renderers publish whichever version their firmware implements (Philips
+// and Sony sets commonly advertise :3) and service lookup is an exact URN
+// match, so asking only for :1 misses them. UPnP requires a higher service
+// version to stay backward compatible with the actions of lower ones, and
+// castor calls only SetAVTransportURI, Play and GetProtocolInfo — all unchanged
+// since v1.
+var serviceVersions = []int{3, 2, 1}
+
 // dlnaDevice is a connected UPnP AVTransport renderer. caps is negotiated once
 // at connect (see negotiateCaps) and reported verbatim thereafter.
+//
+// transport is the generic service client rather than a version-specific
+// wrapper: the SOAP action namespace must match the service version the device
+// published, and goupnp's av1 clients hardcode the :1 URN, which a :3 service
+// can reject as an invalid action.
 type dlnaDevice struct {
-	transport *av1.AVTransport1
+	transport goupnp.ServiceClient
 	caps      media.Renderer
 }
 
@@ -85,14 +98,27 @@ func connectDLNA(ctx context.Context, info Info) (Device, error) {
 		return nil, fmt.Errorf("fetching device description: %w", err)
 	}
 
-	transports, err := av1.NewAVTransport1ClientsFromRootDevice(loc, u)
+	transport, err := findService(loc, u, "AVTransport")
 	if err != nil {
 		return nil, fmt.Errorf("creating AVTransport client: %w", err)
 	}
-	if len(transports) == 0 {
-		return nil, fmt.Errorf("no AVTransport service found on device")
+	return &dlnaDevice{transport: transport, caps: negotiateCaps(ctx, loc, u)}, nil
+}
+
+// findService returns a client for the newest version of the named service the
+// device publishes, reporting an error when it exposes none castor can drive.
+func findService(root *goupnp.RootDevice, loc *url.URL, service string) (goupnp.ServiceClient, error) {
+	for _, version := range serviceVersions {
+		urn := fmt.Sprintf("urn:schemas-upnp-org:service:%s:%d", service, version)
+		clients, err := goupnp.NewServiceClientsFromRootDevice(root, loc, urn)
+		if err != nil || len(clients) == 0 {
+			continue
+		}
+		return clients[0], nil
 	}
-	return &dlnaDevice{transport: transports[0], caps: negotiateCaps(ctx, loc, u)}, nil
+	return goupnp.ServiceClient{}, fmt.Errorf(
+		"no %s service (v1-v3) found on device %q (UDN=%q)",
+		service, root.Device.FriendlyName, root.Device.UDN)
 }
 
 // negotiateCaps asks the renderer what it accepts, over ConnectionManager
@@ -100,18 +126,21 @@ func connectDLNA(ctx context.Context, info Info) (Device, error) {
 // best-effort: any failure, or a renderer that advertises no codec we know,
 // degrades to fallbackCaps so playback still works (just conservatively).
 func negotiateCaps(ctx context.Context, loc *goupnp.RootDevice, u *url.URL) media.Renderer {
-	managers, err := av1.NewConnectionManager1ClientsFromRootDevice(loc, u)
-	if err != nil || len(managers) == 0 {
+	manager, err := findService(loc, u, "ConnectionManager")
+	if err != nil {
 		slog.WarnContext(ctx, "no ConnectionManager service; using conservative capabilities", "error", err)
 		return fallbackCaps()
 	}
 	ctx, cancel := context.WithTimeout(ctx, capsTimeout)
 	defer cancel()
-	_, sink, err := managers[0].GetProtocolInfoCtx(ctx)
-	if err != nil {
+
+	response := &struct{ Source, Sink string }{}
+	if err := manager.SOAPClient.PerformActionCtx(
+		ctx, manager.Service.ServiceType, "GetProtocolInfo", nil, response); err != nil {
 		slog.WarnContext(ctx, "GetProtocolInfo failed; using conservative capabilities", "error", err)
 		return fallbackCaps()
 	}
+	sink := response.Sink
 	caps := parseSinkProtocolInfo(sink)
 	if len(caps.Video) == 0 {
 		slog.WarnContext(ctx, "renderer advertised no known video codec; using conservative capabilities")
@@ -243,13 +272,31 @@ func (d *dlnaDevice) Play(ctx context.Context, streamURL *url.URL, contentType s
 	}
 	slog.DebugContext(ctx, "DIDL metadata", "xml", metadata)
 
-	if err := d.transport.SetAVTransportURICtx(ctx, 0, streamURL.String(), metadata); err != nil {
+	setURI := &struct {
+		InstanceID         string
+		CurrentURI         string
+		CurrentURIMetaData string
+	}{"0", streamURL.String(), metadata}
+	if err := d.action(ctx, "SetAVTransportURI", setURI); err != nil {
 		return fmt.Errorf("setting transport URI: %w", err)
 	}
-	if err := d.transport.PlayCtx(ctx, 0, "1"); err != nil {
+
+	play := &struct {
+		InstanceID string
+		Speed      string
+	}{"0", "1"}
+	if err := d.action(ctx, "Play", play); err != nil {
 		return fmt.Errorf("starting playback: %w", err)
 	}
 	return nil
+}
+
+// action performs a SOAP action against the renderer's AVTransport service,
+// namespaced to the service version the device actually published. None of the
+// actions castor calls return out arguments, so no response is unmarshalled.
+func (d *dlnaDevice) action(ctx context.Context, name string, request any) error {
+	return d.transport.SOAPClient.PerformActionCtx(
+		ctx, d.transport.Service.ServiceType, name, request, nil)
 }
 
 func (d *dlnaDevice) Close() error {

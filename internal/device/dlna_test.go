@@ -10,6 +10,110 @@ import (
 	"github.com/stupside/castor/internal/media"
 )
 
+func TestFindService(t *testing.T) {
+	service := func(serviceType string) goupnp.Service {
+		return goupnp.Service{
+			ServiceType: serviceType,
+			ControlURL:  goupnp.URLField{URL: url.URL{Scheme: "http", Host: "192.0.2.10:2870", Path: "/control/" + serviceType}, Ok: true},
+		}
+	}
+	root := func(services ...goupnp.Service) *goupnp.RootDevice {
+		return &goupnp.RootDevice{Device: goupnp.Device{
+			FriendlyName: "Test Renderer",
+			UDN:          "uuid:test",
+			Services:     services,
+		}}
+	}
+	const (
+		v1 = "urn:schemas-upnp-org:service:AVTransport:1"
+		v2 = "urn:schemas-upnp-org:service:AVTransport:2"
+		v3 = "urn:schemas-upnp-org:service:AVTransport:3"
+		rc = "urn:schemas-upnp-org:service:RenderingControl:3"
+		cm = "urn:schemas-upnp-org:service:ConnectionManager:3"
+	)
+
+	tests := []struct {
+		name    string
+		root    *goupnp.RootDevice
+		service string
+		want    string
+	}{
+		{
+			name:    "version 1 service is driven as before",
+			root:    root(service(v1)),
+			service: "AVTransport",
+			want:    v1,
+		},
+		{
+			// Philips 50PUD6654/43 and similar sets publish the v3 service only.
+			name:    "version 3 only renderer is reachable",
+			root:    root(service(rc), service(cm), service(v3)),
+			service: "AVTransport",
+			want:    v3,
+		},
+		{
+			name:    "version 2 only renderer is reachable",
+			root:    root(service(v2)),
+			service: "AVTransport",
+			want:    v2,
+		},
+		{
+			name:    "newest published version wins",
+			root:    root(service(v1), service(v2), service(v3)),
+			service: "AVTransport",
+			want:    v3,
+		},
+		{
+			name: "service nested in a sub-device is found",
+			root: &goupnp.RootDevice{Device: goupnp.Device{
+				FriendlyName: "Test Renderer",
+				Devices:      []goupnp.Device{{Services: []goupnp.Service{service(v3)}}},
+			}},
+			service: "AVTransport",
+			want:    v3,
+		},
+		{
+			name:    "renderer without any AVTransport is rejected",
+			root:    root(service(rc), service(cm)),
+			service: "AVTransport",
+			want:    "",
+		},
+		{
+			// Capability negotiation is version-locked the same way: a v3-only
+			// ConnectionManager would otherwise degrade to fallbackCaps and
+			// re-encode a stream the renderer could have copied.
+			name:    "version 3 ConnectionManager is reachable for negotiation",
+			root:    root(service(rc), service(cm), service(v3)),
+			service: "ConnectionManager",
+			want:    cm,
+		},
+	}
+
+	loc := &url.URL{Scheme: "http", Host: "192.0.2.10:2870", Path: "/dmr.xml"}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := findService(tt.root, loc, tt.service)
+			if tt.want == "" {
+				if err == nil {
+					t.Fatalf("findService() error = nil, want an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("findService() error = %v, want nil", err)
+			}
+			if got.Service.ServiceType != tt.want {
+				t.Errorf("findService() service = %q, want %q", got.Service.ServiceType, tt.want)
+			}
+			// The SOAP action namespace must match the published version, or a
+			// strict renderer rejects the call as an invalid action.
+			if got.SOAPClient == nil {
+				t.Error("findService() returned a client with no SOAPClient")
+			}
+		})
+	}
+}
+
 func TestDLNAInfo(t *testing.T) {
 	rootDevice := func(name string) *goupnp.RootDevice {
 		return &goupnp.RootDevice{Device: goupnp.Device{FriendlyName: name}}
