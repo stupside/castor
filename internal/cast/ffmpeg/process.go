@@ -36,6 +36,7 @@ type Process struct {
 type startConfig struct {
 	stdin     io.Reader
 	extraPipe bool
+	workDir   string
 }
 
 type StartOption func(*startConfig)
@@ -43,6 +44,12 @@ type StartOption func(*startConfig)
 // WithStdin feeds r to ffmpeg's stdin (pipe:0 input).
 func WithStdin(r io.Reader) StartOption {
 	return func(c *startConfig) { c.stdin = r }
+}
+
+// WithWorkDir runs ffmpeg with dir as its working directory, so a muxer writing
+// relative files (HLS) lands them there.
+func WithWorkDir(dir string) StartOption {
+	return func(c *startConfig) { c.workDir = dir }
 }
 
 // WithExtraPipe opens a second output pipe on fd 3 (pipe:3), exposed as
@@ -61,6 +68,7 @@ func Start(ctx context.Context, path string, args []string, opts ...StartOption)
 
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Stdin = cfg.stdin
+	cmd.Dir = cfg.workDir
 
 	var extraRead, extraWrite *os.File
 	if cfg.extraPipe {

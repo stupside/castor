@@ -125,7 +125,13 @@ func discoverAndConnect(cfg Config) deviceConnector {
 		}
 		slog.InfoContext(ctx, "device found", "name", info.Name, "type", string(info.Type), "address", info.Address)
 
-		dev, err := device.Connect(ctx, info)
+		dev, err := device.Connect(ctx, info, device.Options{
+			Roku: device.RokuOptions{
+				AppID:    cfg.Device.Roku.AppID,
+				Username: cfg.Device.Roku.Username,
+				Password: cfg.Device.Roku.Password,
+			},
+		})
 		if err != nil {
 			return nil, fmt.Errorf("connecting to device: %w", err)
 		}

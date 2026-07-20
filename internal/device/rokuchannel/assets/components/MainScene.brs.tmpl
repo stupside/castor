@@ -1,0 +1,13 @@
+sub init()
+    m.video = m.top.findNode("video")
+end sub
+
+sub onArgs()
+    a = m.top.args
+    content = CreateObject("roSGNode", "ContentNode")
+    content.url = a["{{.ParamURL}}"]
+    content.streamFormat = a["{{.ParamFormat}}"]
+    m.video.content = content
+    m.video.control = "play"
+    m.video.setFocus(true)
+end sub

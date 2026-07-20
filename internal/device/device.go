@@ -21,12 +21,19 @@ type Type string
 const (
 	TypeDLNA       Type = "dlna"
 	TypeChromecast Type = "chromecast"
+	TypeRoku       Type = "roku"
 )
 
 type Info struct {
 	Name    string
 	Type    Type
 	Address string
+}
+
+// Options carries optional per-type connect settings. The zero value is valid;
+// types that need nothing ignore it.
+type Options struct {
+	Roku RokuOptions
 }
 
 // Device is a connected renderer, ready to play. Obtain one via Connect.
@@ -50,12 +57,14 @@ type Device interface {
 	Close() error
 }
 
-func Connect(ctx context.Context, info Info) (Device, error) {
+func Connect(ctx context.Context, info Info, opts Options) (Device, error) {
 	switch info.Type {
 	case TypeDLNA:
 		return connectDLNA(ctx, info)
 	case TypeChromecast:
 		return connectChromecast(info)
+	case TypeRoku:
+		return connectRoku(ctx, info, opts.Roku)
 	}
 	return nil, fmt.Errorf("unknown device type: %q", info.Type)
 }
@@ -73,19 +82,20 @@ func FindInfo(ctx context.Context, timeout time.Duration, dtype Type, name strin
 	return Info{}, fmt.Errorf("device %q (type %s) not found", name, dtype)
 }
 
-// Discover scans the local network for renderers: DLNA via SSDP and Chromecast
-// via mDNS (_googlecast._tcp). Both scans run in parallel and share the same
-// timeout window; a protocol that fails contributes no devices rather than
-// failing the whole scan.
+// Discover scans the local network for renderers: DLNA via SSDP (MediaRenderer),
+// Chromecast via mDNS (_googlecast._tcp), and Roku via SSDP (roku:ecp). All scans
+// run in parallel and share the same timeout window; a protocol that fails
+// contributes no devices rather than failing the whole scan.
 func Discover(ctx context.Context, timeout time.Duration) ([]Info, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	var dlna, chromecast []Info
+	var dlna, chromecast, roku []Info
 	var wg sync.WaitGroup
 	wg.Go(func() { dlna = discoverDLNA(ctx) })
 	wg.Go(func() { chromecast = discoverChromecast(ctx) })
+	wg.Go(func() { roku = discoverRoku(ctx) })
 	wg.Wait()
 
-	return slices.Concat(dlna, chromecast), nil
+	return slices.Concat(dlna, chromecast, roku), nil
 }

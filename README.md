@@ -133,6 +133,43 @@ Any TV implementing the DLNA/UPnP `MediaRenderer:1` profile works, which covers 
 
 Experimental: implemented but untested. Contributions welcome.
 
+### Roku
+
+Roku TVs and players are not DLNA renderers, so Castor reaches them over Roku's
+ECP (External Control Protocol). Because Roku has no supported way to play an
+arbitrary URL from a preinstalled app, Castor ships a tiny channel of its own and
+plays through it, casting a live HLS stream. Point `config.yaml` at the Roku by
+the name from `castor scan`:
+
+```yaml
+device:
+  name: "Living Room"   # the Roku's name, from `castor scan`
+  type: roku
+  roku:
+    # Only needed the first time, to sideload Castor's channel (see below).
+    password: "<dev-web-server-password>"
+```
+
+**One-time setup — enable Developer Mode.** Castor installs its channel over the
+Roku's developer web server, which you must turn on by hand once (there is no
+remote API for it):
+
+1. On the Roku remote press **Home ×3, Up ×2, Right, Left, Right, Left, Right**.
+2. Enable developer mode and set a **web-server password** (the device reboots).
+3. Put that password in `device.roku.password` (keep it in a git-ignored
+   `config.local.yaml`, or set `CASTOR_DEVICE__ROKU__PASSWORD`).
+
+On the first cast Castor sideloads its channel automatically; subsequent casts
+just launch it. If the channel is already installed you can omit the password. To
+run a channel you published to the Channel Store instead, set
+`device.roku.app_id` to its numeric id (no dev mode or password needed).
+
+> [!NOTE]
+> Roku's live model is sliding-window HLS and playback stays ~30 s behind the
+> live edge, so expect a longer start delay and more latency than DLNA. Casting a
+> source Roku already accepts (HLS/MP4) passes it through; anything else is
+> remuxed to HLS on the fly.
+
 
 ## Docker (optional)
 

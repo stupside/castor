@@ -278,8 +278,29 @@ func EncodeArgs(opts EncodeOptions) []string {
 		args = append(args, "-progress", "pipe:3", "-stats_period", "0.1")
 	}
 
+	// HLS writes a playlist + segment files, not a pipe. Bare relative names rely
+	// on the process running WithWorkDir(the cast dir).
+	if opts.OutputFormat == "hls" {
+		return append(args, hlsOutputArgs()...)
+	}
 	args = append(args, "-f", opts.OutputFormat, "pipe:1")
 	return args
+}
+
+// hlsOutputArgs is a live sliding-window fMP4 HLS tail. list_size 8 at ~4s each
+// keeps ~32s of window, above Roku's 30s-from-edge minimum; playlist_type stays
+// unset so the window rolls (event/vod pin it to 0).
+func hlsOutputArgs() []string {
+	return []string{
+		"-f", "hls",
+		"-hls_time", "4",
+		"-hls_list_size", "8",
+		"-hls_flags", "delete_segments+independent_segments",
+		"-hls_segment_type", "fmp4",
+		"-hls_fmp4_init_filename", media.HLSInitName,
+		"-hls_segment_filename", media.HLSSegmentPattern,
+		media.HLSPlaylistName,
+	}
 }
 
 // PullOptions configures the single upstream reader's command line.

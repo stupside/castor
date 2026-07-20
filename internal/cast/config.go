@@ -21,6 +21,17 @@ type Config struct {
 type DeviceConfig struct {
 	Name string      `yaml:"name" validate:"required"`
 	Type device.Type `yaml:"type" validate:"required"`
+	// Roku holds settings used only when Type is "roku"; ignored otherwise.
+	Roku RokuConfig `yaml:"roku"`
+}
+
+// RokuConfig holds Roku-only settings, all optional. AppID defaults to the
+// sideloaded "dev" channel; Password (the developer web-server password) enables
+// auto-sideload and belongs in a *.local.yaml overlay or CASTOR_DEVICE__ROKU__PASSWORD.
+type RokuConfig struct {
+	AppID    string `yaml:"app_id"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 type NetworkConfig struct {

@@ -18,6 +18,13 @@ const (
 	HLS  = "application/x-mpegURL"
 )
 
+// HLS output filenames, shared by the muxer and the server.
+const (
+	HLSPlaylistName   = "stream.m3u8"
+	HLSInitName       = "init.mp4"
+	HLSSegmentPattern = "seg_%05d.m4s"
+)
+
 // HLSInputArgs contains ffmpeg/ffprobe flags that relax extension checks
 // for HLS playlists and DASH manifests.
 var HLSInputArgs = []string{
@@ -55,6 +62,10 @@ func (s StreamInfo) Playable() bool { return s.HasVideo && s.HasAudio }
 type FormatInfo struct {
 	ContentType string
 	Extension   string
+	// Segmented is set for formats delivered as a playlist + segment directory
+	// (HLS) rather than one byte stream; the delivery layer picks its server from
+	// it.
+	Segmented bool
 }
 
 var formatRegistry = map[string]FormatInfo{
@@ -62,6 +73,7 @@ var formatRegistry = map[string]FormatInfo{
 	"mp4":      {ContentType: MP4, Extension: ".mp4"},
 	"matroska": {ContentType: MKV, Extension: ".mkv"},
 	"webm":     {ContentType: WebM, Extension: ".webm"},
+	"hls":      {ContentType: HLS, Extension: ".m3u8", Segmented: true},
 }
 
 // FormatForContentType returns the ffmpeg output format name and info for a

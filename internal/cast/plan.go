@@ -107,6 +107,8 @@ func BuildPlan(in PlanInput) Plan {
 		return planDLNA(in)
 	case device.TypeChromecast:
 		return planChromecast(in)
+	case device.TypeRoku:
+		return planRoku(in)
 	}
 	return Plan{
 		SourceURL:         in.SourceURL,
@@ -224,6 +226,36 @@ func planChromecast(in PlanInput) Plan {
 			SourceContentType: in.SourceContentType,
 			// VideoEncoder unset (nil) stream-copies the video: Chromecast
 			// decodes the source codec, only the container changes to mp4.
+			AudioCodec:      "aac",
+			AudioBitrate:    "256k",
+			AudioSampleRate: 48000,
+			AudioChannels:   2,
+		},
+	}
+}
+
+// planRoku passes through a container Roku accepts, else remuxes to live HLS
+// (video copied, audio to AAC). Roku has no supported single-file live source, so
+// the output is HLS, not fragmented MP4.
+func planRoku(in PlanInput) Plan {
+	if in.Renderer.AcceptsContainer(in.SourceContentType) {
+		return Plan{
+			SourceURL:         in.SourceURL,
+			SourceHeaders:     in.SourceHeaders,
+			SourceContentType: in.SourceContentType,
+			OutputContentType: in.SourceContentType,
+		}
+	}
+
+	return Plan{
+		SourceURL:         in.SourceURL,
+		SourceHeaders:     in.SourceHeaders,
+		SourceContentType: in.SourceContentType,
+		OutputContentType: media.HLS,
+		Transcode: &ffmpeg.EncodeOptions{
+			OutputFormat:      "hls",
+			SourceContentType: in.SourceContentType,
+			// nil VideoEncoder copies video; HLS cuts on source keyframes.
 			AudioCodec:      "aac",
 			AudioBitrate:    "256k",
 			AudioSampleRate: 48000,
