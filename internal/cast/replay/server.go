@@ -2,7 +2,7 @@
 // it to every client from byte 0.
 //
 // The producer's output is spooled to disk and every HTTP connection replays
-// it from the start through its own paced reader. This is what makes Samsung's
+// it from the start through its own reader. This is what makes Samsung's
 // HEAD-probe → short-GET → real-GET dance safe: the probe GET reads its own
 // copy of the stream head and the real GET still starts at byte 0 with the
 // container init and first keyframe intact. A live fan-out broadcaster (the
@@ -10,11 +10,11 @@
 // real GET then joins mid-stream at an arbitrary byte offset the renderer
 // cannot decode.
 //
-// Per-connection pacing (token bucket: SendBurst up front, SendRate steady
-// state) keeps the renderer's buffer full without overflowing it. The
-// producer itself is never throttled — it runs ahead into the spool as fast
-// as it encodes, which also means a late or reconnecting client can always
-// be served from the start.
+// Delivery is not rate-limited: each connection is written as fast as the
+// renderer reads it, and TCP backpressure holds it to the renderer's own
+// playback rate. The producer runs ahead into the spool as fast as it
+// encodes, so a late or reconnecting client can always be served from the
+// start.
 package replay
 
 import (
@@ -50,13 +50,6 @@ type Config struct {
 	// SpoolPath is where the producer's output is spooled. The caller owns
 	// the file's directory lifecycle.
 	SpoolPath string
-
-	// SendRate caps each connection's byte/sec rate. 0 disables pacing.
-	SendRate int64
-	// SendBurst is the initial unrestricted byte budget per connection,
-	// sized so the renderer leaves "loading" state before the bucket
-	// starts metering.
-	SendBurst int64
 }
 
 // Server spools a producer's output and replays it to every HTTP client from
@@ -160,9 +153,8 @@ func (s *Server) Wait(ctx context.Context) error {
 	}
 }
 
-// handleStream replays the spool from byte 0 to one client, paced by its
-// own token bucket. srvCtx ends the stream on server shutdown; the request
-// context ends it on client disconnect.
+// handleStream replays the spool from byte 0 to one client. srvCtx ends the
+// stream on server shutdown; the request context ends it on client disconnect.
 func (s *Server) handleStream(srvCtx context.Context, w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -183,8 +175,6 @@ func (s *Server) handleStream(srvCtx context.Context, w http.ResponseWriter, r *
 		"from", r.RemoteAddr,
 		"user_agent", r.UserAgent(),
 		"range", r.Header.Get("Range"),
-		"send_rate_bps", s.cfg.SendRate,
-		"send_burst_bytes", s.cfg.SendBurst,
 	)
 
 	tail, err := s.spool.Tail(ctx)
@@ -212,16 +202,11 @@ func (s *Server) handleStream(srvCtx context.Context, w http.ResponseWriter, r *
 		flusher.Flush()
 	}
 
-	bucket := newTokenBucket(s.cfg.SendRate, s.cfg.SendBurst)
 	buf := make([]byte, sendChunkSize)
 	var sent int64
 	for {
 		n, readErr := tail.Read(buf)
 		if n > 0 {
-			if err := bucket.wait(ctx, int64(n)); err != nil {
-				slog.InfoContext(ctx, "stream client cancelled", "from", r.RemoteAddr, "bytes_sent", sent)
-				return
-			}
 			if _, err := w.Write(buf[:n]); err != nil {
 				slog.InfoContext(ctx, "stream client disconnected", "from", r.RemoteAddr, "bytes_sent", sent, "error", err)
 				return
