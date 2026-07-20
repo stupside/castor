@@ -34,11 +34,22 @@ func TestAgreedPrefix(t *testing.T) {
 	}
 }
 
-func TestSameWordTimeTolerance(t *testing.T) {
-	a := word{Start: 1.0, End: 1.3, Text: "word"}
-	b := word{Start: 2.5, End: 2.8, Text: "word"}
-	if sameWord(a, b) {
-		t.Error("words drifting past the tolerance must not agree")
+func TestSameWordTextMatch(t *testing.T) {
+	tests := []struct {
+		a, b word
+		want bool
+	}{
+		{word{Text: "Hello,"}, word{Text: "hello"}, true},         // punctuation + case
+		{word{Text: "world"}, word{Text: "world"}, true},          // exact
+		{word{Text: "again"}, word{Text: "against"}, false},       // different words
+		{word{Text: "[Music]"}, word{Text: "[Music]"}, true},      // noise matches itself
+		{word{Text: "hello"}, word{Text: "hello!"}, true},        // trailing punct
+	}
+	for _, tt := range tests {
+		got := sameWord(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("sameWord(%q, %q) = %v, want %v", tt.a.Text, tt.b.Text, got, tt.want)
+		}
 	}
 }
 

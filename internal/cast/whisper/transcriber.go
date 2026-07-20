@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"strings"
 	"sync"
 	"time"
@@ -49,11 +48,6 @@ const (
 	// model anyway, minus slack for VAD padding).
 	trimAfterSeconds = 15
 	maxBufferSeconds = 28
-
-	// agreeStartTolerance is how far two hypotheses' start times for the
-	// same word may drift while still counting as agreement. Whisper times
-	// jitter a few hundred ms between runs with different right-context.
-	agreeStartTolerance = 1.0
 
 	// promptMaxChars caps the committed-text tail passed to whisper as the
 	// initial prompt, restoring the left context that buffer trimming
@@ -312,9 +306,6 @@ func agreedPrefix(prev, cur []word) []word {
 }
 
 func sameWord(a, b word) bool {
-	if math.Abs(a.Start-b.Start) > agreeStartTolerance {
-		return false
-	}
 	na, nb := normalizeWord(a.Text), normalizeWord(b.Text)
 	if na == "" && nb == "" {
 		return a.Text == b.Text
