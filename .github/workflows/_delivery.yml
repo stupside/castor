@@ -1,0 +1,172 @@
+name: _delivery
+
+# Shared build + publish engine for one version. Called by continuous-delivery.yml
+# (stable, from release-please) and canary-release.yml (on-demand prerelease). The version
+# string is the only difference between the two lanes: a prerelease version
+# (contains a `-`, e.g. 1.4.4-canary.abc1234) publishes only the moving `:canary`
+# image tag and skips the `:latest` tag, the GitHub Release assets, and the
+# Homebrew cask, so previews never move the stable pointers.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Bare version to ship, e.g. 1.4.4 or 1.4.4-canary.abc1234."
+        required: true
+        type: string
+    secrets:
+      HOMEBREW_TAP_GITHUB_TOKEN:
+        description: Token for pushing the rendered cask to the Homebrew tap (stable only).
+        required: false
+
+permissions: {}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-amd64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - target: linux-arm64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            cc: zcc
+            cxx: zxx
+            zig_triple: aarch64-linux-gnu.2.17
+            cmake_args: >-
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=aarch64
+              -DCMAKE_C_COMPILER=zcc
+              -DCMAKE_CXX_COMPILER=zxx
+          - target: darwin-amd64
+            runner: macos-latest
+            goos: darwin
+            goarch: amd64
+            cc: clang -arch x86_64
+            cxx: clang++ -arch x86_64
+            cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DGGML_METAL_EMBED_LIBRARY=ON
+          - target: darwin-arm64
+            runner: macos-latest
+            goos: darwin
+            goarch: arm64
+            cmake_args: -DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL_EMBED_LIBRARY=ON
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    env:
+      WHISPER: ${{ github.workspace }}/third_party/whisper.cpp
+      BUILD: ${{ github.workspace }}/third_party/whisper.cpp/build
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        if: matrix.zig_triple
+        with:
+          version: latest
+      - if: matrix.zig_triple
+        run: |
+          printf '#!/bin/sh\nexec zig cc  -target ${{ matrix.zig_triple }} "$@"\n' | sudo tee /usr/local/bin/zcc > /dev/null
+          printf '#!/bin/sh\nexec zig c++ -target ${{ matrix.zig_triple }} "$@"\n' | sudo tee /usr/local/bin/zxx > /dev/null
+          sudo chmod +x /usr/local/bin/zcc /usr/local/bin/zxx
+      - run: |
+          cmake -S "$WHISPER" -B "$BUILD" \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DGGML_NATIVE=OFF \
+            ${{ matrix.cmake_args }}
+          cmake --build "$BUILD" --target whisper -j"$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)"
+      - env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          export CGO_CFLAGS="-I$WHISPER/include -I$WHISPER/ggml/include"
+          export CGO_LDFLAGS="-L$BUILD/src -L$BUILD/ggml/src -L$BUILD/ggml/src/ggml-blas -L$BUILD/ggml/src/ggml-metal"
+          go build -trimpath \
+            -ldflags "-s -w \
+              -X 'github.com/stupside/castor/internal/version.Version=${VERSION}' \
+              -X 'github.com/stupside/castor/internal/version.Commit=${GITHUB_SHA}' \
+              -X 'github.com/stupside/castor/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
+            -o dist/castor .
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: castor-${{ matrix.target }}
+          path: dist/castor
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      IMAGE: ghcr.io/stupside/castor
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: castor-*
+          path: prebuilt
+      - run: ./scripts/release.sh
+      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          # Full version tag always; the moving `latest`/`canary` pointers are
+          # mutually exclusive on whether the version is a prerelease.
+          tags: |
+            type=raw,value=v${{ inputs.version }}
+            type=raw,value=latest,enable=${{ !contains(inputs.version, '-') }}
+            type=raw,value=canary,enable=${{ contains(inputs.version, '-') }}
+          labels: |
+            org.opencontainers.image.description=Cast video streams to networked devices
+            org.opencontainers.image.licenses=MIT
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Stable-only: never run for a prerelease (canary) version ──
+      # release-please already created the Release; attach binaries + checksums
+      # to it without touching its generated changelog body.
+      - if: ${{ !contains(inputs.version, '-') }}
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        with:
+          tag_name: v${{ inputs.version }}
+          files: dist/*
+          fail_on_unmatched_files: true
+      - if: ${{ !contains(inputs.version, '-') }}
+        run: ./scripts/cask.sh
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

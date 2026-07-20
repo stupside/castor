@@ -1,143 +1,52 @@
-name: Release
+name: continuous-delivery
+
+# release-please grooms a standing Release PR from Conventional Commits; on its
+# merge it cuts the v<x.y.z> tag + GitHub Release and hands the stable version to
+# _delivery (the shared build/publish engine the canary lane also calls). Because
+# both jobs run in this single workflow run, no PAT is needed to bridge the tag to
+# the build.
 
 on:
   push:
-    tags: ['v*']
+    branches: [ main ]
 
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: cd
+  cancel-in-progress: false
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: linux-amd64
-            runner: ubuntu-latest
-            goos: linux
-            goarch: amd64
-          - target: linux-arm64
-            runner: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            cc: zcc
-            cxx: zxx
-            zig_triple: aarch64-linux-gnu.2.17
-            cmake_args: >-
-              -DCMAKE_SYSTEM_NAME=Linux
-              -DCMAKE_SYSTEM_PROCESSOR=aarch64
-              -DCMAKE_C_COMPILER=zcc
-              -DCMAKE_CXX_COMPILER=zxx
-          - target: darwin-amd64
-            runner: macos-latest
-            goos: darwin
-            goarch: amd64
-            cc: clang -arch x86_64
-            cxx: clang++ -arch x86_64
-            cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DGGML_METAL_EMBED_LIBRARY=ON
-          - target: darwin-arm64
-            runner: macos-latest
-            goos: darwin
-            goarch: arm64
-            cmake_args: -DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL_EMBED_LIBRARY=ON
-    runs-on: ${{ matrix.runner }}
-    env:
-      WHISPER: ${{ github.workspace }}/third_party/whisper.cpp
-      BUILD: ${{ github.workspace }}/third_party/whisper.cpp/build
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          submodules: true
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: go.mod
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        if: matrix.zig_triple
-        with:
-          version: latest
-      - if: matrix.zig_triple
-        run: |
-          printf '#!/bin/sh\nexec zig cc  -target ${{ matrix.zig_triple }} "$@"\n' | sudo tee /usr/local/bin/zcc > /dev/null
-          printf '#!/bin/sh\nexec zig c++ -target ${{ matrix.zig_triple }} "$@"\n' | sudo tee /usr/local/bin/zxx > /dev/null
-          sudo chmod +x /usr/local/bin/zcc /usr/local/bin/zxx
-      - run: |
-          cmake -S "$WHISPER" -B "$BUILD" \
-            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
-            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF \
-            -DGGML_NATIVE=OFF \
-            ${{ matrix.cmake_args }}
-          cmake --build "$BUILD" --target whisper -j"$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)"
-      - env:
-          CGO_ENABLED: "1"
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CC: ${{ matrix.cc }}
-          CXX: ${{ matrix.cxx }}
-        run: |
-          export CGO_CFLAGS="-I$WHISPER/include -I$WHISPER/ggml/include"
-          export CGO_LDFLAGS="-L$BUILD/src -L$BUILD/ggml/src -L$BUILD/ggml/src/ggml-blas -L$BUILD/ggml/src/ggml-metal"
-          go build -trimpath \
-            -ldflags "-s -w \
-              -X 'github.com/stupside/castor/internal/version.Version=${GITHUB_REF_NAME#v}' \
-              -X 'github.com/stupside/castor/internal/version.Commit=${GITHUB_SHA}' \
-              -X 'github.com/stupside/castor/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
-            -o dist/castor .
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: castor-${{ matrix.target }}
-          path: dist/castor
-          if-no-files-found: error
-
-  release:
-    needs: build
+  please:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      released: ${{ steps.release.outputs.releases_created }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # The merged Release PR already bumped the manifest to the tagged version.
+      - name: Read released version
+        id: version
+        if: steps.release.outputs.releases_created == 'true'
+        run: echo "version=$(jq -r '."."' .release-please-manifest.json)" >> "$GITHUB_OUTPUT"
+
+  delivery:
+    needs: please
+    if: needs.please.outputs.released == 'true'
+    uses: ./.github/workflows/_delivery.yml
+    secrets:
+      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
     permissions:
       contents: write
       packages: write
-    env:
-      IMAGE: ghcr.io/stupside/castor
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: castor-*
-          path: prebuilt
-      - run: ./scripts/release.sh
-      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-      - id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.IMAGE }}
-          tags: |
-            type=ref,event=tag
-            type=raw,value=latest
-          labels: |
-            org.opencontainers.image.description=Cast video streams to networked devices
-            org.opencontainers.image.licenses=MIT
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          provenance: false
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
-        with:
-          files: dist/*
-          name: ${{ github.ref_name }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-      - run: ./scripts/cask.sh
-        env:
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+    with:
+      version: ${{ needs.please.outputs.version }}

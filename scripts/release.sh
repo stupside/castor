@@ -3,7 +3,7 @@
 # archives + checksums.txt + a Docker build context. Run from the repo root, in CI.
 set -euo pipefail
 
-version="${GITHUB_REF_NAME#v}"
+version="${VERSION:?VERSION must be set}"
 
 mkdir -p dist docker
 for dir in prebuilt/castor-*; do

@@ -3,7 +3,7 @@
 # Run from the repo root, in CI, after release.sh has staged the archives.
 set -euo pipefail
 
-version="${GITHUB_REF_NAME#v}"
+version="${VERSION:?VERSION must be set}"
 
 sha_arm=$(sha256sum "dist/castor_${version}_darwin_arm64.tar.gz" | cut -d' ' -f1)
 sha_intel=$(sha256sum "dist/castor_${version}_darwin_amd64.tar.gz" | cut -d' ' -f1)

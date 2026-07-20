@@ -1,0 +1,48 @@
+name: canary-release
+
+# On-demand canary preview. Dispatch this workflow on any branch: it computes
+# <next-patch>-canary.<short-sha> from the released version and hands it to the
+# shared _delivery engine. The `-` in the version makes _delivery treat it as a
+# prerelease, so it publishes only the moving `:canary` image tag and never
+# touches `:latest`, the GitHub Release, or the Homebrew cask.
+
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Compute canary version
+        id: v
+        run: |
+          set -euo pipefail
+          base=$(jq -r '."."' .release-please-manifest.json)
+          next="${base%.*}.$(( ${base##*.} + 1 ))"
+          version="${next}-canary.$(git rev-parse --short HEAD)"
+          case "$version" in *-*) ;; *) echo "::error::not a prerelease: $version"; exit 1 ;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: version
+    uses: ./.github/workflows/_delivery.yml
+    secrets: inherit
+    permissions:
+      contents: write
+      packages: write
+    with:
+      version: ${{ needs.version.outputs.version }}

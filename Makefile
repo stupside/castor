@@ -14,10 +14,7 @@ export LIBRARY_PATH  := $(LIBRARY_PATH):$(CURDIR)/$(BUILD)/ggml/src/ggml-blas:$(
 export CGO_LDFLAGS   := -framework Foundation -framework Metal -framework MetalKit
 endif
 
-.PHONY: build env clean
-
-build: $(LIB)
-	go build -o castor .
+.PHONY: build env clean hooks
 
 # eval "$(make env)" once per shell, then plain `go run .` / `go build` work.
 env:
@@ -26,8 +23,15 @@ env:
 	@echo 'export GGML_METAL_PATH_RESOURCES="$(GGML_METAL_PATH_RESOURCES)"'
 	@echo 'export CGO_LDFLAGS="$(CGO_LDFLAGS)"'
 
+build: $(LIB)
+	go build -o castor .
+
 clean:
 	rm -rf $(BUILD) castor
+
+# Enable the Conventional Commits commit-msg hook (git + bash only, no installs).
+hooks:
+	git config core.hooksPath .githooks
 
 $(LIB):
 	cmake -S $(WHISPER) -B $(BUILD) -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF

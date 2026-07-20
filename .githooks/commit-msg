@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Reject commit messages that aren't Conventional Commits. Enabled with
+# `make hooks` (points core.hooksPath here); needs nothing but git + bash.
+# The released changelog is grouped by these types.
+set -euo pipefail
+
+header=$(head -n1 "$1")
+
+# git-generated subjects (merge, revert, autosquash) aren't authored by hand.
+case "$header" in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*) exit 0 ;;
+esac
+
+pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+'
+if ! printf '%s' "$header" | grep -Eq "$pattern"; then
+  {
+    echo "commit-msg: not a Conventional Commit:"
+    echo "  $header"
+    echo "expected: type(scope)?: subject"
+    echo "types: feat fix docs style refactor perf test build ci chore revert"
+  } >&2
+  exit 1
+fi
