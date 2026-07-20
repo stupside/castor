@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.0](https://github.com/stupside/castor/compare/castor-v1.5.0...castor-1.6.0) (2026-07-20)
+
+
+### Features
+
+* live-edge pacing at realtime with no burst ([4feef28](https://github.com/stupside/castor/commit/4feef282befbe8cebe5a96e343d4a5a431fdfdec))
+
+
+### Bug Fixes
+
+* reconnect on HTTP 429 with backoff ([a2e6eb5](https://github.com/stupside/castor/commit/a2e6eb5f78bb434f94acc64d2c0b481d6accba5e))
+* remove non-canonical timestamp gate from LA-2 ([0b789d4](https://github.com/stupside/castor/commit/0b789d49341cf301dd2fe33fc64b2f608aa60248))
+
+
+### Refactors
+
+* split HLS fetch from parse ([d1f44dd](https://github.com/stupside/castor/commit/d1f44dd2a5ee940fc2c033ec163e2c4da6989381))
+
 ## [1.5.0](https://github.com/stupside/castor/compare/castor-v1.4.3...castor-v1.5.0) (2026-07-20)
 
 
