@@ -15,13 +15,6 @@ import (
 	"github.com/stupside/castor/internal/cast/whisper"
 )
 
-// cueSource is the render loop's view of the cue store: given a time, the line
-// to show. *cue.Builder satisfies it; the writer depends on the interface so
-// it can be exercised without a live transcriber.
-type cueSource interface {
-	CueAt(tSec float64) string
-}
-
 const (
 	// cueLeadBias compensates for the encoder pipeline running ahead of the
 	// mux position that -progress reports: frames pass through drawtext
@@ -91,8 +84,7 @@ func (s *subtitles) attach(opts *ffmpeg.EncodeOptions) error {
 // follow runs the cue writer in g against the encoder's -progress feed,
 // keeping the textfile holding the line for the frame currently being
 // encoded. It returns when the feed ends (encoder exited). The writer reads
-// cues through the cueSource interface and transcription progress through
-// frontier, so it never touches the recognizer directly.
+// cues from the builder and transcription progress through frontier.
 func (s *subtitles) follow(ctx context.Context, g *errgroup.Group, progress io.Reader) {
 	g.Go(func() error {
 		runCueWriter(ctx, progress, s.cuePath, s.builder, s.tr.LatestEnd)
@@ -107,7 +99,7 @@ func (s *subtitles) follow(ctx context.Context, g *errgroup.Group, progress io.R
 // missing file would kill ffmpeg, so atomic replacement is mandatory. frontier
 // reports how far transcription has committed, logged until the first cue
 // lands so a silent gap is visible in --debug.
-func runCueWriter(ctx context.Context, progress io.Reader, cuePath string, cues cueSource, frontier func() float64) {
+func runCueWriter(ctx context.Context, progress io.Reader, cuePath string, cues *cue.Builder, frontier func() float64) {
 	tmpPath := cuePath + ".tmp"
 	last := ""
 	calls := 0

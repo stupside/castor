@@ -41,7 +41,7 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 	// links; keeping SSDP discovery and device connect off the path between
 	// capture and the first byte stops the token expiring before we use it.
 	if cfg.Device.Type == device.TypeDLNA {
-		plan := BuildPlan(PlanInput{
+		plan, err := BuildPlan(PlanInput{
 			DeviceType:        device.TypeDLNA,
 			SourceURL:         resolved.URL,
 			SourceHeaders:     resolved.Headers,
@@ -50,6 +50,9 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 			MaxHeight:         cfg.Resolver.MaxHeight,
 			HasSubtitles:      cfg.Whisper.Enable,
 		})
+		if err != nil {
+			return fmt.Errorf("build plan: %w", err)
+		}
 		logPlan(ctx, plan)
 		return runSpooled(ctx, cfg, plan, localIP, discoverAndConnect(cfg))
 	}
@@ -62,7 +65,7 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 	}
 	defer dev.Close()
 
-	plan := BuildPlan(PlanInput{
+	plan, err := BuildPlan(PlanInput{
 		DeviceType:        cfg.Device.Type,
 		Renderer:          dev.Capabilities(),
 		SourceURL:         resolved.URL,
@@ -72,6 +75,9 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 		MaxHeight:         cfg.Resolver.MaxHeight,
 		HasSubtitles:      cfg.Whisper.Enable,
 	})
+	if err != nil {
+		return fmt.Errorf("build plan: %w", err)
+	}
 	logPlan(ctx, plan)
 
 	if plan.Transcode == nil {
@@ -111,12 +117,7 @@ func resolveSource(ctx context.Context, cfg Config, stream *media.Stream) (*medi
 	return resolved, localIP, nil
 }
 
-// deviceConnector discovers and connects the renderer. It's injected so the
-// spooled pipeline can run discovery concurrently with the puller (the renderer
-// isn't needed until the playback gate opens) and so tests can supply a fake.
-type deviceConnector func(ctx context.Context) (device.Device, error)
-
-func discoverAndConnect(cfg Config) deviceConnector {
+func discoverAndConnect(cfg Config) func(ctx context.Context) (device.Device, error) {
 	return func(ctx context.Context) (device.Device, error) {
 		slog.InfoContext(ctx, "discovering device", "name", cfg.Device.Name, "type", string(cfg.Device.Type))
 		info, err := device.FindInfo(ctx, cfg.Network.Timeout, cfg.Device.Type, cfg.Device.Name)

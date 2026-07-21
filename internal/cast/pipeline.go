@@ -25,7 +25,7 @@ import (
 // processes), g.Wait blocks until they've unwound, then a connected-but-
 // unclaimed device is closed (its goroutine has finished, so the future is
 // settled), and only then is the work directory removed.
-func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string, connect deviceConnector) error {
+func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string, connect func(ctx context.Context) (device.Device, error)) error {
 	workDir, err := os.MkdirTemp("", "castor-")
 	if err != nil {
 		return fmt.Errorf("creating work directory: %w", err)
@@ -197,7 +197,7 @@ func newDeviceFuture() *deviceFuture {
 	return &deviceFuture{ch: make(chan device.Device, 1)}
 }
 
-func (f *deviceFuture) connect(ctx context.Context, g *errgroup.Group, connect deviceConnector) {
+func (f *deviceFuture) connect(ctx context.Context, g *errgroup.Group, connect func(ctx context.Context) (device.Device, error)) {
 	g.Go(func() error {
 		dev, err := connect(ctx)
 		if err != nil {
