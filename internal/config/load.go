@@ -72,8 +72,10 @@ const envPrefix = "CASTOR_"
 func Load(path string) (*Config, error) {
 	k := koanf.New(".")
 
-	if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
-		return nil, fmt.Errorf("loading %s: %w", path, err)
+	if _, err := os.Stat(path); err == nil {
+		if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
+			return nil, fmt.Errorf("loading %s: %w", path, err)
+		}
 	}
 	// A sibling *.local.yaml overlays the tracked config with personal
 	// values (API keys, device names) that must stay out of version
