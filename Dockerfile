@@ -4,9 +4,10 @@
 # ships neither a vaapi ffmpeg nor any Intel media driver, so it could only ever
 # software-encode with libx264. castor shells out at runtime to ffmpeg/ffprobe
 # (transcode + the PCM feed for whisper) and headless chromium (stream
-# extractor), and fetches models/APIs over HTTPS. The castor binary is linked
-# against glibc 2.17, which bookworm's 2.36 runs; libgomp1/libstdc++6 are the
-# whisper cgo runtime and fonts-liberation feeds drawtext + chromium.
+# extractor), and fetches models/APIs over HTTPS. The linux-amd64 binary is now
+# cross-compiled with zig (glibc 2.17 baseline), compatible with bookworm's
+# 2.36; libgomp1/libstdc++6 are the whisper cgo runtime and fonts-liberation
+# feeds drawtext + chromium.
 #
 # Debian (not Ubuntu) because it packages a real chromium .deb; Ubuntu's is a
 # snap that will not run headless in a container. non-free carries the Intel
