@@ -8,8 +8,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 
+	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v3"
 
 	"github.com/stupside/castor/internal/config"
@@ -19,6 +21,7 @@ import (
 // app carries state shared by every subcommand.
 type app struct {
 	configPath string
+	debug      bool
 
 	once sync.Once
 	cfg  *config.Config
@@ -52,9 +55,22 @@ func Root() *cli.Command {
 				Destination: &a.configPath,
 			},
 			&cli.BoolFlag{
-				Name:  "debug",
-				Usage: "Enable debug logging",
+				Name:        "debug",
+				Usage:       "Enable debug logging",
+				Destination: &a.debug,
 			},
+		},
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			if a.debug {
+				slog.SetDefault(slog.New(
+					log.NewWithOptions(os.Stderr, log.Options{
+						ReportTimestamp: true,
+						TimeFormat:      "15:04:05.000",
+						Level:           log.DebugLevel,
+					}),
+				))
+			}
+			return ctx, nil
 		},
 		Commands: []*cli.Command{
 			a.castCommand(),

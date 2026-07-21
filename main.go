@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"slices"
 	"syscall"
 
 	"github.com/charmbracelet/log"
@@ -13,15 +12,11 @@ import (
 )
 
 func main() {
-	level := log.InfoLevel
-	if slices.Contains(os.Args, "--debug") {
-		level = log.DebugLevel
-	}
 	slog.SetDefault(slog.New(
 		log.NewWithOptions(os.Stderr, log.Options{
 			ReportTimestamp: true,
 			TimeFormat:      "15:04:05.000",
-			Level:           level,
+			Level:           log.InfoLevel,
 		}),
 	))
 
