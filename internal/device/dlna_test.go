@@ -173,10 +173,10 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 		"http-get:*:video/x-msvideo:*"
 
 	caps := parseSinkProtocolInfo(avcSink)
-	if !hasCodec(caps, media.CodecH264) {
+	if !caps.SupportsCodec(media.CodecH264) {
 		t.Error("AVC sink should advertise H.264")
 	}
-	if hasCodec(caps, media.CodecHEVC) {
+	if caps.SupportsCodec(media.CodecHEVC) {
 		t.Error("AVC-only sink must not advertise HEVC")
 	}
 	if !slices.Contains(caps.Containers, "video/mp2t") {
@@ -196,7 +196,7 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 
 	// A renderer advertising an HEVC TS profile lights up HEVC.
 	hevcSink := avcSink + ",http-get:*:video/mp2t:DLNA.ORG_PN=HEVC_TS_MAIN_HD"
-	if !hasCodec(parseSinkProtocolInfo(hevcSink), media.CodecHEVC) {
+	if !parseSinkProtocolInfo(hevcSink).SupportsCodec(media.CodecHEVC) {
 		t.Error("HEVC_TS sink should advertise HEVC")
 	}
 
@@ -204,11 +204,9 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 	if got := parseSinkProtocolInfo("garbage,http-get:*:audio/mpeg:*"); len(got.Video) != 0 {
 		t.Errorf("unusable sink should yield no video, got %v", got.Video)
 	}
-	if !hasCodec(fallbackCaps(), media.CodecH264) {
+	if !fallbackCaps().SupportsCodec(media.CodecH264) {
 		t.Error("fallbackCaps must at least support H.264")
 	}
 }
 
-func hasCodec(r media.Renderer, c media.Codec) bool {
-	return slices.ContainsFunc(r.Video, func(v media.VideoSupport) bool { return v.Codec == c })
-}
+
