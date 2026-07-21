@@ -21,17 +21,9 @@ import (
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
-)
 
-var streamMIMETypes = map[string]bool{
-	"audio/mpegurl":                 true,
-	"audio/x-mpegurl":               true,
-	"application/x-mpegurl":         true,
-	"application/vnd.apple.mpegurl": true,
-	"video/mp4":                     true,
-	"video/webm":                    true,
-	"video/x-matroska":              true,
-}
+	"github.com/stupside/castor/internal/media"
+)
 
 // hlsURLPattern matches HTTP(S) URLs containing .m3u8 in console output.
 var hlsURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+\.m3u8[^\s"'<>]*`)
@@ -81,7 +73,7 @@ func (c *collector) addByPattern(u string, reqID network.RequestID) {
 // addByMIME records a URL when the server has confirmed the MIME type is a
 // stream type. Pattern matching is skipped — the confirmed MIME takes precedence.
 func (c *collector) addByMIME(u string, reqID network.RequestID, mime string) {
-	if !streamMIMETypes[strings.ToLower(mime)] {
+	if media.DetectFromMIME(mime) == "" {
 		return
 	}
 	c.add(u, reqID, strings.ToLower(mime))

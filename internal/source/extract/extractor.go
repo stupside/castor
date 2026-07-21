@@ -46,8 +46,8 @@ func New(cfg Config) (*Extractor, error) {
 	return e, nil
 }
 
-// Extract runs a single session+pipeline extraction attempt.
-func (e *Extractor) Extract(ctx context.Context, targetURL string) ([]*media.Stream, error) {
+// extract runs a single session+pipeline extraction attempt.
+func (e *Extractor) extract(ctx context.Context, targetURL string) ([]*media.Stream, error) {
 	session, err := newSession(ctx, e, targetURL)
 	if err != nil {
 		return nil, fmt.Errorf("creating session for %s: %w", targetURL, err)
@@ -101,7 +101,7 @@ func (e *Extractor) ExtractAll(ctx context.Context, urls []string) ([]*media.Str
 
 			slog.DebugContext(ctx, "extracting", "url", targetURL, "index", i+1, "total", len(urls))
 
-			streams, err := e.Extract(ctx, targetURL)
+			streams, err := e.extract(ctx, targetURL)
 			if err != nil {
 				slog.WarnContext(ctx, "extraction failed", "url", targetURL, "error", err)
 				return
