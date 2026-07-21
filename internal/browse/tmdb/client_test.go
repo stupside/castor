@@ -35,15 +35,6 @@ func TestSortLabel(t *testing.T) {
 	}
 }
 
-func TestPageHasMore(t *testing.T) {
-	if !(Page{Page: 1, TotalPages: 3}).HasMore() {
-		t.Error("page 1 of 3 should have more")
-	}
-	if (Page{Page: 3, TotalPages: 3}).HasMore() {
-		t.Error("page 3 of 3 should not have more")
-	}
-}
-
 func TestGenreCatalogFor(t *testing.T) {
 	cat := GenreCatalog{
 		Movie: []Genre{{ID: 28, Name: "Action"}},

@@ -50,7 +50,6 @@ type SearchResult struct {
 	Overview     string  `json:"overview"`
 	VoteAverage  float64 `json:"vote_average"`
 	PosterPath   string  `json:"poster_path"`
-	GenreIDs     []int   `json:"genre_ids"`
 }
 
 // PosterURL returns a full URL for the poster at the given TMDB size
@@ -292,9 +291,6 @@ type Page struct {
 	Page       int
 	TotalPages int
 }
-
-// HasMore reports whether a page after this one exists.
-func (p Page) HasMore() bool { return p.Page < p.TotalPages }
 
 // Discover runs /discover/{movie,tv} with a genre filter and sort. MediaType is
 // stamped onto every result since /discover responses omit media_type.
