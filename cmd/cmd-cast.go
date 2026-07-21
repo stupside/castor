@@ -41,11 +41,11 @@ func (a *app) castInteractive(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	devInfo, err := browse.PickDevice(ctx, cfg.Network.Timeout, cfg.Device.Name)
+	devInfo, err := browse.PickDevice(cfg.Network.Timeout, cfg.Device.Name)
 	if err != nil {
 		return fmt.Errorf("picking device: %w", err)
 	}
-	_ = devInfo
+	cfg.Device.Name = devInfo.Name
 
 	if cfg.TMDB.APIKey == "" {
 		return fmt.Errorf("TMDB API key missing: set tmdb.api_key in config.yaml or CASTOR_TMDB__API_KEY env var")
