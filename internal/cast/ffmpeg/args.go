@@ -90,9 +90,6 @@ type EncodeOptions struct {
 	// WithExtraPipe and follow Process.Extra.
 	SubtitleTextFile string
 
-	// SubtitleFontFile is the absolute path of the font used by drawtext.
-	// Required when SubtitleTextFile is set.
-	SubtitleFontFile string
 }
 
 // EncodeReadrateBurstSeconds is how much of the stream the subtitle-burning
@@ -199,7 +196,7 @@ func EncodeArgs(opts EncodeOptions) []string {
 		vfilters = append(vfilters, fmt.Sprintf("scale=-2:'min(%d,ih)'", opts.VideoMaxHeight))
 	}
 	if opts.SubtitleTextFile != "" {
-		vfilters = append(vfilters, drawtextFilter(opts.SubtitleTextFile, opts.SubtitleFontFile))
+		vfilters = append(vfilters, drawtextFilter(opts.SubtitleTextFile))
 	}
 	if enc != nil {
 		vfilters = append(vfilters, enc.Filters...)
@@ -379,11 +376,10 @@ func PullArgs(opts PullOptions) []string {
 // box, matching how dedicated subtitle renderers style their output.
 // reload=1 makes ffmpeg re-open the textfile before every frame, which is
 // what turns a static filter into a live subtitle track.
-func drawtextFilter(textFile, fontFile string) string {
+func drawtextFilter(textFile string) string {
 	return strings.Join([]string{
 		"drawtext=textfile=" + escapeFilterArg(textFile),
 		"reload=1",
-		"fontfile=" + escapeFilterArg(fontFile),
 		"fontsize=h/24",
 		"fontcolor=white",
 		"borderw=2",

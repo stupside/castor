@@ -72,7 +72,6 @@ func TestEncodeArgsReadrateHeadroom(t *testing.T) {
 		OutputFormat:     "mpegts",
 		VideoEncoder:     &libx264,
 		SubtitleTextFile: "/tmp/cue.txt",
-		SubtitleFontFile: "/font.ttf",
 		AudioCodec:       "aac",
 	})
 	if got := argValue(args, "-readrate"); got != EncodeReadrate {
@@ -230,7 +229,6 @@ func TestEncodeArgsSubtitlesBurnIn(t *testing.T) {
 		OutputFormat:     "mpegts",
 		VideoEncoder:     &libx264,
 		SubtitleTextFile: "/tmp/cue.txt",
-		SubtitleFontFile: "/font.ttf",
 		AudioCodec:       "aac",
 	})
 

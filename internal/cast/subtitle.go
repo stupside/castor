@@ -23,9 +23,6 @@ type cueSource interface {
 }
 
 const (
-	// defaultSubtitleFont ships with every macOS install.
-	defaultSubtitleFont = "/System/Library/Fonts/Helvetica.ttc"
-
 	// cueLeadBias compensates for the encoder pipeline running ahead of the
 	// mux position that -progress reports: frames pass through drawtext
 	// roughly an encoder-lookahead before they are muxed, so we look up the
@@ -46,7 +43,6 @@ type subtitles struct {
 	tr      *whisper.Transcriber
 	builder *cue.Builder
 	cuePath string
-	font    string
 }
 
 // newSubtitles prepares the transcription stage when the plan asks for
@@ -61,15 +57,10 @@ func newSubtitles(ctx context.Context, cfg Config, plan Plan, workDir string) *s
 		slog.WarnContext(ctx, "whisper init failed; casting without subtitles", "error", err)
 		return nil
 	}
-	font := cfg.Transcode.SubtitleFontFile
-	if font == "" {
-		font = defaultSubtitleFont
-	}
 	return &subtitles{
 		tr:      tr,
 		builder: cue.NewBuilder(),
 		cuePath: filepath.Join(workDir, "cue.txt"),
-		font:    font,
 	}
 }
 
@@ -94,7 +85,6 @@ func (s *subtitles) attach(opts *ffmpeg.EncodeOptions) error {
 		return fmt.Errorf("creating subtitle cue file: %w", err)
 	}
 	opts.SubtitleTextFile = s.cuePath
-	opts.SubtitleFontFile = s.font
 	return nil
 }
 

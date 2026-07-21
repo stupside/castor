@@ -34,7 +34,4 @@ type NetworkConfig struct {
 type TranscodeConfig struct {
 	FFmpegPath string        `yaml:"ffmpeg_path" validate:"required"`
 	RWTimeout  time.Duration `yaml:"rw_timeout" validate:"required"`
-	// SubtitleFontFile overrides the font used when burning subtitles.
-	// Empty uses the macOS system Helvetica.
-	SubtitleFontFile string `yaml:"subtitle_font_file"`
 }
