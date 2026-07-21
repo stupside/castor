@@ -84,7 +84,7 @@ func (in *inspector) update(msg tea.Msg, sel *tmdb.SearchResult) tea.Cmd {
 }
 
 // load fetches poster + details for r, deduped against cache and in-flight
-// requests. Exposed so the model can prime the first selection directly.
+// requests.
 func (in *inspector) load(r tmdb.SearchResult) tea.Cmd {
 	return tea.Batch(in.loadPoster(r), in.loadDetails(r))
 }
