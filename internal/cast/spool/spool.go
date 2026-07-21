@@ -71,11 +71,6 @@ func (s *Spool) Size() int64 {
 // consistent prefix of whatever has been written so far.
 func (s *Spool) Path() string { return s.path }
 
-// Remove deletes the backing file. Call after all tails are finished.
-func (s *Spool) Remove() error {
-	return os.Remove(s.path)
-}
-
 // Tail returns a reader over the spool from byte 0 that blocks at
 // end-of-data until the writer appends more or closes. The reader also
 // unblocks (with ctx.Err()) when ctx is cancelled — required because

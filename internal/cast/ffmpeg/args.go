@@ -122,24 +122,6 @@ func containerInputArgs(contentType string) []string {
 	}
 }
 
-// headerArgs renders h as the ffmpeg -headers flag pair, or nil when h is empty.
-// ffmpeg wants every request header in one CRLF-joined blob ("Key: Value\r\n…").
-func headerArgs(h http.Header) []string {
-	if len(h) == 0 {
-		return nil
-	}
-	var b strings.Builder
-	for key, values := range h {
-		for _, v := range values {
-			b.WriteString(key)
-			b.WriteString(": ")
-			b.WriteString(v)
-			b.WriteString("\r\n")
-		}
-	}
-	return []string{"-headers", b.String()}
-}
-
 // EncodeArgs assembles the encode command line. No "magic" flags: every
 // argument is either part of the standard input/output setup or comes
 // straight from a field in EncodeOptions.
@@ -180,7 +162,7 @@ func EncodeArgs(opts EncodeOptions) []string {
 			"-reconnect_streamed", "1",
 			"-reconnect_delay_max", "5",
 		)
-		args = append(args, headerArgs(opts.SourceHeaders)...)
+		args = append(args, media.HeaderArgs(opts.SourceHeaders)...)
 		args = append(args, containerInputArgs(opts.SourceContentType)...)
 		args = append(args, "-i", opts.SourceURL.String())
 	}
@@ -344,7 +326,7 @@ func PullArgs(opts PullOptions) []string {
 	}
 	args = append(args, "-readrate", readrate, "-readrate_initial_burst", burst)
 
-	args = append(args, headerArgs(opts.SourceHeaders)...)
+	args = append(args, media.HeaderArgs(opts.SourceHeaders)...)
 	args = append(args, containerInputArgs(opts.SourceContentType)...)
 	args = append(args, "-i", opts.SourceURL.String())
 

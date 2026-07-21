@@ -8,8 +8,6 @@ func h264() ProbeInfo {
 	return ProbeInfo{
 		VideoCodec:    CodecH264,
 		VideoProfile:  "High",
-		VideoLevel:    40,
-		VideoWidth:    1920,
 		VideoHeight:   1080,
 		VideoBitDepth: 8,
 	}

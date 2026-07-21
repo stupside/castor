@@ -102,18 +102,13 @@ func (c GenreCatalog) For(mediaType string) []Genre {
 // panel renders. Movie-only and TV-only fields sit side by side; the unused
 // side stays zero for a given media type.
 type Details struct {
-	ID             int     `json:"id"`
 	Tagline        string  `json:"tagline"`
-	Status         string  `json:"status"`
 	Runtime        int     `json:"runtime"`          // movie: minutes
 	EpisodeRunTime []int   `json:"episode_run_time"` // tv: per-episode minutes
-	VoteAverage    float64 `json:"vote_average"`
-	VoteCount      int     `json:"vote_count"`
 	Genres         []Genre `json:"genres"`
 	Credits        struct {
 		Cast []struct {
-			Name      string `json:"name"`
-			Character string `json:"character"`
+			Name string `json:"name"`
 		} `json:"cast"`
 	} `json:"credits"`
 }
@@ -155,7 +150,6 @@ func (d *Details) TopCast(n int) []string {
 
 // TVDetails is /tv/{id}.
 type TVDetails struct {
-	ID      int      `json:"id"`
 	Name    string   `json:"name"`
 	Seasons []Season `json:"seasons"`
 }

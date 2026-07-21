@@ -57,15 +57,14 @@ func (in *inspector) hover() tea.Cmd {
 
 // update consumes the inspector's own async messages. sel is the currently
 // selected result (nil when the list is empty), used to resolve a settled
-// hover into a fetch. The bool reports whether the message was the
-// inspector's.
-func (in *inspector) update(msg tea.Msg, sel *tmdb.SearchResult) (tea.Cmd, bool) {
+// hover into a fetch.
+func (in *inspector) update(msg tea.Msg, sel *tmdb.SearchResult) tea.Cmd {
 	switch msg := msg.(type) {
 	case hoverSettleMsg:
 		if msg.tok != in.tok || sel == nil {
-			return nil, true
+			return nil
 		}
-		return in.load(*sel), true
+		return in.load(*sel)
 	case posterReadyMsg:
 		if msg.err == nil && msg.ansi != "" {
 			in.posters[msg.posterPath] = msg.ansi
@@ -73,15 +72,15 @@ func (in *inspector) update(msg tea.Msg, sel *tmdb.SearchResult) (tea.Cmd, bool)
 		if msg.posterPath == in.posterPending {
 			in.posterPending = ""
 		}
-		return nil, true
+		return nil
 	case detailsReadyMsg:
 		delete(in.detailPending, msg.key)
 		if msg.err == nil {
 			in.details[msg.key] = msg.d
 		}
-		return nil, true
+		return nil
 	}
-	return nil, false
+	return nil
 }
 
 // load fetches poster + details for r, deduped against cache and in-flight

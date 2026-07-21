@@ -115,7 +115,6 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 		"video_codec", videoCodec,
 		"source_codec", string(srcInfo.VideoCodec),
 		"source_profile", srcInfo.VideoProfile,
-		"source_level", srcInfo.VideoLevel,
 		"source_height", srcInfo.VideoHeight,
 		"subtitles", hasSubs,
 	)

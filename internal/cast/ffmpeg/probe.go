@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	"github.com/stupside/castor/internal/media"
@@ -21,7 +20,7 @@ func Probe(ctx context.Context, ffprobePath, input string) (media.ProbeInfo, err
 		"-v", "error",
 		"-print_format", "json",
 		"-show_entries",
-		"stream=codec_type,codec_name,profile,level,width,height,pix_fmt,color_transfer,channels:format=bit_rate",
+		"stream=codec_type,codec_name,profile,height,pix_fmt,color_transfer",
 		input,
 	}
 
@@ -39,16 +38,10 @@ func Probe(ctx context.Context, ffprobePath, input string) (media.ProbeInfo, err
 			CodecType     string `json:"codec_type"`
 			CodecName     string `json:"codec_name"`
 			Profile       string `json:"profile"`
-			Level         int    `json:"level"`
-			Width         int    `json:"width"`
 			Height        int    `json:"height"`
 			PixFmt        string `json:"pix_fmt"`
 			ColorTransfer string `json:"color_transfer"`
-			Channels      int    `json:"channels"`
 		} `json:"streams"`
-		Format struct {
-			BitRate string `json:"bit_rate"`
-		} `json:"format"`
 	}
 	if err := json.Unmarshal(out, &result); err != nil {
 		return media.ProbeInfo{}, fmt.Errorf("parsing ffprobe output: %w", err)
@@ -65,21 +58,10 @@ func Probe(ctx context.Context, ffprobePath, input string) (media.ProbeInfo, err
 			}
 			info.VideoCodec = media.Codec(s.CodecName)
 			info.VideoProfile = s.Profile
-			info.VideoLevel = s.Level
-			info.VideoWidth = s.Width
 			info.VideoHeight = s.Height
 			info.VideoBitDepth = pixFmtBitDepth(s.PixFmt)
 			info.VideoHDR = isHDRTransfer(s.ColorTransfer)
-		case "audio":
-			if info.AudioCodec != "" {
-				continue
-			}
-			info.AudioCodec = s.CodecName
-			info.AudioChannels = s.Channels
 		}
-	}
-	if result.Format.BitRate != "" {
-		info.BitRate, _ = strconv.ParseInt(result.Format.BitRate, 10, 64)
 	}
 	return info, nil
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/stupside/castor/internal/device"
 )
 
-func PickDevice(ctx context.Context, timeout time.Duration, defaultName string) (device.Info, error) {
+func PickDevice(timeout time.Duration, defaultName string) (device.Info, error) {
 	m := newPickerModel(timeout, defaultName)
 	final, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
 	if err != nil {
@@ -32,14 +32,7 @@ type devicesDoneMsg struct {
 	err     error
 }
 
-var (
-	pAccent  = lipgloss.AdaptiveColor{Light: "#6366F1", Dark: "#818CF8"}
-	pPrimary = lipgloss.AdaptiveColor{Light: "#18181B", Dark: "#FAFAFA"}
-	pSec     = lipgloss.AdaptiveColor{Light: "#52525B", Dark: "#D4D4D8"}
-	pMuted   = lipgloss.AdaptiveColor{Light: "#A1A1AA", Dark: "#52525B"}
-	pDim     = lipgloss.AdaptiveColor{Light: "#D4D4D8", Dark: "#3F3F46"}
-	pRed     = lipgloss.AdaptiveColor{Light: "#DC2626", Dark: "#FCA5A5"}
-)
+var pDim = lipgloss.AdaptiveColor{Light: "#D4D4D8", Dark: "#3F3F46"}
 
 type pickerModel struct {
 	timeout     time.Duration
@@ -66,25 +59,25 @@ func (i pickerItem) FilterValue() string { return i.Name }
 func newPickerModel(timeout time.Duration, defaultName string) pickerModel {
 	sp := spinner.New()
 	sp.Spinner = spinner.MiniDot
-	sp.Style = lipgloss.NewStyle().Foreground(pAccent)
+	sp.Style = lipgloss.NewStyle().Foreground(accent)
 
 	delegate := list.NewDefaultDelegate()
-	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.Foreground(pPrimary)
-	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Foreground(pMuted)
+	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.Foreground(fgPrimary)
+	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Foreground(fgMuted)
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(pAccent).
-		BorderForeground(pAccent).
+		Foreground(accent).
+		BorderForeground(accent).
 		Bold(true)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(pSec).
-		BorderForeground(pAccent)
+		Foreground(fgSecondary).
+		BorderForeground(accent)
 
 	l := list.New(nil, delegate, 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(false)
-	l.Styles.NoItems = lipgloss.NewStyle().Foreground(pMuted).Padding(0, 2)
+	l.Styles.NoItems = lipgloss.NewStyle().Foreground(fgMuted).Padding(0, 2)
 
 	return pickerModel{
 		timeout:     timeout,
@@ -166,10 +159,10 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m pickerModel) View() string {
 	if m.loading {
-		return m.spin.View() + lipgloss.NewStyle().Foreground(pMuted).Render(" Discovering devices…")
+		return m.spin.View() + lipgloss.NewStyle().Foreground(fgMuted).Render(" Discovering devices…")
 	}
 	if m.err != nil && m.selected == (device.Info{}) {
-		return lipgloss.NewStyle().Foreground(pRed).Bold(true).Render("error: " + m.err.Error())
+		return lipgloss.NewStyle().Foreground(errorColor).Bold(true).Render("error: " + m.err.Error())
 	}
 
 	if m.showQuitModal {
@@ -178,7 +171,7 @@ func (m pickerModel) View() string {
 
 	header := lipgloss.NewStyle().
 		Background(lipgloss.AdaptiveColor{Light: "#F4F4F5", Dark: "#27272A"}).
-		Foreground(pAccent).
+		Foreground(accent).
 		Bold(true).
 		Width(m.w).
 		Padding(0, 2).
@@ -187,13 +180,13 @@ func (m pickerModel) View() string {
 	body := m.list.View()
 
 	cmds := []string{
-		lipgloss.NewStyle().Foreground(pAccent).Bold(true).Render("j/k") + " " + lipgloss.NewStyle().Foreground(pMuted).Render("nav"),
-		lipgloss.NewStyle().Foreground(pAccent).Bold(true).Render("↵") + " " + lipgloss.NewStyle().Foreground(pMuted).Render("select"),
-		lipgloss.NewStyle().Foreground(pAccent).Bold(true).Render("q") + " " + lipgloss.NewStyle().Foreground(pMuted).Render("quit"),
+		lipgloss.NewStyle().Foreground(accent).Bold(true).Render("j/k") + " " + lipgloss.NewStyle().Foreground(fgMuted).Render("nav"),
+		lipgloss.NewStyle().Foreground(accent).Bold(true).Render("↵") + " " + lipgloss.NewStyle().Foreground(fgMuted).Render("select"),
+		lipgloss.NewStyle().Foreground(accent).Bold(true).Render("q") + " " + lipgloss.NewStyle().Foreground(fgMuted).Render("quit"),
 	}
 	cmdBar := lipgloss.NewStyle().
 		Background(lipgloss.AdaptiveColor{Light: "#E4E4E7", Dark: "#18181B"}).
-		Foreground(pPrimary).
+		Foreground(fgPrimary).
 		Width(m.w).
 		Padding(0, 2).
 		Render(strings.Join(cmds, lipgloss.NewStyle().Foreground(pDim).Render(" · ")))
@@ -204,12 +197,12 @@ func (m pickerModel) View() string {
 func (m pickerModel) renderModal() string {
 	modalW := 44
 	content := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Bold(true).Foreground(pAccent).Render("Quit castor?"),
+		lipgloss.NewStyle().Bold(true).Foreground(accent).Render("Quit castor?"),
 		"",
 		lipgloss.JoinHorizontal(lipgloss.Center,
-			lipgloss.NewStyle().Foreground(pRed).Bold(true).Render("[ Yes ]"),
-			lipgloss.NewStyle().Foreground(pMuted).Render("  "),
-			lipgloss.NewStyle().Foreground(pMuted).Render("[ No ]"),
+			lipgloss.NewStyle().Foreground(errorColor).Bold(true).Render("[ Yes ]"),
+			lipgloss.NewStyle().Foreground(fgMuted).Render("  "),
+			lipgloss.NewStyle().Foreground(fgMuted).Render("[ No ]"),
 		),
 		"",
 		lipgloss.NewStyle().Foreground(pDim).Render("↵ / q to quit  •  esc to go back"),
@@ -218,23 +211,19 @@ func (m pickerModel) renderModal() string {
 		Width(modalW).
 		Height(9).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(pAccent).
+		BorderForeground(accent).
 		Render(content)
 	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, box)
 }
 
 type pickerKeyMap struct {
 	Enter key.Binding
-	Up    key.Binding
-	Down  key.Binding
 	Quit  key.Binding
 	Back  key.Binding
 }
 
 var pickKeys = pickerKeyMap{
 	Enter: key.NewBinding(key.WithKeys("enter"), key.WithHelp("↵", "select")),
-	Up:    key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-	Down:  key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
 	Quit:  key.NewBinding(key.WithKeys("ctrl+c", "q"), key.WithHelp("q", "quit")),
 	Back:  key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 }

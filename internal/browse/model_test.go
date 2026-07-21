@@ -56,8 +56,7 @@ func TestMetaLines(t *testing.T) {
 		Genres:  []tmdb.Genre{{ID: 28, Name: "Action"}, {ID: 878, Name: "Science Fiction"}},
 	}
 	d.Credits.Cast = []struct {
-		Name      string `json:"name"`
-		Character string `json:"character"`
+		Name string `json:"name"`
 	}{{Name: "A"}, {Name: "B"}, {Name: "C"}, {Name: "D"}}
 
 	info, tagline, cast = metaLines(r, d, 80)

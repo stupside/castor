@@ -65,10 +65,8 @@ type FormatInfo struct {
 }
 
 var formatRegistry = map[string]FormatInfo{
-	"mpegts":   {ContentType: "video/mp2t", Extension: ".ts"},
-	"mp4":      {ContentType: MP4, Extension: ".mp4"},
-	"matroska": {ContentType: MKV, Extension: ".mkv"},
-	"webm":     {ContentType: WebM, Extension: ".webm"},
+	"mpegts": {ContentType: "video/mp2t", Extension: ".ts"},
+	"mp4":    {ContentType: MP4, Extension: ".mp4"},
 }
 
 // FormatForContentType returns the ffmpeg output format name and info for a
@@ -111,6 +109,24 @@ var mimeContentTypes = map[string]string{
 // or empty string if unrecognized.
 func DetectFromMIME(mime string) string {
 	return mimeContentTypes[strings.ToLower(mime)]
+}
+
+// HeaderArgs renders h as the ffmpeg/ffprobe -headers flag pair, or nil when h is
+// empty. ffprobe and ffmpeg both want every request header in one CRLF-joined blob.
+func HeaderArgs(h http.Header) []string {
+	if len(h) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	for key, values := range h {
+		for _, v := range values {
+			b.WriteString(key)
+			b.WriteString(": ")
+			b.WriteString(v)
+			b.WriteString("\r\n")
+		}
+	}
+	return []string{"-headers", b.String()}
 }
 
 // NormalizeStreamHeaders returns a copy of browser-captured headers ready to

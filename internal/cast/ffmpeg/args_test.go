@@ -260,7 +260,7 @@ func TestSelectEncoderFallsBackToSoftware(t *testing.T) {
 
 func TestSelectEncoderUnknownCodec(t *testing.T) {
 	// A codec with no registered encoder reports ok=false rather than guessing.
-	if _, ok := SelectEncoder(context.Background(), "/nonexistent-ffmpeg-binary", media.CodecAV1); ok {
+	if _, ok := SelectEncoder(context.Background(), "/nonexistent-ffmpeg-binary", media.Codec("av1")); ok {
 		t.Error("SelectEncoder(av1) reported ok, but no AV1 encoder is registered")
 	}
 }

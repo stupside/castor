@@ -79,8 +79,7 @@ func TestDetailsGenreNames(t *testing.T) {
 func TestDetailsTopCast(t *testing.T) {
 	var d Details
 	d.Credits.Cast = []struct {
-		Name      string `json:"name"`
-		Character string `json:"character"`
+		Name string `json:"name"`
 	}{
 		{Name: "A"}, {Name: ""}, {Name: "B"}, {Name: "C"}, {Name: "D"},
 	}

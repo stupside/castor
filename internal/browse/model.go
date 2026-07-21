@@ -362,7 +362,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onDiscoverDone(msg)
 
 	case posterReadyMsg, detailsReadyMsg, hoverSettleMsg:
-		cmd, _ := m.inspector.update(msg, m.selectedResult())
+		cmd := m.inspector.update(msg, m.selectedResult())
 		return m, cmd
 
 	case tvDoneMsg:

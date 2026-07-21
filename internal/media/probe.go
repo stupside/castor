@@ -12,14 +12,8 @@ package media
 type ProbeInfo struct {
 	VideoCodec    Codec  // e.g. CodecH264, CodecHEVC
 	VideoProfile  string // e.g. "High", "Main", "High 10"
-	VideoLevel    int    // ffprobe reports level ×10 (H.264 4.1 -> 41)
-	VideoWidth    int
 	VideoHeight   int
 	VideoBitDepth int  // derived from pix_fmt (8, 10, 12)
 	VideoHDR      bool // PQ (smpte2084) or HLG (arib-std-b67) transfer
 
-	AudioCodec    string
-	AudioChannels int
-
-	BitRate int64 // container bit rate in bits/sec, 0 if unknown
 }

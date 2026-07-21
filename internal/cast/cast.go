@@ -88,7 +88,6 @@ func Play(ctx context.Context, cfg Config, stream *media.Stream) error {
 func logPlan(ctx context.Context, plan Plan) {
 	slog.InfoContext(ctx, "execution plan",
 		"transcode", plan.Transcode != nil,
-		"spool", plan.Spool,
 		"output_content_type", plan.OutputContentType,
 		"subtitle_delivery", plan.SubtitleDelivery,
 	)

@@ -35,13 +35,6 @@ type Plan struct {
 	// device. Pass-through (e.g. Chromecast accepting HLS) leaves it nil.
 	Transcode *ffmpeg.EncodeOptions
 
-	// Spool routes the cast through the read-once pipeline: a single puller
-	// downloads the source into an on-disk spool (feeding whisper along the
-	// way) and the encoder reads the spool instead of the network. The
-	// upstream URL is touched by exactly one connection, and playback
-	// survives any CDN behavior once bytes are local.
-	Spool bool
-
 	// SubtitleDelivery says how subtitles reach the renderer, if at all.
 	SubtitleDelivery SubtitleDelivery
 
@@ -72,7 +65,6 @@ type PlanInput struct {
 	SourceURL         *url.URL
 	SourceHeaders     http.Header
 	SourceContentType string
-	SourceBitRate     int64 // 0 if unknown
 	SourceLive        bool
 
 	// MaxHeight caps the re-encode output height (the user's cast resolution
@@ -138,8 +130,7 @@ func planDLNA(in PlanInput) Plan {
 		SourceHeaders:     in.SourceHeaders,
 		SourceContentType: in.SourceContentType,
 		OutputContentType: "video/mp2t",
-		Spool:             true,
-		Live:              in.SourceLive,
+		Live: in.SourceLive,
 		// Transcode carries the codec-independent output targets (container,
 		// audio, height, GOP). VideoEncoder and the video bitrate are left unset:
 		// copy-vs-encode and the codec need the source's actual codec/profile

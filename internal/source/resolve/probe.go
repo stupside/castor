@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os/exec"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/stupside/castor/internal/media"
@@ -36,7 +35,7 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 	}
 
 	// Forward any HTTP headers (e.g. Referer, User-Agent) to the stream server
-	args = append(args, headerArgs(headers)...)
+	args = append(args, media.HeaderArgs(headers)...)
 	args = append(args, media.HLSInputArgs...)
 	args = append(args, streamURL.String())
 
@@ -111,25 +110,6 @@ func probeStream(ctx context.Context, ffprobePath string, probeTimeout time.Dura
 		}
 	}
 	return info, nil
-}
-
-// headerArgs renders h as the ffprobe -headers flag pair, or nil when h is
-// empty. ffprobe wants every request header in one CRLF-joined blob, the same
-// shape ffmpeg's -headers takes.
-func headerArgs(h http.Header) []string {
-	if len(h) == 0 {
-		return nil
-	}
-	var b strings.Builder
-	for key, values := range h {
-		for _, v := range values {
-			b.WriteString(key)
-			b.WriteString(": ")
-			b.WriteString(v)
-			b.WriteString("\r\n")
-		}
-	}
-	return []string{"-headers", b.String()}
 }
 
 // imageCodecs are ffmpeg codec names that decode to a still image rather than

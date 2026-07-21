@@ -10,5 +10,4 @@ type Codec string
 const (
 	CodecH264 Codec = "h264"
 	CodecHEVC Codec = "hevc"
-	CodecAV1  Codec = "av1"
 )
