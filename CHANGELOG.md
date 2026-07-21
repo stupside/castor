@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.7.0](https://github.com/stupside/castor/compare/v1.6.2...v1.7.0) (2026-07-21)
+
+
+### Features
+
+* show cast target device in browse header ([986b3ee](https://github.com/stupside/castor/commit/986b3eef5b4968100676589d4cb6773ef76e93ae))
+
+
+### Bug Fixes
+
+* **cast:** return error from BuildPlan instead of panicking for unknown device type ([b4c9a6b](https://github.com/stupside/castor/commit/b4c9a6b43e4dfa6be0d8a1250968a7d33bf288a2))
+* **cmd:** use CLI framework for --debug flag instead of scanning os.Args ([d4c307b](https://github.com/stupside/castor/commit/d4c307b4ce40f6ffe37ea971e18ab3ae4d66f625))
+* config yaml should be optional ([#38](https://github.com/stupside/castor/issues/38)) ([33eea9f](https://github.com/stupside/castor/commit/33eea9faa9e3ab8d146210a9f174e6918b73dc1b))
+* **docker:** cli cannot run in castor because of glibc version ([#40](https://github.com/stupside/castor/issues/40)) ([18b6a88](https://github.com/stupside/castor/commit/18b6a88a6a59b5d3ffe9ab3f6947a50ea6dfa82e))
+* suppress unchecked Close() lint warnings ([88be120](https://github.com/stupside/castor/commit/88be1209f3569d5bd10eeb3b7962786c11ff6a90))
+* wire picked device name into config before browse ([c2fa73f](https://github.com/stupside/castor/commit/c2fa73fd4464eca37bf63ac66a324989261e84ab))
+
+
+### Refactors
+
+* **cast:** collapse deviceConnector and cueSource single-implementation interfaces ([a9f92dd](https://github.com/stupside/castor/commit/a9f92dd103ad4f3c76c3550d8b912e79c9e32f11))
+* **media:** simplify FormatForContentType to return (FormatInfo, bool) ([521205c](https://github.com/stupside/castor/commit/521205cef3b5dbf8d24440ddd39b0313e9487cbb))
+* remove subtitle font customization support ([d78d5ed](https://github.com/stupside/castor/commit/d78d5ed0a5f43672a410f95023d0679b824f5539))
+* **source:** deduplicate MIME tables and unexport Extractor.Extract ([5858b52](https://github.com/stupside/castor/commit/5858b5260884a906ba2eff184fcb2aa11a1c9852))
+* **tmdb:** remove dead Page.HasMore method and SearchResult.GenreIDs field ([42c419d](https://github.com/stupside/castor/commit/42c419dc118df0a7ec4a0acd028f074dbe6e00e7))
+* **whisper:** collapse WordSink interface and unexport EnsureModel/EnsureVADModel ([142e2ec](https://github.com/stupside/castor/commit/142e2ec53a3bbb5a1f9bf107c8efba38e21f1b14))
+
+
+### Documentation
+
+* **browse:** remove stale comment on inspector.load ([bebb2b2](https://github.com/stupside/castor/commit/bebb2b28b1509f8a1dad9295c2cb378a8e7853f1))
+
 ## [1.6.2](https://github.com/stupside/castor/compare/v1.6.1...v1.6.2) (2026-07-20)
 
 
