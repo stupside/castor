@@ -69,15 +69,15 @@ var formatRegistry = map[string]FormatInfo{
 	"mp4":    {ContentType: MP4, Extension: ".mp4"},
 }
 
-// FormatForContentType returns the ffmpeg output format name and info for a
-// content type, or ok=false if no producible format matches.
-func FormatForContentType(ct string) (string, FormatInfo, bool) {
-	for name, info := range formatRegistry {
+// FormatForContentType returns the FormatInfo for a content type, or
+// ok=false if no producible format matches.
+func FormatForContentType(ct string) (FormatInfo, bool) {
+	for _, info := range formatRegistry {
 		if info.ContentType == ct {
-			return name, info, true
+			return info, true
 		}
 	}
-	return "", FormatInfo{}, false
+	return FormatInfo{}, false
 }
 
 var extensionMap = map[string]string{

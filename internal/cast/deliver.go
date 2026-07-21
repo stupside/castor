@@ -54,7 +54,7 @@ func finishEncoder(ctx context.Context, proc *ffmpeg.Process) {
 // the renderer at it, and blocks until the stream has been fully produced
 // and delivered or ctx ends.
 func serveToDevice(ctx context.Context, plan Plan, dev device.Device, localIP string, stream io.Reader, workDir string) error {
-	_, fmtInfo, ok := media.FormatForContentType(plan.OutputContentType)
+	fmtInfo, ok := media.FormatForContentType(plan.OutputContentType)
 	if !ok {
 		return fmt.Errorf("no format info for output content type %q", plan.OutputContentType)
 	}
