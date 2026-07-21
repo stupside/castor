@@ -208,5 +208,3 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 		t.Error("fallbackCaps must at least support H.264")
 	}
 }
-
-

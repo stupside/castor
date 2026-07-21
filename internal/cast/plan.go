@@ -125,7 +125,7 @@ func planDLNA(in PlanInput) Plan {
 		SourceHeaders:     in.SourceHeaders,
 		SourceContentType: in.SourceContentType,
 		OutputContentType: "video/mp2t",
-		Live: in.SourceLive,
+		Live:              in.SourceLive,
 		// Transcode carries the codec-independent output targets (container,
 		// audio, height, GOP). VideoEncoder and the video bitrate are left unset:
 		// copy-vs-encode and the codec need the source's actual codec/profile

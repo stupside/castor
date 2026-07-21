@@ -89,7 +89,6 @@ type EncodeOptions struct {
 	// Enabling this routes -progress to fd 3: start the process
 	// WithExtraPipe and follow Process.Extra.
 	SubtitleTextFile string
-
 }
 
 // EncodeReadrateBurstSeconds is how much of the stream the subtitle-burning
