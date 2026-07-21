@@ -38,11 +38,11 @@ func cacheDir() (string, error) {
 	return dir, nil
 }
 
-// EnsureModel returns a path to a whisper model file. If configured points at
+// ensureModel returns a path to a whisper model file. If configured points at
 // an existing file it is returned as-is; otherwise the default tiny.en model
 // is fetched from Hugging Face into the user's cache directory (a no-op on
 // subsequent calls).
-func EnsureModel(ctx context.Context, configured string) (string, error) {
+func ensureModel(ctx context.Context, configured string) (string, error) {
 	if configured != "" {
 		if _, err := os.Stat(configured); err != nil {
 			return "", fmt.Errorf("whisper.model_path %q: %w", configured, err)
@@ -52,10 +52,10 @@ func EnsureModel(ctx context.Context, configured string) (string, error) {
 	return ensure(ctx, defaultModelName, modelBaseURL)
 }
 
-// EnsureVADModel does the same for the Silero VAD model that gates the
+// ensureVADModel does the same for the Silero VAD model that gates the
 // transcriber. It is deliberately not configurable: VAD is an implementation
 // detail of the streaming pipeline, not a knob.
-func EnsureVADModel(ctx context.Context) (string, error) {
+func ensureVADModel(ctx context.Context) (string, error) {
 	return ensure(ctx, vadModelName, vadModelBaseURL)
 }
 

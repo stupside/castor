@@ -5,7 +5,7 @@
 // al. 2023, "Turning Whisper into a Real-Time Transcription System"): the tail
 // of the stream is re-transcribed on every step and only the word prefix that
 // two consecutive hypotheses agree on is committed. Committed words never
-// change, so they are pushed to a cue.WordSink the moment they are emitted;
+// change, so they are pushed to a cue.Builder the moment they are emitted;
 // shaping them into subtitle lines is the cue package's job, not this one's.
 // Silero VAD (built into whisper.cpp) gates the decoder: silence and music
 // never reach the model, which kills both the hallucinated "[Music]"-style
@@ -59,17 +59,6 @@ const (
 // consumes — aliased for brevity inside the streaming loop.
 type word = cue.Word
 
-// WordSink consumes committed words as transcription advances. Commit is
-// called once per streaming step with the words newly confirmed that step
-// (possibly none) and settledTo — the time up to which the audio has been
-// fully decided, so a consumer can treat a gap after the last word as real
-// silence rather than pending speech. Close is called once, after the final
-// Commit, when no more words will arrive. *cue.Builder satisfies it.
-type WordSink interface {
-	Commit(words []cue.Word, settledTo float64)
-	Close()
-}
-
 // Transcriber owns a whisper model and streams committed words to a sink. It
 // is not reusable; call New for each cast.
 type Transcriber struct {
@@ -85,11 +74,11 @@ type Transcriber struct {
 // New returns a configured Transcriber, resolving the transcription and VAD
 // model paths (auto-downloading the defaults into the user cache when unset).
 func New(ctx context.Context, cfg Config) (*Transcriber, error) {
-	modelPath, err := EnsureModel(ctx, cfg.ModelPath)
+	modelPath, err := ensureModel(ctx, cfg.ModelPath)
 	if err != nil {
 		return nil, err
 	}
-	vadModelPath, err := EnsureVADModel(ctx)
+	vadModelPath, err := ensureVADModel(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +123,7 @@ func (t *Transcriber) markDone() {
 // consecutive hypotheses, push those words to sink, and trim the buffer behind
 // the commit frontier. It flushes and closes the sink and marks the
 // transcriber done on return.
-func (t *Transcriber) Run(ctx context.Context, pcm io.Reader, sink WordSink) error {
+func (t *Transcriber) Run(ctx context.Context, pcm io.Reader, sink *cue.Builder) error {
 	defer t.markDone() // runs last: cues are flushed before Done() flips
 	defer sink.Close() // runs first: flush the final pending words
 
