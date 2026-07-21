@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+func TestLoadMissingFileWithEnvVars(t *testing.T) {
+	t.Setenv("CASTOR_DEVICE__NAME", "Xiaomi TV Box")
+	t.Setenv("CASTOR_DEVICE__TYPE", "chromecast")
+
+	cfg, err := Load("/tmp/nonexistent-config-293478.yaml")
+	if err != nil {
+		t.Fatalf("Load should succeed when config file is missing and env vars supply required fields: %v", err)
+	}
+	if cfg.Device.Name != "Xiaomi TV Box" {
+		t.Errorf("device.name should come from env var, got %q", cfg.Device.Name)
+	}
+	if string(cfg.Device.Type) != "chromecast" {
+		t.Errorf("device.type should come from env var, got %q", cfg.Device.Type)
+	}
+	if cfg.Network.Timeout != 5*time.Second {
+		t.Errorf("network.timeout should default to 5s, got %s", cfg.Network.Timeout)
+	}
+	if cfg.Resolver.MaxHeight != 1080 {
+		t.Errorf("resolver.max_height should default to 1080, got %d", cfg.Resolver.MaxHeight)
+	}
+}
+
 func TestLoadLocalOverlay(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "config.yaml")
