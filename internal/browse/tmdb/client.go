@@ -440,7 +440,7 @@ func (c *Client) get(ctx context.Context, path string, extra url.Values, out any
 	if err != nil {
 		return fmt.Errorf("tmdb: %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("tmdb: %s: status %d", path, resp.StatusCode)
@@ -458,7 +458,7 @@ func (c *Client) get(ctx context.Context, path string, extra url.Values, out any
 		if err != nil {
 			return fmt.Errorf("tmdb: gunzip %s: %w", path, err)
 		}
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		body = gz
 	}
 
