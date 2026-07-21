@@ -28,6 +28,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/stupside/castor/internal/browse/tmdb"
+	"github.com/stupside/castor/internal/device"
 )
 
 // ---------------------------------------------------------------- public API
@@ -49,8 +50,8 @@ type Selection struct {
 }
 
 // Run blocks on the TUI until the user picks or quits.
-func Run(ctx context.Context, client *tmdb.Client) (Selection, error) {
-	final, err := tea.NewProgram(newModel(ctx, client), tea.WithAltScreen()).Run()
+func Run(ctx context.Context, client *tmdb.Client, devName string, devType device.Type) (Selection, error) {
+	final, err := tea.NewProgram(newModel(ctx, client, devName, devType), tea.WithAltScreen()).Run()
 	if err != nil {
 		return Selection{}, err
 	}
@@ -178,9 +179,11 @@ type model struct {
 
 	sel  Selection
 	w, h int
+
+	devBadge string
 }
 
-func newModel(ctx context.Context, client *tmdb.Client) model {
+func newModel(ctx context.Context, client *tmdb.Client, devName string, devType device.Type) model {
 	st := newStyles()
 	hlp := newHelp()
 
@@ -222,6 +225,7 @@ func newModel(ctx context.Context, client *tmdb.Client) model {
 		picker:    newGenrePicker(st, hlp),
 		drill:     newDrilldown(ctx, client, delegate),
 		loading:   true,
+		devBadge:  strings.ToUpper(string(devType)) + "  " + devName,
 	}
 }
 
@@ -640,10 +644,9 @@ func (m model) viewBrowse() string {
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// browseHeader puts the active label flush-left and a mode indicator flush-right
-// via lipgloss.PlaceHorizontal — tab dots on curated, media type on discover.
-// When searching, the query echo is dropped from the title because the
-// textinput right below already shows it.
+// browseHeader puts the active label flush-left and a mode/device indicator
+// flush-right via lipgloss.PlaceHorizontal — tab dots on curated, media type on
+// discover, plus the cast target device on every screen.
 func (m model) browseHeader() string {
 	var label, rhs string
 	switch {
@@ -656,6 +659,10 @@ func (m model) browseHeader() string {
 		label = m.tab.label()
 		rhs = m.renderTabDots()
 	}
+	if rhs != "" {
+		rhs += "  "
+	}
+	rhs += m.styles.Muted.Render(m.devBadge)
 	title := m.styles.Title.Render(label)
 	placed := lipgloss.PlaceHorizontal(max(m.w-lipgloss.Width(title), 0), lipgloss.Right, rhs)
 	return lipgloss.JoinHorizontal(lipgloss.Top, title, placed)

@@ -51,7 +51,7 @@ func (a *app) castInteractive(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("TMDB API key missing: set tmdb.api_key in config.yaml or CASTOR_TMDB__API_KEY env var")
 	}
 
-	sel, err := browse.Run(ctx, tmdb.New(cfg.TMDB.APIKey, cfg.Network.Timeout))
+	sel, err := browse.Run(ctx, tmdb.New(cfg.TMDB.APIKey, cfg.Network.Timeout), devInfo.Name, devInfo.Type)
 	if err != nil {
 		return fmt.Errorf("browse: %w", err)
 	}
