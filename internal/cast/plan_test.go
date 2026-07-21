@@ -16,14 +16,21 @@ func TestPlanChromecastPassthroughVsRemux(t *testing.T) {
 	// Accepted container: pass through, no transcode.
 	in := base
 	in.SourceContentType = media.HLS
-	if p := BuildPlan(in); p.Transcode != nil {
+	p, err := BuildPlan(in)
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
+	if p.Transcode != nil {
 		t.Errorf("accepted container should pass through (Transcode nil), got %+v", p.Transcode)
 	}
 
 	// Unaccepted container: remux to mp4 with the video stream-copied.
 	in = base
 	in.SourceContentType = media.MKV
-	p := BuildPlan(in)
+	p, err = BuildPlan(in)
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
 	if p.Transcode == nil {
 		t.Fatal("unaccepted container should remux (Transcode non-nil)")
 	}

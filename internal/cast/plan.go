@@ -1,6 +1,7 @@
 package cast
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -86,20 +87,14 @@ type PlanInput struct {
 //   - Chromecast: pass the source through when the device accepts its container;
 //     otherwise remux (video copied, audio to AAC). Cast's own buffering handles
 //     pacing so we don't impose any.
-func BuildPlan(in PlanInput) Plan {
+func BuildPlan(in PlanInput) (Plan, error) {
 	switch in.DeviceType {
 	case device.TypeDLNA:
-		return planDLNA(in)
+		return planDLNA(in), nil
 	case device.TypeChromecast:
-		return planChromecast(in)
+		return planChromecast(in), nil
 	}
-	return Plan{
-		SourceURL:         in.SourceURL,
-		SourceHeaders:     in.SourceHeaders,
-		SourceContentType: in.SourceContentType,
-		OutputContentType: in.SourceContentType,
-		Live:              in.SourceLive,
-	}
+	return Plan{}, fmt.Errorf("unknown device type: %q", in.DeviceType)
 }
 
 const (
