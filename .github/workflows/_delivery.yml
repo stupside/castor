@@ -31,6 +31,14 @@ jobs:
             runner: ubuntu-latest
             goos: linux
             goarch: amd64
+            cc: zcc
+            cxx: zxx
+            zig_triple: x86_64-linux-gnu.2.17
+            cmake_args: >-
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=x86_64
+              -DCMAKE_C_COMPILER=zcc
+              -DCMAKE_CXX_COMPILER=zxx
           - target: linux-arm64
             runner: ubuntu-latest
             goos: linux
