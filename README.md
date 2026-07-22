@@ -40,7 +40,15 @@ To extract, it launches headless Chrome and watches network traffic over the Chr
 
 ## Installation
 
-The recommended way to run Castor is the **native binary**. It runs directly on your machine, so it shares your TV's network (required for device discovery). It requires **Chrome/Chromium** (headless extraction), **ffmpeg** (transcoding), and **ffprobe** (format detection) on your `PATH`. A Linux-only [Docker](#docker-optional) image that bundles all three is also available.
+Run Castor as a **native binary** (recommended): it runs on your machine, so it shares your TV's network, which device discovery needs. The binary shells out to three tools that must be on your `PATH`:
+
+| Tool | Version | Used for |
+| --- | --- | --- |
+| **Chrome / Chromium** | Any recent | Headless stream extraction |
+| **ffmpeg** | 7.1+ | Transcoding (and stream copy) |
+| **ffprobe** | 7.1+ | Source format detection |
+
+ffmpeg and ffprobe must be **7.1 or newer**: Castor uses flags (`-readrate_initial_burst`, stricter HLS extension handling) that older builds reject. The [Docker image](#docker-optional) bundles a suitable build (Linux only).
 
 ### Homebrew (macOS)
 
@@ -48,9 +56,10 @@ The recommended way to run Castor is the **native binary**. It runs directly on 
 brew install --cask stupside/tap/castor
 ```
 
-### From source
+<details>
+<summary><b>Build from source</b> (needs Go 1.26+ and cmake)</summary>
 
-Needs Go 1.26+ and cmake (the whisper.cpp bindings are cgo and link a locally built `libwhisper.a`):
+The whisper.cpp bindings are cgo and link a locally built `libwhisper.a`, so clone with submodules and build with `make`:
 
 ```sh
 git clone --recurse-submodules https://github.com/stupside/castor.git
@@ -59,6 +68,8 @@ make          # builds libwhisper.a, then the castor binary
 ```
 
 `go install` won't work: the vendored whisper.cpp bindings come in through a local `replace` and need that prebuilt static lib.
+
+</details>
 
 
 ## Quick start
@@ -83,14 +94,29 @@ For the interactive browser, which searches titles and casts them for you, add a
   <img src=".github/images/screen-devices.png" alt="Selecting a cast target in the castor TUI" width="640"/>
 </p>
 
-Run `castor --help` for every command and its flags.
+The commands you'll use most (run `castor --help` for all flags):
+
+| Command | What it does |
+| --- | --- |
+| `castor scan` | List cast targets on your network |
+| `castor cast` | Browse titles and cast, interactively (needs a TMDB key) |
+| `castor cast player <url>` | Cast a web page that has an embedded video player |
+| `castor cast url <url>` | Cast a direct stream or video URL |
+| `castor cast movie <id>` | Resolve a movie id against your sources and cast |
+| `castor cast episode <id> --season N --episode N` | Resolve a TV episode and cast |
 
 
 ## Configuration
 
-Castor reads `config.yaml` from the current directory, or the path passed to `--config`. The only required key is the `device` to cast to (shown in [Quick start](#quick-start)); everything mechanical (timeouts, probing, capture, transcoding, network interface, Chrome discovery) has working defaults. Keep secrets out of the committed file: put them in a git-ignored `config.local.yaml` that overlays it, or in `CASTOR_SECTION__FIELD` environment variables. See [SECURITY.md](SECURITY.md).
+Castor reads `config.yaml` from the working directory (or `--config <path>`). **The only required key is the `device`** shown in [Quick start](#quick-start); everything else (timeouts, probing, capture, transcoding, network interface, Chrome discovery) has working defaults.
 
-### Sources
+> [!TIP]
+> Keep secrets like your TMDB key out of the committed file: put them in a git-ignored `config.local.yaml` that overlays `config.yaml`, or in `CASTOR_SECTION__FIELD` environment variables. See [SECURITY.md](SECURITY.md).
+
+Everything below is optional.
+
+<details>
+<summary><b>Sources</b>: resolve movie / episode ids against sites you configure</summary>
 
 `cast movie`, `cast episode`, and the interactive browser resolve a title id against sources you configure. Castor bundles none, so add your own (sites you are authorized to use). There is no catalog and no lookup: Castor substitutes the id into the `templates` you write, prefixes each of your `proxies`, and opens the resulting page, then extracts the stream exactly like `cast player`. For example, `castor cast movie tt12300742` opens `https://your-source.example/embed/movie/tt12300742`.
 
@@ -102,9 +128,12 @@ sources:
       episode: "/embed/tv/{itemID}/{season}-{episode}"
 ```
 
-### Resolver
+</details>
 
-Source selection and stream probing. All options have sensible defaults, you normally only need `max_height` to match your TV's resolution.
+<details>
+<summary><b>Resolver</b>: cap resolution with <code>max_height</code></summary>
+
+Source selection and stream probing. All options have sensible defaults; you normally only set `max_height` to your TV's vertical resolution, which caps both the selected stream and the encoder output.
 
 ```yaml
 resolver:
@@ -119,9 +148,10 @@ resolver:
   # ffprobe_path: ffprobe
 ```
 
-Set `max_height` to your TV's vertical resolution. This caps both the selected stream and the encoder output.
+</details>
 
-### TMDB
+<details>
+<summary><b>TMDB</b>: API key for the interactive browser</summary>
 
 The interactive browser (`castor cast`) uses a TMDB API key to search titles; direct commands like `cast movie <id>` do not need it. Get a free key from [themoviedb.org](https://www.themoviedb.org/settings/api) and keep it in `config.local.yaml`:
 
@@ -130,9 +160,12 @@ tmdb:
   api_key: "<KEY>"
 ```
 
-### Subtitles
+</details>
 
-Auto-generated subtitles, transcribed with whisper and burned into the video. Off by default:
+<details>
+<summary><b>Subtitles</b>: auto-transcribe with whisper and burn in (off by default)</summary>
+
+Auto-generated subtitles, transcribed with whisper and burned into the video:
 
 ```yaml
 whisper:
@@ -141,43 +174,47 @@ whisper:
   # model_path: ""         # default: ggml-tiny.en (~75 MB, auto-downloaded)
 ```
 
+</details>
+
 
 ## Supported devices
 
-### DLNA / UPnP
+Run `castor scan` to list what is on your network.
 
-Any TV implementing the DLNA/UPnP `MediaRenderer:1` profile works, which covers virtually every smart TV sold in the last decade: **Samsung** (tested), **LG**, **Sony Bravia**, **Panasonic Viera**, **Philips**, **Hisense**, **TCL**, **VIZIO**, **Sharp**. Networked players like Kodi, VLC, and Plex also work. Run `castor scan` to list what is on your network.
-
-### Chromecast
-
-Experimental: implemented but untested. Contributions welcome.
+| Protocol | Works with | Status |
+| --- | --- | --- |
+| **DLNA / UPnP** (`MediaRenderer:1`) | Virtually every smart TV from the last decade (Samsung, LG, Sony Bravia, Panasonic Viera, Philips, Hisense, TCL, VIZIO, Sharp), plus networked players like Kodi, VLC, and Plex | Tested on Samsung |
+| **Chromecast** | Google Cast devices | Experimental, untested (contributions welcome) |
 
 
 ## Docker (optional)
 
-A Linux-only alternative that bundles Chrome, ffmpeg, and ffprobe.
+The prebuilt `ghcr.io/stupside/castor` image bundles Chrome, ffmpeg, and ffprobe, so you install nothing by hand. Run it on a **Linux host on the same LAN as your TV**.
 
 > [!WARNING]
-> **Docker can only reach your TV from a Linux host on the same LAN.** Discovery uses SSDP multicast and the TV streams back from Castor's replay server, and neither survives Docker's bridge network, so `--network host` is required. On Docker Desktop (macOS/Windows) that flag is a silent no-op: the container lands on Docker Desktop's internal VM subnet (e.g. `192.168.65.x`) instead of your LAN, so `scan` finds nothing and `cast` fails with `device "…" (type dlna) not found`. Run the [native binary](#homebrew-macos) on macOS/Windows instead, or bridge a Linux VM onto your LAN (e.g. Lima + `socket_vmnet`).
-
-On a Linux box or NAS on the same network as the TV, the prebuilt `ghcr.io/stupside/castor` image saves you installing the dependencies by hand:
+> `--network host` is required: device discovery (SSDP multicast) and the TV streaming back from Castor both need the container on your real LAN. On Docker Desktop (macOS/Windows) that flag is a no-op, so the container never reaches your TV and `scan` finds nothing. Use the [native binary](#homebrew-macos) there instead.
 
 ```sh
-# Discover devices (no config required)
+# Discover devices (no config needed)
 docker run --rm --network host ghcr.io/stupside/castor:latest scan
 
-# Cast, mounting config.yaml and a persistent model cache
-docker run --rm --network host \
+# Cast, passing the Intel GPU through for hardware transcoding
+docker run --rm --network host --device /dev/dri \
   -v "$PWD/config.yaml:/config.yaml" \
   -v castor-cache:/root/.cache \
   ghcr.io/stupside/castor:latest \
   cast player https://example.com/watch/some-video
 ```
 
-The container reads config from [`config.yaml`](config.yaml) at `/config.yaml`, so run every command from the directory holding it. The `castor-cache` volume keeps the auto-downloaded whisper models between runs; swap `:latest` for any release tag to pin a version, or use `:canary` for the latest preview build.
+`--device /dev/dri` hands the container your Intel GPU for VA-API hardware H.264 encoding; without it (or on a non-Intel host) Castor falls back to software `libx264`. Either way, when your TV already accepts the source video Castor stream-copies it and skips encoding entirely.
 
-> [!NOTE]
-> **DLNA passthrough and hardware encoding.** When the TV can already play the source video (H.264 inside a profile and level it accepts), Castor stream-copies it instead of re-encoding, dropping CPU use to near zero. When a re-encode is unavoidable (a codec the TV rejects, or burned-in subtitles), Castor picks a hardware H.264 encoder if one actually works on the host (VA-API on an Intel Linux box, VideoToolbox on the native macOS binary) and otherwise falls back to software `libx264`. To let the Docker container reach an Intel GPU for VA-API, add `--device /dev/dri` to `docker run` (the `--network host` flag alone does not expose the GPU); without it, or on a host with no working hardware encoder, Castor stays on `libx264`.
+Run commands from the directory holding your [`config.yaml`](config.yaml) (mounted at `/config.yaml`). The `castor-cache` volume persists the auto-downloaded whisper models.
+
+| Tag | Build |
+| --- | --- |
+| `:latest` | Latest stable release |
+| `:canary` | Latest preview build |
+| `:v1.7.0` | A specific pinned version |
 
 
 ## Purpose and disclaimer
