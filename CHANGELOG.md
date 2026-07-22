@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.1](https://github.com/stupside/castor/compare/v1.7.0...v1.7.1) (2026-07-22)
+
+
+### Bug Fixes
+
+* **docker:** hw capable ffmpeg with good flag support ([#43](https://github.com/stupside/castor/issues/43)) ([44460a9](https://github.com/stupside/castor/commit/44460a9768fff628996906a521565ed2b872bd69))
+
+
+### Documentation
+
+* add Trendshift badge ([016a64a](https://github.com/stupside/castor/commit/016a64afabcd34dc7c9420050d77aec17192ad53))
+* restructure installation, configuration, and docker sections ([8ecabb2](https://github.com/stupside/castor/commit/8ecabb22112cbc0dd670277e8e621f7a973cef24))
+
 ## [1.7.0](https://github.com/stupside/castor/compare/v1.6.2...v1.7.0) (2026-07-21)
 
 
