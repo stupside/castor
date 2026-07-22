@@ -1,7 +1,8 @@
 // Package device discovers media renderers on the local network and speaks
 // their control protocols (DLNA/UPnP AVTransport, Chromecast). The Device
 // interface is deliberately small: the cast pipeline decides what to send
-// (subtitles are burned in upstream), a Device only needs to fetch and play.
+// (subtitles are burned in upstream), a Device only needs to fetch, play,
+// and report when playback ended on its side.
 package device
 
 import (
@@ -46,6 +47,12 @@ type Device interface {
 	// server must send when this renderer fetches contentType. Nil when the
 	// protocol needs none.
 	StreamHeaders(contentType string) map[string]string
+
+	// WaitDone blocks until the renderer reports that playback ended on its
+	// side — the media finished, or the user stopped it on the device —
+	// returning nil so the caller can stop streaming. It returns ctx's error
+	// when ctx ends first. Valid only after Play.
+	WaitDone(ctx context.Context) error
 
 	Close() error
 }

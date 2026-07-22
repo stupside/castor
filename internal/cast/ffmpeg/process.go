@@ -6,6 +6,7 @@ package ffmpeg
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -132,7 +133,8 @@ func (p *Process) LogStderrTail(ctx context.Context, msg string) {
 }
 
 // drainStderr reads stderr line-by-line, logging each at DEBUG and retaining
-// the tail for surfacing on failure.
+// the tail for surfacing on failure. ErrClosed is not worth a warning: it only
+// means Wait closed the pipe under the scanner during teardown.
 func drainStderr(ctx context.Context, r io.Reader, tail *ringTail) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -140,7 +142,7 @@ func drainStderr(ctx context.Context, r io.Reader, tail *ringTail) {
 		tail.push(line)
 		slog.DebugContext(ctx, "ffmpeg", "line", line)
 	}
-	if err := scanner.Err(); err != nil {
+	if err := scanner.Err(); err != nil && !errors.Is(err, os.ErrClosed) {
 		slog.WarnContext(ctx, "ffmpeg stderr scanner error", "error", err)
 	}
 }
