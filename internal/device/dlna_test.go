@@ -165,6 +165,60 @@ func TestDLNAInfo(t *testing.T) {
 	}
 }
 
+func TestTransportWatch(t *testing.T) {
+	tests := []struct {
+		name   string
+		states []string
+		done   bool
+	}{
+		{
+			// The window between SetAVTransportURI and the first fetched byte:
+			// the renderer still reports STOPPED while it prepares the stream.
+			name:   "stop before playback engages is ignored",
+			states: []string{"STOPPED", "TRANSITIONING", "STOPPED"},
+			done:   false,
+		},
+		{
+			name:   "steady playback keeps the cast alive",
+			states: []string{"TRANSITIONING", "PLAYING", "PLAYING"},
+			done:   false,
+		},
+		{
+			name:   "stop after playing ends the cast",
+			states: []string{"TRANSITIONING", "PLAYING", "STOPPED"},
+			done:   true,
+		},
+		{
+			name:   "no media present after playing ends the cast",
+			states: []string{"PLAYING", "NO_MEDIA_PRESENT"},
+			done:   true,
+		},
+		{
+			name:   "pause then stop ends the cast",
+			states: []string{"PLAYING", "PAUSED_PLAYBACK", "STOPPED"},
+			done:   true,
+		},
+		{
+			name:   "pause alone keeps the cast alive",
+			states: []string{"PLAYING", "PAUSED_PLAYBACK"},
+			done:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var watch transportWatch
+			done := false
+			for _, state := range tt.states {
+				done = watch.observe(state)
+			}
+			if done != tt.done {
+				t.Errorf("observe(%v) = %v, want %v", tt.states, done, tt.done)
+			}
+		})
+	}
+}
+
 func TestParseSinkProtocolInfo(t *testing.T) {
 	// A representative Samsung-style Sink: many AVC/MPEG entries, no HEVC token.
 	avcSink := "http-get:*:audio/mpeg:*," +

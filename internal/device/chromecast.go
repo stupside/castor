@@ -3,13 +3,18 @@ package device
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/url"
 	"strconv"
+	"sync"
+	"sync/atomic"
 
 	"github.com/vishen/go-chromecast/application"
+	castmedia "github.com/vishen/go-chromecast/cast"
+	pb "github.com/vishen/go-chromecast/cast/proto"
 	castdns "github.com/vishen/go-chromecast/dns"
 
 	"github.com/stupside/castor/internal/media"
@@ -19,6 +24,14 @@ const chromecastPort = 8009
 
 type chromecastDevice struct {
 	app *application.Application
+
+	// armed gates the media watcher: the receiver also reports the fate of
+	// whatever it played before this cast (often IDLE/FINISHED), so only
+	// events observed after our own Load may end it.
+	armed atomic.Bool
+	watch mediaWatch
+	once  sync.Once
+	done  chan struct{} // closed when the receiver reports playback over
 }
 
 var _ Device = (*chromecastDevice)(nil)
@@ -42,7 +55,10 @@ func connectChromecast(info Info) (Device, error) {
 	if err := app.Start(host, port); err != nil {
 		return nil, fmt.Errorf("connecting to chromecast: %w", err)
 	}
-	return &chromecastDevice{app: app}, nil
+
+	dev := &chromecastDevice{app: app, done: make(chan struct{})}
+	app.AddMessageFunc(dev.watchMessage)
+	return dev, nil
 }
 
 // discoverChromecast browses mDNS (_googlecast._tcp) for cast devices until
@@ -108,7 +124,71 @@ func (c *chromecastDevice) Play(_ context.Context, streamURL *url.URL, contentTy
 	if err := c.app.Load(streamURL.String(), 0, contentType, false, true, true); err != nil {
 		return fmt.Errorf("starting chromecast playback: %w", err)
 	}
+	c.armed.Store(true)
 	return nil
+}
+
+// WaitDone blocks until the receiver reports playback over or ctx ends.
+func (c *chromecastDevice) WaitDone(ctx context.Context) error {
+	select {
+	case <-c.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// watchMessage feeds receiver events to the media watcher. The library calls
+// it from a single dispatch goroutine, so watch needs no locking.
+func (c *chromecastDevice) watchMessage(msg *pb.CastMessage) {
+	if !c.armed.Load() || msg.GetPayloadUtf8() == "" {
+		return
+	}
+	var resp castmedia.MediaStatusResponse
+	if err := json.Unmarshal([]byte(msg.GetPayloadUtf8()), &resp); err != nil {
+		return
+	}
+	if playbackOver(&c.watch, &resp) {
+		c.once.Do(func() { close(c.done) })
+	}
+}
+
+// mediaWatch decides when receiver media statuses end the cast. A terminal
+// idle reason only counts after the session has been seen active, so a stale
+// IDLE status describing what the receiver played before this cast cannot end
+// it before it starts.
+type mediaWatch struct{ active bool }
+
+// observe feeds one MEDIA_STATUS entry and reports whether playback is over:
+// the media finished, the user cancelled it, another sender interrupted it,
+// or the receiver hit an error.
+func (w *mediaWatch) observe(playerState, idleReason string) bool {
+	switch playerState {
+	case "BUFFERING", "PLAYING", "PAUSED":
+		w.active = true
+	case "IDLE":
+		switch idleReason {
+		case "FINISHED", "CANCELLED", "INTERRUPTED", "ERROR":
+			return w.active
+		}
+	}
+	return false
+}
+
+// playbackOver reports whether one receiver message ends the cast: the
+// receiver application closing, or a media status the watcher deems terminal.
+func playbackOver(w *mediaWatch, resp *castmedia.MediaStatusResponse) bool {
+	switch resp.Type {
+	case "CLOSE":
+		return true
+	case "MEDIA_STATUS":
+		over := false
+		for _, status := range resp.Status {
+			over = w.observe(status.PlayerState, status.IdleReason) || over
+		}
+		return over
+	}
+	return false
 }
 
 func (c *chromecastDevice) Close() error {

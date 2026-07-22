@@ -2,6 +2,7 @@ package cast
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -146,7 +147,14 @@ func runSpooled(parentCtx context.Context, cfg Config, plan Plan, localIP string
 		subs.follow(ctx, g, proc.Extra)
 	}
 
-	return serveToDevice(ctx, plan, d, localIP, proc.Stdout, workDir)
+	err = serveToDevice(ctx, plan, d, localIP, proc.Stdout, workDir)
+	if errors.Is(err, errPlaybackDone) {
+		// Deliberate teardown, not a failure: cancel so finishEncoder treats
+		// the encoder's death like a Ctrl+C instead of dumping forensics.
+		cancel()
+		return nil
+	}
+	return err
 }
 
 // codecPreference ranks re-encode target codecs by efficiency, most efficient

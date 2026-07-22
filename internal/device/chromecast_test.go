@@ -4,8 +4,135 @@ import (
 	"net"
 	"testing"
 
+	castmedia "github.com/vishen/go-chromecast/cast"
+	pb "github.com/vishen/go-chromecast/cast/proto"
 	castdns "github.com/vishen/go-chromecast/dns"
 )
+
+func TestPlaybackOver(t *testing.T) {
+	status := func(playerState, idleReason string) castmedia.MediaStatusResponse {
+		return castmedia.MediaStatusResponse{
+			PayloadHeader: castmedia.PayloadHeader{Type: "MEDIA_STATUS"},
+			Status:        []castmedia.Media{{PlayerState: playerState, IdleReason: idleReason}},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		messages []castmedia.MediaStatusResponse
+		done     bool
+	}{
+		{
+			// The receiver reports the fate of whatever it played before this
+			// cast; a stale FINISHED must not end a session that hasn't started.
+			name:     "stale idle status before playback is ignored",
+			messages: []castmedia.MediaStatusResponse{status("IDLE", "FINISHED")},
+			done:     false,
+		},
+		{
+			name: "finished after playing ends the cast",
+			messages: []castmedia.MediaStatusResponse{
+				status("BUFFERING", ""), status("PLAYING", ""), status("IDLE", "FINISHED"),
+			},
+			done: true,
+		},
+		{
+			name: "user stop on the device ends the cast",
+			messages: []castmedia.MediaStatusResponse{
+				status("PLAYING", ""), status("IDLE", "CANCELLED"),
+			},
+			done: true,
+		},
+		{
+			name: "another sender interrupting ends the cast",
+			messages: []castmedia.MediaStatusResponse{
+				status("PLAYING", ""), status("IDLE", "INTERRUPTED"),
+			},
+			done: true,
+		},
+		{
+			name: "pause keeps the cast alive",
+			messages: []castmedia.MediaStatusResponse{
+				status("PLAYING", ""), status("PAUSED", ""),
+			},
+			done: false,
+		},
+		{
+			// A load transition parks the player IDLE with no reason; only a
+			// terminal reason ends the cast.
+			name: "idle without a terminal reason keeps the cast alive",
+			messages: []castmedia.MediaStatusResponse{
+				status("PLAYING", ""), status("IDLE", ""),
+			},
+			done: false,
+		},
+		{
+			name: "receiver app closing ends the cast",
+			messages: []castmedia.MediaStatusResponse{
+				{PayloadHeader: castmedia.PayloadHeader{Type: "CLOSE"}},
+			},
+			done: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var watch mediaWatch
+			done := false
+			for _, msg := range tt.messages {
+				done = playbackOver(&watch, &msg)
+			}
+			if done != tt.done {
+				t.Errorf("playbackOver() = %v, want %v", done, tt.done)
+			}
+		})
+	}
+}
+
+func TestWatchMessage(t *testing.T) {
+	message := func(payload string) *pb.CastMessage {
+		return &pb.CastMessage{PayloadUtf8: &payload}
+	}
+	closed := func(d *chromecastDevice) bool {
+		select {
+		case <-d.done:
+			return true
+		default:
+			return false
+		}
+	}
+
+	dev := &chromecastDevice{done: make(chan struct{})}
+	stale := `{"type":"MEDIA_STATUS","status":[{"playerState":"IDLE","idleReason":"FINISHED"}]}`
+
+	// Disarmed (before Play), even a terminal status is ignored.
+	dev.watchMessage(message(stale))
+	if closed(dev) {
+		t.Fatal("terminal status before Play must not end the cast")
+	}
+
+	dev.armed.Store(true)
+
+	// Armed but never seen active: a stale terminal status is still ignored.
+	dev.watchMessage(message(stale))
+	if closed(dev) {
+		t.Fatal("terminal status before playback engages must not end the cast")
+	}
+
+	dev.watchMessage(message(`{"type":"MEDIA_STATUS","status":[{"playerState":"PLAYING"}]}`))
+	dev.watchMessage(message(`not json`)) // receiver noise is skipped, not fatal
+	if closed(dev) {
+		t.Fatal("playback in progress must not end the cast")
+	}
+
+	dev.watchMessage(message(`{"type":"MEDIA_STATUS","status":[{"playerState":"IDLE","idleReason":"CANCELLED"}]}`))
+	if !closed(dev) {
+		t.Fatal("cancel after playback must end the cast")
+	}
+
+	// A second terminal message after done is closed must not re-close (panic).
+	dev.watchMessage(message(stale))
+}
 
 func TestChromecastInfo(t *testing.T) {
 	tests := []struct {

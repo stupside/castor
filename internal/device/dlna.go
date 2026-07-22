@@ -292,11 +292,78 @@ func (d *dlnaDevice) Play(ctx context.Context, streamURL *url.URL, contentType s
 }
 
 // action performs a SOAP action against the renderer's AVTransport service,
-// namespaced to the service version the device actually published. None of the
-// actions castor calls return out arguments, so no response is unmarshalled.
+// namespaced to the service version the device actually published. The actions
+// routed through here return no out arguments, so no response is unmarshalled.
 func (d *dlnaDevice) action(ctx context.Context, name string, request any) error {
 	return d.transport.SOAPClient.PerformActionCtx(
 		ctx, d.transport.Service.ServiceType, name, request, nil)
+}
+
+// transportPollInterval is the cadence WaitDone watches the transport at; each
+// GetTransportInfo round-trip is bounded by the same duration so a hung call
+// yields to the next poll instead of stalling the watcher.
+const transportPollInterval = 2 * time.Second
+
+// transportWatch decides when polled transport states end the cast. A stop is
+// only trusted after the renderer has been seen playing: between
+// SetAVTransportURI and the first fetched byte, renderers still report
+// STOPPED, and that must not end a cast that hasn't started.
+type transportWatch struct{ played bool }
+
+// observe feeds one polled CurrentTransportState and reports whether playback
+// is over.
+func (w *transportWatch) observe(state string) bool {
+	switch state {
+	case "PLAYING", "PAUSED_PLAYBACK":
+		w.played = true
+	case "STOPPED", "NO_MEDIA_PRESENT":
+		return w.played
+	}
+	return false
+}
+
+// WaitDone polls AVTransport GetTransportInfo until the renderer reports
+// playback stopped. SOAP failures are skipped rather than surfaced: a
+// momentarily unreachable renderer is usually still playing, and ending the
+// cast on a hiccup would cut it off mid-movie.
+func (d *dlnaDevice) WaitDone(ctx context.Context) error {
+	tick := time.NewTicker(transportPollInterval)
+	defer tick.Stop()
+
+	var watch transportWatch
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tick.C:
+		}
+
+		state, err := d.transportState(ctx)
+		if err != nil {
+			continue
+		}
+		if watch.observe(state) {
+			return nil
+		}
+	}
+}
+
+// transportState fetches the renderer's CurrentTransportState.
+func (d *dlnaDevice) transportState(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, transportPollInterval)
+	defer cancel()
+
+	request := &struct{ InstanceID string }{"0"}
+	response := &struct {
+		CurrentTransportState  string
+		CurrentTransportStatus string
+		CurrentSpeed           string
+	}{}
+	if err := d.transport.SOAPClient.PerformActionCtx(
+		ctx, d.transport.Service.ServiceType, "GetTransportInfo", request, response); err != nil {
+		return "", err
+	}
+	return response.CurrentTransportState, nil
 }
 
 func (d *dlnaDevice) Close() error {
