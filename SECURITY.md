@@ -44,6 +44,17 @@ Castor launches Chrome to extract streams. The browser process:
 - Uses a fresh, randomized browser fingerprint per extraction run, not derived from or linked to your real browser or identity
 - Only visits the page you point it at (plus whatever that page itself loads)
 
+## Supply chain and image provenance
+
+The `ghcr.io/stupside/castor` image is built and published only by the [release workflow](.github/workflows/_delivery.yml), never by hand. Every published image ships with an **SPDX SBOM** and full **SLSA build provenance**, attached to the manifest at build time.
+
+Read them with `docker buildx imagetools inspect` (any tag or `@sha256:...` digest works):
+
+```sh
+docker buildx imagetools inspect ghcr.io/stupside/castor:latest --format '{{ json .SBOM }}'
+docker buildx imagetools inspect ghcr.io/stupside/castor:latest --format '{{ json .Provenance }}'
+```
+
 ## Reporting a vulnerability
 
 Open a [GitHub issue](https://github.com/stupside/castor/issues) marked **[security]**. For sensitive reports, contact the maintainer directly via the email on their GitHub profile.
