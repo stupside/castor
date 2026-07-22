@@ -11,6 +11,11 @@ target "default" {
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64", "linux/arm64"]
 
+  attest = [
+    "type=sbom",
+    "type=provenance,mode=max",
+  ]
+
   cache-from = ["type=gha"]
   cache-to   = ["type=gha,mode=max"]
 }
