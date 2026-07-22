@@ -153,17 +153,12 @@ jobs:
           labels: |
             org.opencontainers.image.description=Cast video streams to networked devices
             org.opencontainers.image.licenses=MIT
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+      - uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
         with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64,linux/arm64
+          files: |
+            ./docker-bake.hcl
+            ${{ steps.meta.outputs.bake-file }}
           push: true
-          provenance: false
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       # ── Stable-only: never run for a prerelease (canary) version ──
       # release-please already created the Release; attach binaries + checksums
