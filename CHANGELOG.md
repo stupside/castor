@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.2](https://github.com/stupside/castor/compare/v1.7.1...v1.7.2) (2026-07-22)
+
+
+### Documentation
+
+* document how to verify the image SBOM and provenance ([c675665](https://github.com/stupside/castor/commit/c6756652e48078192aeec1a02b088dea9e625fd6))
+
+
+### Build System
+
+* **docker:** attach an SPDX SBOM and SLSA provenance to the image ([aaaf0ee](https://github.com/stupside/castor/commit/aaaf0ee26c520340b6347011c98f7efde79713e2))
+* **docker:** build image with docker bake ([cdb9de6](https://github.com/stupside/castor/commit/cdb9de6338cd787e5e8cd80e2bde43ed7076310b))
+
 ## [1.7.1](https://github.com/stupside/castor/compare/v1.7.0...v1.7.1) (2026-07-22)
 
 
