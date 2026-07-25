@@ -44,7 +44,8 @@ var audioCodecPreference = []media.Codec{media.CodecEAC3, media.CodecAC3}
 
 // ResolveAudio fills opts' audio fields from the renderer's advertised audio
 // support and the source's probed track. It is the shared audio decision for
-// both device paths (DLNA off its spool probe, Chromecast off a source probe):
+// both served paths (the read-once spool off its spool probe, the network remux
+// off a source probe):
 //
 //  1. copy — the renderer decodes the source codec (and channel count), so a
 //     5.1/7.1 track passes through untouched, no quality loss and no downmix;
@@ -72,7 +73,7 @@ func ResolveAudio(opts *ffmpeg.EncodeOptions, caps media.Renderer, src media.Pro
 			return
 		}
 	}
-	opts.AudioCodec = "aac"
+	opts.AudioCodec = string(media.CodecAAC)
 	opts.AudioBitrate = stereoAudioBitrate
 	opts.AudioSampleRate = 48000
 	opts.AudioChannels = 2

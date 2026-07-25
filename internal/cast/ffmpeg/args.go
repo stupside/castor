@@ -195,8 +195,8 @@ func EncodeArgs(opts EncodeOptions) []string {
 	// multi-track source can differ from the first track the planner probed to
 	// choose copy-vs-encode — so the encode would apply that decision to the
 	// wrong track. Pinning 0:a:0 keeps the encoded track identical to the probed
-	// one. (The DLNA spool is already single-audio via the puller's -map, so this
-	// only changes behaviour for the direct network remux.)
+	// one. (The read-once spool is already single-audio via the puller's -map, so
+	// this only changes behaviour for the direct network remux.)
 	args = append(args, "-map", "0:v:0", "-map", "0:a:0")
 
 	// Video filter chain. scale= runs first so text is rendered at the final
@@ -261,9 +261,9 @@ func EncodeArgs(opts EncodeOptions) []string {
 	switch opts.OutputFormat {
 	case "mpegts":
 		// mpegts container tuning. PCR and PAT/PMT need to repeat frequently
-		// so a renderer that joins mid-stream (Samsung's HEAD-probe-then-play
-		// pattern) can resync within one GOP. Annexb conversion for copied
-		// video is auto-inserted by ffmpeg per actual codec when needed.
+		// so a renderer that joins mid-stream (some smart TVs HEAD-probe then
+		// GET before playing) can resync within one GOP. Annexb conversion for
+		// copied video is auto-inserted by ffmpeg per actual codec when needed.
 		args = append(args,
 			"-mpegts_flags", "+resend_headers+initial_discontinuity",
 			// pat_period (not "mpegts_pat_period" — that name was removed
@@ -298,9 +298,10 @@ func EncodeArgs(opts EncodeOptions) []string {
 }
 
 // HLS output tuning. A live sliding-window fMP4 tail: hlsListSize segments of
-// ~hlsSegmentSeconds each keep hlsWindowSeconds on disk, above Roku's
-// ~30s-from-edge floor; hls_playlist_type stays unset so the window rolls
-// (event/vod would pin the list size to 0 and grow disk unbounded).
+// ~hlsSegmentSeconds each keep hlsWindowSeconds on disk, comfortably above the
+// ~30s-behind-live-edge window HLS clients conventionally buffer; hls_playlist_type
+// stays unset so the window rolls (event/vod would pin the list size to 0 and
+// grow disk unbounded).
 const (
 	// hlsMuxer is ffmpeg's HLS muxer name and the OutputFormat value selecting the
 	// live-directory output (files under the work dir, not pipe:1).

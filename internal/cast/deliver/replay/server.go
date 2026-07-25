@@ -2,7 +2,7 @@
 // it to every client from byte 0.
 //
 // The producer's output is spooled to disk and every HTTP connection replays
-// it from the start through its own reader. This is what makes Samsung's
+// it from the start through its own reader. This is what makes a renderer's
 // HEAD-probe → short-GET → real-GET dance safe: the probe GET reads its own
 // copy of the stream head and the real GET still starts at byte 0 with the
 // container init and first keyframe intact. A live fan-out broadcaster (the

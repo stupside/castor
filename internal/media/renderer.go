@@ -5,10 +5,10 @@ import "slices"
 // Renderer describes what a target device can play without help from us: the
 // containers it accepts as-is over the network (so the source URL can be handed
 // to it directly), and the video envelopes it decodes natively (so a matching
-// source can be stream-copied instead of re-encoded). It is the single
-// capability model both device types describe themselves with; each Device
-// resolves its own (DLNA negotiates it over GetProtocolInfo, Chromecast reports
-// its receiver profile) while this package owns the type and the matching rules.
+// source can be stream-copied instead of re-encoded). It is the single capability
+// model every device type describes itself with; each Device resolves its own by
+// whatever means its protocol allows, while this package owns the type and the
+// matching rules. Nothing here names or is specialized for any device family.
 type Renderer struct {
 	Containers []string
 	Video      []VideoSupport
@@ -16,29 +16,31 @@ type Renderer struct {
 
 	// SelfFetch reports whether the renderer fetches an arbitrary stream URL
 	// itself once it is handed one, versus needing castor to serve the bytes to
-	// it. The planner reads this to choose pass-through (hand the device the
-	// source URL and let it pull directly) over a castor-served stream:
-	// Chromecast self-fetches, whereas DLNA only plays what we push to it via
-	// SetAVTransportURI and so is always served locally.
+	// it. The planner reads this to choose pass-through (hand the renderer the
+	// source URL and let it pull directly) over a castor-served stream: a
+	// self-fetching renderer can pass the source through, while a push-only
+	// renderer only plays what castor serves it and so is always served locally.
 	SelfFetch bool
 
-	// ServedContainer is the content type castor produces when a self-fetching
-	// renderer rejects the source container and must be served a live remux: the
-	// container the local ffmpeg muxes and the device is told it is fetching. A
-	// self-fetching renderer must declare it (Chromecast takes fragmented mp4; a
-	// renderer that cannot play a growing single-file URL takes live HLS instead).
-	// Ignored for a non-self-fetching renderer, whose served path is always the
-	// MPEG-TS spool.
+	// ServedContainer is the content type castor produces on a served cast that
+	// remuxes: the container the local ffmpeg muxes and the renderer is told it is
+	// fetching. A renderer that will be served a live remux declares the container
+	// it wants (a fragmented single-file container for a smart client, or a
+	// segmented live format for one that cannot play a growing single-file URL);
+	// the read-once spool path serves its own append-only container. Inert on a
+	// pass-through cast, which reads the source's own content type.
 	ServedContainer string
 }
 
 // VideoSupport is one video envelope a renderer decodes natively. A probed
 // source is copy-eligible when it matches at least one on the things that
-// black-screen a TV outright: codec, profile, bit depth, and dynamic range
-// (HDR is always rejected: over DLNA we can't tell whether the renderer engages
-// it). Resolution is deliberately absent: it is the user's cast-quality
-// preference (config max_height), applied at source selection and the copy gate,
-// not something guessed from the renderer.
+// black-screen a TV outright: codec, profile, bit depth, and dynamic range. An
+// HDR source is never copy-eligible: correct HDR playback cannot be assumed to
+// engage on an arbitrary renderer, so it is re-encoded to an SDR-safe output
+// rather than passed through (this is a generic conservative policy, not tied to
+// any device family). Resolution is deliberately absent: it is the user's
+// cast-quality preference (config max_height), applied at source selection and
+// the copy gate, not something guessed from the renderer.
 type VideoSupport struct {
 	Codec     Codec
 	Profiles  []string // nil = any profile

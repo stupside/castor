@@ -14,11 +14,12 @@ const (
 	// DeliverPassthrough hands the device the source URL and lets it pull the
 	// bytes directly: no local ffmpeg, no served stream. Chosen only when the
 	// renderer self-fetches AND already accepts the source container, so nothing
-	// needs rewrapping. This is today's Chromecast pass-through.
+	// needs rewrapping.
 	DeliverPassthrough DeliveryMode = iota
 	// DeliverServe produces the stream locally (a remux or a transcode) and serves
-	// it over the replay server. Every DLNA cast lands here (DLNA never
-	// self-fetches), as does a Chromecast whose source container it will not take.
+	// it to the device. A push-only renderer always lands here (it never
+	// self-fetches), as does a self-fetching renderer whose source container it
+	// will not take.
 	DeliverServe
 )
 
@@ -30,7 +31,7 @@ type SubtitleMode int
 
 const (
 	// SubtitleOff ships no subtitles: every pass-through cast, every served cast
-	// with the transcriber disabled, and (this stage) every Chromecast.
+	// with the transcriber disabled, and (this stage) every self-fetching renderer.
 	SubtitleOff SubtitleMode = iota
 	// SubtitleBurnIn transcribes the audio and draws the cues into the video
 	// frames during the encode (whisper hardsubs). It forces a video re-encode
@@ -56,9 +57,9 @@ type Plan struct {
 	// Subtitle is off versus burned-in.
 	Subtitle SubtitleMode
 	// OutputContentType is the MIME type the device is told it is fetching: the
-	// container the local ffmpeg muxes on a served cast (video/mp2t for the DLNA
-	// remux, media.MP4 for the Chromecast remux). A pass-through device reads the
-	// source's own content type and never consults this.
+	// container the local ffmpeg muxes on a served cast, taken from the renderer's
+	// declared ServedContainer. A pass-through cast reads the source's own content
+	// type and never consults this, so it is left empty there.
 	OutputContentType string
 }
 
@@ -66,8 +67,8 @@ type Plan struct {
 // advertised capabilities, and config. It performs no I/O and reads no probe: it
 // fixes only the axes that need none (delivery, subtitle, and the served output
 // container). Each served stage then completes the encode against the probe it
-// obtains (the source URL for a Chromecast remux, the local spool for DLNA), which
-// is why nothing about the encode lives on the Plan.
+// obtains (the source URL for a network remux, the local spool for the read-once
+// spool path), which is why nothing about the encode lives on the Plan.
 func NewPlan(source *media.Stream, caps media.Renderer, cfg Config) Plan {
 	delivery := ResolveDelivery(caps, source)
 	return Plan{
@@ -78,14 +79,14 @@ func NewPlan(source *media.Stream, caps media.Renderer, cfg Config) Plan {
 }
 
 // outputContentType is the container the device is told it is fetching on a
-// served cast. A self-fetching renderer that still reached Serve got there by
-// rejecting the source container, so it is served the container it advertises for
-// a live remux (its ServedContainer, which such a renderer must declare);
-// everything else served is the non-self-fetch MPEG-TS remux. Pass-through never
-// consults this, so its value is inert.
+// served cast: the renderer's declared ServedContainer, whichever delivery it
+// reached Serve through. Core reads it straight from the capability and bakes in
+// no container of its own, so no device family's format choice lives here. A
+// pass-through cast never consults this (it reads the source's own content type),
+// so its value is inert.
 func outputContentType(delivery DeliveryMode, caps media.Renderer) string {
-	if delivery == DeliverServe && caps.SelfFetch {
+	if delivery == DeliverServe {
 		return caps.ServedContainer
 	}
-	return media.MPEGTS
+	return ""
 }

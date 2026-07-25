@@ -32,9 +32,9 @@ func ResolveSource(ctx context.Context, cfg Config, stream *media.Stream) (*medi
 // Connect discovers and connects the renderer named in cfg. cast.Play calls it
 // once, up front: the plan needs the renderer's advertised capabilities
 // (SelfFetch, accepted containers, decodable codecs) to fix its axes before any
-// stage runs, so discovery can no longer overlap the pull the way the old DLNA
-// strategy arranged. device.Connect dispatches on device type internally, which
-// is why nothing above here carries a device-type switch.
+// stage runs, so discovery can no longer overlap the pull the way the old
+// per-device strategies arranged. device.Connect dispatches on device type
+// internally, which is why nothing above here carries a device-type switch.
 func Connect(ctx context.Context, cfg Config) (device.Device, error) {
 	slog.InfoContext(ctx, "discovering device", "name", cfg.Device.Name, "type", string(cfg.Device.Type))
 	info, err := device.FindInfo(ctx, cfg.Network.Timeout, cfg.Device.Type, cfg.Device.Name)

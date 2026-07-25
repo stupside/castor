@@ -163,18 +163,6 @@ func TestRunServeSpool(t *testing.T) {
 // fetching.
 const mpegtsContentType = media.MPEGTS
 
-func TestOutputMuxer(t *testing.T) {
-	if got := outputMuxer(media.HLS); got != "hls" {
-		t.Errorf("outputMuxer(HLS) = %q, want hls", got)
-	}
-	if got := outputMuxer(media.MP4); got != "mp4" {
-		t.Errorf("outputMuxer(MP4) = %q, want mp4", got)
-	}
-	if got := outputMuxer(media.MPEGTS); got != "mp4" {
-		t.Errorf("outputMuxer(default) = %q, want mp4", got)
-	}
-}
-
 // TestRunServeHLS is the live-HLS served branch (a self-fetching renderer that
 // rejects the source container and serves HLS, i.e. Roku): Run must remux to a
 // local HLS directory and point the device at the .m3u8, never the source URL.

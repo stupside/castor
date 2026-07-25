@@ -5,8 +5,8 @@
 // to the pipeline executor, which connects the renderer, computes a pure
 // core.Plan from its advertised capabilities, and runs the stages the plan names.
 // Every device concern lives either in the device adapter (internal/device) or is
-// expressed as capability data the plan reads, so DLNA and Chromecast are no
-// longer distinct code paths here.
+// expressed as capability data the plan reads, so no device family is a distinct
+// code path here.
 package cast
 
 import (

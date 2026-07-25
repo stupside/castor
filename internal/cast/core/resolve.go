@@ -10,10 +10,9 @@ import (
 // ResolveDelivery decides how the renderer receives the stream: pass-through
 // (the device fetches the source URL itself) when it both self-fetches AND
 // already accepts the source container, so there is nothing to rewrap; otherwise
-// castor serves a locally produced stream. This is the one delivery decision
-// both device families share: Chromecast self-fetches, so it hands an accepted
-// container straight to the device and remuxes the rest; DLNA never self-fetches
-// and so always serves, exactly as today.
+// castor serves a locally produced stream. It is decided purely from capability
+// data: a self-fetching renderer hands an accepted container straight to the
+// device and has the rest remuxed, while a push-only renderer always serves.
 func ResolveDelivery(caps media.Renderer, source *media.Stream) DeliveryMode {
 	if caps.SelfFetch && caps.AcceptsContainer(source.ContentType) {
 		return DeliverPassthrough
@@ -24,11 +23,11 @@ func ResolveDelivery(caps media.Renderer, source *media.Stream) DeliveryMode {
 // ResolveSubtitle decides the subtitle axis from the renderer and config. Stage 1
 // has one active mechanism, whisper burn-in, chosen exactly when the transcriber
 // is enabled AND the renderer does not fetch its own bytes. A self-fetching
-// renderer (Chromecast) either passes the source through or remuxes it, and in
-// neither case is there a drawtext encode to draw cues into (it takes captions as
-// a native track in Stage 2); a non-self-fetching renderer (DLNA) always serves a
-// local encode, which is exactly what burn-in needs. A future SubtitleSidecar will
-// branch here on the renderer's advertised caption support.
+// renderer either passes the source through or remuxes it, and in neither case is
+// there a drawtext encode to draw cues into (it takes captions as a native track
+// in Stage 2); a push-only renderer always serves a local encode, which is
+// exactly what burn-in needs. A future SubtitleSidecar will branch here on the
+// renderer's advertised caption support.
 func ResolveSubtitle(caps media.Renderer, cfg Config) SubtitleMode {
 	if cfg.Whisper.Enable && !caps.SelfFetch {
 		return SubtitleBurnIn
@@ -38,9 +37,9 @@ func ResolveSubtitle(caps media.Renderer, cfg Config) SubtitleMode {
 
 // ResolveVideo fills opts' video fields from the renderer's advertised support
 // and the source's probed track: the copy-vs-encode decision the served path
-// makes once it holds a probe (the DLNA spool probe, the Chromecast source
-// probe). It is the video counterpart to ResolveAudio and, like it, a mutator
-// over opts that queries capability methods:
+// makes once it holds a probe (the read-once spool probe, or the network-remux
+// source probe). It is the video counterpart to ResolveAudio and, like it, a
+// mutator over opts that queries capability methods:
 //
 //   - copy: no subtitles to burn, the source fits under the height ceiling, and
 //     the renderer decodes the source envelope natively: the bitstream passes
@@ -66,7 +65,7 @@ func ResolveVideo(ctx context.Context, opts *ffmpeg.EncodeOptions, caps media.Re
 	// apply that codec's VBV-capped bitrate target. SelectEncoder proves an
 	// encoder with a real test encode (cached per process), so it takes ctx: a
 	// slow or wedged probe is cancelled when the cast's context ends rather than
-	// running detached, exactly as the old inline DLNA code passed its errgroup ctx.
+	// running detached, exactly as the old inline code passed its errgroup ctx.
 	enc := selectVideoEncoder(caps, func(c media.Codec) (ffmpeg.Encoder, bool) {
 		return ffmpeg.SelectEncoder(ctx, cfg.Transcode.FFmpegPath, c)
 	})

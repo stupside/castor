@@ -89,6 +89,28 @@ func FormatForContentType(ct string) (FormatInfo, bool) {
 	return FormatInfo{}, false
 }
 
+// MuxerForContentType returns the ffmpeg muxer name that produces a content type,
+// or ok=false for a content type castor cannot produce. It makes NO decision: the
+// output container is already chosen upstream (a renderer's declared
+// ServedContainer); this is a pure name translation from the produced content
+// type to ffmpeg's -f value, so a caller need not hardcode muxer strings. It is
+// backed by the same formatRegistry that owns the container vocabulary (the
+// registry is keyed by muxer name, so the key of the entry producing ct IS the
+// muxer), with HLS added as the one segmented format the single-file registry
+// does not carry. Being total over the producible set, it lets callers fail on an
+// unrecognized container rather than silently defaulting to one.
+func MuxerForContentType(ct string) (string, bool) {
+	if ct == HLS {
+		return "hls", true
+	}
+	for muxer, info := range formatRegistry {
+		if info.ContentType == ct {
+			return muxer, true
+		}
+	}
+	return "", false
+}
+
 var extensionMap = map[string]string{
 	".mp4":  MP4,
 	".mkv":  MKV,

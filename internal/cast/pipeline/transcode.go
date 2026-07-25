@@ -31,8 +31,8 @@ func spoolEncodeOptions(maxHeight int) ffmpeg.EncodeOptions {
 // (a self-fetching renderer that rejects the source container): the source wired
 // for a direct network read and no video encoder, so the bitstream is
 // stream-copied (the renderer decodes the source codec, only the container
-// changes). muxer is the ffmpeg muxer for the plan's output container ("mp4" for
-// Chromecast's fragmented mp4, "hls" for Roku's live HLS). Audio is filled by
+// changes). muxer is the ffmpeg muxer for the plan's output container, derived
+// from the renderer's declared ServedContainer. Audio is filled by
 // core.ResolveAudio afterward against a source probe.
 func remuxNetworkOptions(source *media.Stream, rwTimeout time.Duration, muxer string) ffmpeg.EncodeOptions {
 	return ffmpeg.EncodeOptions{

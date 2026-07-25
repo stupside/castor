@@ -88,9 +88,9 @@ func passthrough(ctx context.Context, dev device.Device, source *media.Stream) e
 
 // runRemux is the single-ffmpeg served path for a self-fetching renderer that
 // rejects the source container: network input, video stream-copied, container
-// changed to the plan's output type. No whisper, no input spool. Chromecast's mp4
-// remux is spooled by the replay server so the device can replay from 0; Roku's
-// live HLS is packaged into a directory the HLS server fronts.
+// changed to the plan's output type. No whisper, no input spool. A single-file
+// remux is spooled by the replay server so the device can replay from 0; a
+// segmented (HLS) remux is packaged into a directory the HLS server fronts.
 func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.Device, source *media.Stream, localIP string) error {
 	slog.InfoContext(ctx, "execution plan", "delivery", "remux", "output_content_type", plan.OutputContentType)
 
@@ -100,7 +100,11 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 	}
 	defer func() { _ = os.RemoveAll(workDir) }()
 
-	opts := remuxNetworkOptions(source, cfg.Transcode.RWTimeout, outputMuxer(plan.OutputContentType))
+	muxer, ok := media.MuxerForContentType(plan.OutputContentType)
+	if !ok {
+		return fmt.Errorf("no muxer for output content type %q", plan.OutputContentType)
+	}
+	opts := remuxNetworkOptions(source, cfg.Transcode.RWTimeout, muxer)
 
 	// Resolve audio from a source probe, the same decision the spool path makes
 	// off its spool. This path has no input spool, so it reads the upstream
@@ -143,15 +147,6 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 	return core.ServeToDevice(ctx, dev, localIP, plan.OutputContentType, proc.Stdout, workDir)
 }
 
-// outputMuxer maps a served output content type to the ffmpeg muxer name the
-// remux encode targets.
-func outputMuxer(contentType string) string {
-	if contentType == media.HLS {
-		return "hls"
-	}
-	return "mp4"
-}
-
 // runSpooled is the read-once cast for a renderer that does not self-fetch:
 // puller into spool (+ PCM into whisper) into tail into encoder (drawtext burn-in)
 // into replay server into device. Each stage lives in its own file; this function
@@ -170,7 +165,11 @@ func outputMuxer(contentType string) string {
 // closed, and only then is the work directory removed, so no goroutine is still
 // writing a cue file into a directory being deleted.
 func runSpooled(parentCtx context.Context, cfg core.Config, connect ConnectFunc, source *media.Stream, localIP string) error {
-	plan := core.NewPlan(source, media.Renderer{SelfFetch: false}, cfg)
+	// The read-once spool serves MPEG-TS: the spool is strictly append-only so a
+	// tail can read it while it grows and the replay server can hand every client
+	// the stream from byte 0. That is a property of this delivery mechanism, not of
+	// any renderer, so the container is declared here rather than assumed in core.
+	plan := core.NewPlan(source, media.Renderer{SelfFetch: false, ServedContainer: media.MPEGTS}, cfg)
 	slog.InfoContext(parentCtx, "execution plan",
 		"delivery", "spool",
 		"output_content_type", plan.OutputContentType,
@@ -265,8 +264,8 @@ func runSpooled(parentCtx context.Context, cfg core.Config, connect ConnectFunc,
 	// Copy-vs-encode against the spool probe: stream-copy when nothing forces a
 	// re-encode (no burn-in, within the height ceiling, renderer decodes the
 	// envelope), else the most efficient advertised + hardware codec at its
-	// VBV-capped target. Identical decision to the old inline DLNA logic. ctx is
-	// threaded so a wedged encoder test-probe unwinds with the cast.
+	// VBV-capped target. Identical decision to the old inline per-device logic. ctx
+	// is threaded so a wedged encoder test-probe unwinds with the cast.
 	core.ResolveVideo(ctx, &opts, caps, srcInfo, cfg)
 
 	videoCodec := ffmpeg.CodecCopy

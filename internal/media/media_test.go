@@ -7,6 +7,27 @@ import (
 	"testing"
 )
 
+func TestMuxerForContentType(t *testing.T) {
+	cases := []struct {
+		ct    string
+		muxer string
+		ok    bool
+	}{
+		{MPEGTS, "mpegts", true},
+		{MP4, "mp4", true},
+		{HLS, "hls", true},
+		{WebM, "", false}, // a container castor advertises but has no producing muxer for
+		{"", "", false},   // inert pass-through output type must not resolve
+		{"bogus", "", false},
+	}
+	for _, c := range cases {
+		muxer, ok := MuxerForContentType(c.ct)
+		if ok != c.ok || muxer != c.muxer {
+			t.Errorf("MuxerForContentType(%q) = (%q, %v), want (%q, %v)", c.ct, muxer, ok, c.muxer, c.ok)
+		}
+	}
+}
+
 func TestStreamInfoPlayable(t *testing.T) {
 	cases := []struct {
 		name string

@@ -22,12 +22,15 @@ func TestNewPlan(t *testing.T) {
 	// caps builds a renderer that self-fetches (or not) and accepts the given
 	// containers. The audio/video support lists are irrelevant to the plan (they
 	// feed the executor's copy-vs-encode, tested in resolve_test), so they stay
-	// empty here. A self-fetching renderer must declare a ServedContainer for the
-	// remux case; mp4 mirrors Chromecast (the HLS variant is pinned separately).
+	// empty here. A served renderer declares the container it is served: mp4 for a
+	// self-fetching remux (the HLS variant is pinned separately below), MPEG-TS for
+	// the push-only spool (what runSpooled declares on its synthetic renderer).
 	caps := func(selfFetch bool, containers ...string) media.Renderer {
 		r := media.Renderer{SelfFetch: selfFetch, Containers: containers}
 		if selfFetch {
 			r.ServedContainer = media.MP4
+		} else {
+			r.ServedContainer = media.MPEGTS
 		}
 		return r
 	}
@@ -51,8 +54,8 @@ func TestNewPlan(t *testing.T) {
 			delivery: DeliverPassthrough,
 			subtitle: SubtitleOff,
 			// OutputContentType is inert on pass-through (the device reads the
-			// source's own type); the plan still fills the default, so pin it.
-			outputCT: mpegtsContentType,
+			// source's own type), so the plan leaves it empty.
+			outputCT: "",
 		},
 		{
 			// Burn-in cannot survive a pass-through: there is no local encode to
@@ -64,7 +67,7 @@ func TestNewPlan(t *testing.T) {
 			whisper:  true,
 			delivery: DeliverPassthrough,
 			subtitle: SubtitleOff,
-			outputCT: mpegtsContentType,
+			outputCT: "",
 		},
 		{
 			// Chromecast remux: self-fetches but rejects the source container, so
