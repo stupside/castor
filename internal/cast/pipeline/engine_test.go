@@ -120,12 +120,14 @@ func TestRunServeRemux(t *testing.T) {
 	source := origin.stream()
 
 	// Self-fetching, but only accepts MKV, so the mp4 source reaches the remux.
-	// Advertise AAC stereo so the source audio is copied, not re-encoded.
+	// Advertise AAC stereo so the source audio is copied, not re-encoded, and mp4
+	// as the served container (a self-fetching renderer must declare one).
 	dev := &fakeDevice{
 		caps: media.Renderer{
-			SelfFetch:  true,
-			Containers: []string{media.MKV},
-			Audio:      []media.AudioSupport{{Codec: media.CodecAAC, MaxChannels: 2}},
+			SelfFetch:       true,
+			Containers:      []string{media.MKV},
+			ServedContainer: media.MP4,
+			Audio:           []media.AudioSupport{{Codec: media.CodecAAC, MaxChannels: 2}},
 		},
 		drain: true,
 	}

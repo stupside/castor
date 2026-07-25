@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/stupside/castor/internal/cast/deliver/hlsserve"
@@ -62,36 +63,50 @@ func ServeToDevice(ctx context.Context, dev device.Device, localIP, outputConten
 // ServeHLSToDevice fronts a live HLS directory the encoder is packaging into
 // workDir with the HLS server, points the renderer at the playlist, and blocks
 // until the stream is fully delivered or ctx ends. Unlike ServeToDevice, the
-// encoder writes files rather than a pipe, so this owns proc's lifecycle: it
-// drains the unused stdout, and a goroutine waits for the encoder to exit and
-// then tells the server the producer is done (calling FinishEncoder as well
-// would double-Wait). The renderer is pointed at the playlist only once it
-// exists on disk, so it is never handed a 404.
+// encoder writes files rather than a pipe, so this fully owns proc's lifecycle:
+// on every return it kills the encoder and joins its reaper goroutine, so no
+// ffmpeg is left running (or writing into workDir, which the caller removes) and
+// no goroutine leaks, even when dev.Play or the HLS server fails. The renderer is
+// pointed at the playlist only once it exists on disk, so it is never handed a
+// 404; if the encoder dies before writing one, the gate fails fast instead of
+// hanging.
 func ServeHLSToDevice(ctx context.Context, dev device.Device, localIP, workDir string, proc *ffmpeg.Process) error {
-	// HLS output lands in files, not pipe:1; drain the unused stdout so ffmpeg
-	// never blocks on a full pipe.
-	go func() { _, _ = io.Copy(io.Discard, proc.Stdout) }()
-
 	srv, err := hlsserve.New(hlsserve.Config{
 		LocalIP:  localIP,
 		Dir:      workDir,
 		Playlist: media.HLSPlaylistName,
 	})
 	if err != nil {
-		_ = proc.Stdout.Close()
+		proc.Kill()
+		_ = proc.Wait()
 		return fmt.Errorf("starting HLS server: %w", err)
 	}
 	defer srv.Close()
 
-	go func() {
+	// One goroutine owns the encoder end to end: drain the unused stdout to EOF
+	// (HLS output is files, not pipe:1) and only then Wait, satisfying os/exec's
+	// "no Wait before reads complete" contract without a second racing goroutine.
+	// It closes exited so the playlist gate and the teardown both observe the exit.
+	var wg sync.WaitGroup
+	exited := make(chan struct{})
+	wg.Go(func() {
+		_, _ = io.Copy(io.Discard, proc.Stdout)
 		if err := proc.Wait(); err != nil && ctx.Err() == nil {
 			proc.LogStderrTail(ctx, "ffmpeg stderr")
 			slog.WarnContext(ctx, "ffmpeg exited with error", "error", err)
 		}
 		srv.ProducerDone()
+		close(exited)
+	})
+	// Deterministic teardown on every path: stop the encoder (idempotent if it
+	// already exited) and wait for the goroutine, so the caller can remove workDir
+	// with nothing still writing to it.
+	defer func() {
+		proc.Kill()
+		wg.Wait()
 	}()
 
-	if err := waitForPlaylist(ctx, workDir); err != nil {
+	if err := waitForPlaylist(ctx, workDir, exited); err != nil {
 		return err
 	}
 
@@ -104,9 +119,10 @@ func ServeHLSToDevice(ctx context.Context, dev device.Device, localIP, workDir s
 	return srv.Wait(ctx)
 }
 
-// waitForPlaylist blocks until the muxer has written the playlist, so the device
-// is not pointed at a 404.
-func waitForPlaylist(ctx context.Context, workDir string) error {
+// waitForPlaylist blocks until the muxer has written the playlist (so the device
+// is not pointed at a 404), the encoder exits first (fail fast rather than poll
+// forever for a playlist that will never appear), or ctx ends.
+func waitForPlaylist(ctx context.Context, workDir string, producerExited <-chan struct{}) error {
 	playlist := filepath.Join(workDir, media.HLSPlaylistName)
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
@@ -117,6 +133,15 @@ func waitForPlaylist(ctx context.Context, workDir string) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-producerExited:
+			// The encoder exited before a playlist appeared. Re-check once in case
+			// it finalized one as it went, else fail with a clear error (the exit
+			// reason was already logged) instead of polling for a file that will
+			// never be written.
+			if _, err := os.Stat(playlist); err == nil {
+				return nil
+			}
+			return fmt.Errorf("encoder exited before producing the HLS playlist")
 		case <-tick.C:
 		}
 	}

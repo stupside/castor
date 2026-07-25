@@ -24,10 +24,11 @@ type Renderer struct {
 
 	// ServedContainer is the content type castor produces when a self-fetching
 	// renderer rejects the source container and must be served a live remux: the
-	// container the local ffmpeg muxes and the device is told it is fetching.
-	// Chromecast takes fragmented mp4; Roku cannot play a growing single-file URL
-	// and takes live HLS instead. Empty defaults to media.MP4. Ignored for a
-	// non-self-fetching renderer, whose served path is always the MPEG-TS spool.
+	// container the local ffmpeg muxes and the device is told it is fetching. A
+	// self-fetching renderer must declare it (Chromecast takes fragmented mp4; a
+	// renderer that cannot play a growing single-file URL takes live HLS instead).
+	// Ignored for a non-self-fetching renderer, whose served path is always the
+	// MPEG-TS spool.
 	ServedContainer string
 }
 

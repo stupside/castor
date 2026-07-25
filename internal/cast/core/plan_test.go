@@ -22,9 +22,14 @@ func TestNewPlan(t *testing.T) {
 	// caps builds a renderer that self-fetches (or not) and accepts the given
 	// containers. The audio/video support lists are irrelevant to the plan (they
 	// feed the executor's copy-vs-encode, tested in resolve_test), so they stay
-	// empty here.
+	// empty here. A self-fetching renderer must declare a ServedContainer for the
+	// remux case; mp4 mirrors Chromecast (the HLS variant is pinned separately).
 	caps := func(selfFetch bool, containers ...string) media.Renderer {
-		return media.Renderer{SelfFetch: selfFetch, Containers: containers}
+		r := media.Renderer{SelfFetch: selfFetch, Containers: containers}
+		if selfFetch {
+			r.ServedContainer = media.MP4
+		}
+		return r
 	}
 
 	tests := []struct {

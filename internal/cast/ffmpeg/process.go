@@ -125,6 +125,17 @@ func (p *Process) Wait() error {
 	return p.cmd.Wait()
 }
 
+// Kill signals the process to stop immediately. It is idempotent and safe to
+// call after the process has already exited (the error is ignored), so callers
+// can defer it as unconditional teardown on paths where context cancellation is
+// not the only way the encoder must stop (the HLS serve path, whose output is
+// files rather than a pipe that would EPIPE on close). Reap it with Wait.
+func (p *Process) Kill() {
+	if p.cmd.Process != nil {
+		_ = p.cmd.Process.Kill()
+	}
+}
+
 // StderrTail returns the most recent stderr lines, retained even while the
 // process is still running. This is what explains a stall after the process
 // has been killed by context cancellation — its own error path never runs.
