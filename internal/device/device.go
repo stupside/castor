@@ -21,24 +21,31 @@ type Type string
 const (
 	TypeDLNA       Type = "dlna"
 	TypeChromecast Type = "chromecast"
+	TypeRoku       Type = "roku"
 )
 
 // SelfFetches reports whether a renderer of this type fetches media URLs itself
-// (a smart client such as Chromecast) versus only playing bytes castor serves to
-// it (DLNA). It is a static property of the protocol, known before the network
-// round-trip of discovery and connect, so the cast pipeline can decide up front
-// that a non-self-fetching renderer will always serve a local spool and begin
-// buffering the single-use source while connect runs concurrently. It MUST agree
-// with the connected renderer's Capabilities().SelfFetch, which the copy-vs-encode
-// stage reads once the device is in hand.
+// (a smart client such as Chromecast, or Roku's channel Video node) versus only
+// playing bytes castor serves to it (DLNA). It is a static property of the
+// protocol, known before the network round-trip of discovery and connect, so the
+// cast pipeline can decide up front that a non-self-fetching renderer will always
+// serve a local spool and begin buffering the single-use source while connect runs
+// concurrently. It MUST agree with the connected renderer's Capabilities().SelfFetch,
+// which the copy-vs-encode stage reads once the device is in hand.
 func SelfFetches(t Type) bool {
-	return t == TypeChromecast
+	return t == TypeChromecast || t == TypeRoku
 }
 
 type Info struct {
 	Name    string
 	Type    Type
 	Address string
+}
+
+// Options carries optional per-type connect settings that discovery cannot
+// supply. The zero value is valid; a type that needs nothing ignores it.
+type Options struct {
+	Roku RokuConfig
 }
 
 // Device is a connected renderer, ready to play. Obtain one via Connect.
@@ -62,12 +69,14 @@ type Device interface {
 	Close() error
 }
 
-func Connect(ctx context.Context, info Info) (Device, error) {
+func Connect(ctx context.Context, info Info, opts Options) (Device, error) {
 	switch info.Type {
 	case TypeDLNA:
 		return connectDLNA(ctx, info)
 	case TypeChromecast:
 		return connectChromecast(info)
+	case TypeRoku:
+		return connectRoku(ctx, info, opts.Roku)
 	}
 	return nil, fmt.Errorf("unknown device type: %q", info.Type)
 }
@@ -85,19 +94,20 @@ func FindInfo(ctx context.Context, timeout time.Duration, dtype Type, name strin
 	return Info{}, fmt.Errorf("device %q (type %s) not found", name, dtype)
 }
 
-// Discover scans the local network for renderers: DLNA via SSDP and Chromecast
-// via mDNS (_googlecast._tcp). Both scans run in parallel and share the same
-// timeout window; a protocol that fails contributes no devices rather than
-// failing the whole scan.
+// Discover scans the local network for renderers: DLNA via SSDP (MediaRenderer),
+// Chromecast via mDNS (_googlecast._tcp), and Roku via SSDP (roku:ecp). All scans
+// run in parallel and share the same timeout window; a protocol that fails
+// contributes no devices rather than failing the whole scan.
 func Discover(ctx context.Context, timeout time.Duration) ([]Info, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	var dlna, chromecast []Info
+	var dlna, chromecast, roku []Info
 	var wg sync.WaitGroup
 	wg.Go(func() { dlna = discoverDLNA(ctx) })
 	wg.Go(func() { chromecast = discoverChromecast(ctx) })
+	wg.Go(func() { roku = discoverRoku(ctx) })
 	wg.Wait()
 
-	return slices.Concat(dlna, chromecast), nil
+	return slices.Concat(dlna, chromecast, roku), nil
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MainScene" extends="Scene">
+  <interface>
+    <field id="args" type="assocarray" onChange="onArgs" />
+  </interface>
+  <children>
+    <Video id="video" width="1920" height="1080" />
+  </children>
+  <script type="text/brightscript" uri="pkg:/components/MainScene.brs" />
+</component>

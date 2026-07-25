@@ -43,7 +43,7 @@ func Connect(ctx context.Context, cfg Config) (device.Device, error) {
 	}
 	slog.InfoContext(ctx, "device found", "name", info.Name, "type", string(info.Type), "address", info.Address)
 
-	dev, err := device.Connect(ctx, info)
+	dev, err := device.Connect(ctx, info, device.Options{Roku: cfg.Device.Roku})
 	if err != nil {
 		return nil, fmt.Errorf("connecting to device: %w", err)
 	}

@@ -35,6 +35,11 @@ type Config struct {
 type DeviceConfig struct {
 	Name string      `yaml:"name" validate:"required"`
 	Type device.Type `yaml:"type" validate:"required"`
+
+	// Roku holds the Roku-only connect settings (which channel to launch and the
+	// developer-web-server credentials used to sideload Castor's channel). Unused
+	// by other device types; the whole section is optional.
+	Roku device.RokuConfig `yaml:"roku"`
 }
 
 type NetworkConfig struct {
