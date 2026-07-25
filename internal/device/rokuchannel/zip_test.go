@@ -35,7 +35,7 @@ func TestZipRendersChannel(t *testing.T) {
 	if _, ok := files["manifest"]; !ok {
 		t.Errorf("manifest must be at the archive root; got files: %v", keys(files))
 	}
-	if got := files["manifest"]; !strings.Contains(got, "title="+title) {
+	if got := files["manifest"]; !strings.Contains(got, "title="+Title) {
 		t.Errorf("manifest title not rendered: %q", got)
 	}
 	// The .tmpl suffix must be dropped and the params injected.

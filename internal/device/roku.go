@@ -94,8 +94,15 @@ func rokuInfo(location, name string) (Info, bool) {
 }
 
 // rokuName reads the owner-set name from /query/device-info, falling back to the
-// host on any failure.
+// host on any failure. It runs on a fresh timeout derived with the discovery
+// context's deadline stripped: ssdp.RawSearch blocks the whole discovery window
+// before returning, so the passed ctx is already at its deadline here, and a
+// request made on it would fail instantly and every Roku would fall back to its
+// IP. WithoutCancel keeps ctx's values but drops that spent deadline.
 func rokuName(ctx context.Context, hc *http.Client, ecpRoot *url.URL) string {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rokuHTTPTimeout)
+	defer cancel()
+
 	u := *ecpRoot
 	u.Path = "/query/device-info"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -125,8 +132,11 @@ func parseDeviceInfoName(body []byte) string {
 	return cmp.Or(strings.TrimSpace(info.UserDeviceName), strings.TrimSpace(info.ModelName))
 }
 
-// connectRoku resolves the ECP base URL and ensures Castor's channel is present.
-// ECP is stateless, so there is no connection to hold.
+// connectRoku resolves the ECP base URL and makes sure the channel it will launch
+// actually exists. ECP is stateless, so there is no connection to hold. The
+// sideloaded dev channel is Castor-managed (installed on demand); a published
+// app_id is only verified present, so a missing/mistyped id fails here with a
+// clear message instead of Play() no-oping on Roku's permissive /launch.
 func connectRoku(ctx context.Context, info Info, cfg RokuConfig) (Device, error) {
 	root, err := url.Parse(info.Address)
 	if err != nil || root.Host == "" {
@@ -140,64 +150,95 @@ func connectRoku(ctx context.Context, info Info, cfg RokuConfig) (Device, error)
 		hc:    &http.Client{Timeout: rokuHTTPTimeout},
 	}
 
-	// Only the sideloaded dev channel is Castor-managed; a published one is
-	// assumed installed.
 	if dev.appID == rokuDefaultAppID {
 		if err := dev.ensureChannel(ctx, cfg); err != nil {
 			return nil, err
 		}
+		return dev, nil
+	}
+
+	apps, err := dev.queryApps(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("querying roku apps: %w", err)
+	}
+	if !appInstalled(apps, dev.appID) {
+		return nil, fmt.Errorf("roku channel %q is not installed on %q", dev.appID, dev.name)
 	}
 	return dev, nil
 }
 
+// ensureChannel guarantees Castor's own dev channel occupies the sideload slot.
+// A Roku holds exactly one dev channel (id "dev"), so a foreign one must be
+// replaced, not trusted: devChannelInstalled matches on title as well as id, so a
+// non-Castor dev channel does not read as installed and triggers a re-sideload.
 func (r *rokuDevice) ensureChannel(ctx context.Context, cfg RokuConfig) error {
-	installed, err := r.hasDevChannel(ctx)
+	apps, err := r.queryApps(ctx)
 	if err != nil {
 		return fmt.Errorf("querying roku apps: %w", err)
 	}
-	if installed {
+	if devChannelInstalled(apps) {
 		return nil
 	}
 	if cfg.Password == "" {
+		if appInstalled(apps, rokuDefaultAppID) {
+			return fmt.Errorf("a different sideloaded channel occupies the Roku dev slot; set device.roku.password so Castor can replace it")
+		}
 		return fmt.Errorf("roku channel not installed and no developer password set: enable Developer Mode on the Roku, set a web-server password, and put it in device.roku.password")
 	}
 	slog.InfoContext(ctx, "sideloading roku channel", "host", r.ecp.Hostname())
 	return r.sideloadChannel(ctx, rokuDefaultDevUser, cfg.Password)
 }
 
-func (r *rokuDevice) hasDevChannel(ctx context.Context) (bool, error) {
+// queryApps fetches the /query/apps listing.
+func (r *rokuDevice) queryApps(ctx context.Context) ([]byte, error) {
 	u := *r.ecp
 	u.Path = "/query/apps"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	resp, err := r.hc.Do(req)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("query/apps: %s", resp.Status)
+		return nil, fmt.Errorf("query/apps: %s", resp.Status)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return false, err
-	}
-	return devChannelInstalled(body), nil
+	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 }
 
-func devChannelInstalled(body []byte) bool {
+type rokuApp struct {
+	ID    string `xml:"id,attr"`
+	Title string `xml:",chardata"`
+}
+
+func parseApps(body []byte) []rokuApp {
 	var list struct {
-		Apps []struct {
-			ID string `xml:"id,attr"`
-		} `xml:"app"`
+		Apps []rokuApp `xml:"app"`
 	}
 	if err := xml.Unmarshal(body, &list); err != nil {
-		return false
+		return nil
 	}
-	for _, a := range list.Apps {
-		if a.ID == rokuDefaultAppID {
+	return list.Apps
+}
+
+// devChannelInstalled reports whether Castor's own dev channel is present: the
+// dev slot is occupied AND its title is Castor's, so a foreign sideloaded channel
+// is not mistaken for ours (Roku allows only one dev channel at a time).
+func devChannelInstalled(body []byte) bool {
+	for _, a := range parseApps(body) {
+		if a.ID == rokuDefaultAppID && strings.TrimSpace(a.Title) == rokuchannel.Title {
+			return true
+		}
+	}
+	return false
+}
+
+// appInstalled reports whether an app with the given id is installed.
+func appInstalled(body []byte, id string) bool {
+	for _, a := range parseApps(body) {
+		if a.ID == id {
 			return true
 		}
 	}

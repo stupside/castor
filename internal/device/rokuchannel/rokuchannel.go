@@ -19,7 +19,10 @@ const (
 	ParamFormat = "format"
 )
 
-const title = "Castor"
+// Title is the channel's manifest title. It is also how a connected Roku reports
+// the sideloaded channel in /query/apps, so the device layer uses it to tell
+// Castor's dev channel apart from any other sideloaded channel occupying the slot.
+const Title = "Castor"
 
 //go:embed assets
 var assets embed.FS
@@ -28,7 +31,7 @@ var data = struct {
 	Title       string
 	ParamURL    string
 	ParamFormat string
-}{title, ParamURL, ParamFormat}
+}{Title, ParamURL, ParamFormat}
 
 // Zip renders the channel and packs it into a sideload archive with the manifest
 // at the root.

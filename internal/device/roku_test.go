@@ -192,7 +192,9 @@ func TestInstallOutcome(t *testing.T) {
 		{"identical version", `Identical to previous version -- not replacing.`, false},
 		{"failure", `<font color="red">Install Failure: Compilation Failed.</font>`, true},
 		{"error", `Error: bad zip`, true},
-		{"unrecognized 2xx", `<html>ok</html>`, false},
+		// No success marker: treated as a failure rather than a silent success, so
+		// a mistyped/foreign dev page can't pass a broken install off as installed.
+		{"unrecognized 2xx", `<html>ok</html>`, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

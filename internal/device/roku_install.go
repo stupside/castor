@@ -81,12 +81,30 @@ func installBody(zipBytes []byte) (io.Reader, string, error) {
 	return &buf, w.FormDataContentType(), nil
 }
 
+// installSuccessMarkers are the phrases the Roku dev web server puts in its 200
+// response body on a successful sideload (a fresh install, or an unchanged
+// re-upload). Matching these positively is more robust than scanning for
+// "error"/"failure": the outcome page is a full HTML UI whose boilerplate can
+// carry those words, and a real failure need not.
+var installSuccessMarkers = []string{
+	"install success",
+	"identical to previous version",
+}
+
 // installOutcome reads the install result out of the response body: the dev
 // server returns 200 for both success and failure and signals which in the text.
+// Anything without a known success marker is treated as a failure, surfacing a
+// trimmed snippet of the page so an unexpected response is diagnosable.
 func installOutcome(page []byte) error {
 	text := strings.ToLower(string(page))
-	if strings.Contains(text, "failure") || strings.Contains(text, "error") {
-		return fmt.Errorf("roku rejected the channel")
+	for _, marker := range installSuccessMarkers {
+		if strings.Contains(text, marker) {
+			return nil
+		}
 	}
-	return nil
+	snippet := strings.TrimSpace(string(page))
+	if len(snippet) > 200 {
+		snippet = snippet[:200]
+	}
+	return fmt.Errorf("roku rejected the channel: %s", snippet)
 }
