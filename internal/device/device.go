@@ -42,10 +42,17 @@ type Info struct {
 	Address string
 }
 
-// Options carries optional per-type connect settings that discovery cannot
-// supply. The zero value is valid; a type that needs nothing ignores it.
-type Options struct {
-	Roku RokuConfig
+// Config is the user-facing device section: which renderer to target (Name,
+// Type) plus any per-family connect settings discovery cannot supply. It is
+// owned here, in the family-aware package, so the device-agnostic core can carry
+// and forward it wholesale without naming any device family. Name and Type are
+// generic; a family-specific section (Roku) is read only by that family's
+// connect and ignored by every other.
+type Config struct {
+	Name string `yaml:"name" validate:"required"`
+	Type Type   `yaml:"type" validate:"required"`
+
+	Roku RokuConfig `yaml:"roku"`
 }
 
 // Device is a connected renderer, ready to play. Obtain one via Connect.
@@ -69,14 +76,17 @@ type Device interface {
 	Close() error
 }
 
-func Connect(ctx context.Context, info Info, opts Options) (Device, error) {
+// Connect dispatches on the device type and hands each family's connect the one
+// config it needs. Only this family-aware package reads a family-specific field
+// (cfg.Roku); callers pass cfg through opaquely.
+func Connect(ctx context.Context, info Info, cfg Config) (Device, error) {
 	switch info.Type {
 	case TypeDLNA:
 		return connectDLNA(ctx, info)
 	case TypeChromecast:
 		return connectChromecast(info)
 	case TypeRoku:
-		return connectRoku(ctx, info, opts.Roku)
+		return connectRoku(ctx, info, cfg.Roku)
 	}
 	return nil, fmt.Errorf("unknown device type: %q", info.Type)
 }

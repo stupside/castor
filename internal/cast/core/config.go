@@ -32,15 +32,11 @@ type Config struct {
 	Whisper subtitle.Whisper
 }
 
-type DeviceConfig struct {
-	Name string      `yaml:"name" validate:"required"`
-	Type device.Type `yaml:"type" validate:"required"`
-
-	// Roku holds the Roku-only connect settings (which channel to launch and the
-	// developer-web-server credentials used to sideload Castor's channel). Unused
-	// by other device types; the whole section is optional.
-	Roku device.RokuConfig `yaml:"roku"`
-}
+// DeviceConfig is the device section, owned by the device package so this
+// device-agnostic layer neither defines nor names any device family. Core reads
+// only its generic Name/Type (for discovery) and forwards the whole value to
+// device.Connect, which alone interprets any family-specific field.
+type DeviceConfig = device.Config
 
 type NetworkConfig struct {
 	Timeout   time.Duration `yaml:"timeout" validate:"required"`
