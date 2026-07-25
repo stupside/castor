@@ -85,3 +85,31 @@ func TestWaitReturnsOnContextCancel(t *testing.T) {
 		t.Error("Wait() should return ctx error when the cast is cancelled mid-stream")
 	}
 }
+
+func TestWaitReturnsAfterProducerDoneAndIdle(t *testing.T) {
+	srv, err := New(Config{LocalIP: "127.0.0.1", Dir: t.TempDir(), Playlist: "stream.m3u8", IdleGrace: 50 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer srv.Close()
+
+	// The producer is still going, so Wait must NOT return yet even past the grace.
+	early, earlyCancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer earlyCancel()
+	if err := srv.Wait(early); !errorsIsDeadline(err) {
+		t.Fatalf("Wait() returned %v before ProducerDone; want it to keep waiting", err)
+	}
+
+	// Once the producer is done and the client has been idle past the grace, the
+	// finite cast completes cleanly (nil), not on ctx cancellation.
+	srv.ProducerDone()
+	done, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Wait(done); err != nil {
+		t.Errorf("Wait() after ProducerDone = %v, want nil (clean completion)", err)
+	}
+}
+
+func errorsIsDeadline(err error) bool {
+	return err == context.DeadlineExceeded
+}

@@ -16,9 +16,9 @@ import (
 	"time"
 )
 
-// idleGrace is how long to keep serving after the producer finished and the
-// client went quiet, so the tail segments still get fetched.
-const idleGrace = 30 * time.Second
+// defaultIdleGrace is how long to keep serving after the producer finished and
+// the client went quiet, so the tail segments still get fetched.
+const defaultIdleGrace = 30 * time.Second
 
 // Config is what the caller fills in.
 type Config struct {
@@ -26,6 +26,9 @@ type Config struct {
 	Dir     string // directory ffmpeg writes the playlist and segments into
 	// Playlist is the media playlist filename within Dir (media.HLSPlaylistName).
 	Playlist string
+	// IdleGrace overrides how long Wait keeps serving after the producer is done
+	// and the client goes quiet. Zero uses defaultIdleGrace; tests set it small.
+	IdleGrace time.Duration
 }
 
 // Server serves Config.Dir over HTTP and tracks liveness so Wait can end the
@@ -42,6 +45,9 @@ type Server struct {
 
 // New binds an ephemeral port on cfg.LocalIP and starts serving cfg.Dir.
 func New(cfg Config) (*Server, error) {
+	if cfg.IdleGrace <= 0 {
+		cfg.IdleGrace = defaultIdleGrace
+	}
 	ln, err := net.Listen("tcp", cfg.LocalIP+":0")
 	if err != nil {
 		return nil, err
@@ -97,7 +103,7 @@ func (s *Server) Wait(ctx context.Context) error {
 		case <-tick.C:
 		}
 		s.mu.Lock()
-		finished := s.producerDone && time.Since(s.lastRequest) > idleGrace
+		finished := s.producerDone && time.Since(s.lastRequest) > s.cfg.IdleGrace
 		s.mu.Unlock()
 		if finished {
 			return nil

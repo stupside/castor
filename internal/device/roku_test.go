@@ -119,6 +119,13 @@ func TestDevChannelInstalled(t *testing.T) {
 			want: true,
 		},
 		{
+			// A foreign sideloaded channel occupies the dev slot: same id "dev",
+			// different title, so it is NOT Castor's and must not read as installed.
+			name: "foreign dev channel",
+			body: `<apps><app id="dev" type="appl" version="1.0">SomeoneElse</app></apps>`,
+			want: false,
+		},
+		{
 			name: "no dev channel",
 			body: `<apps><app id="12">Netflix</app><app id="13">YouTube</app></apps>`,
 			want: false,
@@ -265,6 +272,75 @@ func TestInstallChannelDigestUpload(t *testing.T) {
 	}
 	if authedArchiveLen == 0 {
 		t.Error("archive part was empty on the authenticated request")
+	}
+}
+
+func TestAppInstalled(t *testing.T) {
+	body := []byte(`<apps><app id="dev">Castor</app><app id="12">Netflix</app></apps>`)
+	if !appInstalled(body, "12") {
+		t.Error("appInstalled should find an installed app by id")
+	}
+	if appInstalled(body, "999") {
+		t.Error("appInstalled should not find an absent app id")
+	}
+}
+
+// rokuAppsServer stands in for a Roku's ECP endpoint, answering /query/apps with
+// the given body. connectRoku only needs /query/apps; anything else 404s.
+func rokuAppsServer(t *testing.T, appsBody string) Info {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/query/apps" {
+			_, _ = io.WriteString(w, appsBody)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(ts.Close)
+	return Info{Name: "TV", Type: TypeRoku, Address: ts.URL}
+}
+
+func TestConnectRokuDevChannelInstalled(t *testing.T) {
+	info := rokuAppsServer(t, `<apps><app id="dev">Castor</app></apps>`)
+	dev, err := connectRoku(context.Background(), info, RokuConfig{})
+	if err != nil {
+		t.Fatalf("connectRoku: %v", err)
+	}
+	if dev == nil {
+		t.Fatal("expected a connected device")
+	}
+}
+
+func TestConnectRokuDevChannelMissingNoPassword(t *testing.T) {
+	info := rokuAppsServer(t, `<apps><app id="12">Netflix</app></apps>`)
+	_, err := connectRoku(context.Background(), info, RokuConfig{})
+	if err == nil {
+		t.Fatal("expected an error when the dev channel is missing and no password is set")
+	}
+	if !strings.Contains(err.Error(), "Developer Mode") {
+		t.Errorf("error should guide the user to Developer Mode, got: %v", err)
+	}
+}
+
+func TestConnectRokuForeignDevChannelNoPassword(t *testing.T) {
+	info := rokuAppsServer(t, `<apps><app id="dev">SomeoneElse</app></apps>`)
+	_, err := connectRoku(context.Background(), info, RokuConfig{})
+	if err == nil {
+		t.Fatal("expected an error when a foreign dev channel occupies the slot and no password is set")
+	}
+	if !strings.Contains(err.Error(), "dev slot") {
+		t.Errorf("error should explain the dev slot is occupied, got: %v", err)
+	}
+}
+
+func TestConnectRokuPublishedAppVerified(t *testing.T) {
+	info := rokuAppsServer(t, `<apps><app id="12345">MyChannel</app></apps>`)
+
+	if _, err := connectRoku(context.Background(), info, RokuConfig{AppID: "12345"}); err != nil {
+		t.Fatalf("connectRoku with an installed published app_id: %v", err)
+	}
+	if _, err := connectRoku(context.Background(), info, RokuConfig{AppID: "99999"}); err == nil {
+		t.Fatal("expected an error for a published app_id that is not installed")
 	}
 }
 
