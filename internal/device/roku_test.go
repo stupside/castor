@@ -350,7 +350,7 @@ func mustParseURL(t *testing.T, s string) *url.URL {
 	if err != nil {
 		t.Fatalf("parsing %q: %v", s, err)
 	}
-	// Play/ecpPost set Path per request, so keep only scheme+host like connectRoku.
+	// Play and queryApps set Path per request, so keep only scheme+host like connectRoku.
 	if strings.Contains(s, "://") && u.Path == "/" {
 		u.Path = ""
 	}

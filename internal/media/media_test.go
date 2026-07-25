@@ -7,23 +7,25 @@ import (
 	"testing"
 )
 
-func TestMuxerForContentType(t *testing.T) {
+func TestFormatForContentType(t *testing.T) {
 	cases := []struct {
-		ct    string
-		muxer string
-		ok    bool
+		ct       string
+		muxer    string
+		ext      string
+		delivery DeliveryKind
+		ok       bool
 	}{
-		{MPEGTS, "mpegts", true},
-		{MP4, "mp4", true},
-		{HLS, "hls", true},
-		{WebM, "", false}, // a container castor advertises but has no producing muxer for
-		{"", "", false},   // inert pass-through output type must not resolve
-		{"bogus", "", false},
+		{MPEGTS, "mpegts", ".ts", DeliverStream, true},
+		{MP4, "mp4", ".mp4", DeliverStream, true},
+		{HLS, "hls", ".m3u8", DeliverSegmented, true},
+		{WebM, "", "", 0, false}, // a container castor advertises but cannot produce
+		{"", "", "", 0, false},   // inert pass-through output type must not resolve
+		{"bogus", "", "", 0, false},
 	}
 	for _, c := range cases {
-		muxer, ok := MuxerForContentType(c.ct)
-		if ok != c.ok || muxer != c.muxer {
-			t.Errorf("MuxerForContentType(%q) = (%q, %v), want (%q, %v)", c.ct, muxer, ok, c.muxer, c.ok)
+		f, ok := FormatForContentType(c.ct)
+		if ok != c.ok || f.Muxer != c.muxer || f.Extension != c.ext || (ok && f.Delivery != c.delivery) {
+			t.Errorf("FormatForContentType(%q) = (%+v, %v), want muxer=%q ext=%q delivery=%v ok=%v", c.ct, f, ok, c.muxer, c.ext, c.delivery, c.ok)
 		}
 	}
 }

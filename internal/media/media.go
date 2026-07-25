@@ -104,19 +104,11 @@ var formatRegistry = map[string]FormatInfo{
 }
 
 // FormatForContentType returns the FormatInfo for a content type, or ok=false if
-// castor cannot produce it.
+// castor cannot produce it. Callers read the muxer, extension, and delivery off
+// the returned FormatInfo.
 func FormatForContentType(ct string) (FormatInfo, bool) {
 	f, ok := formatRegistry[ct]
 	return f, ok
-}
-
-// MuxerForContentType returns the ffmpeg muxer name that produces a content type,
-// or ok=false for a content type castor cannot produce. It makes no decision: the
-// container is chosen upstream (a renderer's declared ServedContainer); this is a
-// pure lookup of the muxer that writes it.
-func MuxerForContentType(ct string) (string, bool) {
-	f, ok := formatRegistry[ct]
-	return f.Muxer, ok
 }
 
 var extensionMap = map[string]string{

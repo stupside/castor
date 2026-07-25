@@ -16,11 +16,12 @@ type Config struct {
 }
 
 // Every config section's type is re-exported here so the application composes
-// the cast surface through this one package (cast.DeviceConfig, cast.WhisperConfig,
+// the cast surface through this one package (cast.NetworkConfig, cast.WhisperConfig,
 // ...) instead of reaching into core or the subtitle building block. The
-// definitions live in the packages that consume them.
+// definitions live in the packages that consume them. The device section is the
+// exception: the composition root (internal/config) owns its own device config so
+// it can bind a family's connect settings, so no device alias is re-exported here.
 type (
-	DeviceConfig    = core.DeviceConfig
 	NetworkConfig   = core.NetworkConfig
 	TranscodeConfig = core.TranscodeConfig
 	WhisperConfig   = subtitle.Whisper

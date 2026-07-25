@@ -28,11 +28,12 @@ import (
 
 // Sink is a running local server fronting a produced stream for one cast: it
 // exposes the URL the renderer fetches and blocks until the stream is fully
-// delivered. Both replay.Server and hlsserve.Server satisfy it unchanged.
+// delivered. Closing it is the opener's job (its teardown holds the concrete
+// server), so the driver only ever needs these two. Both replay.Server and
+// hlsserve.Server satisfy it unchanged.
 type Sink interface {
 	URL() *url.URL
 	Wait(ctx context.Context) error
-	Close() error
 }
 
 // OpenParams are the device-blind inputs to open a delivery: the encoder to run

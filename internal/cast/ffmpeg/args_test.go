@@ -305,4 +305,32 @@ func TestEncodeArgsHLSOutput(t *testing.T) {
 	if hasFlag(args, "-hls_playlist_type") {
 		t.Error("-hls_playlist_type must be unset for a live sliding window")
 	}
+	// The network HLS remux MUST be paced to ~realtime: unpaced, a VOD source is
+	// copied at wire speed and outruns the delete_segments window, leaving only
+	// the tail fetchable. This guards that fix against regression.
+	if got := argValue(args, "-readrate"); got != "1.0" {
+		t.Errorf("-readrate = %q, want 1.0 so a VOD source does not outrun the sliding window", got)
+	}
+	if !hasFlag(args, "-readrate_initial_burst") {
+		t.Error("-readrate_initial_burst must be set so the device can prebuffer one window")
+	}
+}
+
+// TestEncodeArgsMP4RemuxUnpaced pins the asymmetry: the single-file mp4 network
+// remux is fronted by the replay-from-zero server (spooled), so it must NOT be
+// paced (only the deleting HLS window needs realtime pacing).
+func TestEncodeArgsMP4RemuxUnpaced(t *testing.T) {
+	src, err := url.Parse("http://example.test/in.mkv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := EncodeArgs(EncodeOptions{
+		SourceURL:         src,
+		SourceContentType: media.MKV,
+		OutputFormat:      "mp4",
+		AudioCodec:        "aac",
+	})
+	if hasFlag(args, "-readrate") {
+		t.Error("the mp4 remux is replay-spooled from byte 0 and must not be paced")
+	}
 }
