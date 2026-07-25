@@ -22,8 +22,8 @@ import (
 )
 
 // fakeDevice is a Device stand-in that records what Run tells it to Play. On a
-// served cast it also fetches the URL it is handed: ServeToDevice blocks until a
-// client reads the replay server to EOF, so without a real reader Wait would hang
+// served cast it also fetches the URL it is handed: the replay-served path blocks
+// until a client reads the stream to EOF, so without a real reader Wait would hang
 // the whole idle-grace window. Pass-through leaves drain false: the source URL is
 // not one of our servers and must never be fetched.
 type fakeDevice struct {

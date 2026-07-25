@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,76 +19,153 @@ import (
 	"github.com/stupside/castor/internal/media"
 )
 
-// FinishEncoder tears down the encode process: close its output, wait for
-// exit, and surface stderr forensics on a failure we didn't cause ourselves
-// (a cancelled context means we killed ffmpeg, e.g. Ctrl+C — not worth
-// dumping the tail for).
-func FinishEncoder(ctx context.Context, proc *ffmpeg.Process) {
-	_ = proc.Stdout.Close()
-	if err := proc.Wait(); err != nil && ctx.Err() == nil {
-		proc.LogStderrTail(ctx, "ffmpeg stderr")
-		slog.WarnContext(ctx, "ffmpeg exited with error", "error", err)
-	}
+// This file is the served-cast delivery driver. It is device-blind and carries no
+// per-delivery code path in its control flow: Serve looks the delivery mechanism
+// up from the format's DeliveryKind (data) and drives it uniformly. Each
+// mechanism is one opener behind the deliveries table, so adding a delivery (or a
+// caption sidecar, which is a second Sink at Serve's single Play step) is new data
+// plus a small impl, not another Serve* function and not a content-type branch.
+
+// Sink is a running local server fronting a produced stream for one cast: it
+// exposes the URL the renderer fetches and blocks until the stream is fully
+// delivered. Both replay.Server and hlsserve.Server satisfy it unchanged.
+type Sink interface {
+	URL() *url.URL
+	Wait(ctx context.Context) error
+	Close() error
 }
 
-// ServeToDevice fronts stream with the replay-from-zero HTTP server, points
-// the renderer at it, and blocks until the stream has been fully produced
-// and delivered or ctx ends. outputContentType is what the device is told it
-// is fetching (e.g. "video/mp2t" or "video/mp4").
-func ServeToDevice(ctx context.Context, dev device.Device, localIP, outputContentType string, stream io.Reader, workDir string) error {
-	fmtInfo, ok := media.FormatForContentType(outputContentType)
+// OpenParams are the device-blind inputs to open a delivery: the encoder to run
+// and how its input/output is wired, where to serve from, and the format that
+// selects the mechanism. Headers are filled by Serve from the device, not here.
+type OpenParams struct {
+	FFmpegPath string
+	Opts       ffmpeg.EncodeOptions
+	StartOpts  []ffmpeg.StartOption
+	LocalIP    string
+	WorkDir    string
+	Format     media.FormatInfo
+	// OnStarted, if set, runs immediately after the encoder starts (before the
+	// server is fronted), so a caller can wire a concurrent consumer of a second
+	// output pipe (the spool path follows -progress on proc.Extra) without that
+	// coupling leaking into this package.
+	OnStarted func(*ffmpeg.Process)
+}
+
+// session is one opened delivery: the running server, an optional readiness gate
+// (nil when the URL is usable immediately), and the teardown that stops the
+// encoder and server. It lets Serve stay branch-free over the two mechanisms.
+type session struct {
+	sink     Sink
+	ready    func(ctx context.Context) error
+	teardown func()
+}
+
+// opener starts an encoder and fronts it, returning the opened session. On
+// failure it fully cleans up the encoder itself and returns the error, so Serve
+// never has to tear down a half-open delivery.
+type opener func(ctx context.Context, p OpenParams, headers map[string]string) (*session, error)
+
+// deliveries maps a format's DeliveryKind to the opener that serves it. This is
+// the whole per-delivery dispatch: no switch, no content-type conditional.
+var deliveries = map[media.DeliveryKind]opener{
+	media.DeliverStream:    openStream,
+	media.DeliverSegmented: openSegmented,
+}
+
+// Serve runs one served cast end to end and is the single delivery entry point:
+// pick the mechanism from the format's DeliveryKind, open it, wait until the
+// device can be handed a URL, play, and block until delivered or ctx ends,
+// tearing the encoder and server down on every return. It names no device family.
+func Serve(ctx context.Context, dev device.Device, p OpenParams) error {
+	open, ok := deliveries[p.Format.Delivery]
 	if !ok {
-		return fmt.Errorf("no format info for output content type %q", outputContentType)
+		return fmt.Errorf("no delivery mechanism for format %q", p.Format.ContentType)
 	}
 
-	srv, err := replay.New(replay.Config{
-		LocalIP:     localIP,
-		ContentType: fmtInfo.ContentType,
-		Extension:   fmtInfo.Extension,
-		Headers:     dev.StreamHeaders(fmtInfo.ContentType),
-		SpoolPath:   filepath.Join(workDir, "out"+fmtInfo.Extension),
-	}, stream)
+	sess, err := open(ctx, p, dev.StreamHeaders(p.Format.ContentType))
 	if err != nil {
-		return fmt.Errorf("starting stream server: %w", err)
+		return err
 	}
-	defer srv.Close()
+	defer sess.teardown()
 
-	streamURL := srv.URL()
-	slog.InfoContext(ctx, "starting playback", "url", streamURL.String(), "content_type", fmtInfo.ContentType)
-	if err := dev.Play(ctx, streamURL, fmtInfo.ContentType); err != nil {
+	if sess.ready != nil {
+		if err := sess.ready(ctx); err != nil {
+			return err
+		}
+	}
+
+	streamURL := sess.sink.URL()
+	slog.InfoContext(ctx, "starting playback", "url", streamURL.String(), "content_type", p.Format.ContentType)
+	if err := dev.Play(ctx, streamURL, p.Format.ContentType); err != nil {
 		return fmt.Errorf("starting playback: %w", err)
 	}
 	slog.InfoContext(ctx, "streaming to device, press Ctrl+C to stop")
-	return srv.Wait(ctx)
+	return sess.sink.Wait(ctx)
 }
 
-// ServeHLSToDevice fronts a live HLS directory the encoder is packaging into
-// workDir with the HLS server, points the renderer at the playlist, and blocks
-// until the stream is fully delivered or ctx ends. Unlike ServeToDevice, the
-// encoder writes files rather than a pipe, so this fully owns proc's lifecycle:
-// on every return it kills the encoder and joins its reaper goroutine, so no
-// ffmpeg is left running (or writing into workDir, which the caller removes) and
-// no goroutine leaks, even when dev.Play or the HLS server fails. The renderer is
-// pointed at the playlist only once it exists on disk, so it is never handed a
-// 404; if the encoder dies before writing one, the gate fails fast instead of
-// hanging.
-func ServeHLSToDevice(ctx context.Context, dev device.Device, localIP, workDir string, proc *ffmpeg.Process) error {
+// openStream serves a single growing output over the replay-from-zero server: the
+// encoder writes pipe:1, which the server spools and replays to every client from
+// byte 0. The URL is usable immediately (no readiness gate). Teardown closes the
+// server then the encoder, so nothing is left writing when the caller removes the
+// work directory.
+func openStream(ctx context.Context, p OpenParams, headers map[string]string) (*session, error) {
+	proc, err := ffmpeg.Start(ctx, p.FFmpegPath, ffmpeg.EncodeArgs(p.Opts), p.StartOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("starting transcode: %w", err)
+	}
+	if p.OnStarted != nil {
+		p.OnStarted(proc)
+	}
+
+	srv, err := replay.New(replay.Config{
+		LocalIP:     p.LocalIP,
+		ContentType: p.Format.ContentType,
+		Extension:   p.Format.Extension,
+		Headers:     headers,
+		SpoolPath:   filepath.Join(p.WorkDir, "out"+p.Format.Extension),
+	}, proc.Stdout)
+	if err != nil {
+		finishEncoder(ctx, proc)
+		return nil, fmt.Errorf("starting stream server: %w", err)
+	}
+
+	return &session{
+		sink:     srv,
+		teardown: func() { _ = srv.Close(); finishEncoder(ctx, proc) },
+	}, nil
+}
+
+// openSegmented serves a live HLS directory: the encoder writes the playlist and
+// rolling segments into the work directory, which the HLS server fronts. Because
+// the output is files (not pipe:1), this fully owns the encoder lifecycle: a
+// single goroutine drains the unused stdout to EOF and only then Waits (honoring
+// os/exec's no-Wait-before-reads contract), then signals the server and the
+// readiness gate. The device is handed the playlist only once it exists (the gate
+// fails fast if the encoder dies first). Teardown kills the encoder, joins the
+// goroutine, then closes the server, so nothing writes into the work directory
+// after the caller removes it.
+func openSegmented(ctx context.Context, p OpenParams, _ map[string]string) (*session, error) {
+	startOpts := append(slices.Clone(p.StartOpts), ffmpeg.WithWorkDir(p.WorkDir))
+	proc, err := ffmpeg.Start(ctx, p.FFmpegPath, ffmpeg.EncodeArgs(p.Opts), startOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("starting transcode: %w", err)
+	}
+	if p.OnStarted != nil {
+		p.OnStarted(proc)
+	}
+
 	srv, err := hlsserve.New(hlsserve.Config{
-		LocalIP:  localIP,
-		Dir:      workDir,
+		LocalIP:  p.LocalIP,
+		Dir:      p.WorkDir,
 		Playlist: media.HLSPlaylistName,
 	})
 	if err != nil {
 		proc.Kill()
 		_ = proc.Wait()
-		return fmt.Errorf("starting HLS server: %w", err)
+		return nil, fmt.Errorf("starting HLS server: %w", err)
 	}
-	defer srv.Close()
 
-	// One goroutine owns the encoder end to end: drain the unused stdout to EOF
-	// (HLS output is files, not pipe:1) and only then Wait, satisfying os/exec's
-	// "no Wait before reads complete" contract without a second racing goroutine.
-	// It closes exited so the playlist gate and the teardown both observe the exit.
 	var wg sync.WaitGroup
 	exited := make(chan struct{})
 	wg.Go(func() {
@@ -98,25 +177,24 @@ func ServeHLSToDevice(ctx context.Context, dev device.Device, localIP, workDir s
 		srv.ProducerDone()
 		close(exited)
 	})
-	// Deterministic teardown on every path: stop the encoder (idempotent if it
-	// already exited) and wait for the goroutine, so the caller can remove workDir
-	// with nothing still writing to it.
-	defer func() {
-		proc.Kill()
-		wg.Wait()
-	}()
 
-	if err := waitForPlaylist(ctx, workDir, exited); err != nil {
-		return err
-	}
+	return &session{
+		sink:     srv,
+		ready:    func(ctx context.Context) error { return waitForPlaylist(ctx, p.WorkDir, exited) },
+		teardown: func() { proc.Kill(); wg.Wait(); _ = srv.Close() },
+	}, nil
+}
 
-	streamURL := srv.URL()
-	slog.InfoContext(ctx, "starting playback", "url", streamURL.String(), "content_type", media.HLS)
-	if err := dev.Play(ctx, streamURL, media.HLS); err != nil {
-		return fmt.Errorf("starting playback: %w", err)
+// finishEncoder tears down a pipe-fed encoder: close its output (the encoder gets
+// EPIPE and exits), wait for exit, and surface stderr forensics on a failure we
+// didn't cause ourselves (a cancelled context means we killed ffmpeg, e.g.
+// Ctrl+C, not worth dumping the tail for).
+func finishEncoder(ctx context.Context, proc *ffmpeg.Process) {
+	_ = proc.Stdout.Close()
+	if err := proc.Wait(); err != nil && ctx.Err() == nil {
+		proc.LogStderrTail(ctx, "ffmpeg stderr")
+		slog.WarnContext(ctx, "ffmpeg exited with error", "error", err)
 	}
-	slog.InfoContext(ctx, "streaming to device, press Ctrl+C to stop")
-	return srv.Wait(ctx)
 }
 
 // waitForPlaylist blocks until the muxer has written the playlist (so the device

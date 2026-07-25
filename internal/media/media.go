@@ -68,47 +68,55 @@ func (s StreamInfo) Playable() bool { return s.HasVideo && s.HasAudio }
 // with a wire-speed burst trips rate limits on proxy CDNs.
 func (s StreamInfo) Live() bool { return s.Duration == 0 }
 
+// DeliveryKind is how castor's local HTTP server hands a produced stream to the
+// renderer, and the single fact the delivery driver keys the serving mechanism
+// on. It is carried as data on FormatInfo, so a producible format's delivery is
+// declared alongside it rather than decided by a content-type conditional.
+type DeliveryKind int
+
+const (
+	// DeliverStream is one growing output the replay server fronts, handing every
+	// client the stream from byte 0 (MPEG-TS, fragmented mp4).
+	DeliverStream DeliveryKind = iota
+	// DeliverSegmented is a live playlist plus rolling segments in a directory the
+	// HLS server fronts.
+	DeliverSegmented
+)
+
+// FormatInfo describes a container castor can produce: the MIME type the device
+// is told it is fetching, the file extension it carries, the ffmpeg muxer (-f)
+// that writes it, and how it is delivered.
 type FormatInfo struct {
 	ContentType string
 	Extension   string
+	Muxer       string
+	Delivery    DeliveryKind
 }
 
+// formatRegistry is the vocabulary of containers castor can produce, keyed by
+// content type. It is the single source of truth the media helpers and the
+// delivery driver read; adding a producible format is one row here (no code path
+// enumerates formats or deliveries elsewhere).
 var formatRegistry = map[string]FormatInfo{
-	"mpegts": {ContentType: MPEGTS, Extension: ".ts"},
-	"mp4":    {ContentType: MP4, Extension: ".mp4"},
+	MPEGTS: {ContentType: MPEGTS, Extension: ".ts", Muxer: "mpegts", Delivery: DeliverStream},
+	MP4:    {ContentType: MP4, Extension: ".mp4", Muxer: "mp4", Delivery: DeliverStream},
+	HLS:    {ContentType: HLS, Extension: ".m3u8", Muxer: "hls", Delivery: DeliverSegmented},
 }
 
-// FormatForContentType returns the FormatInfo for a content type, or
-// ok=false if no producible format matches.
+// FormatForContentType returns the FormatInfo for a content type, or ok=false if
+// castor cannot produce it.
 func FormatForContentType(ct string) (FormatInfo, bool) {
-	for _, info := range formatRegistry {
-		if info.ContentType == ct {
-			return info, true
-		}
-	}
-	return FormatInfo{}, false
+	f, ok := formatRegistry[ct]
+	return f, ok
 }
 
 // MuxerForContentType returns the ffmpeg muxer name that produces a content type,
-// or ok=false for a content type castor cannot produce. It makes NO decision: the
-// output container is already chosen upstream (a renderer's declared
-// ServedContainer); this is a pure name translation from the produced content
-// type to ffmpeg's -f value, so a caller need not hardcode muxer strings. It is
-// backed by the same formatRegistry that owns the container vocabulary (the
-// registry is keyed by muxer name, so the key of the entry producing ct IS the
-// muxer), with HLS added as the one segmented format the single-file registry
-// does not carry. Being total over the producible set, it lets callers fail on an
-// unrecognized container rather than silently defaulting to one.
+// or ok=false for a content type castor cannot produce. It makes no decision: the
+// container is chosen upstream (a renderer's declared ServedContainer); this is a
+// pure lookup of the muxer that writes it.
 func MuxerForContentType(ct string) (string, bool) {
-	if ct == HLS {
-		return "hls", true
-	}
-	for muxer, info := range formatRegistry {
-		if info.ContentType == ct {
-			return muxer, true
-		}
-	}
-	return "", false
+	f, ok := formatRegistry[ct]
+	return f.Muxer, ok
 }
 
 var extensionMap = map[string]string{

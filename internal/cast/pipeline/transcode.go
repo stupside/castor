@@ -1,8 +1,6 @@
 package pipeline
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	"github.com/stupside/castor/internal/cast/ffmpeg"
@@ -42,17 +40,4 @@ func remuxNetworkOptions(source *media.Stream, rwTimeout time.Duration, muxer st
 		SourceContentType: source.ContentType,
 		RWTimeoutMicros:   rwTimeout.Microseconds(),
 	}
-}
-
-// startTranscode launches the output ffmpeg for a served cast from fully
-// resolved options. Both served paths share it: only their EncodeOptions and
-// stdin wiring differ (the spool path feeds the local tail on stdin and routes
-// -progress to fd 3 for burn-in, the network path opens the source URL itself),
-// which the callers pass as start options. core.FinishEncoder tears it down.
-func startTranscode(ctx context.Context, ffmpegPath string, opts ffmpeg.EncodeOptions, startOpts ...ffmpeg.StartOption) (*ffmpeg.Process, error) {
-	proc, err := ffmpeg.Start(ctx, ffmpegPath, ffmpeg.EncodeArgs(opts), startOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("starting transcode: %w", err)
-	}
-	return proc, nil
 }

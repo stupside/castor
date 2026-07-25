@@ -100,11 +100,11 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 	}
 	defer func() { _ = os.RemoveAll(workDir) }()
 
-	muxer, ok := media.MuxerForContentType(plan.OutputContentType)
+	fmtInfo, ok := media.FormatForContentType(plan.OutputContentType)
 	if !ok {
-		return fmt.Errorf("no muxer for output content type %q", plan.OutputContentType)
+		return fmt.Errorf("no format for output content type %q", plan.OutputContentType)
 	}
-	opts := remuxNetworkOptions(source, cfg.Transcode.RWTimeout, muxer)
+	opts := remuxNetworkOptions(source, cfg.Transcode.RWTimeout, fmtInfo.Muxer)
 
 	// Resolve audio from a source probe, the same decision the spool path makes
 	// off its spool. This path has no input spool, so it reads the upstream
@@ -127,24 +127,16 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 		"source_audio_channels", srcInfo.AudioChannels,
 	)
 
-	// Live HLS packages into workDir and is fronted by the HLS server, which owns
-	// the encoder's lifecycle; every other served remux is a single stream the
-	// replay server spools and fronts.
-	if plan.OutputContentType == media.HLS {
-		proc, err := startTranscode(ctx, cfg.Transcode.FFmpegPath, opts, ffmpeg.WithWorkDir(workDir))
-		if err != nil {
-			return err
-		}
-		return core.ServeHLSToDevice(ctx, dev, localIP, workDir, proc)
-	}
-
-	proc, err := startTranscode(ctx, cfg.Transcode.FFmpegPath, opts)
-	if err != nil {
-		return err
-	}
-	defer core.FinishEncoder(ctx, proc)
-
-	return core.ServeToDevice(ctx, dev, localIP, plan.OutputContentType, proc.Stdout, workDir)
+	// The delivery mechanism (replay-from-zero stream vs live HLS directory) is
+	// selected by fmtInfo.Delivery inside core.Serve, not here; this path just
+	// hands it the encode and where to serve from.
+	return core.Serve(ctx, dev, core.OpenParams{
+		FFmpegPath: cfg.Transcode.FFmpegPath,
+		Opts:       opts,
+		LocalIP:    localIP,
+		WorkDir:    workDir,
+		Format:     fmtInfo,
+	})
 }
 
 // runSpooled is the read-once cast for a renderer that does not self-fetch:
@@ -293,17 +285,28 @@ func runSpooled(parentCtx context.Context, cfg core.Config, connect ConnectFunc,
 	if subs != nil {
 		startOpts = append(startOpts, ffmpeg.WithExtraPipe()) // -progress on fd 3
 	}
-	proc, err := startTranscode(ctx, cfg.Transcode.FFmpegPath, opts, startOpts...)
-	if err != nil {
-		return err
-	}
-	defer core.FinishEncoder(ctx, proc)
 
-	if subs != nil && proc.Extra != nil {
-		subs.follow(ctx, g, proc.Extra)
+	fmtInfo, ok := media.FormatForContentType(plan.OutputContentType)
+	if !ok {
+		return fmt.Errorf("no format for output content type %q", plan.OutputContentType)
 	}
 
-	return core.ServeToDevice(ctx, d, localIP, plan.OutputContentType, proc.Stdout, workDir)
+	// core.Serve owns the encoder; OnStarted wires the burn-in follower to the
+	// encoder's -progress pipe (fd 3) as soon as it starts, keeping the whisper
+	// errgroup coupling here in the pipeline instead of in core.
+	return core.Serve(ctx, d, core.OpenParams{
+		FFmpegPath: cfg.Transcode.FFmpegPath,
+		Opts:       opts,
+		StartOpts:  startOpts,
+		LocalIP:    localIP,
+		WorkDir:    workDir,
+		Format:     fmtInfo,
+		OnStarted: func(proc *ffmpeg.Process) {
+			if subs != nil && proc.Extra != nil {
+				subs.follow(ctx, g, proc.Extra)
+			}
+		},
+	})
 }
 
 // deviceFuture is the async renderer connection. The connect goroutine runs in
