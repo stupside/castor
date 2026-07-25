@@ -27,13 +27,12 @@ const (
 	rokuHTTPTimeout    = 10 * time.Second
 )
 
-// RokuConfig carries what discovery can't: which channel to launch and the
-// developer-web-server credentials used to sideload Castor's channel. It is both
-// the user-facing config section (device.roku) and the connect option, so there
-// is one source of truth for the launch app and dev credentials.
+// RokuConfig carries what discovery can't: which channel to launch (AppID, the
+// sideloaded "dev" channel by default) and the developer-web-server Password used
+// to sideload Castor's channel the first time. The dev web server's user is
+// always "rokudev", so it is not configurable.
 type RokuConfig struct {
 	AppID    string `yaml:"app_id"`
-	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 }
 
@@ -163,7 +162,7 @@ func (r *rokuDevice) ensureChannel(ctx context.Context, cfg RokuConfig) error {
 		return fmt.Errorf("roku channel not installed and no developer password set: enable Developer Mode on the Roku, set a web-server password, and put it in device.roku.password")
 	}
 	slog.InfoContext(ctx, "sideloading roku channel", "host", r.ecp.Hostname())
-	return r.sideloadChannel(ctx, cmp.Or(cfg.Username, rokuDefaultDevUser), cfg.Password)
+	return r.sideloadChannel(ctx, rokuDefaultDevUser, cfg.Password)
 }
 
 func (r *rokuDevice) hasDevChannel(ctx context.Context) (bool, error) {

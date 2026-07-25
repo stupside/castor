@@ -10,12 +10,13 @@ import (
 
 	"github.com/stupside/castor/internal/cast"
 	"github.com/stupside/castor/internal/cast/core"
+	"github.com/stupside/castor/internal/device"
 	"github.com/stupside/castor/internal/source/extract"
 	"github.com/stupside/castor/internal/source/resolve"
 )
 
 type Config struct {
-	Device    cast.DeviceConfig     `yaml:"device" validate:"required"`
+	Device    DeviceConfig          `yaml:"device" validate:"required"`
 	Network   cast.NetworkConfig    `yaml:"network" validate:"required"`
 	Browser   extract.BrowserConfig `yaml:"browser" validate:"required"`
 	Capture   extract.CaptureConfig `yaml:"capture" validate:"required"`
@@ -34,10 +35,33 @@ type TMDB struct {
 	APIKey string `yaml:"api_key"`
 }
 
+// DeviceConfig is the composition-root device section: the generic cast target
+// plus each device family's optional connect settings. This is the one place the
+// application binds a family's typed config (device.RokuConfig) to its YAML, so
+// the agnostic layers below never name a family; resolve() collapses it into the
+// opaque device.Config they carry.
+type DeviceConfig struct {
+	Name string      `yaml:"name" validate:"required"`
+	Type device.Type `yaml:"type" validate:"required"`
+
+	Roku device.RokuConfig `yaml:"roku"`
+}
+
+// resolve builds the agnostic device.Config, attaching the selected family's
+// connect settings as the opaque Family payload the device layer interprets.
+func (d DeviceConfig) resolve() device.Config {
+	cfg := device.Config{Name: d.Name, Type: d.Type}
+	switch d.Type {
+	case device.TypeRoku:
+		cfg.Family = d.Roku
+	}
+	return cfg
+}
+
 func (c *Config) Cast() cast.Config {
 	return cast.Config{
 		Config: core.Config{
-			Device:    c.Device,
+			Device:    c.Device.resolve(),
 			Network:   c.Network,
 			Transcode: c.Transcode,
 			Resolver:  c.Resolver,

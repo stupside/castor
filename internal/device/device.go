@@ -42,17 +42,16 @@ type Info struct {
 	Address string
 }
 
-// Config is the user-facing device section: which renderer to target (Name,
-// Type) plus any per-family connect settings discovery cannot supply. It is
-// owned here, in the family-aware package, so the device-agnostic core can carry
-// and forward it wholesale without naming any device family. Name and Type are
-// generic; a family-specific section (Roku) is read only by that family's
-// connect and ignored by every other.
+// Config is the resolved device target the agnostic layers carry and forward:
+// which renderer to reach (Name, Type) plus an opaque Family payload. It names no
+// device family, so core/cast and every other device carry it without knowing any
+// one family exists. The composition root (internal/config) fills Family with the
+// selected family's typed connect settings; only that family's connect reads it,
+// via a type assertion in Connect. Family is nil for a family that needs none.
 type Config struct {
-	Name string `yaml:"name" validate:"required"`
-	Type Type   `yaml:"type" validate:"required"`
-
-	Roku RokuConfig `yaml:"roku"`
+	Name   string
+	Type   Type
+	Family any
 }
 
 // Device is a connected renderer, ready to play. Obtain one via Connect.
@@ -76,9 +75,9 @@ type Device interface {
 	Close() error
 }
 
-// Connect dispatches on the device type and hands each family's connect the one
-// config it needs. Only this family-aware package reads a family-specific field
-// (cfg.Roku); callers pass cfg through opaquely.
+// Connect dispatches on the device type. Each family reads its own connect
+// settings out of the opaque cfg.Family (a type assertion here, in the only
+// package that knows the family types); callers upstream forward cfg blindly.
 func Connect(ctx context.Context, info Info, cfg Config) (Device, error) {
 	switch info.Type {
 	case TypeDLNA:
@@ -86,7 +85,8 @@ func Connect(ctx context.Context, info Info, cfg Config) (Device, error) {
 	case TypeChromecast:
 		return connectChromecast(info)
 	case TypeRoku:
-		return connectRoku(ctx, info, cfg.Roku)
+		roku, _ := cfg.Family.(RokuConfig)
+		return connectRoku(ctx, info, roku)
 	}
 	return nil, fmt.Errorf("unknown device type: %q", info.Type)
 }
