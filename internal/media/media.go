@@ -19,6 +19,14 @@ const (
 	MPEGTS = "video/mp2t"
 )
 
+// HLS output filenames, shared by the muxer (ffmpeg's hls muxer writes them
+// into its working directory) and the HLS server (which serves that directory).
+const (
+	HLSPlaylistName   = "stream.m3u8"
+	HLSInitName       = "init.mp4"
+	HLSSegmentPattern = "seg_%05d.m4s"
+)
+
 // HLSInputArgs contains ffmpeg/ffprobe flags that relax extension checks
 // for HLS playlists and DASH manifests.
 var HLSInputArgs = []string{

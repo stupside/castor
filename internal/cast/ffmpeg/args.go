@@ -43,7 +43,9 @@ type EncodeOptions struct {
 	// ffmpeg's -rw_timeout for HTTP(S) input. Ignored for stdin input.
 	RWTimeoutMicros int64
 
-	// OutputFormat is ffmpeg's muxer name ("mpegts", "mp4").
+	// OutputFormat is ffmpeg's muxer name ("mpegts", "mp4", "hls"). "hls" writes
+	// a playlist plus rolling fMP4 segments into the process working directory
+	// (see WithWorkDir) rather than a single stream on pipe:1.
 	OutputFormat string
 
 	// VideoEncoder re-encodes the video; nil stream-copies it. The encoder
@@ -272,8 +274,29 @@ func EncodeArgs(opts EncodeOptions) []string {
 		args = append(args, "-progress", "pipe:3", "-stats_period", "0.1")
 	}
 
+	// HLS writes a playlist + segment files, not a stream on a pipe. The bare
+	// relative filenames rely on the process running WithWorkDir(the cast dir).
+	if opts.OutputFormat == "hls" {
+		return append(args, hlsOutputArgs()...)
+	}
 	args = append(args, "-f", opts.OutputFormat, "pipe:1")
 	return args
+}
+
+// hlsOutputArgs is a live sliding-window fMP4 HLS tail. list_size 8 at ~4s each
+// keeps ~32s of window, above Roku's 30s-from-edge minimum; hls_playlist_type
+// stays unset so the window rolls (event/vod would pin hls_list_size to 0).
+func hlsOutputArgs() []string {
+	return []string{
+		"-f", "hls",
+		"-hls_time", "4",
+		"-hls_list_size", "8",
+		"-hls_flags", "delete_segments+independent_segments",
+		"-hls_segment_type", "fmp4",
+		"-hls_fmp4_init_filename", media.HLSInitName,
+		"-hls_segment_filename", media.HLSSegmentPattern,
+		media.HLSPlaylistName,
+	}
 }
 
 // Pull pacing per source nature. VOD bursts at wire speed then 2x

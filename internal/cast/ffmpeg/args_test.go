@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"context"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -262,5 +263,46 @@ func TestSelectEncoderUnknownCodec(t *testing.T) {
 	// A codec with no registered encoder reports ok=false rather than guessing.
 	if _, ok := SelectEncoder(context.Background(), "/nonexistent-ffmpeg-binary", media.Codec("av1")); ok {
 		t.Error("SelectEncoder(av1) reported ok, but no AV1 encoder is registered")
+	}
+}
+
+func TestEncodeArgsHLSOutput(t *testing.T) {
+	src, err := url.Parse("http://example.test/in.mkv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := EncodeArgs(EncodeOptions{
+		SourceURL:         src,
+		SourceContentType: media.MKV,
+		OutputFormat:      "hls",
+		AudioCodec:        "aac",
+		AudioBitrate:      "256k",
+	})
+
+	// HLS is directory output: no pipe:1, and the last token is the playlist.
+	if hasFlag(args, "pipe:1") {
+		t.Error("hls output must not target pipe:1")
+	}
+	if got := args[len(args)-1]; got != media.HLSPlaylistName {
+		t.Errorf("last arg = %q, want playlist %q", got, media.HLSPlaylistName)
+	}
+	if got := argValue(args, "-f"); got != "hls" {
+		t.Errorf("-f = %q, want hls", got)
+	}
+	if got := argValue(args, "-hls_segment_type"); got != "fmp4" {
+		t.Errorf("-hls_segment_type = %q, want fmp4", got)
+	}
+	if got := argValue(args, "-hls_fmp4_init_filename"); got != media.HLSInitName {
+		t.Errorf("-hls_fmp4_init_filename = %q, want %q", got, media.HLSInitName)
+	}
+	if got := argValue(args, "-hls_segment_filename"); got != media.HLSSegmentPattern {
+		t.Errorf("-hls_segment_filename = %q, want %q", got, media.HLSSegmentPattern)
+	}
+	if flags := argValue(args, "-hls_flags"); !strings.Contains(flags, "delete_segments") {
+		t.Errorf("-hls_flags = %q, want delete_segments for a rolling window", flags)
+	}
+	// playlist_type must stay unset: event/vod would pin hls_list_size to 0.
+	if hasFlag(args, "-hls_playlist_type") {
+		t.Error("-hls_playlist_type must be unset for a live sliding window")
 	}
 }

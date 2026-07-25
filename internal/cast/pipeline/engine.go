@@ -88,8 +88,9 @@ func passthrough(ctx context.Context, dev device.Device, source *media.Stream) e
 
 // runRemux is the single-ffmpeg served path for a self-fetching renderer that
 // rejects the source container: network input, video stream-copied, container
-// changed to the plan's output type (mp4). No whisper, no input spool, though the
-// replay server still spools the output so the device can replay from 0.
+// changed to the plan's output type. No whisper, no input spool. Chromecast's mp4
+// remux is spooled by the replay server so the device can replay from 0; Roku's
+// live HLS is packaged into a directory the HLS server fronts.
 func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.Device, source *media.Stream, localIP string) error {
 	slog.InfoContext(ctx, "execution plan", "delivery", "remux", "output_content_type", plan.OutputContentType)
 
@@ -99,7 +100,7 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 	}
 	defer func() { _ = os.RemoveAll(workDir) }()
 
-	opts := remuxNetworkOptions(source, cfg.Transcode.RWTimeout)
+	opts := remuxNetworkOptions(source, cfg.Transcode.RWTimeout, outputMuxer(plan.OutputContentType))
 
 	// Resolve audio from a source probe, the same decision the spool path makes
 	// off its spool. This path has no input spool, so it reads the upstream
@@ -122,6 +123,17 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 		"source_audio_channels", srcInfo.AudioChannels,
 	)
 
+	// Live HLS packages into workDir and is fronted by the HLS server, which owns
+	// the encoder's lifecycle; every other served remux is a single stream the
+	// replay server spools and fronts.
+	if plan.OutputContentType == media.HLS {
+		proc, err := startTranscode(ctx, cfg.Transcode.FFmpegPath, opts, ffmpeg.WithWorkDir(workDir))
+		if err != nil {
+			return err
+		}
+		return core.ServeHLSToDevice(ctx, dev, localIP, workDir, proc)
+	}
+
 	proc, err := startTranscode(ctx, cfg.Transcode.FFmpegPath, opts)
 	if err != nil {
 		return err
@@ -129,6 +141,15 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 	defer core.FinishEncoder(ctx, proc)
 
 	return core.ServeToDevice(ctx, dev, localIP, plan.OutputContentType, proc.Stdout, workDir)
+}
+
+// outputMuxer maps a served output content type to the ffmpeg muxer name the
+// remux encode targets.
+func outputMuxer(contentType string) string {
+	if contentType == media.HLS {
+		return "hls"
+	}
+	return "mp4"
 }
 
 // runSpooled is the read-once cast for a renderer that does not self-fetch:

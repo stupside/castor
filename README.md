@@ -180,6 +180,33 @@ whisper:
 
 </details>
 
+<details>
+<summary><b>Roku</b>: cast to a Roku TV or player (one-time Developer Mode setup)</summary>
+
+Roku devices are not DLNA renderers, so Castor reaches them over Roku's ECP (External Control Protocol). Roku has no supported way to play an arbitrary URL from a preinstalled app, so Castor ships a tiny channel of its own and plays through it. A source Roku already accepts (HLS, MP4, MKV) is passed straight through; anything else is remuxed to live HLS on the fly.
+
+```yaml
+device:
+  name: "Living Room"   # the Roku's name, from `castor scan`
+  type: roku
+  roku:
+    # Only needed the first time, to sideload Castor's channel (see below).
+    password: "<dev-web-server-password>"
+```
+
+Sideloading the channel uses Roku's developer web server, which you turn on by hand once (there is no remote API for it):
+
+1. On the Roku remote press **Home x3, Up x2, Right, Left, Right, Left, Right**.
+2. Enable developer mode and set a **web-server password** (the device reboots).
+3. Put that password in `device.roku.password` (keep it in a git-ignored `config.local.yaml`, or set `CASTOR_DEVICE__ROKU__PASSWORD`).
+
+On the first cast Castor sideloads its channel automatically; later casts reuse it. If you publish the channel to your account instead, set `device.roku.app_id` to its numeric id (no dev mode or password needed).
+
+> [!NOTE]
+> Roku's live playback is a sliding-window HLS stream and stays roughly 30 s behind the live edge, so expect a longer start delay and more latency than DLNA.
+
+</details>
+
 
 ## Supported devices
 
@@ -189,6 +216,7 @@ Run `castor scan` to list what is on your network.
 | --- | --- | --- |
 | **DLNA / UPnP** (`MediaRenderer:1`) | Virtually every smart TV from the last decade (Samsung, LG, Sony Bravia, Panasonic Viera, Philips, Hisense, TCL, VIZIO, Sharp), plus networked players like Kodi, VLC, and Plex | Tested on Samsung |
 | **Chromecast** | Google Cast devices | Experimental, untested (contributions welcome) |
+| **Roku** | Roku TVs and streaming players (via a sideloaded channel over ECP) | Experimental, untested (contributions welcome) |
 
 
 ## Docker (optional)

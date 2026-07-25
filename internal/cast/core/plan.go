@@ -1,6 +1,8 @@
 package core
 
 import (
+	"cmp"
+
 	"github.com/stupside/castor/internal/media"
 )
 
@@ -79,12 +81,13 @@ func NewPlan(source *media.Stream, caps media.Renderer, cfg Config) Plan {
 
 // outputContentType is the container the device is told it is fetching on a
 // served cast. A self-fetching renderer that still reached Serve got there by
-// rejecting the source container, so it is the Chromecast remux to fragmented
-// mp4 (the container Cast decodes from a pull); everything else served is the
-// DLNA MPEG-TS remux. Pass-through never consults this, so its value is inert.
+// rejecting the source container, so it is served the container it advertises
+// for a live remux (Chromecast's fragmented mp4, Roku's live HLS), defaulting to
+// mp4; everything else served is the DLNA MPEG-TS remux. Pass-through never
+// consults this, so its value is inert.
 func outputContentType(delivery DeliveryMode, caps media.Renderer) string {
 	if delivery == DeliverServe && caps.SelfFetch {
-		return media.MP4
+		return cmp.Or(caps.ServedContainer, media.MP4)
 	}
 	return media.MPEGTS
 }

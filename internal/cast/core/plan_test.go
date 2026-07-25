@@ -85,6 +85,18 @@ func TestNewPlan(t *testing.T) {
 			outputCT: media.MP4,
 		},
 		{
+			// Roku remux: it self-fetches but rejects the source container and
+			// advertises live HLS as its served container, so the plan targets HLS
+			// rather than the default fragmented mp4. This is the ServedContainer axis.
+			name:     "roku remux to hls when its served container is hls",
+			caps:     media.Renderer{SelfFetch: true, Containers: []string{media.HLS, media.MP4, media.MKV}, ServedContainer: media.HLS},
+			sourceCT: media.AVI,
+			whisper:  false,
+			delivery: DeliverServe,
+			subtitle: SubtitleOff,
+			outputCT: media.HLS,
+		},
+		{
 			// DLNA never self-fetches, so it always serves, and its served
 			// container is MPEG-TS regardless of the source container.
 			name:     "dlna serves mpegts because it never self-fetches",
