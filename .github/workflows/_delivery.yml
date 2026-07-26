@@ -155,9 +155,14 @@ jobs:
             org.opencontainers.image.licenses=MIT
       - uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
         with:
+          # Build from the checked-out workspace, not the remote git tree
+          # (bake-action's v6+ default): scripts/release.sh stages the native
+          # binaries into docker/<arch>/ at runtime and the Dockerfile COPYs
+          # them, so they only exist in the local context.
+          source: .
           files: |
             ./docker-bake.hcl
-            cwd://${{ steps.meta.outputs.bake-file }}
+            ${{ steps.meta.outputs.bake-file }}
           push: true
 
       # ── Stable-only: never run for a prerelease (canary) version ──
