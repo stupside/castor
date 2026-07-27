@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.1](https://github.com/stupside/castor/compare/v1.8.0...v1.8.1) (2026-07-27)
+
+
+### Bug Fixes
+
+* **ffmpeg:** pass -nostats to the puller invocation ([5fb1650](https://github.com/stupside/castor/commit/5fb165033857fa7e15033150e952f31cbd233723))
+* **resolve:** tiebreak equal-bandwidth candidates by height ([3a25c70](https://github.com/stupside/castor/commit/3a25c70173ec67c143e427a6fe72d6e43327e222))
+
 ## [1.8.0](https://github.com/stupside/castor/compare/v1.7.1...v1.8.0) (2026-07-27)
 
 
