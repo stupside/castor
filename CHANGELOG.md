@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.8.0](https://github.com/stupside/castor/compare/v1.7.1...v1.8.0) (2026-07-27)
+
+
+### Features
+
+* add Roku cast target ([#50](https://github.com/stupside/castor/issues/50)) ([f109d47](https://github.com/stupside/castor/commit/f109d47c061ea9a2fe2bff31ab8885967fecfde9))
+* **cast:** surround audio and compiler-isolated device strategies ([6434ba6](https://github.com/stupside/castor/commit/6434ba659b2cfb77e0003194dd129a83c20c77d8))
+* **device:** connect by pinned host, skipping discovery ([dd876cd](https://github.com/stupside/castor/commit/dd876cde770c5501128d2b5b723cb79b6e1bd142)), closes [#24](https://github.com/stupside/castor/issues/24)
+* **extract:** disable site isolation to capture cross-origin iframe requests ([bd32c0e](https://github.com/stupside/castor/commit/bd32c0e1d14257cda5aa6cd2d8e6f23aadb62901))
+
+
+### Bug Fixes
+
+* **cmd:** propagate picked device's type and host, not just name ([3af67b9](https://github.com/stupside/castor/commit/3af67b90e246f018ca424cf8a828d1c19cc90ace))
+* **device:** derive each family's SelfFetch from its own selfFetches() ([857ac35](https://github.com/stupside/castor/commit/857ac354d6b92e3d6594da05bb946bd3fc13f0b8))
+* **device:** retry DLNA SetAVTransportURI/Play through transient 705 Transport is locked ([6130364](https://github.com/stupside/castor/commit/61303645ae996b1148a60736ba542fc822c26566))
+* **ffmpeg:** reject subtitle burn-in without a video encoder ([faf9e25](https://github.com/stupside/castor/commit/faf9e25f7f9d4567bed313f94c549d431b43a11d))
+* **media:** normalize BitDepths nil-vs-empty handling to match Profiles ([42dde0b](https://github.com/stupside/castor/commit/42dde0bc812b449e3d9ddbdf199b1ee24c9d0674))
+
+
+### Refactors
+
+* **cast:** add SelfFetch renderer capability ([d9f9213](https://github.com/stupside/castor/commit/d9f92134e1787a9b630c5ab8eb5c062d0e492410))
+* **cast:** capability-driven composition engine ([a7b3f07](https://github.com/stupside/castor/commit/a7b3f07fba7577dd599e737dd52f8ab74d4243fa))
+* **cast:** tier renderers below shared building blocks ([2ff4fa8](https://github.com/stupside/castor/commit/2ff4fa8824cdc20c377a1a723eb7c187255b9b6d))
+* **device:** dispatch renderer families through a strategy registry ([69d3798](https://github.com/stupside/castor/commit/69d37983f91dd352a030c29ca57c9c78d8c29fd1))
+* type sentinel strings as named constants and enums ([b84a396](https://github.com/stupside/castor/commit/b84a3964427bac319bea3e0105a1c4d01b6d3522))
+
+
+### Documentation
+
+* document how to verify the image SBOM and provenance ([c675665](https://github.com/stupside/castor/commit/c6756652e48078192aeec1a02b088dea9e625fd6))
+* document pinning a device by host ([1861a60](https://github.com/stupside/castor/commit/1861a60507f2ad495d704b0b9b3c0c67767fd78b))
+* **media:** correct ProbeInfo's blanket unknown-value doc ([eaaae7c](https://github.com/stupside/castor/commit/eaaae7cfaaa8e3a4109ed92c76bf144ef71a3a87))
+
+
+### Build System
+
+* **docker:** attach an SPDX SBOM and SLSA provenance to the image ([aaaf0ee](https://github.com/stupside/castor/commit/aaaf0ee26c520340b6347011c98f7efde79713e2))
+* **docker:** build image with docker bake ([cdb9de6](https://github.com/stupside/castor/commit/cdb9de6338cd787e5e8cd80e2bde43ed7076310b))
+
 ## [1.7.1](https://github.com/stupside/castor/compare/v1.7.0...v1.7.1) (2026-07-22)
 
 
