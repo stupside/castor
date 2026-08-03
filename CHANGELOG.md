@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.9.0](https://github.com/stupside/castor/compare/v1.8.1...v1.9.0) (2026-08-03)
+
+
+### Features
+
+* **ffmpeg:** read a demuxed program as two inputs ([2333d0f](https://github.com/stupside/castor/commit/2333d0f3f027928be826115649fb7151e463e034))
+* **media:** let one program span two renditions ([279407f](https://github.com/stupside/castor/commit/279407f795dd13f7a801207cf111e17bd60fe846))
+* **resolve:** keep the chosen variant's audio rendition ([a70b814](https://github.com/stupside/castor/commit/a70b814c9e2300a3b95c7179000565c291682470))
+
+
+### Bug Fixes
+
+* **cast:** serve sources that need request headers ([#54](https://github.com/stupside/castor/issues/54)) ([f2fe1e1](https://github.com/stupside/castor/commit/f2fe1e11624150052b0d5cc0dad21c60ab9bde1c))
+* **resolve:** never cast a variant that carries no video ([6bb905e](https://github.com/stupside/castor/commit/6bb905e02997a163408763d85e89cf35c9103db1))
+
+
+### Refactors
+
+* **resolve:** decode HLS playlists with a spec parser ([e714185](https://github.com/stupside/castor/commit/e714185aaa29a6f7242c6e73d44d80ae5c19dfa8))
+
 ## [1.8.1](https://github.com/stupside/castor/compare/v1.8.0...v1.8.1) (2026-07-27)
 
 
