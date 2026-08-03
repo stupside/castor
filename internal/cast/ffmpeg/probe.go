@@ -24,10 +24,27 @@ func ProbeFile(ctx context.Context, ffprobePath, path string) (media.ProbeInfo, 
 // succeed. That matters for a playlist whose segments are served under a
 // disguised extension: without the relaxed extension checks the probe reports an
 // unreadable stream while the remux plays it fine.
+//
+// A demuxed program is probed as a program: its audio lives in the companion
+// rendition, so probing only the video one would report a silent source and cost
+// it its stream-copy (the audio resolver would fall back to re-encoding).
 func ProbeSource(ctx context.Context, ffprobePath string, src NetworkSource) (media.ProbeInfo, error) {
-	args := media.HeaderArgs(src.Headers)
-	args = append(args, containerInputArgs(src.ContentType)...)
-	return probe(ctx, ffprobePath, src.URL.String(), args)
+	inputArgs := media.HeaderArgs(src.Headers)
+	inputArgs = append(inputArgs, containerInputArgs(src.ContentType)...)
+
+	info, err := probe(ctx, ffprobePath, src.URL.String(), inputArgs)
+	if err != nil || src.AudioURL == nil {
+		return info, err
+	}
+
+	audio, err := probe(ctx, ffprobePath, src.AudioURL.String(), inputArgs)
+	if err != nil {
+		// The video half still decides the video axis; the caller degrades the
+		// audio one on the zero value it is left with.
+		return info, fmt.Errorf("probing audio rendition: %w", err)
+	}
+	info.AudioCodec, info.AudioChannels = audio.AudioCodec, audio.AudioChannels
+	return info, nil
 }
 
 // probe runs ffprobe against input and maps its JSON to the domain ProbeInfo.

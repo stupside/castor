@@ -377,6 +377,100 @@ func TestEncodeArgsMP4RemuxUnpaced(t *testing.T) {
 	}
 }
 
+// TestDemuxedSourceIsTwoInputs covers a program whose renditions live at
+// separate URLs: both must be opened on the same terms, and the audio map must
+// follow the audio to the second input. Mapping 0:a:0 there is the failure this
+// guards, since the video rendition has no audio track and ffmpeg exits with
+// "Stream map ” matches no streams" before a byte is served.
+func TestDemuxedSourceIsTwoInputs(t *testing.T) {
+	video, err := url.Parse("http://example.test/video.m3u8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	audio, err := url.Parse("http://example.test/audio.m3u8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := NetworkSource{
+		URL:         video,
+		AudioURL:    audio,
+		Headers:     http.Header{"Referer": {"https://player.example/"}},
+		ContentType: media.HLS,
+		RWTimeout:   30 * time.Second,
+	}
+
+	for name, args := range map[string][]string{
+		"pull":  PullArgs(PullOptions{Source: source}),
+		"remux": mustEncodeArgs(t, EncodeOptions{Source: source, OutputFormat: "mp4", AudioCodec: "aac"}),
+	} {
+		inputs := inputURLs(args)
+		if want := []string{video.String(), audio.String()}; !slices.Equal(inputs, want) {
+			t.Errorf("%s inputs = %v, want %v", name, inputs, want)
+		}
+		if got := argValue(args, "-map"); got != "1:a:0" {
+			t.Errorf("%s audio map = %q, want 1:a:0 (the audio is the second input)", name, got)
+		}
+		// Both inputs are the same origin: whatever one needs to be opened, the
+		// other needs too.
+		if got := countFlag(args, "-headers"); got != 2 {
+			t.Errorf("%s sent headers with %d of 2 inputs", name, got)
+		}
+		if got := countFlag(args, "-allowed_extensions"); got != 2 {
+			t.Errorf("%s relaxed extension checks on %d of 2 inputs", name, got)
+		}
+		if got := countFlag(args, "-readrate"); got != 2 {
+			t.Errorf("%s paced %d of 2 inputs; unpaced renditions drift apart", name, got)
+		}
+	}
+}
+
+// TestMuxedSourceStaysOneInput is the other half: an ordinary source opens once
+// and keeps mapping its own audio track.
+func TestMuxedSourceStaysOneInput(t *testing.T) {
+	src, err := url.Parse("http://example.test/index.m3u8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := PullArgs(PullOptions{Source: NetworkSource{URL: src, ContentType: media.HLS}})
+
+	if got := len(inputURLs(args)); got != 1 {
+		t.Errorf("inputs = %d, want 1", got)
+	}
+	if got := argValue(args, "-map"); got != "0:a:0" {
+		t.Errorf("audio map = %q, want 0:a:0", got)
+	}
+}
+
+// inputURLs returns the value of every -i in order.
+func inputURLs(args []string) []string {
+	var inputs []string
+	for i, a := range args {
+		if a == "-i" && i+1 < len(args) {
+			inputs = append(inputs, args[i+1])
+		}
+	}
+	return inputs
+}
+
+func countFlag(args []string, flag string) int {
+	n := 0
+	for _, a := range args {
+		if a == flag {
+			n++
+		}
+	}
+	return n
+}
+
+func mustEncodeArgs(t *testing.T, opts EncodeOptions) []string {
+	t.Helper()
+	args, err := EncodeArgs(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return args
+}
+
 // TestNetworkReadersShareInputPolicy pins the invariant behind NetworkSource:
 // castor's two network readers open the same upstream with the same reconnect
 // policy, headers, container flags, and pacing.

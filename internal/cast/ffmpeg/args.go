@@ -21,9 +21,13 @@ const CodecCopy = "copy"
 // everything a fetch of it needs to succeed and behave. Castor has exactly two
 // network readers (the spool puller and the served remux) and both describe
 // their upstream with this one type, so the whole input side of their command
-// lines is assembled by networkInputArgs and cannot drift apart.
+// lines is assembled by inputArgs and cannot drift apart.
 type NetworkSource struct {
 	URL *url.URL
+
+	// AudioURL is the companion audio rendition of a demuxed program, read as a
+	// second input alongside URL. nil is the ordinary muxed case.
+	AudioURL *url.URL
 
 	// Headers are the HTTP request headers ffmpeg sends when fetching URL
 	// (Referer, Origin, Cookie, User-Agent: what a proxied CDN gates on).
@@ -49,6 +53,7 @@ type NetworkSource struct {
 func NewNetworkSource(stream *media.Stream, rwTimeout time.Duration) NetworkSource {
 	return NetworkSource{
 		URL:         stream.URL,
+		AudioURL:    stream.AudioURL,
 		Headers:     stream.Headers,
 		ContentType: stream.ContentType,
 		Live:        stream.Live,
@@ -204,13 +209,26 @@ func (s NetworkSource) pacing() pacing {
 // One long GET of a single file (mp4/mkv/avi) is throttled by nothing.
 func (s NetworkSource) segmented() bool { return s.ContentType == media.HLS }
 
-// networkInputArgs renders the input side of a network read: the pacing, the
+// inputArgs renders the input side of a network read: the pacing, the
 // reconnect policy every upstream fetch castor makes shares, the request
-// headers, the container's input flags, and the URL.
-func networkInputArgs(src NetworkSource, pace pacing) []string {
+// headers, the container's input flags, and the URL. A demuxed program is two
+// inputs read on identical terms, since its renditions are two halves of one
+// program from one origin (see audioMap for the mapping that follows).
+func (s NetworkSource) inputArgs(pace pacing) []string {
+	args := s.input(pace, s.URL)
+	if s.AudioURL != nil {
+		args = append(args, s.input(pace, s.AudioURL)...)
+	}
+	return args
+}
+
+// input renders the flags for one of the source's inputs. ffmpeg applies these
+// to the input that follows them, so every input of a demuxed program repeats
+// them.
+func (s NetworkSource) input(pace pacing, u *url.URL) []string {
 	args := pace.args()
 	args = append(args,
-		"-rw_timeout", strconv.FormatInt(src.RWTimeout.Microseconds(), 10),
+		"-rw_timeout", strconv.FormatInt(s.RWTimeout.Microseconds(), 10),
 		"-reconnect", "1",
 		"-reconnect_streamed", "1",
 		// A minute of backoff paired with 429-as-reconnect lets a rate-limited
@@ -219,9 +237,23 @@ func networkInputArgs(src NetworkSource, pace pacing) []string {
 		"-reconnect_delay_max", "60",
 		"-reconnect_on_http_error", "429",
 	)
-	args = append(args, media.HeaderArgs(src.Headers)...)
-	args = append(args, containerInputArgs(src.ContentType)...)
-	return append(args, "-i", src.URL.String())
+	args = append(args, media.HeaderArgs(s.Headers)...)
+	args = append(args, containerInputArgs(s.ContentType)...)
+	return append(args, "-i", u.String())
+}
+
+// audioMap is the ffmpeg stream specifier for the source's audio: the second
+// input when the program is demuxed, the first input's own audio otherwise. The
+// video map is always 0:v:0, so this is the only specifier that moves.
+//
+// A pipe-fed encode leaves the source zero-valued and lands on 0:a:0, which is
+// right: the spool it reads is a single muxed stream whatever the origin looked
+// like.
+func (s NetworkSource) audioMap() string {
+	if s.AudioURL != nil {
+		return "1:a:0"
+	}
+	return "0:a:0"
 }
 
 // EncodeArgs assembles the encode command line. No "magic" flags: every
@@ -283,17 +315,18 @@ func EncodeArgs(opts EncodeOptions) ([]string, error) {
 		case opts.Source.segmented():
 			pace = opts.Source.pacing()
 		}
-		args = append(args, networkInputArgs(opts.Source, pace)...)
+		args = append(args, opts.Source.inputArgs(pace)...)
 	}
 
 	// Map the first video and first audio track explicitly. ffmpeg's default
 	// stream selection picks the audio track with the most channels, which on a
 	// multi-track source can differ from the first track the planner probed to
 	// choose copy-vs-encode — so the encode would apply that decision to the
-	// wrong track. Pinning 0:a:0 keeps the encoded track identical to the probed
-	// one. (The read-once spool is already single-audio via the puller's -map, so
-	// this only changes behaviour for the direct network remux.)
-	args = append(args, "-map", "0:v:0", "-map", "0:a:0")
+	// wrong track. Pinning the pair keeps the encoded track identical to the
+	// probed one, and on a demuxed program it is what joins the two inputs back
+	// into one output. (The read-once spool is already single-audio via the
+	// puller's -map, so this only changes behaviour for the direct network remux.)
+	args = append(args, "-map", "0:v:0", "-map", opts.Source.audioMap())
 
 	// Video filter chain. scale= runs first so text is rendered at the final
 	// resolution (crisper than scaling rendered text); it caps height while
@@ -464,7 +497,7 @@ func PullArgs(opts PullOptions) []string {
 	// The pull always paces, whatever the container: it buffers a whole title
 	// into a spool the encoder tails, so running further ahead than the source's
 	// own pace buys nothing and only spends the origin's patience.
-	args = append(args, networkInputArgs(opts.Source, opts.Source.pacing())...)
+	args = append(args, opts.Source.inputArgs(opts.Source.pacing())...)
 
 	// Output 1: codec-copy remux to MPEG-TS on stdout → spool. mpegts is the
 	// right spool format because it is strictly append-only (no trailer or
@@ -473,7 +506,7 @@ func PullArgs(opts PullOptions) []string {
 	// actual codec (h264 vs hevc) when the source uses fmp4 segments;
 	// hardcoding the h264 one breaks HEVC sources.
 	args = append(args,
-		"-map", "0:v:0", "-map", "0:a:0",
+		"-map", "0:v:0", "-map", opts.Source.audioMap(),
 		"-c", CodecCopy,
 		"-f", "mpegts", "pipe:1",
 	)
@@ -481,7 +514,7 @@ func PullArgs(opts PullOptions) []string {
 	if opts.PCM {
 		// Output 2: mono PCM for whisper on fd 3 (the runner's extra pipe).
 		args = append(args,
-			"-map", "0:a:0", "-vn",
+			"-map", opts.Source.audioMap(), "-vn",
 			"-ac", "1",
 			"-ar", strconv.Itoa(opts.PCMSampleRate),
 			"-f", "s16le", "pipe:3",
