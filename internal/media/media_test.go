@@ -3,6 +3,7 @@ package media
 import (
 	"maps"
 	"net/http"
+	"net/url"
 	"slices"
 	"testing"
 )
@@ -49,20 +50,23 @@ func TestStreamInfoPlayable(t *testing.T) {
 }
 
 func TestStreamSelfFetchable(t *testing.T) {
+	audio := &url.URL{Path: "/audio.m3u8"}
 	cases := []struct {
-		name    string
-		headers http.Header
-		want    bool
+		name   string
+		stream Stream
+		want   bool
 	}{
-		{"no headers: the URL is all a renderer needs", nil, true},
-		{"empty header set is still self-sufficient", http.Header{}, true},
-		{"header-gated: a renderer is handed none of these", http.Header{"Referer": {"https://player.example/"}}, false},
-		{"any captured header counts", http.Header{"User-Agent": {"x"}}, false},
+		{"no headers: the URL is all a renderer needs", Stream{}, true},
+		{"empty header set is still self-sufficient", Stream{Headers: http.Header{}}, true},
+		{"header-gated: a renderer is handed none of these", Stream{Headers: http.Header{"Referer": {"https://player.example/"}}}, false},
+		{"any captured header counts", Stream{Headers: http.Header{"User-Agent": {"x"}}}, false},
+		// One URL is one rendition: hand that over and the device plays the
+		// picture in silence.
+		{"demuxed: the program does not fit in one URL", Stream{AudioURL: audio}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			s := &Stream{Headers: c.headers}
-			if got := s.SelfFetchable(); got != c.want {
+			if got := c.stream.SelfFetchable(); got != c.want {
 				t.Errorf("SelfFetchable() = %v, want %v", got, c.want)
 			}
 		})

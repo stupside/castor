@@ -36,25 +36,45 @@ var HLSInputArgs = []string{
 	"-seg_format_options", "extension_picky=0",
 }
 
+// Stream is one castable program: where castor reads it from, and what it needs
+// to read it. A program is usually one URL carrying both tracks, but a source is
+// free to publish them separately (an HLS master with an audio rendition group),
+// in which case it takes two reads to get a whole program.
 type Stream struct {
-	URL         *url.URL
+	URL *url.URL
+
+	// AudioURL is the companion audio rendition, set when the source publishes
+	// its tracks separately: URL then carries video alone and the two are read
+	// together as one program. nil is the ordinary case, audio muxed into URL.
+	AudioURL *url.URL
+
 	Headers     http.Header
 	Bandwidth   int64
 	ContentType string
 	Live        bool
 }
 
-// SelfFetchable reports whether a renderer handed nothing but this URL can pull
-// the bytes itself. A pass-through gives the device the URL alone: none of the
-// request headers castor captured while extracting (Referer, Origin, Cookie,
-// User-Agent) travel with it, and castor cannot know which of them the origin
-// gates on. A URL castor itself only ever fetched with headers is therefore not
-// proven fetchable without them, and handing it to a renderer fails where castor
-// succeeds. It fails silently, too: the device accepts the load and then sits
-// idle. Such a source is served locally instead, castor pulling upstream with
-// the headers it holds and giving the renderer a LAN URL. A header-free source
-// (the direct URL a user casts by hand) is self-sufficient and passes through.
-func (s *Stream) SelfFetchable() bool { return len(s.Headers) == 0 }
+// Demuxed reports whether the program's tracks live at separate URLs, so a
+// reader needs both.
+func (s *Stream) Demuxed() bool { return s.AudioURL != nil }
+
+// SelfFetchable reports whether a renderer handed nothing but this stream's URL
+// can pull the whole program itself. A pass-through gives the device that URL
+// and nothing else, which rules out two shapes:
+//
+//   - a header-gated source. None of the request headers castor captured while
+//     extracting (Referer, Origin, Cookie, User-Agent) travel with the URL, and
+//     castor cannot know which of them the origin gates on, so a URL it only ever
+//     fetched with headers is not proven fetchable without them.
+//   - a demuxed program. One URL is one rendition, so the renderer would play
+//     the video and none of the audio.
+//
+// Either way the device fails where castor succeeds, and silently: it accepts the
+// load and then sits idle, or plays in silence. Such a source is served locally
+// instead, castor reading what it needs and giving the renderer a single LAN URL.
+// A header-free, self-contained source (the direct URL a user casts by hand)
+// passes through.
+func (s *Stream) SelfFetchable() bool { return len(s.Headers) == 0 && !s.Demuxed() }
 
 // StreamInfo holds metadata returned by ffprobe for a stream.
 type StreamInfo struct {
