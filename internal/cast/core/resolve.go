@@ -8,13 +8,21 @@ import (
 )
 
 // ResolveDelivery decides how the renderer receives the stream: pass-through
-// (the device fetches the source URL itself) when it both self-fetches AND
-// already accepts the source container, so there is nothing to rewrap; otherwise
-// castor serves a locally produced stream. It is decided purely from capability
-// data: a self-fetching renderer hands an accepted container straight to the
-// device and has the rest remuxed, while a push-only renderer always serves.
+// (the device fetches the source URL itself) only when all three hold, otherwise
+// castor serves a locally produced stream.
+//
+//   - the renderer self-fetches (a push-only one only plays what castor serves);
+//   - the source is self-fetchable, i.e. reachable from the URL alone: a
+//     pass-through carries none of the request headers castor captured, so a
+//     header-gated source must be pulled by castor and served (see
+//     media.Stream.SelfFetchable);
+//   - the renderer already accepts the source container, so there is nothing to
+//     rewrap.
+//
+// It is decided purely from data: capabilities on one side, the source on the
+// other, no I/O and no device family.
 func ResolveDelivery(caps media.Renderer, source *media.Stream) DeliveryMode {
-	if caps.SelfFetch && caps.AcceptsContainer(source.ContentType) {
+	if caps.SelfFetch && source.SelfFetchable() && caps.AcceptsContainer(source.ContentType) {
 		return DeliverPassthrough
 	}
 	return DeliverServe

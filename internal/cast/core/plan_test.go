@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/stupside/castor/internal/cast/subtitle"
@@ -36,13 +37,14 @@ func TestNewPlan(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		caps     media.Renderer
-		sourceCT string
-		whisper  bool
-		delivery DeliveryMode
-		subtitle SubtitleMode
-		outputCT string
+		name          string
+		caps          media.Renderer
+		sourceCT      string
+		sourceHeaders http.Header
+		whisper       bool
+		delivery      DeliveryMode
+		subtitle      SubtitleMode
+		outputCT      string
 	}{
 		{
 			// Chromecast direct play: self-fetches and already takes the source
@@ -65,6 +67,32 @@ func TestNewPlan(t *testing.T) {
 			caps:     caps(true, media.MP4),
 			sourceCT: media.MP4,
 			whisper:  true,
+			delivery: DeliverPassthrough,
+			subtitle: SubtitleOff,
+			outputCT: "",
+		},
+		{
+			// A source castor could only fetch with captured request headers is not
+			// passed through even when the renderer self-fetches and takes the
+			// container: the renderer is handed the URL and none of the headers, so
+			// it would fetch nothing (Cast loads the URL, then idles). Castor pulls
+			// it with the headers and serves the remux instead.
+			name:          "header-gated source serves even when the renderer accepts the container",
+			caps:          caps(true, media.HLS, media.MP4),
+			sourceCT:      media.HLS,
+			sourceHeaders: http.Header{"Referer": {"https://player.example/"}, "Origin": {"https://player.example"}},
+			whisper:       false,
+			delivery:      DeliverServe,
+			subtitle:      SubtitleOff,
+			outputCT:      media.MP4,
+		},
+		{
+			// The same source without headers is self-sufficient: a direct URL the
+			// user casts by hand still passes through, no local ffmpeg.
+			name:     "header-free source of an accepted container still passes through",
+			caps:     caps(true, media.HLS, media.MP4),
+			sourceCT: media.HLS,
+			whisper:  false,
 			delivery: DeliverPassthrough,
 			subtitle: SubtitleOff,
 			outputCT: "",
@@ -152,7 +180,7 @@ func TestNewPlan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			source := &media.Stream{ContentType: tt.sourceCT}
+			source := &media.Stream{ContentType: tt.sourceCT, Headers: tt.sourceHeaders}
 			cfg := Config{Whisper: subtitle.Whisper{Enable: tt.whisper}}
 
 			plan := NewPlan(source, tt.caps, cfg)

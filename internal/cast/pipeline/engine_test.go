@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stupside/castor/internal/cast/core"
+	"github.com/stupside/castor/internal/cast/ffmpeg"
 	"github.com/stupside/castor/internal/device"
 	"github.com/stupside/castor/internal/media"
 	"github.com/stupside/castor/internal/source/resolve"
@@ -29,6 +31,9 @@ import (
 type fakeDevice struct {
 	caps  media.Renderer
 	drain bool
+	// tee, when set, receives the served bytes as they are drained, so a test can
+	// inspect what the renderer was actually handed.
+	tee io.Writer
 
 	mu    sync.Mutex
 	plays []playCall
@@ -62,7 +67,11 @@ func (d *fakeDevice) Play(ctx context.Context, streamURL *url.URL, contentType s
 		return err
 	}
 	defer resp.Body.Close()
-	_, err = io.Copy(io.Discard, resp.Body)
+	var sink io.Writer = io.Discard
+	if d.tee != nil {
+		sink = d.tee
+	}
+	_, err = io.Copy(sink, resp.Body)
 	return err
 }
 
@@ -109,6 +118,81 @@ func TestRunPassthrough(t *testing.T) {
 	}
 	if plays[0].contentType != media.MP4 {
 		t.Errorf("Play content type = %q, want %q (the source's own type)", plays[0].contentType, media.MP4)
+	}
+}
+
+// TestRunHeaderGatedSourceIsServed is the pass-through guard: the renderer
+// self-fetches AND accepts the source container, but the source only ever
+// answered to the request headers castor captured. Handing such a URL to the
+// renderer strips those headers and the device silently idles, so Run must serve
+// the remux instead and never point the device at the source URL.
+func TestRunHeaderGatedSourceIsServed(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+
+	origin := serveFixture(t, ffmpegPath)
+	source := origin.stream()
+	source.Headers = http.Header{
+		"Referer": {"https://player.example/"},
+		"Origin":  {"https://player.example"},
+	}
+
+	// Accepts mp4, the source's own container: only the headers force the serve.
+	dev := &fakeDevice{
+		caps: media.Renderer{
+			SelfFetch:       true,
+			Containers:      []string{media.MP4},
+			ServedContainer: media.MP4,
+			Audio:           []media.AudioSupport{{Codec: media.CodecAAC, MaxChannels: 2}},
+		},
+		drain: true,
+	}
+	runServed(t, dev, device.TypeChromecast, source, ffmpegPath, ffprobePath)
+	assertServed(t, dev, media.MP4, source.URL.String())
+}
+
+// TestRunServeHeaderGatedHLS is the embed-source shape end to end: HLS that is
+// header-gated AND serves its MPEG-TS segments under a .jpg extension. A renderer
+// handed that playlist fetches without the headers and rejects the mislabelled
+// segments; castor reads it fine, so the cast must come out as a served remux, a
+// local mp4 URL and never the source.
+func TestRunServeHeaderGatedHLS(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+
+	origin := serveHLSFixture(t, ffmpegPath)
+	source := origin.stream()
+	source.Headers = http.Header{"Referer": {"https://player.example/"}}
+
+	// Capture what the renderer is handed, to check it decodes.
+	servedPath := filepath.Join(t.TempDir(), "served.mp4")
+	served, err := os.Create(servedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer served.Close()
+
+	dev := &fakeDevice{
+		caps: media.Renderer{
+			SelfFetch:       true,
+			Containers:      []string{media.HLS, media.MP4}, // takes the source container
+			ServedContainer: media.MP4,
+			Audio:           []media.AudioSupport{{Codec: media.CodecAAC, MaxChannels: 2}},
+		},
+		drain: true,
+		tee:   served,
+	}
+	runServed(t, dev, device.TypeChromecast, source, ffmpegPath, ffprobePath)
+	assertServed(t, dev, media.MP4, source.URL.String())
+
+	if err := served.Close(); err != nil {
+		t.Fatal(err)
+	}
+	info, err := ffmpeg.ProbeFile(context.Background(), ffprobePath, servedPath)
+	if err != nil {
+		t.Fatalf("probing what the renderer was served: %v", err)
+	}
+	if info.VideoCodec != media.CodecH264 || info.AudioCodec != media.CodecAAC {
+		t.Errorf("served stream = %q/%q, want h264/aac: the point of serving is that the renderer receives a well-formed stream",
+			info.VideoCodec, info.AudioCodec)
 	}
 }
 
@@ -259,15 +343,19 @@ func assertServed(t *testing.T, dev *fakeDevice, wantCT, sourceURL string) {
 	}
 }
 
-// fixtureOrigin is a local HTTP origin serving a generated media file, standing
-// in for the upstream a real cast pulls from.
-type fixtureOrigin struct{ server *httptest.Server }
+// fixtureOrigin is a local HTTP origin serving generated media, standing in for
+// the upstream a real cast pulls from: path is what the cast points at and
+// contentType the container it resolved to.
+type fixtureOrigin struct {
+	server      *httptest.Server
+	path        string
+	contentType string
+}
 
-// stream is the media.Stream a cast resolves to for this origin. The ".mp4" path
-// only shapes the URL; the handler serves the fixture regardless.
+// stream is the media.Stream a cast resolves to for this origin.
 func (o fixtureOrigin) stream() *media.Stream {
-	u, _ := url.Parse(o.server.URL + "/movie.mp4")
-	return &media.Stream{URL: u, ContentType: media.MP4}
+	u, _ := url.Parse(o.server.URL + o.path)
+	return &media.Stream{URL: u, ContentType: o.contentType}
 }
 
 // serveFixture generates a one-second H.264/AAC mp4 and serves it over local
@@ -295,7 +383,38 @@ func serveFixture(t *testing.T, ffmpegPath string) fixtureOrigin {
 		http.ServeFile(w, r, path)
 	}))
 	t.Cleanup(server.Close)
-	return fixtureOrigin{server: server}
+	return fixtureOrigin{server: server, path: "/movie.mp4", contentType: media.MP4}
+}
+
+// serveHLSFixture generates a short HLS stream whose MPEG-TS segments are written
+// under a .jpg extension and serves the directory over local HTTP, which labels
+// them image/jpeg from that extension. That is the disguise embed CDNs use:
+// ffmpeg reads it (castor relaxes the extension checks for every HLS input),
+// while a Cast receiver handed the same playlist rejects the segments.
+func serveHLSFixture(t *testing.T, ffmpegPath string) fixtureOrigin {
+	t.Helper()
+	dir := t.TempDir()
+	args := []string{
+		"-hide_banner", "-loglevel", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc=size=320x240:rate=15:duration=2",
+		"-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+		"-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "baseline",
+		"-c:a", "aac", "-ac", "2", "-shortest",
+		"-f", "hls",
+		"-hls_time", "1",
+		"-hls_list_size", "0",
+		"-hls_segment_filename", filepath.Join(dir, "seg_%03d.jpg"),
+		filepath.Join(dir, "index.m3u8"),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if out, err := exec.CommandContext(ctx, ffmpegPath, args...).CombinedOutput(); err != nil {
+		t.Fatalf("generating HLS fixture: %v\n%s", err, out)
+	}
+
+	server := httptest.NewServer(http.FileServer(http.Dir(dir)))
+	t.Cleanup(server.Close)
+	return fixtureOrigin{server: server, path: "/index.m3u8", contentType: media.HLS}
 }
 
 // requireFFmpegTools returns the ffmpeg and ffprobe paths, or skips: the served

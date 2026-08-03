@@ -13,13 +13,15 @@ type DeliveryMode int
 const (
 	// DeliverPassthrough hands the device the source URL and lets it pull the
 	// bytes directly: no local ffmpeg, no served stream. Chosen only when the
-	// renderer self-fetches AND already accepts the source container, so nothing
-	// needs rewrapping.
+	// renderer self-fetches, the source needs nothing but its URL to be fetched,
+	// AND the renderer already accepts the source container, so nothing needs
+	// rewrapping.
 	DeliverPassthrough DeliveryMode = iota
 	// DeliverServe produces the stream locally (a remux or a transcode) and serves
 	// it to the device. A push-only renderer always lands here (it never
 	// self-fetches), as does a self-fetching renderer whose source container it
-	// will not take.
+	// will not take or whose source only answers to the request headers castor
+	// captured (a renderer is handed a URL, never those headers).
 	DeliverServe
 )
 
