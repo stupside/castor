@@ -114,9 +114,11 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 	// signed link: the probe can burn the token or a rate-limit slot and leave the
 	// remux ffmpeg with a 403/429. HLS (the common signed-link shape) normally
 	// passes through and never reaches here, but only while the receiver advertises
-	// HLS, so this is a known, accepted risk, not a guarantee. A failed probe
-	// leaves srcInfo zero, which core.ResolveAudio degrades to stereo AAC.
-	srcInfo, err := ffmpeg.Probe(ctx, cfg.Resolver.FFprobePath, source.URL.String(), source.Headers)
+	// HLS, so this is a known, accepted risk, not a guarantee. The probe reads the
+	// same headers and container flags the remux itself will use, so it fails only
+	// where the remux would; a failed probe leaves srcInfo zero, which
+	// core.ResolveAudio degrades to stereo AAC.
+	srcInfo, err := ffmpeg.ProbeSource(ctx, cfg.Resolver.FFprobePath, opts.Source)
 	if err != nil {
 		slog.WarnContext(ctx, "source probe failed; will re-encode audio to stereo AAC", "error", err)
 	}
@@ -231,7 +233,7 @@ func runSpooled(parentCtx context.Context, cfg core.Config, connect ConnectFunc,
 	// decide whether the source video can be stream-copied into MPEG-TS or must be
 	// re-encoded. A failed or partial probe leaves srcInfo zero, which CanCopyVideo
 	// rejects, i.e. it falls back to a transcode.
-	srcInfo, err := ffmpeg.Probe(ctx, cfg.Resolver.FFprobePath, sp.Path(), nil)
+	srcInfo, err := ffmpeg.ProbeFile(ctx, cfg.Resolver.FFprobePath, sp.Path())
 	if err != nil {
 		slog.WarnContext(ctx, "spool probe failed; will re-encode video", "error", err)
 	}

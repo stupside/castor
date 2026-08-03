@@ -31,13 +31,11 @@ func spoolEncodeOptions(maxHeight int) ffmpeg.EncodeOptions {
 // stream-copied (the renderer decodes the source codec, only the container
 // changes). muxer is the ffmpeg muxer for the plan's output container, derived
 // from the renderer's declared ServedContainer. Audio is filled by
-// core.ResolveAudio afterward against a source probe.
+// core.ResolveAudio afterward against a probe of the same source description, so
+// the probe and the remux open the upstream identically.
 func remuxNetworkOptions(source *media.Stream, rwTimeout time.Duration, muxer string) ffmpeg.EncodeOptions {
 	return ffmpeg.EncodeOptions{
-		OutputFormat:      muxer,
-		SourceURL:         source.URL,
-		SourceHeaders:     source.Headers,
-		SourceContentType: source.ContentType,
-		RWTimeoutMicros:   rwTimeout.Microseconds(),
+		OutputFormat: muxer,
+		Source:       ffmpeg.NewNetworkSource(source, rwTimeout),
 	}
 }

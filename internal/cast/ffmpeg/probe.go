@@ -5,27 +5,42 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os/exec"
 	"strings"
 
 	"github.com/stupside/castor/internal/media"
 )
 
-// Probe runs ffprobe against input (a URL or a local file path) and returns the
-// per-track codec details as a media.ProbeInfo (the domain type). It is safe to
-// point at a still-growing local spool: ffprobe reads from the start, analyses
-// the leading packets, and returns. headers are the HTTP request headers for a
-// network input behind a proxy/CDN (Referer, Cookie, etc.); pass nil for a local
-// file.
-func Probe(ctx context.Context, ffprobePath, input string, headers http.Header) (media.ProbeInfo, error) {
+// ProbeFile probes a local file and returns its per-track codec details. It is
+// safe to point at a still-growing spool: ffprobe reads from the start, analyses
+// the leading packets, and returns.
+func ProbeFile(ctx context.Context, ffprobePath, path string) (media.ProbeInfo, error) {
+	return probe(ctx, ffprobePath, path, nil)
+}
+
+// ProbeSource probes an upstream over the network. It opens the source exactly
+// as the reader that follows it will (same request headers, same
+// container-specific input flags), so it cannot fail where the read would
+// succeed. That matters for a playlist whose segments are served under a
+// disguised extension: without the relaxed extension checks the probe reports an
+// unreadable stream while the remux plays it fine.
+func ProbeSource(ctx context.Context, ffprobePath string, src NetworkSource) (media.ProbeInfo, error) {
+	args := media.HeaderArgs(src.Headers)
+	args = append(args, containerInputArgs(src.ContentType)...)
+	return probe(ctx, ffprobePath, src.URL.String(), args)
+}
+
+// probe runs ffprobe against input and maps its JSON to the domain ProbeInfo.
+// inputArgs are the flags an input needs to be opened at all (headers, container
+// leniency); everything the decision layer reads is in the -show_entries list.
+func probe(ctx context.Context, ffprobePath, input string, inputArgs []string) (media.ProbeInfo, error) {
 	args := []string{
 		"-v", "error",
 		"-print_format", "json",
 		"-show_entries",
 		"stream=codec_type,codec_name,profile,height,pix_fmt,color_transfer,channels",
 	}
-	args = append(args, media.HeaderArgs(headers)...)
+	args = append(args, inputArgs...)
 	args = append(args, input)
 
 	out, err := exec.CommandContext(ctx, ffprobePath, args...).Output()

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/stupside/castor/internal/media"
 )
@@ -15,6 +16,45 @@ import (
 // uses a nil pointer for the same intent), named so callers set and test it
 // without repeating the bare "copy" literal.
 const CodecCopy = "copy"
+
+// NetworkSource is an upstream castor reads over the network: the URL plus
+// everything a fetch of it needs to succeed and behave. Castor has exactly two
+// network readers (the spool puller and the served remux) and both describe
+// their upstream with this one type, so the whole input side of their command
+// lines is assembled by networkInputArgs and cannot drift apart.
+type NetworkSource struct {
+	URL *url.URL
+
+	// Headers are the HTTP request headers ffmpeg sends when fetching URL
+	// (Referer, Origin, Cookie, User-Agent: what a proxied CDN gates on).
+	Headers http.Header
+
+	// ContentType is the source's container. It selects the container-specific
+	// input flags (see containerInputArgs) and whether the source is fetched as
+	// segments (see segmented).
+	ContentType string
+
+	// Live marks a genuinely live stream: it arrives at 1x and cannot be
+	// outrun, so it is read at wall-clock speed with no burst.
+	Live bool
+
+	// RWTimeout is how long a single upstream read may stall before ffmpeg
+	// gives up on it and reconnects.
+	RWTimeout time.Duration
+}
+
+// NewNetworkSource describes a resolved stream as an upstream to read. Both
+// readers build their source through it, so a pull and a remux of the same
+// stream fetch it identically.
+func NewNetworkSource(stream *media.Stream, rwTimeout time.Duration) NetworkSource {
+	return NetworkSource{
+		URL:         stream.URL,
+		Headers:     stream.Headers,
+		ContentType: stream.ContentType,
+		Live:        stream.Live,
+		RWTimeout:   rwTimeout,
+	}
+}
 
 // EncodeOptions is the full description of an encode invocation. Every choice
 // is explicit; nothing is inferred from globals or context. The planner
@@ -27,21 +67,9 @@ type EncodeOptions struct {
 	// which is what lets ffmpeg consume a still-growing stream.
 	PipeFormat string
 
-	// SourceURL is the network input, used when PipeFormat is empty.
-	SourceURL *url.URL
-
-	// SourceHeaders are HTTP headers ffmpeg sends when fetching SourceURL
-	// (Referer, User-Agent, Cookie, etc. — needed for HLS behind proxies).
-	SourceHeaders http.Header
-
-	// SourceContentType is the MIME type of SourceURL. It selects the
-	// container-specific input flags (see containerInputArgs). Only consulted
-	// for a network source (PipeFormat empty).
-	SourceContentType string
-
-	// RWTimeoutMicros is the upstream I/O timeout in microseconds, passed to
-	// ffmpeg's -rw_timeout for HTTP(S) input. Ignored for stdin input.
-	RWTimeoutMicros int64
+	// Source is the network input, read when PipeFormat is empty and ignored
+	// otherwise.
+	Source NetworkSource
 
 	// OutputFormat is ffmpeg's muxer name ("mpegts", "mp4", "hls"). "hls" writes
 	// a playlist plus rolling fMP4 segments into the process working directory
@@ -131,6 +159,71 @@ func containerInputArgs(contentType string) []string {
 	}
 }
 
+// pacing is how fast a reader consumes its input: an ffmpeg -readrate multiple
+// of realtime, plus how many seconds it may take at wire speed first. The zero
+// value is wire speed throughout.
+type pacing struct{ readrate, burst string }
+
+// The paces castor reads at. The first two are per source nature and shared by
+// both network readers: VOD bursts at wire speed then reads at 2x realtime, which
+// keeps a reader well ahead of 1x playback without pulling a whole movie in a
+// couple of minutes; live can't be outrun, and the same burst only asks a CDN for
+// segments that do not exist yet and trips its rate limiter.
+var (
+	pacingVOD  = pacing{readrate: "2.0", burst: "90"}
+	pacingLive = pacing{readrate: "1.0", burst: "0"}
+	// pacingHLSWindow is imposed by an output rather than a source: it feeds a
+	// deleting HLS window (see hlsOutputArgs) at exactly wall-clock speed, not the
+	// slight over-speed above, because the client consumes that window at 1x and
+	// anything faster rolls the next-needed segment off the back before it asks.
+	// The burst fills the window once so the device can prebuffer first.
+	pacingHLSWindow = pacing{readrate: "1.0", burst: strconv.Itoa(hlsWindowSeconds)}
+)
+
+// args renders the pacing as ffmpeg input flags, or nothing when unpaced.
+func (p pacing) args() []string {
+	if p.readrate == "" {
+		return nil
+	}
+	return []string{"-readrate", p.readrate, "-readrate_initial_burst", p.burst}
+}
+
+// pacing returns the read rate this source's nature calls for, for a reader that
+// paces at all (see segmented).
+func (s NetworkSource) pacing() pacing {
+	if s.Live {
+		return pacingLive
+	}
+	return pacingVOD
+}
+
+// segmented reports whether reading this source means many small segment
+// requests rather than one long GET, which is what decides whether a reader free
+// to run at wire speed should pace anyway: a two-hour HLS title read unpaced is
+// thousands of requests in a couple of minutes, and CDNs answer that with 429s.
+// One long GET of a single file (mp4/mkv/avi) is throttled by nothing.
+func (s NetworkSource) segmented() bool { return s.ContentType == media.HLS }
+
+// networkInputArgs renders the input side of a network read: the pacing, the
+// reconnect policy every upstream fetch castor makes shares, the request
+// headers, the container's input flags, and the URL.
+func networkInputArgs(src NetworkSource, pace pacing) []string {
+	args := pace.args()
+	args = append(args,
+		"-rw_timeout", strconv.FormatInt(src.RWTimeout.Microseconds(), 10),
+		"-reconnect", "1",
+		"-reconnect_streamed", "1",
+		// A minute of backoff paired with 429-as-reconnect lets a rate-limited
+		// CDN be waited out, instead of the HLS demuxer burning through segment
+		// numbers that all fail and keeping the IP tarpitted.
+		"-reconnect_delay_max", "60",
+		"-reconnect_on_http_error", "429",
+	)
+	args = append(args, media.HeaderArgs(src.Headers)...)
+	args = append(args, containerInputArgs(src.ContentType)...)
+	return append(args, "-i", src.URL.String())
+}
+
 // EncodeArgs assembles the encode command line. No "magic" flags: every
 // argument is either part of the standard input/output setup or comes
 // straight from a field in EncodeOptions. It enforces the one cross-field
@@ -166,36 +259,31 @@ func EncodeArgs(opts EncodeOptions) ([]string, error) {
 			// smear or skip) and overtakes the transcriber's commit frontier,
 			// after which every cue lookup misses and subtitles stop. It must
 			// not be exactly realtime either — see EncodeReadrate.
-			args = append(args,
-				"-readrate", EncodeReadrate,
-				"-readrate_initial_burst", strconv.Itoa(EncodeReadrateBurstSeconds),
-			)
+			args = append(args, pacing{
+				readrate: EncodeReadrate,
+				burst:    strconv.Itoa(EncodeReadrateBurstSeconds),
+			}.args()...)
 		}
 		args = append(args, "-f", opts.PipeFormat, "-i", "pipe:0")
 	} else {
-		// Serving a deleting HLS window (see hlsOutputArgs) requires realtime
-		// pacing: unpaced, ffmpeg copies a VOD file at wire speed and its
-		// delete_segments window rolls off the segments faster than the device
-		// plays them at 1x, so only the tail is ever fetchable. Read at wall-clock
-		// speed with an initial burst that fills the window once, so the device
-		// prebuffers and then stays in lockstep. A genuinely live source already
-		// arrives at 1x, so this neither helps nor hurts it. The single-file mp4
-		// remux is spooled from byte 0 by the replay server and must stay unpaced.
-		if opts.OutputFormat == hlsMuxer {
-			args = append(args,
-				"-readrate", hlsPaceReadrate,
-				"-readrate_initial_burst", strconv.Itoa(hlsWindowSeconds),
-			)
+		// This reader may run at wire speed, since its output is either
+		// replay-spooled from byte 0 or a rolling window, so it paces only where
+		// running fast would hurt:
+		//
+		//   - a deleting HLS output window (see hlsOutputArgs) must be produced at
+		//     exactly wall-clock speed, or the window rolls segments off faster than
+		//     the device plays them at 1x and only the tail is ever fetchable; its
+		//     burst fills the window once so the device can prebuffer first;
+		//   - a segmented source is read at the pace its nature calls for, since
+		//     wire speed against a segmented CDN is a request storm (see segmented).
+		var pace pacing
+		switch {
+		case opts.OutputFormat == hlsMuxer:
+			pace = pacingHLSWindow
+		case opts.Source.segmented():
+			pace = opts.Source.pacing()
 		}
-		args = append(args,
-			"-rw_timeout", strconv.FormatInt(opts.RWTimeoutMicros, 10),
-			"-reconnect", "1",
-			"-reconnect_streamed", "1",
-			"-reconnect_delay_max", "5",
-		)
-		args = append(args, media.HeaderArgs(opts.SourceHeaders)...)
-		args = append(args, containerInputArgs(opts.SourceContentType)...)
-		args = append(args, "-i", opts.SourceURL.String())
+		args = append(args, networkInputArgs(opts.Source, pace)...)
 	}
 
 	// Map the first video and first audio track explicitly. ffmpeg's default
@@ -319,13 +407,9 @@ const (
 	hlsSegmentSeconds = 4
 	// hlsListSize is how many segments the rolling playlist keeps on disk.
 	hlsListSize = 8
-	// hlsWindowSeconds is the on-disk window; it also sizes the realtime pacing
+	// hlsWindowSeconds is the on-disk window; it also sizes pacingHLSWindow's
 	// burst so the device can prebuffer one full window before pacing binds.
 	hlsWindowSeconds = hlsSegmentSeconds * hlsListSize
-	// hlsPaceReadrate reads the source at exactly wall-clock speed. Not the slight
-	// over-speed the pipe encode uses: the client consumes the deleting window at
-	// 1x, so any faster rolls the next-needed segment off the back before it asks.
-	hlsPaceReadrate = "1.0"
 )
 
 func hlsOutputArgs() []string {
@@ -341,21 +425,11 @@ func hlsOutputArgs() []string {
 	}
 }
 
-// Pull pacing per source nature. VOD bursts at wire speed then 2x
-// realtime. Live can't be outrun — the same burst trips rate limits.
-const (
-	pullReadrateVOD       = "2.0"
-	pullReadrateBurstVOD  = "90"
-	pullReadrateLive      = "1.0"
-	pullReadrateBurstLive = "0"
-)
-
 // PullOptions configures the single upstream reader's command line.
 type PullOptions struct {
-	SourceURL         *url.URL
-	SourceHeaders     http.Header
-	SourceContentType string // MIME type of SourceURL; selects container-specific input flags
-	RWTimeoutMicros   int64
+	// Source is the upstream to download, read exactly as the served remux
+	// reads its own (same reconnect policy, headers, container flags, pacing).
+	Source NetworkSource
 
 	// Verbose selects -loglevel verbose (playlist/segment URLs, connection
 	// lines) instead of the default warning level.
@@ -366,9 +440,6 @@ type PullOptions struct {
 	PCM bool
 	// PCMSampleRate is the audio sample rate for the PCM output.
 	PCMSampleRate int
-
-	// Live selects live pacing (see pullReadrate constants) instead of VOD.
-	Live bool
 }
 
 // PullArgs assembles the upstream download command line: a codec-copy remux
@@ -388,29 +459,12 @@ func PullArgs(opts PullOptions) []string {
 		logLevel = "verbose"
 	}
 
-	args := []string{
-		"-nostats",
-		"-loglevel", logLevel,
-		"-rw_timeout", strconv.FormatInt(opts.RWTimeoutMicros, 10),
-		"-reconnect", "1",
-		"-reconnect_streamed", "1",
-		// Treat HTTP 429 as a reconnect trigger so ffmpeg's exponential
-		// backoff (capped at 60 s) absorbs rate limiting instead of the
-		// HLS demuxer spinning through failed segment numbers at wire
-		// speed and keeping the IP tarpitted.
-		"-reconnect_delay_max", "60",
-		"-reconnect_on_http_error", "429",
-	}
+	args := []string{"-nostats", "-loglevel", logLevel}
 
-	readrate, burst := pullReadrateVOD, pullReadrateBurstVOD
-	if opts.Live {
-		readrate, burst = pullReadrateLive, pullReadrateBurstLive
-	}
-	args = append(args, "-readrate", readrate, "-readrate_initial_burst", burst)
-
-	args = append(args, media.HeaderArgs(opts.SourceHeaders)...)
-	args = append(args, containerInputArgs(opts.SourceContentType)...)
-	args = append(args, "-i", opts.SourceURL.String())
+	// The pull always paces, whatever the container: it buffers a whole title
+	// into a spool the encoder tails, so running further ahead than the source's
+	// own pace buys nothing and only spends the origin's patience.
+	args = append(args, networkInputArgs(opts.Source, opts.Source.pacing())...)
 
 	// Output 1: codec-copy remux to MPEG-TS on stdout → spool. mpegts is the
 	// right spool format because it is strictly append-only (no trailer or
