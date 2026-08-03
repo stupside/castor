@@ -24,6 +24,7 @@
 package pipeline
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -99,13 +100,14 @@ func passthrough(ctx context.Context, dev device.Device, source *media.Stream) e
 // can replay from 0; a segmented (HLS) remux is packaged into a directory the HLS
 // server fronts.
 func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.Device, source *media.Stream, localIP string) error {
-	// The header keys are why a renderer that accepts the source container is
-	// being served one instead.
+	// The header keys, or a configured preference, are why a renderer that accepts
+	// the source container is being served one instead.
 	slog.InfoContext(ctx, "execution plan",
 		"delivery", "remux",
 		"output_content_type", plan.OutputContentType,
 		"source_content_type", source.ContentType,
 		"source_header_keys", slices.Sorted(maps.Keys(source.Headers)),
+		"configured_delivery", cmp.Or(cfg.Delivery, core.DeliveryAuto),
 	)
 
 	workDir, err := os.MkdirTemp("", "castor-")

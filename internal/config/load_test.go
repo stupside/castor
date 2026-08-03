@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stupside/castor/internal/cast/core"
 )
 
 func TestLoadMissingFileWithEnvVars(t *testing.T) {
@@ -104,8 +106,65 @@ func TestLoadHostPinsDeviceWithoutName(t *testing.T) {
 	if cfg.Device.Host != "192.168.0.3" {
 		t.Errorf("device.host = %q, want 192.168.0.3", cfg.Device.Host)
 	}
-	if got := cfg.Cast().Device.Address; got != "192.168.0.3" {
+	if got := cfg.Playback().Device.Address; got != "192.168.0.3" {
 		t.Errorf("host should resolve onto device.Config.Address, got %q", got)
+	}
+}
+
+// TestLoadCastDelivery covers the one cast decision the operator owns, from both
+// layers that matter for it: the file, and the environment, which is the reason
+// it is a config key rather than a CLI flag (CASTOR_CAST__DELIVERY=serve makes it
+// a one-off, and works in a container where a flag does not).
+func TestLoadCastDelivery(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(base, []byte("device:\n  name: tv\n  type: chromecast\ncast:\n  delivery: serve\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Playback().Delivery; got != core.DeliveryServe {
+		t.Errorf("cast.delivery should reach the cast config, got %q", got)
+	}
+
+	// Unset is auto: a cast nobody configured is decided from capabilities and
+	// the source alone.
+	plain := filepath.Join(dir, "plain.yaml")
+	if err := os.WriteFile(plain, []byte("device:\n  name: tv\n  type: chromecast\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Playback().Delivery; got == core.DeliveryServe {
+		t.Errorf("an unset cast.delivery must not force serving, got %q", got)
+	}
+
+	t.Setenv("CASTOR_CAST__DELIVERY", "serve")
+	cfg, err = Load(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Playback().Delivery; got != core.DeliveryServe {
+		t.Errorf("CASTOR_CAST__DELIVERY should reach the cast config, got %q", got)
+	}
+}
+
+// TestLoadCastDeliveryRejectsUnknownMode is what the enum buys over a bool: a
+// typo fails at load with a validation error instead of silently meaning auto.
+func TestLoadCastDeliveryRejectsUnknownMode(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(base, []byte("device:\n  name: tv\n  type: chromecast\ncast:\n  delivery: relay\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Load(base); err == nil {
+		t.Fatal("an unknown cast.delivery mode should fail validation")
 	}
 }
 

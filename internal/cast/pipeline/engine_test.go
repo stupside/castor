@@ -146,7 +146,7 @@ func TestRunHeaderGatedSourceIsServed(t *testing.T) {
 		},
 		drain: true,
 	}
-	runServed(t, dev, device.TypeChromecast, source, ffmpegPath, ffprobePath)
+	runServed(t, dev, castConfig(device.TypeChromecast, ffmpegPath, ffprobePath), source)
 	assertServed(t, dev, media.MP4, source.URL.String())
 }
 
@@ -180,7 +180,7 @@ func TestRunServeHeaderGatedHLS(t *testing.T) {
 		drain: true,
 		tee:   served,
 	}
-	runServed(t, dev, device.TypeChromecast, source, ffmpegPath, ffprobePath)
+	runServed(t, dev, castConfig(device.TypeChromecast, ffmpegPath, ffprobePath), source)
 	assertServed(t, dev, media.MP4, source.URL.String())
 
 	if err := served.Close(); err != nil {
@@ -194,6 +194,33 @@ func TestRunServeHeaderGatedHLS(t *testing.T) {
 		t.Errorf("served stream = %q/%q, want h264/aac: the point of serving is that the renderer receives a well-formed stream",
 			info.VideoCodec, info.AudioCodec)
 	}
+}
+
+// TestRunConfiguredServeIsServed covers the operator's override reaching the
+// executor: the source needs no headers and the renderer takes its container, so
+// the rule alone would pass it through. Configured serve relays it instead, which
+// is the escape hatch for a source castor has no way to convict.
+func TestRunConfiguredServeIsServed(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+
+	origin := serveFixture(t, ffmpegPath)
+	source := origin.stream()
+
+	dev := &fakeDevice{
+		caps: media.Renderer{
+			SelfFetch:       true,
+			Containers:      []string{media.MP4}, // takes the source container
+			ServedContainer: media.MP4,
+			Audio:           []media.AudioSupport{{Codec: media.CodecAAC, MaxChannels: 2}},
+		},
+		drain: true,
+	}
+
+	cfg := castConfig(device.TypeChromecast, ffmpegPath, ffprobePath)
+	cfg.Delivery = core.DeliveryServe
+
+	runServed(t, dev, cfg, source)
+	assertServed(t, dev, media.MP4, source.URL.String())
 }
 
 // TestRunServeRemux is the network-remux branch: a self-fetching renderer that
@@ -217,7 +244,7 @@ func TestRunServeRemux(t *testing.T) {
 		},
 		drain: true,
 	}
-	runServed(t, dev, device.TypeChromecast, source, ffmpegPath, ffprobePath)
+	runServed(t, dev, castConfig(device.TypeChromecast, ffmpegPath, ffprobePath), source)
 	assertServed(t, dev, media.MP4, source.URL.String())
 }
 
@@ -239,7 +266,7 @@ func TestRunServeSpool(t *testing.T) {
 		},
 		drain: true,
 	}
-	runServed(t, dev, device.TypeDLNA, source, ffmpegPath, ffprobePath)
+	runServed(t, dev, castConfig(device.TypeDLNA, ffmpegPath, ffprobePath), source)
 	assertServed(t, dev, mpegtsContentType, source.URL.String())
 }
 
@@ -266,11 +293,7 @@ func TestRunServeHLS(t *testing.T) {
 			Audio:           []media.AudioSupport{{Codec: media.CodecAAC, MaxChannels: 2}},
 		},
 	}
-	cfg := core.Config{
-		Device:    core.DeviceConfig{Type: device.TypeChromecast}, // any self-fetch type
-		Transcode: core.TranscodeConfig{FFmpegPath: ffmpegPath, RWTimeout: 30 * time.Second},
-		Resolver:  resolve.Config{FFprobePath: ffprobePath, MaxHeight: 1080},
-	}
+	cfg := castConfig(device.TypeChromecast, ffmpegPath, ffprobePath) // any self-fetch type
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -310,18 +333,24 @@ func TestRunServeHLS(t *testing.T) {
 	}
 }
 
-// runServed drives Run for a served plan under a bounded context (a wedged
-// ffmpeg fails the test instead of hanging the suite) and fails on any error.
-func runServed(t *testing.T, dev *fakeDevice, deviceType device.Type, source *media.Stream, ffmpegPath, ffprobePath string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	cfg := core.Config{
+// castConfig is the configuration a served-path test runs on: the device family
+// (which fixes the connect timing) plus the real ffmpeg tools. A test that needs
+// to vary an axis takes this and edits the field it cares about.
+func castConfig(deviceType device.Type, ffmpegPath, ffprobePath string) core.Config {
+	return core.Config{
 		Device:    core.DeviceConfig{Type: deviceType},
 		Transcode: core.TranscodeConfig{FFmpegPath: ffmpegPath, RWTimeout: 30 * time.Second},
 		Resolver:  resolve.Config{FFprobePath: ffprobePath, MaxHeight: 1080},
 	}
+}
+
+// runServed drives Run for a served plan under a bounded context (a wedged
+// ffmpeg fails the test instead of hanging the suite) and fails on any error.
+func runServed(t *testing.T, dev *fakeDevice, cfg core.Config, source *media.Stream) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
 	if err := Run(ctx, cfg, connectTo(dev), source, "127.0.0.1"); err != nil {
 		t.Fatalf("Run served: %v", err)
 	}

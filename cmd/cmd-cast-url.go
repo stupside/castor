@@ -40,7 +40,7 @@ func (a *app) castURLCommand() *cli.Command {
 			}
 
 			stream := &media.Stream{URL: urlObj, ContentType: media.DetectFromExtension(urlObj)}
-			return cast.Play(ctx, cfg.Cast(), stream)
+			return cast.Play(ctx, cfg.Playback(), stream)
 		},
 	}
 }

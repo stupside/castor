@@ -41,6 +41,7 @@ func TestNewPlan(t *testing.T) {
 		caps          media.Renderer
 		sourceCT      string
 		sourceHeaders http.Header
+		preference    DeliveryPreference
 		whisper       bool
 		delivery      DeliveryMode
 		subtitle      SubtitleMode
@@ -96,6 +97,32 @@ func TestNewPlan(t *testing.T) {
 			delivery: DeliverPassthrough,
 			subtitle: SubtitleOff,
 			outputCT: "",
+		},
+		{
+			// The operator's override, for a source nothing else convicts: it needs
+			// no headers and the renderer takes the container, yet the receiver
+			// refuses it (segments served under a disguised extension). Configured
+			// serve relays it anyway.
+			name:       "configured serve overrides an otherwise pass-through cast",
+			caps:       caps(true, media.HLS, media.MP4),
+			sourceCT:   media.HLS,
+			preference: DeliveryServe,
+			whisper:    false,
+			delivery:   DeliverServe,
+			subtitle:   SubtitleOff,
+			outputCT:   media.MP4,
+		},
+		{
+			// The explicit default reads like no key at all: nothing is overridden
+			// and the pass-through rule decides.
+			name:       "configured auto leaves the decision to the rule",
+			caps:       caps(true, media.HLS, media.MP4),
+			sourceCT:   media.HLS,
+			preference: DeliveryAuto,
+			whisper:    false,
+			delivery:   DeliverPassthrough,
+			subtitle:   SubtitleOff,
+			outputCT:   "",
 		},
 		{
 			// Chromecast remux: self-fetches but rejects the source container, so
@@ -181,7 +208,7 @@ func TestNewPlan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			source := &media.Stream{ContentType: tt.sourceCT, Headers: tt.sourceHeaders}
-			cfg := Config{Whisper: subtitle.Whisper{Enable: tt.whisper}}
+			cfg := Config{Whisper: subtitle.Whisper{Enable: tt.whisper}, Delivery: tt.preference}
 
 			plan := NewPlan(source, tt.caps, cfg)
 

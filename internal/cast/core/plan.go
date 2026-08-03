@@ -4,6 +4,27 @@ import (
 	"github.com/stupside/castor/internal/media"
 )
 
+// DeliveryPreference is what the operator asks of the delivery axis, as opposed
+// to DeliveryMode, which is what the planner decided. It exists for the one case
+// castor cannot infer: a source that lies about itself (a playlist whose segments
+// are served under a disguised extension, say) is fetchable as far as castor can
+// tell, yet the renderer refuses it. No evidence distinguishes that source from a
+// well-formed one, so only the operator can say.
+//
+// Nothing else about a cast is configurable this way on purpose. Every other axis
+// is inferred from evidence castor holds (a probe, advertised capabilities), and a
+// renderer that misbehaves there is a capability-data fix, not a knob.
+type DeliveryPreference string
+
+const (
+	// DeliveryAuto leaves the decision to ResolveDelivery. It is also what an
+	// unset key means, so the zero value needs no default.
+	DeliveryAuto DeliveryPreference = "auto"
+	// DeliveryServe refuses pass-through for every cast: castor reads the source
+	// and serves the renderer a local stream, whatever the source looks like.
+	DeliveryServe DeliveryPreference = "serve"
+)
+
 // DeliveryMode is how the renderer receives the stream bytes: it either fetches
 // the source URL itself (pass-through) or castor produces a stream locally and
 // serves it. This is the first axis of a Plan; the copy-vs-encode and subtitle
@@ -72,7 +93,7 @@ type Plan struct {
 // obtains (the source URL for a network remux, the local spool for the read-once
 // spool path), which is why nothing about the encode lives on the Plan.
 func NewPlan(source *media.Stream, caps media.Renderer, cfg Config) Plan {
-	delivery := ResolveDelivery(caps, source)
+	delivery := ResolveDelivery(caps, source, cfg)
 	return Plan{
 		Delivery:          delivery,
 		Subtitle:          ResolveSubtitle(caps, cfg),

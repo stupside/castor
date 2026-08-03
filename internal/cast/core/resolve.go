@@ -19,9 +19,16 @@ import (
 //   - the renderer already accepts the source container, so there is nothing to
 //     rewrap.
 //
-// It is decided purely from data: capabilities on one side, the source on the
-// other, no I/O and no device family.
-func ResolveDelivery(caps media.Renderer, source *media.Stream) DeliveryMode {
+// Configured DeliveryServe skips the question: it is the operator's answer for a
+// source none of the evidence above can convict (see DeliveryPreference). Every
+// other value, including the unset one, leaves the decision here.
+//
+// It is otherwise decided purely from data: capabilities on one side, the source
+// on the other, no I/O and no device family.
+func ResolveDelivery(caps media.Renderer, source *media.Stream, cfg Config) DeliveryMode {
+	if cfg.Delivery == DeliveryServe {
+		return DeliverServe
+	}
 	if caps.SelfFetch && source.SelfFetchable() && caps.AcceptsContainer(source.ContentType) {
 		return DeliverPassthrough
 	}

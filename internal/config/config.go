@@ -17,6 +17,7 @@ import (
 
 type Config struct {
 	Device    DeviceConfig          `yaml:"device" validate:"required"`
+	Cast      CastConfig            `yaml:"cast"`
 	Network   cast.NetworkConfig    `yaml:"network" validate:"required"`
 	Browser   extract.BrowserConfig `yaml:"browser" validate:"required"`
 	Capture   extract.CaptureConfig `yaml:"capture" validate:"required"`
@@ -33,6 +34,20 @@ type Config struct {
 // intentionally not marked required here.
 type TMDB struct {
 	APIKey string `yaml:"api_key"`
+}
+
+// CastConfig is the cast-behaviour section: the decisions castor cannot infer
+// and so leaves to the operator. It holds exactly one axis today, and the bar for
+// a second is high — every other decision the pipeline makes is derived from a
+// probe or from advertised capabilities, where a knob would bury a bug rather
+// than fix it.
+type CastConfig struct {
+	// Delivery forces castor to relay the stream ("serve") instead of deciding
+	// per source ("auto", the default). Set it for a source that a renderer
+	// refuses even though nothing about it looks unfetchable, e.g. an HLS
+	// playlist whose segments are served under a disguised extension. It costs
+	// this machine's bandwidth and CPU on every cast, which is why it is opt-in.
+	Delivery core.DeliveryPreference `yaml:"delivery" validate:"omitempty,oneof=auto serve"`
 }
 
 // DeviceConfig is the composition-root device section: the generic cast target
@@ -65,7 +80,9 @@ func (d DeviceConfig) resolve() device.Config {
 	return cfg
 }
 
-func (c *Config) Cast() cast.Config {
+// Playback assembles the configuration a cast runs on, collapsing this root's
+// sections into the domain types the cast layer consumes.
+func (c *Config) Playback() cast.Config {
 	return cast.Config{
 		Config: core.Config{
 			Device:    c.Device.resolve(),
@@ -73,6 +90,7 @@ func (c *Config) Cast() cast.Config {
 			Transcode: c.Transcode,
 			Resolver:  c.Resolver,
 			Whisper:   c.Whisper,
+			Delivery:  c.Cast.Delivery,
 		},
 	}
 }
