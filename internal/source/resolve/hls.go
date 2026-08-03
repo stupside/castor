@@ -21,17 +21,29 @@ type hlsVariant struct {
 	Bandwidth int64
 	Height    int // display height from RESOLUTION; 0 when the master omits it
 
+	// AudioGroup is the GROUP-ID this variant plays its audio from, empty when
+	// the audio is muxed into the variant's own segments. A master that names a
+	// group publishes the audio as a separate rendition (see hlsMaster.Audio),
+	// so the variant alone is video and silence.
+	AudioGroup string
+
 	// HasVideo reports whether the variant carries video. A master may list an
 	// audio-only rendition as a variant of its own, which must never be picked
 	// as the thing to cast.
 	HasVideo bool
 }
 
-// hlsMaster is a parsed HLS document reduced to what selection needs. A media
+// hlsMaster is a parsed HLS document reduced to what selection needs: the
+// variants to choose between and the audio renditions they reference. A media
 // playlist reduces to a single synthetic variant, so callers treat both shapes
 // uniformly.
 type hlsMaster struct {
 	Variants []hlsVariant
+
+	// Audio maps an audio GROUP-ID to the rendition to play from it. Only groups
+	// whose rendition has its own URI appear: a rendition without one is carried
+	// inside the variant's segments and needs no separate read.
+	Audio map[string]*url.URL
 
 	// Live reports that the document is a media playlist with no
 	// #EXT-X-ENDLIST, i.e. a live edge. It is always false for a master
@@ -39,6 +51,10 @@ type hlsMaster struct {
 	// must not read false as "VOD" in that case.
 	Live bool
 }
+
+// AudioFor returns the rendition URL a variant reads its audio from, or nil when
+// the variant's own segments carry it.
+func (m hlsMaster) AudioFor(v hlsVariant) *url.URL { return m.Audio[v.AudioGroup] }
 
 // fetchPlaylist fetches an HLS playlist and returns its body.
 func fetchPlaylist(ctx context.Context, hlsTimeout time.Duration, url *url.URL, headers http.Header) (string, error) {
@@ -66,15 +82,17 @@ func fetchPlaylist(ctx context.Context, hlsTimeout time.Duration, url *url.URL, 
 	return string(body), nil
 }
 
-// parsePlaylist decodes an HLS document into the variants it offers, resolving
-// every URI against baseURL.
+// parsePlaylist decodes an HLS document into the variants it offers and the
+// audio renditions they reference, resolving every URI against baseURL.
 //
 // The document is decoded by m3u8, not by us: the tag grammar is a spec surface
 // (quoted attribute values carrying the same comma that separates attributes,
-// I-frame variants that state their URI inline as an attribute) and reading it
-// line by line gets those subtly wrong. Decoding is non-strict so a real-world
-// playlist with an unknown tag still parses. What stays here is only the part
-// that is castor's policy rather than the format's.
+// I-frame variants that state their URI inline, renditions declared before or
+// after the variants that use them), and hand-reading it line by line gets those
+// subtly wrong in ways that surface as a cast with no sound. Decoding is
+// non-strict so a real-world playlist with an unknown tag still parses. What
+// stays here is only the part that is castor's policy rather than the format's:
+// which variants are castable, and which rendition their audio comes from.
 func parsePlaylist(body string, baseURL *url.URL) (hlsMaster, error) {
 	playlist, _, err := m3u8.DecodeFrom(strings.NewReader(body), false)
 	if err != nil {
@@ -93,7 +111,8 @@ func parsePlaylist(body string, baseURL *url.URL) (hlsMaster, error) {
 	}
 }
 
-// masterFrom reduces a decoded master to the variants castor can cast.
+// masterFrom reduces a decoded master to the variants castor can cast and the
+// audio renditions they reference.
 func masterFrom(playlist *m3u8.MasterPlaylist, baseURL *url.URL) hlsMaster {
 	var out hlsMaster
 	for _, variant := range playlist.Variants {
@@ -109,14 +128,45 @@ func masterFrom(playlist *m3u8.MasterPlaylist, baseURL *url.URL) hlsMaster {
 		if err != nil {
 			continue
 		}
+
 		out.Variants = append(out.Variants, hlsVariant{
-			URL:       variantURL,
-			Bandwidth: int64(variant.Bandwidth),
-			Height:    resolutionHeight(variant.Resolution),
-			HasVideo:  carriesVideo(variant),
+			URL:        variantURL,
+			Bandwidth:  int64(variant.Bandwidth),
+			Height:     resolutionHeight(variant.Resolution),
+			AudioGroup: variant.Audio,
+			HasVideo:   carriesVideo(variant),
 		})
+
+		// Renditions are attached to the variant that follows them, so a master
+		// that declares its groups once up front hangs them all off its first
+		// variant. Collecting from every variant is what makes the group map
+		// whole regardless of where they were declared.
+		for _, alternative := range variant.Alternatives {
+			out.addRendition(alternative, baseURL)
+		}
 	}
 	return out
+}
+
+// addRendition records an audio rendition that has a URI of its own. One without
+// a URI is muxed into the variants that reference it, so there is nothing extra
+// to read. Within a group, DEFAULT=YES wins over the first seen, which is the
+// rendition a player picks with no preference of its own.
+func (m *hlsMaster) addRendition(alternative *m3u8.Alternative, baseURL *url.URL) {
+	if alternative == nil || alternative.Type != "AUDIO" || alternative.GroupId == "" || alternative.URI == "" {
+		return
+	}
+	renditionURL, err := baseURL.Parse(alternative.URI)
+	if err != nil {
+		return
+	}
+	if _, seen := m.Audio[alternative.GroupId]; seen && !alternative.Default {
+		return
+	}
+	if m.Audio == nil {
+		m.Audio = make(map[string]*url.URL)
+	}
+	m.Audio[alternative.GroupId] = renditionURL
 }
 
 // carriesVideo reports whether a variant has video to cast. Positive evidence is

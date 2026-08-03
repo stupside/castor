@@ -31,16 +31,26 @@ func Resolve(ctx context.Context, cfg Config, stream *media.Stream) (*media.Stre
 		if err != nil {
 			slog.WarnContext(ctx, "HLS playlist resolution failed, using original", "error", err)
 		} else {
-			stream.URL = pickVariant(master.Variants, cfg.MaxHeight).URL
+			variant := pickVariant(master.Variants, cfg.MaxHeight)
+			stream.URL = variant.URL
+			// A master that publishes audio as its own rendition leaves the chosen
+			// variant carrying video only. Narrowing to that variant and stopping
+			// there is how a cast ends up silent, or dies mapping an audio track
+			// that isn't there, so the rendition travels with it.
+			stream.AudioURL = master.AudioFor(variant)
 			stream.Live = stream.Live || master.Live
+			if stream.AudioURL != nil {
+				slog.InfoContext(ctx, "source publishes audio separately; both renditions will be read",
+					"video", stream.URL.String(), "audio", stream.AudioURL.String())
+			}
 		}
 	}
 
 	return stream, nil
 }
 
-// readPlaylist fetches an HLS document and reduces it to the variants selection
-// works on.
+// readPlaylist fetches an HLS document and reduces it to the variants and audio
+// renditions selection works on.
 func readPlaylist(ctx context.Context, cfg Config, stream *media.Stream) (hlsMaster, error) {
 	body, err := fetchPlaylist(ctx, cfg.HLSTimeout, stream.URL, stream.Headers)
 	if err != nil {
@@ -180,6 +190,7 @@ func RankStreams(ctx context.Context, cfg Config, streams []*media.Stream) (*med
 			info, err := probeStream(ctx, cfg.FFprobePath, cfg.ProbeTimeout, s.URL, s.Headers)
 			out := &media.Stream{
 				URL:         s.URL,
+				AudioURL:    s.AudioURL,
 				Headers:     s.Headers,
 				ContentType: s.ContentType,
 				Bandwidth:   s.Bandwidth,
