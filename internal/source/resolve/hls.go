@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/grafov/m3u8"
 )
 
 // hlsVariant is a single variant stream listed in an HLS master playlist.
@@ -17,6 +19,19 @@ type hlsVariant struct {
 	URL       *url.URL
 	Bandwidth int64
 	Height    int // display height from RESOLUTION; 0 when the master omits it
+}
+
+// hlsMaster is a parsed HLS document reduced to what selection needs. A media
+// playlist reduces to a single synthetic variant, so callers treat both shapes
+// uniformly.
+type hlsMaster struct {
+	Variants []hlsVariant
+
+	// Live reports that the document is a media playlist with no
+	// #EXT-X-ENDLIST, i.e. a live edge. It is always false for a master
+	// playlist: the master carries no endlist signal of its own, so callers
+	// must not read false as "VOD" in that case.
+	Live bool
 }
 
 // fetchPlaylist fetches an HLS playlist and returns its body.
@@ -45,70 +60,68 @@ func fetchPlaylist(ctx context.Context, hlsTimeout time.Duration, url *url.URL, 
 	return string(body), nil
 }
 
-// parsePlaylist parses an HLS playlist body and returns its variants.
-// For a media playlist (no #EXT-X-STREAM-INF) it returns a single variant
-// with the base URL and zero bandwidth — the caller can treat that uniformly.
+// parsePlaylist decodes an HLS document into the variants it offers, resolving
+// every URI against baseURL.
 //
-// The live result reports whether the document is a media playlist with no
-// #EXT-X-ENDLIST, i.e. a live edge. It is always false for a master
-// playlist: the master carries no endlist signal of its own, so callers
-// must not read false as "VOD" in that case.
-func parsePlaylist(body string, baseURL *url.URL) ([]hlsVariant, bool) {
-	var (
-		endlist       bool
-		variants      []hlsVariant
-		nextIsURL     bool
-		currentBW     int64
-		currentHeight int
-	)
-	for line := range strings.Lines(body) {
-		line = strings.TrimRight(line, "\n\r")
-		if line == "" {
-			continue
-		}
-
-		if nextIsURL {
-			nextIsURL = false
-			if strings.HasPrefix(line, "#") {
-				continue
-			}
-			variantURL, err := baseURL.Parse(line)
-			if err != nil {
-				continue
-			}
-			variants = append(variants, hlsVariant{URL: variantURL, Bandwidth: currentBW, Height: currentHeight})
-			continue
-		}
-
-		if line == "#EXT-X-ENDLIST" {
-			endlist = true
-			continue
-		}
-
-		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
-			currentBW, currentHeight = 0, 0
-			if _, attrs, ok := strings.Cut(line, ":"); ok {
-				for attr := range strings.SplitSeq(attrs, ",") {
-					k, v, ok := strings.Cut(attr, "=")
-					if !ok {
-						continue
-					}
-					switch k {
-					case "BANDWIDTH":
-						currentBW, _ = strconv.ParseInt(v, 10, 64)
-					case "RESOLUTION":
-						if _, h, ok := strings.Cut(v, "x"); ok {
-							currentHeight, _ = strconv.Atoi(h)
-						}
-					}
-				}
-			}
-			nextIsURL = true
-		}
+// The document is decoded by m3u8, not by us: the tag grammar is a spec surface
+// (quoted attribute values carrying the same comma that separates attributes,
+// I-frame variants that state their URI inline as an attribute) and reading it
+// line by line gets those subtly wrong. Decoding is non-strict so a real-world
+// playlist with an unknown tag still parses. What stays here is only the part
+// that is castor's policy rather than the format's.
+func parsePlaylist(body string, baseURL *url.URL) (hlsMaster, error) {
+	playlist, _, err := m3u8.DecodeFrom(strings.NewReader(body), false)
+	if err != nil {
+		return hlsMaster{}, fmt.Errorf("decoding playlist: %w", err)
 	}
 
-	if len(variants) == 0 {
-		return []hlsVariant{{URL: baseURL, Bandwidth: 0}}, !endlist
+	switch p := playlist.(type) {
+	case *m3u8.MediaPlaylist:
+		// The document is itself the thing to read, and it is the one shape that
+		// reports its own liveness: no #EXT-X-ENDLIST means a live edge.
+		return hlsMaster{Variants: []hlsVariant{{URL: baseURL}}, Live: !p.Closed}, nil
+	case *m3u8.MasterPlaylist:
+		return masterFrom(p, baseURL), nil
+	default:
+		return hlsMaster{}, fmt.Errorf("unsupported playlist type %T", playlist)
 	}
-	return variants, false
+}
+
+// masterFrom reduces a decoded master to the variants castor can cast.
+func masterFrom(playlist *m3u8.MasterPlaylist, baseURL *url.URL) hlsMaster {
+	var out hlsMaster
+	for _, variant := range playlist.Variants {
+		if variant == nil {
+			continue
+		}
+		// An I-frame playlist is a trick-play track: keyframes only, no audio,
+		// never something to cast.
+		if variant.Iframe {
+			continue
+		}
+		variantURL, err := baseURL.Parse(variant.URI)
+		if err != nil {
+			continue
+		}
+		out.Variants = append(out.Variants, hlsVariant{
+			URL:       variantURL,
+			Bandwidth: int64(variant.Bandwidth),
+			Height:    resolutionHeight(variant.Resolution),
+		})
+	}
+	return out
+}
+
+// resolutionHeight reads the height out of a RESOLUTION attribute ("1920x1080"),
+// returning 0 when the master omits or malforms it.
+func resolutionHeight(resolution string) int {
+	_, height, ok := strings.Cut(resolution, "x")
+	if !ok {
+		return 0
+	}
+	h, err := strconv.Atoi(height)
+	if err != nil {
+		return 0
+	}
+	return h
 }

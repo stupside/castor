@@ -27,17 +27,26 @@ func Resolve(ctx context.Context, cfg Config, stream *media.Stream) (*media.Stre
 	}
 
 	if stream.ContentType == media.HLS {
-		body, err := fetchPlaylist(ctx, cfg.HLSTimeout, stream.URL, stream.Headers)
+		master, err := readPlaylist(ctx, cfg, stream)
 		if err != nil {
 			slog.WarnContext(ctx, "HLS playlist resolution failed, using original", "error", err)
 		} else {
-			variants, live := parsePlaylist(body, stream.URL)
-			stream.URL = pickVariant(variants, cfg.MaxHeight).URL
-			stream.Live = stream.Live || live
+			stream.URL = pickVariant(master.Variants, cfg.MaxHeight).URL
+			stream.Live = stream.Live || master.Live
 		}
 	}
 
 	return stream, nil
+}
+
+// readPlaylist fetches an HLS document and reduces it to the variants selection
+// works on.
+func readPlaylist(ctx context.Context, cfg Config, stream *media.Stream) (hlsMaster, error) {
+	body, err := fetchPlaylist(ctx, cfg.HLSTimeout, stream.URL, stream.Headers)
+	if err != nil {
+		return hlsMaster{}, err
+	}
+	return parsePlaylist(body, stream.URL)
 }
 
 // pickVariant chooses which HLS variant to pull: the highest-bandwidth one no
@@ -231,13 +240,12 @@ func ListStreams(ctx context.Context, cfg Config, streams []*media.Stream) []Str
 	var details []StreamDetail
 	for _, s := range streams {
 		if s.ContentType == media.HLS {
-			body, err := fetchPlaylist(ctx, cfg.HLSTimeout, s.URL, s.Headers)
+			master, err := readPlaylist(ctx, cfg, s)
 			if err != nil {
 				slog.WarnContext(ctx, "HLS variant resolution failed", "url", s.URL, "error", err)
 				continue
 			}
-			variants, _ := parsePlaylist(body, s.URL)
-			for _, v := range variants {
+			for _, v := range master.Variants {
 				info, err := probeStream(ctx, cfg.FFprobePath, cfg.ProbeTimeout, v.URL, s.Headers)
 				if err != nil {
 					slog.WarnContext(ctx, "probe failed", "url", v.URL, "error", err)

@@ -13,6 +13,7 @@ require (
 	github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-00010101000000-000000000000
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/go-viper/mapstructure/v2 v2.5.0
+	github.com/grafov/m3u8 v0.12.1
 	github.com/huin/goupnp v1.3.0
 	github.com/icholy/digest v1.1.0
 	github.com/knadh/koanf/parsers/yaml v1.1.0

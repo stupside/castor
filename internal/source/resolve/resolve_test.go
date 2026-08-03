@@ -56,21 +56,24 @@ func TestParsePlaylist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	variants, live := parsePlaylist(body, u)
-	if live {
+	master, err := parsePlaylist(body, u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if master.Live {
 		t.Error("master playlist should not report live")
 	}
 	want := []int{480, 1080, 2160}
-	if len(variants) != len(want) {
-		t.Fatalf("got %d variants, want %d", len(variants), len(want))
+	if len(master.Variants) != len(want) {
+		t.Fatalf("got %d variants, want %d", len(master.Variants), len(want))
 	}
-	for i, v := range variants {
+	for i, v := range master.Variants {
 		if v.Height != want[i] {
 			t.Errorf("variant %d height = %d, want %d (RESOLUTION not parsed)", i, v.Height, want[i])
 		}
 	}
 	// The cap steers selection end to end.
-	if got := pickVariant(variants, 1080).URL.Path; got != "/1080.m3u8" {
+	if got := pickVariant(master.Variants, 1080).URL.Path; got != "/1080.m3u8" {
 		t.Errorf("pickVariant(1080) = %q, want /1080.m3u8", got)
 	}
 }
