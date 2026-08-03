@@ -48,6 +48,27 @@ func TestStreamInfoPlayable(t *testing.T) {
 	}
 }
 
+func TestStreamSelfFetchable(t *testing.T) {
+	cases := []struct {
+		name    string
+		headers http.Header
+		want    bool
+	}{
+		{"no headers: the URL is all a renderer needs", nil, true},
+		{"empty header set is still self-sufficient", http.Header{}, true},
+		{"header-gated: a renderer is handed none of these", http.Header{"Referer": {"https://player.example/"}}, false},
+		{"any captured header counts", http.Header{"User-Agent": {"x"}}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := &Stream{Headers: c.headers}
+			if got := s.SelfFetchable(); got != c.want {
+				t.Errorf("SelfFetchable() = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeStreamHeaders(t *testing.T) {
 	cases := []struct {
 		name string

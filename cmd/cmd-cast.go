@@ -118,5 +118,5 @@ func (a *app) handleStreams(ctx context.Context, cmd *cli.Command, streams []*me
 		return fmt.Errorf("ranking streams: %w", err)
 	}
 
-	return cast.Play(ctx, cfg.Cast(), best)
+	return cast.Play(ctx, cfg.Playback(), best)
 }

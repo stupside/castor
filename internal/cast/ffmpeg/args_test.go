@@ -2,10 +2,12 @@ package ffmpeg
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stupside/castor/internal/media"
 )
@@ -307,11 +309,10 @@ func TestEncodeArgsHLSOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	args, err := EncodeArgs(EncodeOptions{
-		SourceURL:         src,
-		SourceContentType: media.MKV,
-		OutputFormat:      "hls",
-		AudioCodec:        "aac",
-		AudioBitrate:      "256k",
+		Source:       NetworkSource{URL: src, ContentType: media.MKV},
+		OutputFormat: "hls",
+		AudioCodec:   "aac",
+		AudioBitrate: "256k",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -354,24 +355,96 @@ func TestEncodeArgsHLSOutput(t *testing.T) {
 	}
 }
 
-// TestEncodeArgsMP4RemuxUnpaced pins the asymmetry: the single-file mp4 network
-// remux is fronted by the replay-from-zero server (spooled), so it must NOT be
-// paced (only the deleting HLS window needs realtime pacing).
+// TestEncodeArgsMP4RemuxUnpaced pins the asymmetry: a single-file network source
+// is one long GET, and its mp4 remux is fronted by the replay-from-zero server
+// (spooled), so it must NOT be paced: it should complete as fast as the link
+// allows.
 func TestEncodeArgsMP4RemuxUnpaced(t *testing.T) {
 	src, err := url.Parse("http://example.test/in.mkv")
 	if err != nil {
 		t.Fatal(err)
 	}
 	args, err := EncodeArgs(EncodeOptions{
-		SourceURL:         src,
-		SourceContentType: media.MKV,
-		OutputFormat:      "mp4",
-		AudioCodec:        "aac",
+		Source:       NetworkSource{URL: src, ContentType: media.MKV},
+		OutputFormat: "mp4",
+		AudioCodec:   "aac",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if hasFlag(args, "-readrate") {
-		t.Error("the mp4 remux is replay-spooled from byte 0 and must not be paced")
+		t.Error("the mp4 remux of a single-file source is replay-spooled from byte 0 and must not be paced")
+	}
+}
+
+// TestNetworkReadersShareInputPolicy pins the invariant behind NetworkSource:
+// castor's two network readers open the same upstream with the same reconnect
+// policy, headers, container flags, and pacing.
+func TestNetworkReadersShareInputPolicy(t *testing.T) {
+	src, err := url.Parse("http://example.test/index.m3u8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := NetworkSource{
+		URL:         src,
+		Headers:     http.Header{"Referer": {"https://player.example/"}},
+		ContentType: media.HLS,
+		RWTimeout:   30 * time.Second,
+	}
+
+	remux, err := EncodeArgs(EncodeOptions{Source: source, OutputFormat: "mp4", AudioCodec: "aac"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pull := PullArgs(PullOptions{Source: source})
+
+	for _, flag := range []string{
+		"-rw_timeout", "-reconnect", "-reconnect_streamed",
+		"-reconnect_delay_max", "-reconnect_on_http_error",
+		"-headers", "-allowed_extensions", "-extension_picky",
+		"-readrate", "-readrate_initial_burst",
+	} {
+		if got, want := argValue(remux, flag), argValue(pull, flag); got != want {
+			t.Errorf("%s: remux = %q, pull = %q; both read the same upstream and must agree", flag, got, want)
+		}
+	}
+}
+
+// TestEncodeArgsHLSSourcePaced pins the other half of that rule: an HLS source is
+// fetched segment by segment from a rate-limiting CDN, so even the replay-spooled
+// mp4 remux paces its upstream read exactly like the puller does, rather than
+// pulling a whole movie as a segment burst and earning a 429.
+func TestEncodeArgsHLSSourcePaced(t *testing.T) {
+	src, err := url.Parse("http://example.test/index.m3u8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := EncodeOptions{
+		Source:       NetworkSource{URL: src, ContentType: media.HLS},
+		OutputFormat: "mp4",
+		AudioCodec:   "aac",
+	}
+
+	args, err := EncodeArgs(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := argValue(args, "-readrate"); got != pacingVOD.readrate {
+		t.Errorf("VOD readrate = %q, want %q (ahead of 1x playback, but not a wire-speed storm)", got, pacingVOD.readrate)
+	}
+	if got := argValue(args, "-readrate_initial_burst"); got != pacingVOD.burst {
+		t.Errorf("VOD burst = %q, want %q", got, pacingVOD.burst)
+	}
+
+	base.Source.Live = true
+	args, err = EncodeArgs(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := argValue(args, "-readrate"); got != pacingLive.readrate {
+		t.Errorf("live readrate = %q, want %q (a live source cannot be outrun)", got, pacingLive.readrate)
+	}
+	if got := argValue(args, "-readrate_initial_burst"); got != pacingLive.burst {
+		t.Errorf("live burst = %q, want %q", got, pacingLive.burst)
 	}
 }

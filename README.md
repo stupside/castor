@@ -153,6 +153,20 @@ sources:
 </details>
 
 <details>
+<summary><b>Cast</b>: force a local relay with <code>delivery</code></summary>
+
+Castor decides per source whether the device fetches the stream itself or Castor relays it: a source that only answers with the headers Castor captured is always relayed, since a device is handed the URL and none of those headers. A few sources look fetchable and are refused anyway, typically an HLS playlist whose segments are served under a disguised extension (`.jpg` with `image/jpeg`), which Castor reads fine but a Chromecast rejects, showing the idle Cast icon. Nothing in the stream reveals this, so `delivery: serve` is how you say it.
+
+```yaml
+cast:
+  delivery: serve   # always relay; "auto" (the default) decides per source
+```
+
+Relaying spends this machine's bandwidth and CPU on every cast, so try it as a one-off first: `CASTOR_CAST__DELIVERY=serve castor cast url <url>`. Any key works that way, e.g. `CASTOR_RESOLVER__MAX_HEIGHT=720`.
+
+</details>
+
+<details>
 <summary><b>Resolver</b>: cap resolution with <code>max_height</code></summary>
 
 Source selection and stream probing. All options have sensible defaults; you normally only set `max_height` to your TV's vertical resolution, which caps both the selected stream and the encoder output.

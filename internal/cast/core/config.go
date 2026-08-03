@@ -25,6 +25,11 @@ type Config struct {
 	Transcode TranscodeConfig
 	Resolver  resolve.Config
 
+	// Delivery is the operator's say over the delivery axis, read by
+	// ResolveDelivery. Unset (the zero value) means DeliveryAuto, so a cast
+	// nobody configured is decided entirely from capabilities and the source.
+	Delivery DeliveryPreference
+
 	// Whisper is the subtitle-transcription knob NewPlan reads to choose the
 	// subtitle axis (Enable gates burn-in). Its type lives in the cgo-free
 	// subtitle package, not the whisper transcriber, so this decision core carries

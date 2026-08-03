@@ -18,6 +18,16 @@ device:
   #   Chromecast / Roku: the device IP
   # host: 192.168.0.3
 
+cast:
+  # How the device gets the bytes. On "auto" (the default) Castor hands a smart
+  # device the source URL when it can fetch it, and relays through this machine
+  # when it can't (a source that only answers with the headers Castor captured).
+  # Set "serve" to always relay: some sources look fetchable but are refused by
+  # the device anyway, typically an HLS playlist whose segments are served under
+  # a disguised extension (.jpg with image/jpeg). Relaying spends this machine's
+  # bandwidth and CPU on every cast, so it stays opt-in.
+  # delivery: serve
+
 sources:
   # Castor ships no sources of its own. You bring your own, the same way a media
   # server points at libraries you provide. Each entry is a site whose embedded

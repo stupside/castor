@@ -41,14 +41,10 @@ type pull struct {
 // wantPCM flag (driven by the plan's subtitle mode) changes what it produces.
 func startPull(ctx context.Context, cfg core.TranscodeConfig, resolved *media.Stream, sp *spool.Spool, wantPCM bool) (*pull, error) {
 	args := ffmpeg.PullArgs(ffmpeg.PullOptions{
-		SourceURL:         resolved.URL,
-		SourceHeaders:     resolved.Headers,
-		SourceContentType: resolved.ContentType,
-		RWTimeoutMicros:   cfg.RWTimeout.Microseconds(),
-		Verbose:           slog.Default().Enabled(ctx, slog.LevelDebug),
-		PCM:               wantPCM,
-		PCMSampleRate:     whisper.SampleRate,
-		Live:              resolved.Live,
+		Source:        ffmpeg.NewNetworkSource(resolved, cfg.RWTimeout),
+		Verbose:       slog.Default().Enabled(ctx, slog.LevelDebug),
+		PCM:           wantPCM,
+		PCMSampleRate: whisper.SampleRate,
 	})
 
 	var opts []ffmpeg.StartOption

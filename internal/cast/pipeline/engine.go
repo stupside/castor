@@ -14,19 +14,24 @@
 //
 // Three compositions cover both of today's device families exactly:
 //   - pass-through: hand the device the source URL, it fetches the bytes itself;
-//   - network remux: a self-fetching renderer that rejects the source container,
-//     so a single ffmpeg reads the source URL and remuxes to a container it takes;
+//   - network remux: a self-fetching renderer that cannot be handed the source
+//     URL (it rejects the container, or the source only answers to the request
+//     headers castor holds and a renderer is handed none of them), so a single
+//     ffmpeg reads the source and remuxes to a container it takes;
 //   - read-once spool: a served renderer that never self-fetches, so one puller
 //     buffers the single-use source into a local spool the encoder reads from,
 //     with optional whisper burn-in. This is the concurrent-connect path.
 package pipeline
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"golang.org/x/sync/errgroup"
 
@@ -57,7 +62,8 @@ func Run(ctx context.Context, cfg core.Config, connect ConnectFunc, source *medi
 
 // runSelfFetch connects a smart renderer up front (its discovery is fast) and
 // then, per the plan its live capabilities produce, either hands it the source
-// URL (it accepts the container) or remuxes to a container it will take.
+// URL (the source needs nothing but the URL and the renderer accepts the
+// container) or reads the source itself and serves the renderer a remux.
 func runSelfFetch(ctx context.Context, cfg core.Config, connect ConnectFunc, source *media.Stream, localIP string) error {
 	dev, err := connect(ctx, cfg)
 	if err != nil {
@@ -87,12 +93,22 @@ func passthrough(ctx context.Context, dev device.Device, source *media.Stream) e
 }
 
 // runRemux is the single-ffmpeg served path for a self-fetching renderer that
-// rejects the source container: network input, video stream-copied, container
-// changed to the plan's output type. No whisper, no input spool. A single-file
-// remux is spooled by the replay server so the device can replay from 0; a
-// segmented (HLS) remux is packaged into a directory the HLS server fronts.
+// either rejects the source container or cannot be handed the source URL at all
+// (it only answers to the request headers castor captured): network input, video
+// stream-copied, container changed to the plan's output type. No whisper, no
+// input spool. A single-file remux is spooled by the replay server so the device
+// can replay from 0; a segmented (HLS) remux is packaged into a directory the HLS
+// server fronts.
 func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.Device, source *media.Stream, localIP string) error {
-	slog.InfoContext(ctx, "execution plan", "delivery", "remux", "output_content_type", plan.OutputContentType)
+	// The header keys, or a configured preference, are why a renderer that accepts
+	// the source container is being served one instead.
+	slog.InfoContext(ctx, "execution plan",
+		"delivery", "remux",
+		"output_content_type", plan.OutputContentType,
+		"source_content_type", source.ContentType,
+		"source_header_keys", slices.Sorted(maps.Keys(source.Headers)),
+		"configured_delivery", cmp.Or(cfg.Delivery, core.DeliveryAuto),
+	)
 
 	workDir, err := os.MkdirTemp("", "castor-")
 	if err != nil {
@@ -112,11 +128,13 @@ func runRemux(ctx context.Context, cfg core.Config, plan core.Plan, dev device.D
 	// For the usual remux input (a static file in a container the device won't
 	// take, e.g. AVI) that is fine. It is NOT free for a short-lived or single-use
 	// signed link: the probe can burn the token or a rate-limit slot and leave the
-	// remux ffmpeg with a 403/429. HLS (the common signed-link shape) normally
-	// passes through and never reaches here, but only while the receiver advertises
-	// HLS, so this is a known, accepted risk, not a guarantee. A failed probe
-	// leaves srcInfo zero, which core.ResolveAudio degrades to stereo AAC.
-	srcInfo, err := ffmpeg.Probe(ctx, cfg.Resolver.FFprobePath, source.URL.String(), source.Headers)
+	// remux ffmpeg with a 403/429. An HLS source reaches here whenever it is
+	// header-gated (the renderer cannot be handed the URL), which is the common
+	// signed-link shape, so this is a known, accepted cost. It reads the same
+	// headers and container flags the remux itself will use, so it fails only where
+	// the remux would; a failed probe leaves srcInfo zero, which core.ResolveAudio
+	// degrades to stereo AAC.
+	srcInfo, err := ffmpeg.ProbeSource(ctx, cfg.Resolver.FFprobePath, opts.Source)
 	if err != nil {
 		slog.WarnContext(ctx, "source probe failed; will re-encode audio to stereo AAC", "error", err)
 	}
@@ -231,7 +249,7 @@ func runSpooled(parentCtx context.Context, cfg core.Config, connect ConnectFunc,
 	// decide whether the source video can be stream-copied into MPEG-TS or must be
 	// re-encoded. A failed or partial probe leaves srcInfo zero, which CanCopyVideo
 	// rejects, i.e. it falls back to a transcode.
-	srcInfo, err := ffmpeg.Probe(ctx, cfg.Resolver.FFprobePath, sp.Path(), nil)
+	srcInfo, err := ffmpeg.ProbeFile(ctx, cfg.Resolver.FFprobePath, sp.Path())
 	if err != nil {
 		slog.WarnContext(ctx, "spool probe failed; will re-encode video", "error", err)
 	}

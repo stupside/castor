@@ -44,6 +44,18 @@ type Stream struct {
 	Live        bool
 }
 
+// SelfFetchable reports whether a renderer handed nothing but this URL can pull
+// the bytes itself. A pass-through gives the device the URL alone: none of the
+// request headers castor captured while extracting (Referer, Origin, Cookie,
+// User-Agent) travel with it, and castor cannot know which of them the origin
+// gates on. A URL castor itself only ever fetched with headers is therefore not
+// proven fetchable without them, and handing it to a renderer fails where castor
+// succeeds. It fails silently, too: the device accepts the load and then sits
+// idle. Such a source is served locally instead, castor pulling upstream with
+// the headers it holds and giving the renderer a LAN URL. A header-free source
+// (the direct URL a user casts by hand) is self-sufficient and passes through.
+func (s *Stream) SelfFetchable() bool { return len(s.Headers) == 0 }
+
 // StreamInfo holds metadata returned by ffprobe for a stream.
 type StreamInfo struct {
 	BitRate     int64
