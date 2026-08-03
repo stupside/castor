@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,11 @@ type hlsVariant struct {
 	URL       *url.URL
 	Bandwidth int64
 	Height    int // display height from RESOLUTION; 0 when the master omits it
+
+	// HasVideo reports whether the variant carries video. A master may list an
+	// audio-only rendition as a variant of its own, which must never be picked
+	// as the thing to cast.
+	HasVideo bool
 }
 
 // hlsMaster is a parsed HLS document reduced to what selection needs. A media
@@ -79,7 +85,7 @@ func parsePlaylist(body string, baseURL *url.URL) (hlsMaster, error) {
 	case *m3u8.MediaPlaylist:
 		// The document is itself the thing to read, and it is the one shape that
 		// reports its own liveness: no #EXT-X-ENDLIST means a live edge.
-		return hlsMaster{Variants: []hlsVariant{{URL: baseURL}}, Live: !p.Closed}, nil
+		return hlsMaster{Variants: []hlsVariant{{URL: baseURL, HasVideo: true}}, Live: !p.Closed}, nil
 	case *m3u8.MasterPlaylist:
 		return masterFrom(p, baseURL), nil
 	default:
@@ -107,9 +113,20 @@ func masterFrom(playlist *m3u8.MasterPlaylist, baseURL *url.URL) hlsMaster {
 			URL:       variantURL,
 			Bandwidth: int64(variant.Bandwidth),
 			Height:    resolutionHeight(variant.Resolution),
+			HasVideo:  carriesVideo(variant),
 		})
 	}
 	return out
+}
+
+// carriesVideo reports whether a variant has video to cast. Positive evidence is
+// a RESOLUTION or a video codec; only a CODECS list that names none rules video
+// out. A variant that declares neither attribute is trusted rather than
+// discarded, the same way an unknown height stays eligible for the height cap.
+func carriesVideo(variant *m3u8.Variant) bool {
+	return resolutionHeight(variant.Resolution) > 0 ||
+		variant.Codecs == "" ||
+		hasVideoCodec(variant.Codecs)
 }
 
 // resolutionHeight reads the height out of a RESOLUTION attribute ("1920x1080"),
@@ -124,4 +141,21 @@ func resolutionHeight(resolution string) int {
 		return 0
 	}
 	return h
+}
+
+// videoCodecPrefixes are the RFC 6381 sample-entry prefixes for video, used to
+// tell a video variant from an audio-only one by its CODECS attribute.
+var videoCodecPrefixes = []string{"avc1", "avc3", "hvc1", "hev1", "av01", "vp08", "vp09", "dvh1", "dvhe", "mp4v"}
+
+// hasVideoCodec reports whether a CODECS attribute names a video codec.
+func hasVideoCodec(codecs string) bool {
+	for codec := range strings.SplitSeq(codecs, ",") {
+		codec = strings.TrimSpace(codec)
+		if slices.ContainsFunc(videoCodecPrefixes, func(prefix string) bool {
+			return strings.HasPrefix(codec, prefix)
+		}) {
+			return true
+		}
+	}
+	return false
 }

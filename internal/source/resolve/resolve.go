@@ -54,13 +54,21 @@ func readPlaylist(ctx context.Context, cfg Config, stream *media.Stream) (hlsMas
 // If every variant is taller than the cap, it takes the shortest so the encoder
 // has the least to downscale. variants is never empty (parsePlaylist guarantees
 // at least the synthetic media-playlist entry).
+//
+// Variants that carry no video are excluded first: a master can list its audio
+// rendition as a variant of its own, and such an entry has no RESOLUTION to
+// exclude it by the cap and often the highest bandwidth of the lot, so on
+// bandwidth alone it would win and the cast would be audio with no picture.
 func pickVariant(variants []hlsVariant, maxHeight int) hlsVariant {
-	var eligible []hlsVariant
-	for _, v := range variants {
-		if v.Height <= maxHeight {
-			eligible = append(eligible, v)
-		}
+	if withVideo := slices.DeleteFunc(slices.Clone(variants), func(v hlsVariant) bool {
+		return !v.HasVideo
+	}); len(withVideo) > 0 {
+		variants = withVideo
 	}
+
+	eligible := slices.DeleteFunc(slices.Clone(variants), func(v hlsVariant) bool {
+		return v.Height > maxHeight
+	})
 	if len(eligible) > 0 {
 		return slices.MaxFunc(eligible, func(a, b hlsVariant) int {
 			return cmp.Compare(a.Bandwidth, b.Bandwidth)
