@@ -223,6 +223,55 @@ func TestRunConfiguredServeIsServed(t *testing.T) {
 	assertServed(t, dev, media.MP4, source.URL.String())
 }
 
+// TestRunDemuxedSourceKeepsAudio casts a program whose renditions live at
+// separate URLs, the shape an HLS master with an audio group publishes. The
+// puller has to read both and mux them back together, so the assertion is on the
+// bytes the renderer receives: video AND audio. Reading the video rendition
+// alone is the live failure this covers, and it does not fail quietly, ffmpeg
+// exits mapping an audio track that is not there.
+func TestRunDemuxedSourceKeepsAudio(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+
+	origin := serveDemuxedHLSFixture(t, ffmpegPath)
+	source := origin.stream()
+	if !source.Demuxed() {
+		t.Fatal("fixture is not demuxed")
+	}
+
+	servedPath := filepath.Join(t.TempDir(), "served.ts")
+	served, err := os.Create(servedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer served.Close()
+
+	// A push-only renderer: the whole spool path runs, puller included.
+	dev := &fakeDevice{
+		caps: media.Renderer{
+			Video: []media.VideoSupport{{Codec: media.CodecH264}},
+			Audio: []media.AudioSupport{{Codec: media.CodecAAC, MaxChannels: 2}},
+		},
+		drain: true,
+		tee:   served,
+	}
+	runServed(t, dev, castConfig(device.TypeDLNA, ffmpegPath, ffprobePath), source)
+	assertServed(t, dev, mpegtsContentType, source.URL.String())
+
+	if err := served.Close(); err != nil {
+		t.Fatal(err)
+	}
+	info, err := ffmpeg.ProbeFile(context.Background(), ffprobePath, servedPath)
+	if err != nil {
+		t.Fatalf("probing what the renderer was served: %v", err)
+	}
+	if info.VideoCodec != media.CodecH264 {
+		t.Errorf("served video codec = %q, want h264", info.VideoCodec)
+	}
+	if info.AudioCodec != media.CodecAAC {
+		t.Errorf("served audio codec = %q, want aac: the separate audio rendition never made it into the cast", info.AudioCodec)
+	}
+}
+
 // TestRunServeRemux is the network-remux branch: a self-fetching renderer that
 // rejects the source container. Run must remux to the plan's mp4 output and serve
 // it, pointing the device at the local replay server rather than the source URL.
@@ -378,13 +427,20 @@ func assertServed(t *testing.T, dev *fakeDevice, wantCT, sourceURL string) {
 type fixtureOrigin struct {
 	server      *httptest.Server
 	path        string
+	audioPath   string // set when the origin publishes audio as its own rendition
 	contentType string
 }
 
-// stream is the media.Stream a cast resolves to for this origin.
+// stream is the media.Stream a cast resolves to for this origin. audioPath is
+// set only for a demuxed origin, where resolution yields two URLs.
 func (o fixtureOrigin) stream() *media.Stream {
 	u, _ := url.Parse(o.server.URL + o.path)
-	return &media.Stream{URL: u, ContentType: o.contentType}
+	s := &media.Stream{URL: u, ContentType: o.contentType}
+	if o.audioPath != "" {
+		audio, _ := url.Parse(o.server.URL + o.audioPath)
+		s.AudioURL = audio
+	}
+	return s
 }
 
 // serveFixture generates a one-second H.264/AAC mp4 and serves it over local
@@ -444,6 +500,42 @@ func serveHLSFixture(t *testing.T, ffmpegPath string) fixtureOrigin {
 	server := httptest.NewServer(http.FileServer(http.Dir(dir)))
 	t.Cleanup(server.Close)
 	return fixtureOrigin{server: server, path: "/index.m3u8", contentType: media.HLS}
+}
+
+// serveDemuxedHLSFixture generates an HLS stream whose video and audio are
+// published as separate renditions, the shape a master with an EXT-X-MEDIA audio
+// group resolves to: one playlist of video segments, one of audio segments, and
+// neither is playable on its own.
+func serveDemuxedHLSFixture(t *testing.T, ffmpegPath string) fixtureOrigin {
+	t.Helper()
+	dir := t.TempDir()
+	args := []string{
+		"-hide_banner", "-loglevel", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc=size=320x240:rate=15:duration=2",
+		"-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+		"-map", "0:v", "-map", "1:a",
+		"-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "baseline",
+		"-c:a", "aac", "-ac", "2", "-shortest",
+		"-f", "hls",
+		"-hls_time", "1",
+		"-hls_list_size", "0",
+		"-var_stream_map", "v:0,agroup:aud a:0,agroup:aud",
+		filepath.Join(dir, "rendition_%v.m3u8"),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if out, err := exec.CommandContext(ctx, ffmpegPath, args...).CombinedOutput(); err != nil {
+		t.Fatalf("generating demuxed HLS fixture: %v\n%s", err, out)
+	}
+
+	server := httptest.NewServer(http.FileServer(http.Dir(dir)))
+	t.Cleanup(server.Close)
+	return fixtureOrigin{
+		server:      server,
+		path:        "/rendition_0.m3u8",
+		audioPath:   "/rendition_1.m3u8",
+		contentType: media.HLS,
+	}
 }
 
 // requireFFmpegTools returns the ffmpeg and ffprobe paths, or skips: the served
