@@ -256,6 +256,20 @@ func (s NetworkSource) audioMap() string {
 	return "0:a:0"
 }
 
+// needsAACADTSToASC reports whether stream-copied AAC must pass through the
+// aac_adtstoasc bitstream filter before muxing to MP4. HLS (and the MPEG-TS
+// spool read from pipe) carry AAC in ADTS framing; MP4 expects an
+// AudioSpecificConfig, and ffmpeg rejects the copy without this filter.
+func needsAACADTSToASC(opts EncodeOptions) bool {
+	if opts.AudioCodec != CodecCopy || opts.OutputFormat != "mp4" {
+		return false
+	}
+	if opts.PipeFormat == "mpegts" {
+		return true
+	}
+	return opts.Source.segmented()
+}
+
 // EncodeArgs assembles the encode command line. No "magic" flags: every
 // argument is either part of the standard input/output setup or comes
 // straight from a field in EncodeOptions. It enforces the one cross-field
@@ -375,6 +389,9 @@ func EncodeArgs(opts EncodeOptions) ([]string, error) {
 	}
 
 	args = append(args, "-c:a", opts.AudioCodec)
+	if opts.AudioCodec == CodecCopy && needsAACADTSToASC(opts) {
+		args = append(args, "-bsf:a", "aac_adtstoasc")
+	}
 	if opts.AudioCodec != CodecCopy {
 		if opts.AudioSampleRate > 0 {
 			args = append(args, "-ar", strconv.Itoa(opts.AudioSampleRate))
