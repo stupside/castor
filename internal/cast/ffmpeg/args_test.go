@@ -377,6 +377,63 @@ func TestEncodeArgsMP4RemuxUnpaced(t *testing.T) {
 	}
 }
 
+// TestEncodeArgsMP4RemuxHLSCopyUsesADTSToASC pins the bitstream filter that
+// lets AAC stream-copied from MPEG-TS HLS segments mux into fragmented MP4.
+// Without it ffmpeg reports "Malformed AAC bitstream detected" and the served
+// remux dies before the renderer receives playable bytes.
+func TestEncodeArgsMP4RemuxHLSCopyUsesADTSToASC(t *testing.T) {
+	src, err := url.Parse("http://example.test/index.m3u8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := EncodeArgs(EncodeOptions{
+		Source:       NetworkSource{URL: src, ContentType: media.HLS},
+		OutputFormat: "mp4",
+		AudioCodec:   CodecCopy,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := argValue(args, "-c:a"); got != CodecCopy {
+		t.Fatalf("-c:a = %q, want copy", got)
+	}
+	if got := argValue(args, "-bsf:a"); got != "aac_adtstoasc" {
+		t.Errorf("-bsf:a = %q, want aac_adtstoasc", got)
+	}
+}
+
+func TestEncodeArgsMP4RemuxHLSCopyADTSToASCNotForMPEGTS(t *testing.T) {
+	src, err := url.Parse("http://example.test/index.m3u8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := EncodeArgs(EncodeOptions{
+		Source:       NetworkSource{URL: src, ContentType: media.HLS},
+		OutputFormat: "mpegts",
+		AudioCodec:   CodecCopy,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasFlag(args, "-bsf:a") {
+		t.Error("mpegts output must not set -bsf:a aac_adtstoasc")
+	}
+}
+
+func TestEncodeArgsMP4RemuxSpoolCopyUsesADTSToASC(t *testing.T) {
+	args, err := EncodeArgs(EncodeOptions{
+		PipeFormat:   "mpegts",
+		OutputFormat: "mp4",
+		AudioCodec:   CodecCopy,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := argValue(args, "-bsf:a"); got != "aac_adtstoasc" {
+		t.Errorf("-bsf:a = %q, want aac_adtstoasc for mpegts pipe into mp4", got)
+	}
+}
+
 // TestDemuxedSourceIsTwoInputs covers a program whose renditions live at
 // separate URLs: both must be opened on the same terms, and the audio map must
 // follow the audio to the second input. Mapping 0:a:0 there is the failure this
