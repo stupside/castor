@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.9.0](https://github.com/stupside/castor/compare/v1.8.1...v1.9.0) (2026-09-22)
+
+
+### Features
+
+* **ffmpeg:** read a demuxed program as two inputs ([2333d0f](https://github.com/stupside/castor/commit/2333d0f3f027928be826115649fb7151e463e034))
+* **media:** let one program span two renditions ([279407f](https://github.com/stupside/castor/commit/279407f795dd13f7a801207cf111e17bd60fe846))
+* **release:** ship windows builds, and carry ffmpeg's side feeds over loopback ([#66](https://github.com/stupside/castor/issues/66)) ([5ffeb79](https://github.com/stupside/castor/commit/5ffeb7936199acba403feab2f2a411b32d650edf)), closes [#61](https://github.com/stupside/castor/issues/61)
+* **resolve:** keep the chosen variant's audio rendition ([a70b814](https://github.com/stupside/castor/commit/a70b814c9e2300a3b95c7179000565c291682470))
+
+
+### Bug Fixes
+
+* **cast:** serve sources that need request headers ([#54](https://github.com/stupside/castor/issues/54)) ([f2fe1e1](https://github.com/stupside/castor/commit/f2fe1e11624150052b0d5cc0dad21c60ab9bde1c))
+* **deps:** bump golang.org/x/mod v0.38.0 → v0.40.0 ([#62](https://github.com/stupside/castor/issues/62)) ([2cf0627](https://github.com/stupside/castor/commit/2cf0627f2e84bc7306217de82f2b212d09edcf3f))
+* **release:** clear quarantine through the install steps homebrew now expects ([#65](https://github.com/stupside/castor/issues/65)) ([9a9b340](https://github.com/stupside/castor/commit/9a9b3408b13e7ce61b0c128702b892d622f1e8e9)), closes [#63](https://github.com/stupside/castor/issues/63)
+* **resolve:** never cast a variant that carries no video ([6bb905e](https://github.com/stupside/castor/commit/6bb905e02997a163408763d85e89cf35c9103db1))
+
+
+### Refactors
+
+* **resolve:** decode HLS playlists with a spec parser ([e714185](https://github.com/stupside/castor/commit/e714185aaa29a6f7242c6e73d44d80ae5c19dfa8))
+
 ## [1.8.1](https://github.com/stupside/castor/compare/v1.8.0...v1.8.1) (2026-07-27)
 
 
