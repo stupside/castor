@@ -14,8 +14,8 @@ cask "castor" do
 
   # The binary is unsigned, so macOS Gatekeeper quarantines it on download and
   # refuses to run it. Strip the quarantine attribute so it works out of the box.
-  postflight do
-    system_command "/usr/bin/xattr", args: ["-cr", "#{staged_path}/castor"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-cr", "{{staged_path}}/castor"]
   end
 
   zap trash: "~/.castor/config.yml"
