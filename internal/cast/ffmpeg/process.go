@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"os/exec"
 	"sync"
 )
@@ -25,18 +24,18 @@ type Process struct {
 	// Stdout is the primary output (pipe:1).
 	Stdout io.ReadCloser
 
-	// Extra is the fd-3 output (pipe:3) when started WithExtraPipe;
-	// nil otherwise.
-	Extra io.ReadCloser
-
 	cmd  *exec.Cmd
 	tail *ringTail
+
+	// extra is the second output this process was started WithExtraOutput,
+	// kept only so Wait can end it (see Wait).
+	extra *ExtraOutput
 }
 
 type startConfig struct {
-	stdin     io.Reader
-	extraPipe bool
-	workDir   string
+	stdin   io.Reader
+	extra   *ExtraOutput
+	workDir string
 }
 
 type StartOption func(*startConfig)
@@ -52,10 +51,11 @@ func WithWorkDir(dir string) StartOption {
 	return func(c *startConfig) { c.workDir = dir }
 }
 
-// WithExtraPipe opens a second output pipe on fd 3 (pipe:3), exposed as
-// Process.Extra. The arg builder must route an output there.
-func WithExtraPipe() StartOption {
-	return func(c *startConfig) { c.extraPipe = true }
+// WithExtraOutput ties o to the process, whose arg builder must route an
+// output to o.URL(): a failed Start closes o, and Wait releases a reader
+// ffmpeg never connected to. The caller keeps reading o itself.
+func WithExtraOutput(o *ExtraOutput) StartOption {
+	return func(c *startConfig) { c.extra = o }
 }
 
 // Start launches ffmpeg at path with args. The process is killed when ctx is
@@ -70,22 +70,9 @@ func Start(ctx context.Context, path string, args []string, opts ...StartOption)
 	cmd.Stdin = cfg.stdin
 	cmd.Dir = cfg.workDir
 
-	var extraRead, extraWrite *os.File
-	if cfg.extraPipe {
-		var err error
-		extraRead, extraWrite, err = os.Pipe()
-		if err != nil {
-			return nil, fmt.Errorf("extra output pipe: %w", err)
-		}
-		cmd.ExtraFiles = []*os.File{extraWrite} // fd 3 in the child
-	}
-
 	closeExtra := func() {
-		if extraRead != nil {
-			_ = extraRead.Close()
-		}
-		if extraWrite != nil {
-			_ = extraWrite.Close()
+		if cfg.extra != nil {
+			_ = cfg.extra.Close()
 		}
 	}
 
@@ -103,26 +90,23 @@ func Start(ctx context.Context, path string, args []string, opts ...StartOption)
 		closeExtra()
 		return nil, fmt.Errorf("starting ffmpeg: %w", err)
 	}
-	// Close our copy of the write end so Extra sees EOF on ffmpeg exit.
-	if extraWrite != nil {
-		_ = extraWrite.Close()
-	}
-
 	tail := newTail(stderrTailCapacity)
 	go drainStderr(ctx, stderr, tail)
 
-	p := &Process{Stdout: stdout, cmd: cmd, tail: tail}
-	if extraRead != nil {
-		p.Extra = extraRead
-	}
-	return p, nil
+	return &Process{Stdout: stdout, cmd: cmd, tail: tail, extra: cfg.extra}, nil
 }
 
 // Wait blocks until the process exits and returns its exit error, if any.
 // Forensics are the caller's call: use StderrTail or LogStderrTail to
 // surface the failure reason when the exit was not self-inflicted.
 func (p *Process) Wait() error {
-	return p.cmd.Wait()
+	err := p.cmd.Wait()
+	// An ffmpeg that died before opening its extra output never will: release
+	// the reader waiting for it, which then sees EOF.
+	if p.extra != nil {
+		p.extra.stopAccepting()
+	}
+	return err
 }
 
 // Kill signals the process to stop immediately. It is idempotent and safe to

@@ -60,8 +60,22 @@ ffmpeg and ffprobe must be **7.1 or newer**: Castor uses flags (`-readrate_initi
 brew install --cask stupside/tap/castor
 ```
 
+### Windows
+
+Download `castor_<version>_windows_amd64.zip` (or `_arm64.zip` for Windows on ARM) from the [latest release](https://github.com/stupside/castor/releases/latest), extract `castor.exe` into a folder on your `PATH`, and install the tools:
+
+```powershell
+winget install Gyan.FFmpeg     # ffmpeg + ffprobe
+winget install Google.Chrome   # skip if Chrome is already installed
+```
+
+Two prompts on first run, both expected:
+
+- **SmartScreen** may block the download since the binary is unsigned: choose *More info*, then *Run anyway*.
+- **Windows Defender Firewall** asks whether castor may use the network: allow it on **private** networks. The TV fetches the stream from Castor and answers discovery over the LAN, so a blocked castor finds no devices and casts nothing.
+
 <details>
-<summary><b>Build from source</b> (needs Go 1.26+ and cmake)</summary>
+<summary><b>Build from source</b> (macOS/Linux, needs Go 1.26+ and cmake)</summary>
 
 The whisper.cpp bindings are cgo and link a locally built `libwhisper.a`, so clone with submodules and build with `make`:
 
@@ -256,7 +270,7 @@ Run `castor scan` to list what is on your network.
 The prebuilt `ghcr.io/stupside/castor` image bundles Chrome, ffmpeg, and ffprobe, so you install nothing by hand. Run it on a **Linux host on the same LAN as your TV**.
 
 > [!WARNING]
-> `--network host` is required: device discovery (SSDP multicast) and the TV streaming back from Castor both need the container on your real LAN. On Docker Desktop (macOS/Windows) that flag is a no-op, so the container never reaches your TV and `scan` finds nothing. Use the [native binary](#homebrew-macos) there instead.
+> `--network host` is required: device discovery (SSDP multicast) and the TV streaming back from Castor both need the container on your real LAN. On Docker Desktop (macOS/Windows) that flag is a no-op, so the container never reaches your TV and `scan` finds nothing. Use the native binary there instead ([macOS](#homebrew-macos), [Windows](#windows)).
 
 ```sh
 # Discover devices (no config needed)

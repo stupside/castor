@@ -129,9 +129,13 @@ type EncodeOptions struct {
 	// by path before each frame, so an external writer can swap the active
 	// subtitle line live (atomic rename only — a failed read kills ffmpeg).
 	// The file must exist before ffmpeg starts. Forces a video re-encode.
-	// Enabling this routes -progress to fd 3: start the process
-	// WithExtraPipe and follow Process.Extra.
+	// Requires ProgressOutput.
 	SubtitleTextFile string
+
+	// ProgressOutput is where a burn-in encode writes its -progress feed,
+	// which the cue writer follows: an ExtraOutput's URL, with the process
+	// started WithExtraOutput and Process.Extra followed.
+	ProgressOutput string
 }
 
 // EncodeReadrateBurstSeconds is how much of the stream the subtitle-burning
@@ -258,14 +262,18 @@ func (s NetworkSource) audioMap() string {
 
 // EncodeArgs assembles the encode command line. No "magic" flags: every
 // argument is either part of the standard input/output setup or comes
-// straight from a field in EncodeOptions. It enforces the one cross-field
-// contract EncodeOptions documents but can't express in its types: a
+// straight from a field in EncodeOptions. It enforces the cross-field
+// contracts EncodeOptions documents but can't express in its types: a
 // SubtitleTextFile burn-in needs decoded frames, so it requires a real
 // VideoEncoder rather than failing later inside ffmpeg with an unrelated
-// "Filtering and streamcopy cannot be used together".
+// "Filtering and streamcopy cannot be used together", and it needs a
+// ProgressOutput for the cue writer to follow.
 func EncodeArgs(opts EncodeOptions) ([]string, error) {
 	if opts.SubtitleTextFile != "" && opts.VideoEncoder == nil {
 		return nil, fmt.Errorf("subtitle burn-in requires a video re-encode: VideoEncoder is nil with SubtitleTextFile set")
+	}
+	if opts.SubtitleTextFile != "" && opts.ProgressOutput == "" {
+		return nil, fmt.Errorf("subtitle burn-in requires a progress output: ProgressOutput is empty with SubtitleTextFile set")
 	}
 
 	// -nostats: the \r-terminated progress line never completes, so it
@@ -411,10 +419,9 @@ func EncodeArgs(opts EncodeOptions) ([]string, error) {
 	if opts.SubtitleTextFile != "" {
 		// Progress reporting drives the live subtitle writer: it tells us
 		// the encoder's output position so the writer can swap the active
-		// cue in the textfile. fd 3 is the runner's extra pipe. With the
-		// encode paced at realtime, the period is also the cue placement
-		// granularity in video time.
-		args = append(args, "-progress", "pipe:3", "-stats_period", "0.1")
+		// cue in the textfile. With the encode paced at realtime, the period
+		// is also the cue placement granularity in video time.
+		args = append(args, "-progress", opts.ProgressOutput, "-stats_period", "0.1")
 	}
 
 	// HLS writes a playlist + segment files, not a stream on a pipe. The bare
@@ -468,9 +475,10 @@ type PullOptions struct {
 	// lines) instead of the default warning level.
 	Verbose bool
 
-	// PCM additionally extracts mono s16le audio on fd 3 for the
-	// transcriber; start the process WithExtraPipe.
-	PCM bool
+	// PCMOutput, when non-empty, additionally extracts mono s16le audio for
+	// the transcriber to this URL: an ExtraOutput's, with the process started
+	// WithExtraOutput and Process.Extra consumed.
+	PCMOutput string
 	// PCMSampleRate is the audio sample rate for the PCM output.
 	PCMSampleRate int
 }
@@ -511,13 +519,13 @@ func PullArgs(opts PullOptions) []string {
 		"-f", "mpegts", "pipe:1",
 	)
 
-	if opts.PCM {
-		// Output 2: mono PCM for whisper on fd 3 (the runner's extra pipe).
+	if opts.PCMOutput != "" {
+		// Output 2: mono PCM for whisper on the extra output.
 		args = append(args,
 			"-map", opts.Source.audioMap(), "-vn",
 			"-ac", "1",
 			"-ar", strconv.Itoa(opts.PCMSampleRate),
-			"-f", "s16le", "pipe:3",
+			"-f", "s16le", opts.PCMOutput,
 		)
 	}
 	return args
@@ -547,16 +555,22 @@ func drawtextFilter(textFile string) string {
 
 // escapeFilterArg escapes a value for passing through ffmpeg's two-level
 // filter-string parser (graph parser, then per-filter option parser). Each
-// level consumes one backslash, so a literal ':' in a filter option needs
-// '\\:' in the input — one backslash survives the graph parser and the
-// next is consumed by the option parser. Single-quote wrapping at graph
-// level does NOT propagate to the option parser, so we don't rely on it.
+// level unescapes once, and each splits on its own characters: the option
+// parser on ':', the graph parser on ',', ';', '[' and ']'. So ':' is escaped
+// for the option parser and the backslash of that escape escaped again for
+// the graph parser ('\\:'), a graph-only character is escaped once ('\,'),
+// and '\' and '\”, special to both, are escaped at both levels. Single-quote
+// wrapping at graph level does NOT propagate to the option parser, so we
+// don't rely on it.
 func escapeFilterArg(s string) string {
 	r := strings.NewReplacer(
-		`\`, `\\\\`, // four backslashes in source → two in the arg → one survives both parsers
-		`:`, `\\:`, // two backslashes + colon → one + colon after graph → literal colon after option parser
-		`'`, `\\'`,
-		`,`, `\\,`,
+		`\`, `\\\\`,
+		`'`, `\\\'`,
+		`:`, `\\:`,
+		`,`, `\,`,
+		`;`, `\;`,
+		`[`, `\[`,
+		`]`, `\]`,
 	)
 	return r.Replace(s)
 }

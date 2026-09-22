@@ -301,7 +301,16 @@ func runSpooled(parentCtx context.Context, cfg core.Config, connect ConnectFunc,
 
 	startOpts := []ffmpeg.StartOption{ffmpeg.WithStdin(tail)}
 	if subs != nil {
-		startOpts = append(startOpts, ffmpeg.WithExtraPipe()) // -progress on fd 3
+		progress, err := ffmpeg.NewExtraOutput()
+		if err != nil {
+			return err
+		}
+		// Deferred after g.Wait, so it runs first: a follower still waiting on
+		// an encoder that never started is released rather than joined forever.
+		defer progress.Close()
+		opts.ProgressOutput = progress.URL()
+		startOpts = append(startOpts, ffmpeg.WithExtraOutput(progress))
+		subs.follow(ctx, g, progress)
 	}
 
 	fmtInfo, ok := media.FormatForContentType(plan.OutputContentType)
@@ -309,9 +318,6 @@ func runSpooled(parentCtx context.Context, cfg core.Config, connect ConnectFunc,
 		return fmt.Errorf("no format for output content type %q", plan.OutputContentType)
 	}
 
-	// core.Serve owns the encoder; OnStarted wires the burn-in follower to the
-	// encoder's -progress pipe (fd 3) as soon as it starts, keeping the whisper
-	// errgroup coupling here in the pipeline instead of in core.
 	return core.Serve(ctx, d, core.OpenParams{
 		FFmpegPath: cfg.Transcode.FFmpegPath,
 		Opts:       opts,
@@ -319,11 +325,6 @@ func runSpooled(parentCtx context.Context, cfg core.Config, connect ConnectFunc,
 		LocalIP:    localIP,
 		WorkDir:    workDir,
 		Format:     fmtInfo,
-		OnStarted: func(proc *ffmpeg.Process) {
-			if subs != nil && proc.Extra != nil {
-				subs.follow(ctx, g, proc.Extra)
-			}
-		},
 	})
 }
 
