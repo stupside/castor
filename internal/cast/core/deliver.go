@@ -46,11 +46,6 @@ type OpenParams struct {
 	LocalIP    string
 	WorkDir    string
 	Format     media.FormatInfo
-	// OnStarted, if set, runs immediately after the encoder starts (before the
-	// server is fronted), so a caller can wire a concurrent consumer of a second
-	// output pipe (the spool path follows -progress on proc.Extra) without that
-	// coupling leaking into this package.
-	OnStarted func(*ffmpeg.Process)
 }
 
 // session is one opened delivery: the running server, an optional readiness gate
@@ -119,9 +114,6 @@ func openStream(ctx context.Context, p OpenParams, headers map[string]string) (*
 	if err != nil {
 		return nil, fmt.Errorf("starting transcode: %w", err)
 	}
-	if p.OnStarted != nil {
-		p.OnStarted(proc)
-	}
 
 	srv, err := replay.New(replay.Config{
 		LocalIP:     p.LocalIP,
@@ -159,9 +151,6 @@ func openSegmented(ctx context.Context, p OpenParams, _ map[string]string) (*ses
 	proc, err := ffmpeg.Start(ctx, p.FFmpegPath, args, startOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("starting transcode: %w", err)
-	}
-	if p.OnStarted != nil {
-		p.OnStarted(proc)
 	}
 
 	srv, err := hlsserve.New(hlsserve.Config{

@@ -25,9 +25,9 @@ import (
 // what's already spooled.
 type pull struct {
 	// pcm is the mono s16le audio feed, nil unless requested. The consumer
-	// must keep draining it until EOF — backpressure on this pipe throttles
+	// must keep draining it until EOF — backpressure on this feed throttles
 	// the whole download.
-	pcm io.ReadCloser
+	pcm *ffmpeg.ExtraOutput
 
 	proc  *ffmpeg.Process
 	spool *spool.Spool
@@ -40,17 +40,25 @@ type pull struct {
 // path spools every source this way regardless of renderer family, and only the
 // wantPCM flag (driven by the plan's subtitle mode) changes what it produces.
 func startPull(ctx context.Context, cfg core.TranscodeConfig, resolved *media.Stream, sp *spool.Spool, wantPCM bool) (*pull, error) {
-	args := ffmpeg.PullArgs(ffmpeg.PullOptions{
+	pullOpts := ffmpeg.PullOptions{
 		Source:        ffmpeg.NewNetworkSource(resolved, cfg.RWTimeout),
 		Verbose:       slog.Default().Enabled(ctx, slog.LevelDebug),
-		PCM:           wantPCM,
 		PCMSampleRate: whisper.SampleRate,
-	})
-
-	var opts []ffmpeg.StartOption
-	if wantPCM {
-		opts = append(opts, ffmpeg.WithExtraPipe())
 	}
+	var (
+		opts []ffmpeg.StartOption
+		pcm  *ffmpeg.ExtraOutput
+	)
+	if wantPCM {
+		var err error
+		if pcm, err = ffmpeg.NewExtraOutput(); err != nil {
+			return nil, err
+		}
+		pullOpts.PCMOutput = pcm.URL()
+		opts = append(opts, ffmpeg.WithExtraOutput(pcm))
+	}
+	args := ffmpeg.PullArgs(pullOpts)
+
 	proc, err := ffmpeg.Start(ctx, cfg.FFmpegPath, args, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("starting puller ffmpeg: %w", err)
@@ -65,7 +73,7 @@ func startPull(ctx context.Context, cfg core.TranscodeConfig, resolved *media.St
 	// (ffmpeg <args>) to isolate source/network from the rest of the pipeline.
 	slog.DebugContext(ctx, "puller ffmpeg command", "path", cfg.FFmpegPath, "args", args)
 
-	pu := &pull{pcm: proc.Extra, proc: proc, spool: sp, done: make(chan struct{})}
+	pu := &pull{pcm: pcm, proc: proc, spool: sp, done: make(chan struct{})}
 	go pu.logProgress(ctx)
 	go pu.run(ctx)
 	return pu, nil

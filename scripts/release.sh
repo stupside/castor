@@ -11,9 +11,14 @@ for dir in prebuilt/castor-*; do
   os="${target%-*}"; arch="${target##*-}"
 
   work=$(mktemp -d)
-  cp "$dir/castor" "$work/castor"; chmod +x "$work/castor"
   cp LICENSE README.md "$work/"
-  tar -C "$work" -czf "dist/castor_${version}_${os}_${arch}.tar.gz" castor LICENSE README.md
+  if [ "$os" = windows ]; then
+    cp "$dir/castor" "$work/castor.exe"
+    zip -qj "dist/castor_${version}_${os}_${arch}.zip" "$work/castor.exe" "$work/LICENSE" "$work/README.md"
+  else
+    cp "$dir/castor" "$work/castor"; chmod +x "$work/castor"
+    tar -C "$work" -czf "dist/castor_${version}_${os}_${arch}.tar.gz" castor LICENSE README.md
+  fi
 
   if [ "$os" = linux ]; then
     mkdir -p "docker/$arch"
@@ -21,4 +26,4 @@ for dir in prebuilt/castor-*; do
   fi
 done
 
-( cd dist && sha256sum castor_*.tar.gz > checksums.txt )
+( cd dist && sha256sum castor_*.tar.gz castor_*.zip > checksums.txt )

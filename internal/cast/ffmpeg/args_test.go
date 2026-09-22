@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -78,6 +81,7 @@ func TestEncodeArgsReadrateHeadroom(t *testing.T) {
 		OutputFormat:     "mpegts",
 		VideoEncoder:     &libx264,
 		SubtitleTextFile: "/tmp/cue.txt",
+		ProgressOutput:   "tcp://127.0.0.1:9",
 		AudioCodec:       "aac",
 	})
 	if err != nil {
@@ -247,6 +251,7 @@ func TestEncodeArgsSubtitlesBurnIn(t *testing.T) {
 		OutputFormat:     "mpegts",
 		VideoEncoder:     &libx264,
 		SubtitleTextFile: "/tmp/cue.txt",
+		ProgressOutput:   "tcp://127.0.0.1:9",
 		AudioCodec:       "aac",
 	})
 	if err != nil {
@@ -258,6 +263,23 @@ func TestEncodeArgsSubtitlesBurnIn(t *testing.T) {
 	}
 	if vf := argValue(args, "-vf"); !strings.Contains(vf, "drawtext") {
 		t.Errorf("-vf = %q, want drawtext burn-in", vf)
+	}
+	if got := argValue(args, "-progress"); got != "tcp://127.0.0.1:9" {
+		t.Errorf("-progress = %q, want the ProgressOutput the cue writer follows", got)
+	}
+}
+
+// A burn-in whose cue writer has no feed to follow encodes, and draws nothing.
+func TestEncodeArgsSubtitlesRequireProgressOutput(t *testing.T) {
+	_, err := EncodeArgs(EncodeOptions{
+		PipeFormat:       "mpegts",
+		OutputFormat:     "mpegts",
+		VideoEncoder:     &libx264,
+		SubtitleTextFile: "/tmp/cue.txt",
+		AudioCodec:       "aac",
+	})
+	if err == nil {
+		t.Fatal("want an error for SubtitleTextFile set with an empty ProgressOutput, got nil")
 	}
 }
 
@@ -540,5 +562,29 @@ func TestEncodeArgsHLSSourcePaced(t *testing.T) {
 	}
 	if got := argValue(args, "-readrate_initial_burst"); got != pacingLive.burst {
 		t.Errorf("live burst = %q, want %q", got, pacingLive.burst)
+	}
+}
+
+// TestFilterArgEscapingSurvivesAWindowsPath hands real ffmpeg a filter file
+// argument whose directory carries what a Windows temp path adds (a drive
+// colon and backslashes) plus every other filtergraph metacharacter, which a
+// Windows temp path carries whenever the user name does (C:\Users\O'Brien).
+// Each one has to survive both of ffmpeg's parsing passes for the burn-in's
+// drawtext to find its cue file. movie= reads its path through the same two
+// passes and, unlike drawtext, is in every ffmpeg build.
+func TestFilterArgEscapingSurvivesAWindowsPath(t *testing.T) {
+	ffmpegPath := lookFFmpeg(t)
+	dir := filepath.Join(t.TempDir(), `C:\Users\O'Brien,[x];y`)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(dir, "in.nut")
+	if out, err := exec.CommandContext(t.Context(), ffmpegPath, "-hide_banner",
+		"-f", "lavfi", "-i", "color=d=0.2", src).CombinedOutput(); err != nil {
+		t.Fatalf("generating %q: %v\n%s", src, err, out)
+	}
+	if out, err := exec.CommandContext(t.Context(), ffmpegPath, "-hide_banner",
+		"-f", "lavfi", "-i", "movie=filename="+escapeFilterArg(src), "-f", "null", "-").CombinedOutput(); err != nil {
+		t.Fatalf("filter could not open %q: %v\n%s", src, err, out)
 	}
 }

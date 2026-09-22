@@ -51,6 +51,36 @@ jobs:
               -DCMAKE_SYSTEM_PROCESSOR=aarch64
               -DCMAKE_C_COMPILER=zcc
               -DCMAKE_CXX_COMPILER=zxx
+          # Windows uses zig's own archiver: the objects are COFF, which the
+          # host binutils need not understand to index.
+          - target: windows-amd64
+            runner: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            cc: zcc
+            cxx: zxx
+            zig_triple: x86_64-windows-gnu
+            cmake_args: >-
+              -DCMAKE_SYSTEM_NAME=Windows
+              -DCMAKE_SYSTEM_PROCESSOR=x86_64
+              -DCMAKE_C_COMPILER=zcc
+              -DCMAKE_CXX_COMPILER=zxx
+              -DCMAKE_AR=/usr/local/bin/zar
+              -DCMAKE_RANLIB=/usr/local/bin/zranlib
+          - target: windows-arm64
+            runner: ubuntu-latest
+            goos: windows
+            goarch: arm64
+            cc: zcc
+            cxx: zxx
+            zig_triple: aarch64-windows-gnu
+            cmake_args: >-
+              -DCMAKE_SYSTEM_NAME=Windows
+              -DCMAKE_SYSTEM_PROCESSOR=ARM64
+              -DCMAKE_C_COMPILER=zcc
+              -DCMAKE_CXX_COMPILER=zxx
+              -DCMAKE_AR=/usr/local/bin/zar
+              -DCMAKE_RANLIB=/usr/local/bin/zranlib
           - target: darwin-amd64
             runner: macos-latest
             goos: darwin
@@ -85,7 +115,9 @@ jobs:
         run: |
           printf '#!/bin/sh\nexec zig cc  -target ${{ matrix.zig_triple }} "$@"\n' | sudo tee /usr/local/bin/zcc > /dev/null
           printf '#!/bin/sh\nexec zig c++ -target ${{ matrix.zig_triple }} "$@"\n' | sudo tee /usr/local/bin/zxx > /dev/null
-          sudo chmod +x /usr/local/bin/zcc /usr/local/bin/zxx
+          printf '#!/bin/sh\nexec zig ar "$@"\n' | sudo tee /usr/local/bin/zar > /dev/null
+          printf '#!/bin/sh\nexec zig ranlib "$@"\n' | sudo tee /usr/local/bin/zranlib > /dev/null
+          sudo chmod +x /usr/local/bin/zcc /usr/local/bin/zxx /usr/local/bin/zar /usr/local/bin/zranlib
       - run: |
           cmake -S "$WHISPER" -B "$BUILD" \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
@@ -93,6 +125,10 @@ jobs:
             -DGGML_NATIVE=OFF \
             ${{ matrix.cmake_args }}
           cmake --build "$BUILD" --target whisper -j"$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)"
+      # ggml drops the lib prefix on Windows unconditionally, and the binding's
+      # -lggml still looks for libggml.a.
+      - if: matrix.goos == 'windows'
+        run: for lib in "$BUILD"/ggml/src/ggml*.a; do cp "$lib" "${lib%/*}/lib${lib##*/}"; done
       - env:
           CGO_ENABLED: "1"
           GOOS: ${{ matrix.goos }}
