@@ -21,7 +21,7 @@ const (
 	reasonRefused         reason = "refused by the origin"
 	reasonBrowserInternal reason = "a browser-internal handle: the real stream was never captured"
 	reasonNoProgram       reason = "carried no video program"
-	reasonTooShort        reason = "too short to be content, treated as an ad"
+	reasonTooShort        reason = "too short to be content, admitted as a last resort"
 	// A header captured instead of the thing it heads; the move is casting the manifest that lists it.
 	reasonFragmentHeader reason = "an MP4 header with no timeline of its own, admitted as a last resort"
 )
@@ -66,11 +66,13 @@ var admissions = admissionTable{rules: []admissionRule{{
 	reason: reasonNoProgram,
 	when:   func(c measured) bool { return !movingPicture(c.Probe) },
 }, {
-	// A known duration under a feature's is a spliced-in ad, and ads are encoded well above the title.
+	// A known duration under a feature's is likely an ad, but a trailer or clip is real: only a title ranks above it.
 	reason: reasonTooShort,
 	when: func(c measured) bool {
 		return source.ShorterThanContent(c.Probe.Duration)
 	},
+	admit:      true,
+	lastResort: true,
 }, {
 	reason: reasonFragmentHeader,
 	when: func(c measured) bool {

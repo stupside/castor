@@ -35,7 +35,7 @@ func TestAdmissions(t *testing.T) {
 		{"unmeasured and unrefused is a last resort", hls("http://a.example/unset.m3u8"), reasonUnproven, true, true},
 		{"a browser handle", hls("blob:https://play.example/17147e13"), reasonBrowserInternal, false, false},
 		{"a slideshow is not a program", probed(hlsAt("http://a.example/s.m3u8"), media.ReachOpened, slideshow), reasonNoProgram, false, false},
-		{"a short runtime is an ad", probed(hlsAt("http://a.example/ad.m3u8"), media.ReachOpened, playable(9_000_000, 720, 90*time.Second)), reasonTooShort, false, false},
+		{"a short runtime is a last resort", probed(hlsAt("http://a.example/ad.m3u8"), media.ReachOpened, playable(9_000_000, 720, 90*time.Second)), reasonTooShort, true, true},
 		{"an unstated runtime is not a short one", probed(hlsAt("http://a.example/live.m3u8"), media.ReachOpened, playable(3_000_000, 1080, 0)), reasonCastable, true, false},
 		{"an MP4 with no runtime is a fragment header", probed(hlsAt("http://a.example/init.mp4"), media.ReachOpened, initSegment), reasonFragmentHeader, true, true},
 		{"measured and castable", probed(hlsAt("http://a.example/f.m3u8"), media.ReachOpened, playable(3_000_000, 1080, 2*time.Hour)), reasonCastable, true, false},
