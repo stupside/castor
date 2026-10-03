@@ -32,6 +32,27 @@ go test ./...
 
 `go test ./...` includes the end-to-end suite, which builds the three binaries and casts real streams from fake sites to fake devices on each family's protocol. It needs ffmpeg, ffprobe and Chrome, runs in real time, and is not run in CI; `go test -short ./...` skips it.
 
+## Running the stack with Tilt
+
+[Tilt](https://tilt.dev) runs the whole dev loop natively, with live reload. You need Node 24+ and Yarn on top of the build requirements above, and the tokens in a `.env` file, as in `docker-compose.yml`.
+
+```sh
+tilt up   # then open the UI Tilt prints
+```
+
+It starts these resources, each rebuilt when its sources change:
+
+| Resource | What it runs |
+| --- | --- |
+| `lib` | `make lib`, the whisper library, skipped once built |
+| `media-server` | `castor media-server` on `:8410` |
+| `api-server` | `castor api-server` on `:8411`, pointed at the media server |
+| `install` | `yarn install` for the web app |
+| `app-generate` | regenerates the TypeScript client from `proto/` (`yarn workspace castor-app generate`) |
+| `app` | the Next.js app on `:3000`, which calls both servers through its `/rpc` proxy |
+
+Open the app on `http://localhost:3000`. To try it from a phone, use your machine's LAN address: `next.config.ts` allows the usual private ranges in dev.
+
 ## The rules
 
 [ARCHITECTURE.md](ARCHITECTURE.md) explains why each of these holds.

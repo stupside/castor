@@ -16,3 +16,11 @@ third_party/whisper.cpp/build_*/
 
 # docker compose secrets (tokens)
 .env
+
+# Next.js app tier
+node_modules/
+.next/
+app/.env*
+next-env.d.ts
+.yarn/*
+!.yarn/releases

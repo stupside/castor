@@ -1,0 +1,7 @@
+{
+  "name": "castor",
+  "private": true,
+  "workspaces": [
+    "app"
+  ]
+}
