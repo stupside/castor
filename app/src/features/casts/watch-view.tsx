@@ -14,7 +14,7 @@ import { stopAction } from "./actions";
 import { Diary } from "./diary";
 import { journey } from "./phases";
 
-const client = createClient(CastService, browserTransport("api"));
+const client = createClient(CastService, browserTransport);
 
 export function WatchView({ castId }: { castId: string }) {
   const [status, setStatus] = useState<CastStatus>();
