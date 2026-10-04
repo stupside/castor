@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -33,9 +32,7 @@ func (r *scriptedRunner) Run(_ context.Context, a Attempt) Outcome {
 
 // fakeProgram publishes scripted answers per link and every other link unchanged.
 type fakeProgram struct {
-	answers  map[string]published
-	asked    []string
-	narrowed []source.Rendition
+	answers map[string]published
 }
 
 type published struct {
@@ -45,15 +42,11 @@ type published struct {
 	err    error
 }
 
-func (p *fakeProgram) Resolve(_ context.Context, s *source.Stream, chosen source.Rendition) (source.Resolution, error) {
-	p.asked = append(p.asked, s.URL.String())
-	if !reflect.ValueOf(chosen).IsZero() {
-		p.narrowed = append(p.narrowed, chosen)
-	}
+func (p *fakeProgram) Resolve(_ context.Context, s *source.Stream, _ source.Rendition) (source.Resolution, error) {
 	answer, ok := p.answers[s.URL.String()]
 	switch {
 	case !ok:
-		program, err := programForStream(s, chosen.AudioURL)
+		program, err := source.ProgramFor(s)
 		return source.Resolution{Program: program}, err
 	case answer.err != nil:
 		return source.Resolution{}, answer.err
@@ -66,7 +59,7 @@ func (p *fakeProgram) Resolve(_ context.Context, s *source.Stream, chosen source
 		}
 		link.URL = u
 	}
-	program, err := programForStream(&link, chosen.AudioURL)
+	program, err := source.ProgramFor(&link)
 	if err == nil {
 		program.Inputs[0].Fetch = media.Fetch{Segmented: answer.origin.Segmented, Framing: answer.origin.Framing, Live: answer.origin.Live}
 	}
@@ -97,19 +90,6 @@ func link(t *testing.T, raw string) *source.Stream {
 		t.Fatal(err)
 	}
 	return &source.Stream{URL: u, ContentType: media.HLS, Headers: http.Header{"Referer": {"https://player.example/"}}}
-}
-
-func programForStream(stream *source.Stream, audio *url.URL) (media.Program, error) {
-	if audio == nil {
-		return source.ProgramFor(stream)
-	}
-	return media.NewProgram(media.Program{Inputs: []media.Input{
-		{ID: media.PrimaryInputID, URL: stream.URL, Headers: stream.Headers, ContentType: stream.ContentType},
-		{ID: media.AudioInputID, URL: audio, Headers: stream.Headers, ContentType: stream.ContentType},
-	}, Tracks: []media.TrackRef{
-		{Input: media.PrimaryInputID, Kind: media.TrackVideo},
-		{Input: media.AudioInputID, Kind: media.TrackAudio},
-	}, ClockInput: media.PrimaryInputID, EndPolicy: media.EndAtShortest})
 }
 
 func primaryInput(t *testing.T, program media.Program) media.Input {
