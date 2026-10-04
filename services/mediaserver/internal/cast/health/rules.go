@@ -51,7 +51,7 @@ var rules = []rule{{
 	kind:   Stalled,
 }, {
 	name:   "stalled",
-	why:    "the producer stopped delivering, or delivers under half of playback pace, and the device has played everything that reached it; the likeliest cause is a signed playlist whose segments have expired (they answer 404), and re-extracting the link is what gets a fresh token",
+	why:    "the producer stopped delivering and the device has played everything that reached it",
 	phases: []Phase{Reading, Playing},
 	when:   func(h Vitals) bool { return !h.ended && h.sinceGrowth > StallWindow && !h.buffered() },
 	kind:   Stalled,
