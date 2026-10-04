@@ -20,9 +20,13 @@ func DryRun(ctx context.Context, casts castorv1connect.CastServiceClient, source
 	return nil
 }
 
-// dryRunRow formats a stream as bandwidth and URL, with "last resort" label if unmeasured.
+// dryRunRow formats a stream as bandwidth and URL, preserving unknown bandwidth.
 func dryRunRow(s *castorv1.RankedStream) string {
-	row := fmt.Sprintf("%d\t%s", s.GetBitrate(), s.GetUrl())
+	bitrate := "unknown"
+	if s.Bitrate != nil {
+		bitrate = fmt.Sprint(s.GetBitrate())
+	}
+	row := fmt.Sprintf("%s\t%s", bitrate, s.GetUrl())
 	if s.GetLastResort() {
 		row += "\tlast resort"
 	}

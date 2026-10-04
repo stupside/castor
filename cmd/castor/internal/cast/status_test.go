@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
 
@@ -34,5 +36,24 @@ func TestEachPhaseACastEntersIsAnnouncedOnce(t *testing.T) {
 
 	if want := []string{"cast connecting the device", "cast finding streams"}; !slices.Equal(msgs, want) {
 		t.Errorf("said %v, want %v", msgs, want)
+	}
+}
+
+func TestDryRunPreservesUnknownBitrate(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		bitrate *uint64
+		resort  bool
+		want    string
+	}{
+		{"unknown", nil, false, "unknown\thttps://cdn.example/video"},
+		{"measured", proto.Uint64(8000000), false, "8000000\thttps://cdn.example/video"},
+		{"last resort", nil, true, "unknown\thttps://cdn.example/video\tlast resort"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := dryRunRow(&castorv1.RankedStream{Url: "https://cdn.example/video", Bitrate: tc.bitrate, LastResort: tc.resort}); got != tc.want {
+				t.Errorf("row = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

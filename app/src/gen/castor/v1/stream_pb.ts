@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/stream.proto.
  */
 export const file_castor_v1_stream: GenFile = /*@__PURE__*/
-  fileDesc("ChZjYXN0b3IvdjEvc3RyZWFtLnByb3RvEgljYXN0b3IudjEiqwIKBlN0cmVhbRKOAQoDdXJsGAEgASgJQoABukh9ugF1Cgh1cmwuaHR0cBIcbXVzdCBiZSBhbiBodHRwIG9yIGh0dHBzIFVSTBpLdGhpcy5pc1VyaSgpICYmICh0aGlzLnN0YXJ0c1dpdGgoJ2h0dHA6Ly8nKSB8fCB0aGlzLnN0YXJ0c1dpdGgoJ2h0dHBzOi8vJykpcgMYgEASSgoHaGVhZGVycxgCIAMoCzIeLmNhc3Rvci52MS5TdHJlYW0uSGVhZGVyc0VudHJ5Qhm6SBaaARMQQCIFcgPAAQEqCHIGyAEAwAECEhQKDGNvbnRlbnRfdHlwZRgDIAEoCRouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJBCgxSYW5rZWRTdHJlYW0SCwoDdXJsGAEgASgJEg8KB2JpdHJhdGUYAiABKAQSEwoLbGFzdF9yZXNvcnQYAyABKAgqSwoIRGVsaXZlcnkSGAoUREVMSVZFUllfVU5TUEVDSUZJRUQQABIRCg1ERUxJVkVSWV9BVVRPEAESEgoOREVMSVZFUllfU0VSVkUQAmIGcHJvdG8z", [file_buf_validate_validate]);
+  fileDesc("ChZjYXN0b3IvdjEvc3RyZWFtLnByb3RvEgljYXN0b3IudjEiqwIKBlN0cmVhbRKOAQoDdXJsGAEgASgJQoABukh9ugF1Cgh1cmwuaHR0cBIcbXVzdCBiZSBhbiBodHRwIG9yIGh0dHBzIFVSTBpLdGhpcy5pc1VyaSgpICYmICh0aGlzLnN0YXJ0c1dpdGgoJ2h0dHA6Ly8nKSB8fCB0aGlzLnN0YXJ0c1dpdGgoJ2h0dHBzOi8vJykpcgMYgEASSgoHaGVhZGVycxgCIAMoCzIeLmNhc3Rvci52MS5TdHJlYW0uSGVhZGVyc0VudHJ5Qhm6SBaaARMQQCIFcgPAAQEqCHIGyAEAwAECEhQKDGNvbnRlbnRfdHlwZRgDIAEoCRouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKlAgoPU3RyZWFtQ2FuZGlkYXRlEikKBnN0cmVhbRgBIAEoCzIRLmNhc3Rvci52MS5TdHJlYW1CBrpIA8gBARK5AQoLc291cmNlX3BhZ2UYAiABKAlCowG6SJ8BugGWAQoQc291cmNlX3BhZ2UuaHR0cBIlbXVzdCBiZSBlbXB0eSBvciBhbiBodHRwIG9yIGh0dHBzIFVSTBpbdGhpcyA9PSAnJyB8fCAodGhpcy5pc1VyaSgpICYmICh0aGlzLnN0YXJ0c1dpdGgoJ2h0dHA6Ly8nKSB8fCB0aGlzLnN0YXJ0c1dpdGgoJ2h0dHBzOi8vJykpKXIDGIBAEisKBmxhZGRlchgDIAEoDjIRLmNhc3Rvci52MS5MYWRkZXJCCLpIBYIBAhABIlsKDFJhbmtlZFN0cmVhbRILCgN1cmwYASABKAkSHQoHYml0cmF0ZRgCIAEoBEIHukgEMgIgAEgAiAEBEhMKC2xhc3RfcmVzb3J0GAMgASgIQgoKCF9iaXRyYXRlKkoKBkxhZGRlchIWChJMQURERVJfVU5TUEVDSUZJRUQQABIXChNMQURERVJfTVVMVElWQVJJQU5UEAESDwoLTEFEREVSX1NPTEUQAipLCghEZWxpdmVyeRIYChRERUxJVkVSWV9VTlNQRUNJRklFRBAAEhEKDURFTElWRVJZX0FVVE8QARISCg5ERUxJVkVSWV9TRVJWRRACYgZwcm90bzM", [file_buf_validate_validate]);
 
 /**
  * Stream is one link to the media, with what fetching it needs.
@@ -47,6 +47,35 @@ export const StreamSchema: GenMessage<Stream> = /*@__PURE__*/
   messageDesc(file_castor_v1_stream, 0);
 
 /**
+ * StreamCandidate pairs playback data with evidence from discovery.
+ *
+ * @generated from message castor.v1.StreamCandidate
+ */
+export type StreamCandidate = Message<"castor.v1.StreamCandidate"> & {
+  /**
+   * @generated from field: castor.v1.Stream stream = 1;
+   */
+  stream?: Stream | undefined;
+
+  /**
+   * @generated from field: string source_page = 2;
+   */
+  sourcePage: string;
+
+  /**
+   * @generated from field: castor.v1.Ladder ladder = 3;
+   */
+  ladder: Ladder;
+};
+
+/**
+ * Describes the message castor.v1.StreamCandidate.
+ * Use `create(StreamCandidateSchema)` to create a new message.
+ */
+export const StreamCandidateSchema: GenMessage<StreamCandidate> = /*@__PURE__*/
+  messageDesc(file_castor_v1_stream, 1);
+
+/**
  * @generated from message castor.v1.RankedStream
  */
 export type RankedStream = Message<"castor.v1.RankedStream"> & {
@@ -56,11 +85,11 @@ export type RankedStream = Message<"castor.v1.RankedStream"> & {
   url: string;
 
   /**
-   * bitrate is in bits per second, 0 where nothing measured or declared it.
+   * bitrate is in bits per second, absent when neither measured nor declared.
    *
-   * @generated from field: uint64 bitrate = 2;
+   * @generated from field: optional uint64 bitrate = 2;
    */
-  bitrate: bigint;
+  bitrate?: bigint | undefined;
 
   /**
    * last_resort marks a stream admitted without a measurement to back it.
@@ -75,7 +104,33 @@ export type RankedStream = Message<"castor.v1.RankedStream"> & {
  * Use `create(RankedStreamSchema)` to create a new message.
  */
 export const RankedStreamSchema: GenMessage<RankedStream> = /*@__PURE__*/
-  messageDesc(file_castor_v1_stream, 1);
+  messageDesc(file_castor_v1_stream, 2);
+
+/**
+ * @generated from enum castor.v1.Ladder
+ */
+export enum Ladder {
+  /**
+   * @generated from enum value: LADDER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: LADDER_MULTIVARIANT = 1;
+   */
+  MULTIVARIANT = 1,
+
+  /**
+   * @generated from enum value: LADDER_SOLE = 2;
+   */
+  SOLE = 2,
+}
+
+/**
+ * Describes the enum castor.v1.Ladder.
+ */
+export const LadderSchema: GenEnum<Ladder> = /*@__PURE__*/
+  enumDesc(file_castor_v1_stream, 0);
 
 /**
  * @generated from enum castor.v1.Delivery
@@ -105,5 +160,5 @@ export enum Delivery {
  * Describes the enum castor.v1.Delivery.
  */
 export const DeliverySchema: GenEnum<Delivery> = /*@__PURE__*/
-  enumDesc(file_castor_v1_stream, 0);
+  enumDesc(file_castor_v1_stream, 1);
 

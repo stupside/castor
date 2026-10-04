@@ -22,7 +22,10 @@ func (s *Service) Rank(ctx context.Context, req *mediav1.RankRequest) (*mediav1.
 	}
 	out := &mediav1.RankResponse{Ranked: make([]*castorv1.RankedStream, len(ranked))}
 	for i, r := range ranked {
-		out.Ranked[i] = &castorv1.RankedStream{Url: r.URL.String(), Bitrate: uint64(r.Bitrate()), LastResort: r.LastResort}
+		out.Ranked[i] = &castorv1.RankedStream{Url: r.URL.String(), LastResort: r.LastResort}
+		if bitrate := r.Bitrate(); bitrate > 0 {
+			out.Ranked[i].Bitrate = new(uint64(bitrate))
+		}
 	}
 	return out, nil
 }

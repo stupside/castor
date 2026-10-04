@@ -31,6 +31,26 @@ message Stream {
   string content_type = 3;
 }
 
+// StreamCandidate pairs playback data with evidence from discovery.
+message StreamCandidate {
+  Stream stream = 1 [(buf.validate.field).required = true];
+  string source_page = 2 [
+    (buf.validate.field).string.max_len = 8192,
+    (buf.validate.field).cel = {
+      id: "source_page.http"
+      message: "must be empty or an http or https URL"
+      expression: "this == '' || (this.isUri() && (this.startsWith('http://') || this.startsWith('https://')))"
+    }
+  ];
+  Ladder ladder = 3 [(buf.validate.field).enum.defined_only = true];
+}
+
+enum Ladder {
+  LADDER_UNSPECIFIED = 0;
+  LADDER_MULTIVARIANT = 1;
+  LADDER_SOLE = 2;
+}
+
 enum Delivery {
   DELIVERY_UNSPECIFIED = 0;
   // DELIVERY_AUTO lets the evidence decide between pass-through and serving.
@@ -41,8 +61,8 @@ enum Delivery {
 
 message RankedStream {
   string url = 1;
-  // bitrate is in bits per second, 0 where nothing measured or declared it.
-  uint64 bitrate = 2;
+  // bitrate is in bits per second, absent when neither measured nor declared.
+  optional uint64 bitrate = 2 [(buf.validate.field).uint64.gt = 0];
   // last_resort marks a stream admitted without a measurement to back it.
   bool last_resort = 3;
 }
