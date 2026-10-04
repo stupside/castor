@@ -42,7 +42,10 @@ func Read[T any](path string, defaults T) (*T, error) {
 	local := strings.TrimSuffix(path, filepath.Ext(path)) + ".local" + filepath.Ext(path)
 	for _, layer := range []string{path, local} {
 		if _, err := os.Stat(layer); err != nil {
-			continue
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("reading %s: %w", layer, err)
 		}
 		if err := k.Load(file.Provider(layer), yaml.Parser()); err != nil {
 			return nil, fmt.Errorf("loading %s: %w", layer, err)

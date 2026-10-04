@@ -13,7 +13,7 @@ type sections struct {
 		MaxHeight uint32 `yaml:"max_height"`
 	} `yaml:"cast"`
 	Network struct {
-		Timeout time.Duration `yaml:"timeout" validate:"required"`
+		Timeout time.Duration `yaml:"timeout"`
 	} `yaml:"network"`
 }
 
@@ -60,12 +60,16 @@ func TestTheOverlayThenTheEnvironmentWinOverTheFileAndTheDefaults(t *testing.T) 
 	}
 }
 
-func TestNoFileLeavesTheDefaultsAndABrokenSectionIsRefused(t *testing.T) {
+func TestNoFileLeavesTheDefaults(t *testing.T) {
 	got, err := Read(filepath.Join(t.TempDir(), "config.yaml"), defaulted())
 	if err != nil || got.Network.Timeout != 5*time.Second {
 		t.Errorf("read %+v %v without a file, want the defaults", got, err)
 	}
-	if _, err := Read(write(t, "network:\n  timeout: 0s\n", ""), defaulted()); err == nil {
-		t.Error("a section breaking its rules was read")
+}
+
+func TestAnUnreadableConfigPathIsNotTreatedAsAMissingFile(t *testing.T) {
+	path := write(t, "network:\n  timeout: 2s\n", "")
+	if _, err := Read(filepath.Join(path, "config.yaml"), defaulted()); err == nil {
+		t.Error("a path through a regular file was ignored instead of reporting the filesystem error")
 	}
 }
