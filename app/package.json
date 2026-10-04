@@ -14,7 +14,6 @@
     "@connectrpc/connect": "^2.2.0",
     "@connectrpc/connect-node": "^2.2.0",
     "@connectrpc/connect-web": "^2.2.0",
-    "@headlessui/react": "^2.2.10",
     "next": "^16.3.8",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
