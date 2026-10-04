@@ -36,3 +36,21 @@ func TestLinesLoggedUnderAScreenAreWrittenAfterItInOrder(t *testing.T) {
 		t.Errorf("wrote %v after the screen, want %v", out, want)
 	}
 }
+
+func TestALoggerKeptByBackgroundWorkResumesWritingAfterTheScreen(t *testing.T) {
+	var out []string
+	prev := slog.Default()
+	slog.SetDefault(slog.New(written{lines: &out}))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	var background *slog.Logger
+	_ = held(func() error {
+		background = slog.Default().With("work", "discovery")
+		background.Warn("screen open")
+		return nil
+	})
+	background.Warn("screen closed")
+	if want := []string{"screen open", "screen closed"}; !slices.Equal(out, want) {
+		t.Errorf("wrote %v, want the retained logger to resume writing: %v", out, want)
+	}
+}

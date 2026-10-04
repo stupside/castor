@@ -14,9 +14,13 @@ func held(run func() error) error {
 	slog.SetDefault(slog.New(h))
 	defer func() {
 		slog.SetDefault(prev)
+		h.lines.mu.Lock()
+		defer h.lines.mu.Unlock()
 		for _, r := range h.lines.kept {
 			_ = prev.Handler().Handle(context.Background(), r)
 		}
+		h.lines.kept = nil
+		h.lines.released = true
 	}()
 	return run()
 }
@@ -29,20 +33,25 @@ type holding struct {
 }
 
 type lines struct {
-	mu   sync.Mutex
-	kept []slog.Record
+	mu       sync.Mutex
+	kept     []slog.Record
+	released bool
 }
 
 func (h *holding) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.next.Enabled(ctx, level)
 }
 
-func (h *holding) Handle(_ context.Context, r slog.Record) error {
+func (h *holding) Handle(ctx context.Context, r slog.Record) error {
 	r = r.Clone()
 	r.AddAttrs(h.attrs...)
 	h.lines.mu.Lock()
-	defer h.lines.mu.Unlock()
+	if h.lines.released {
+		h.lines.mu.Unlock()
+		return h.next.Handle(ctx, r)
+	}
 	h.lines.kept = append(h.lines.kept, r)
+	h.lines.mu.Unlock()
 	return nil
 }
 
