@@ -25,3 +25,19 @@ func TestADeviceIsGoneAfterTheWindowHoweverLongEachPollHangs(t *testing.T) {
 		}
 	})
 }
+
+func TestCancellationDuringAPollKeepsTheCastsCause(t *testing.T) {
+	for _, pollError := range []error{nil, errors.New("poll interrupted")} {
+		synctest.Test(t, func(t *testing.T) {
+			ctx, cancel := context.WithCancelCause(t.Context())
+			cause := errors.New("cast stopped")
+			err := AwaitPolledEnd(ctx, "Bedroom", "status", func(context.Context) (bool, error) {
+				cancel(cause)
+				return true, pollError
+			})
+			if !errors.Is(err, cause) {
+				t.Fatalf("AwaitPolledEnd = %v, want the cancellation cause", err)
+			}
+		})
+	}
+}

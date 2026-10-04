@@ -29,6 +29,9 @@ func AwaitPolledEnd(ctx context.Context, name, question string, poll func(contex
 		asking, cancel := context.WithTimeout(ctx, PollTimeout)
 		over, err := poll(asking)
 		cancel()
+		if ctx.Err() != nil {
+			return context.Cause(ctx)
+		}
 		if err != nil {
 			if silent := time.Since(answered); silent >= UnreachableWindow {
 				// Last failure explains how (refused, timed out, no route).
