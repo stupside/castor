@@ -40,20 +40,20 @@ type play func(ctx context.Context, device execute.Device, listeners deliver.Lis
 // engine is the server's machinery: it ranks by reversing, so the order cast in proves ranking ran.
 type engine struct {
 	play     play
-	asked    chan *castorv1.Preferences
+	asked    chan *mediav1.PlaybackSettings
 	measured chan *source.Stream
 	ranked   chan []*source.Stream
 }
 
 func machinery(p play) *engine {
-	return &engine{play: p, asked: make(chan *castorv1.Preferences, 4), measured: make(chan *source.Stream, 1), ranked: make(chan []*source.Stream, 1)}
+	return &engine{play: p, asked: make(chan *mediav1.PlaybackSettings, 4), measured: make(chan *source.Stream, 1), ranked: make(chan []*source.Stream, 1)}
 }
 
 func (e *engine) backend() mediaserver.Backend {
-	return mediaserver.Backend{Extractor: links{}, Caster: e.caster}
+	return mediaserver.Backend{Caster: e.caster}
 }
 
-func (e *engine) caster(asked *castorv1.Preferences) cast.Caster {
+func (e *engine) caster(asked *mediav1.PlaybackSettings) cast.Caster {
 	e.asked <- asked
 	return e
 }
@@ -77,27 +77,6 @@ func (e *engine) Measure(_ context.Context, stream *source.Stream) (*source.Stre
 
 func (e *engine) Play(ctx context.Context, device execute.Device, l deliver.Listeners, streams []*source.Stream, turns recovery.Turns) error {
 	return e.play(ctx, device, l, streams, turns)
-}
-
-// links finds each page to be its own stream, fetched with the page as its Referer; a page that plays nothing finds none.
-type links struct{}
-
-func (links) ExtractAll(_ context.Context, pages []string) ([]*source.Stream, error) {
-	found := make([]*source.Stream, 0, len(pages))
-	for _, raw := range pages {
-		if raw == "https://site.example/empty" {
-			continue
-		}
-		u, err := url.Parse(raw)
-		if err != nil {
-			return nil, err
-		}
-		found = append(found, &source.Stream{URL: u, Headers: http.Header{"Referer": {"https://page.example/"}}})
-	}
-	if len(found) == 0 {
-		return nil, errors.New("no stream extracted")
-	}
-	return found, nil
 }
 
 // lentDevice is the device the fake lender lends: it fetches what it is told to play.
@@ -203,19 +182,23 @@ func serve(t *testing.T, b mediaserver.Backend) server {
 }
 
 // asked is what this operator asks of every cast in these tests.
-var asked = &castorv1.Preferences{Delivery: castorv1.Delivery_DELIVERY_SERVE.Enum(), MaxHeight: proto.Uint32(720), Subtitles: new("fr")}
+var asked = &mediav1.PlaybackSettings{Delivery: castorv1.Delivery_DELIVERY_SERVE, MaxHeight: 720, Subtitles: &castorv1.SubtitleSelection{Mode: &castorv1.SubtitleSelection_Language{Language: "fr"}}}
 
-func streamOf(raw string) *castorv1.Source {
-	return &castorv1.Source{Source: &castorv1.Source_Stream{Stream: &castorv1.Stream{Url: raw, Headers: map[string]string{"Referer": "https://page.example/"}}}}
+func streamOf(raw string) *mediav1.Source {
+	return &mediav1.Source{Source: &mediav1.Source_Stream{Stream: &castorv1.Stream{Url: raw, Headers: map[string]string{"Referer": "https://page.example/"}}}}
 }
 
-func pagesOf(urls ...string) *castorv1.Source {
-	return &castorv1.Source{Source: &castorv1.Source_Pages_{Pages: &castorv1.Source_Pages{Urls: urls}}}
+func candidatesOf(urls ...string) *mediav1.Source {
+	streams := make([]*castorv1.StreamCandidate, 0, len(urls))
+	for _, raw := range urls {
+		streams = append(streams, &castorv1.StreamCandidate{Stream: &castorv1.Stream{Url: raw, Headers: map[string]string{"Referer": "https://page.example/"}}})
+	}
+	return &mediav1.Source{Source: &mediav1.Source_Streams_{Streams: &mediav1.Source_Streams{Streams: streams}}}
 }
 
-func start(t *testing.T, c server, source *castorv1.Source) string {
+func start(t *testing.T, c server, source *mediav1.Source) string {
 	t.Helper()
-	started, err := c.casts.Start(t.Context(), &mediav1.StartRequest{Source: source, Preferences: asked})
+	started, err := c.casts.Start(t.Context(), &mediav1.StartRequest{Source: source, Settings: asked})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,12 +258,14 @@ func (w watched) outcome() error {
 	switch {
 	case w.err != nil:
 		return w.err
-	case w.ended.GetOutcome() == castorv1.Outcome_OUTCOME_STOPPED:
+	case w.ended.GetStopped() != nil:
 		return errors.New("stopped")
-	case w.ended.GetOutcome() == castorv1.Outcome_OUTCOME_FAILED:
-		return errors.New(w.ended.GetReason())
+	case w.ended.GetFailed() != nil:
+		return errors.New(w.ended.GetFailed().GetMessage())
+	case w.ended.GetCompleted() != nil:
+		return nil
 	}
-	return nil
+	return errors.New("the cast ended without a result")
 }
 
 // watching watches cast id, asking for its lines from logs on, and returns once the first status is shown, with what it saw to come.
@@ -316,7 +301,7 @@ func watching(t *testing.T, c server, id string, logs *castorv1.LogLevel) <-chan
 }
 
 // castOn starts a cast of source, lends it device and follows it to its end.
-func castOn(t *testing.T, c server, source *castorv1.Source, device *lentDevice) watched {
+func castOn(t *testing.T, c server, source *mediav1.Source, device *lentDevice) watched {
 	t.Helper()
 	id := start(t, c, source)
 	w := watching(t, c, id, nil)
@@ -343,11 +328,11 @@ func TestPagesStreamsAreRankedThenHandedToTheLentDeviceAsTheyAre(t *testing.T) {
 		return handoff(ctx, lent, l, streams, turns)
 	}).backend())
 
-	w := castOn(t, c, pagesOf("https://cdn.example/a.m3u8", "https://cdn.example/b.m3u8"), device)
+	w := castOn(t, c, candidatesOf("https://cdn.example/a.m3u8", "https://cdn.example/b.m3u8"), device)
 	if err := w.outcome(); err != nil {
 		t.Fatalf("a cast that ended cleanly reported %v", err)
 	}
-	if last, want := w.shown[len(w.shown)-1], (&castorv1.CastStatus{Phase: castorv1.Phase_PHASE_CASTING, Streams: 2, Castable: 2, Attempt: 1}); !proto.Equal(last, want) {
+	if last, want := w.shown[len(w.shown)-1], (&castorv1.CastStatus{State: &castorv1.CastStatus_Casting{Casting: &castorv1.CastingStatus{Streams: 2, Castable: 2, Attempt: 1}}}); !proto.Equal(last, want) {
 		t.Errorf("the watcher was last shown %+v, want %+v", last, want)
 	}
 	if got := string(<-device.played); got != "https://cdn.example/b.m3u8" {
@@ -416,11 +401,11 @@ func TestRankingAStreamSourceMeasuresItAsACastWould(t *testing.T) {
 	e := machinery(nil)
 	c := serve(t, e.backend())
 
-	resp, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: streamOf("https://cdn.example/direct"), Preferences: asked})
+	resp, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: streamOf("https://cdn.example/direct"), Settings: asked})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := resp.GetRanked(); len(got) != 1 || got[0].GetUrl() != "https://cdn.example/direct" || got[0].GetLastResort() {
+	if got := resp.GetRanked(); len(got) != 1 || got[0].GetUrl() != "https://cdn.example/direct" || got[0].GetLastResort() || got[0].Bitrate != nil {
 		t.Errorf("ranked %v, want the stream alone, measured rather than ranked", got)
 	}
 	select {
@@ -437,7 +422,7 @@ func TestADryRunIsTheServersRankingAsTheCastWouldAskIt(t *testing.T) {
 	e := machinery(nil)
 	c := serve(t, e.backend())
 
-	resp, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: pagesOf("https://cdn.example/a.m3u8", "https://cdn.example/b.m3u8"), Preferences: asked})
+	resp, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: candidatesOf("https://cdn.example/a.m3u8", "https://cdn.example/b.m3u8"), Settings: asked})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,19 +433,6 @@ func TestADryRunIsTheServersRankingAsTheCastWouldAskIt(t *testing.T) {
 	if got := <-e.asked; !proto.Equal(got, asked) {
 		t.Errorf("ranked as asked %v, want %v", got, asked)
 	}
-}
-
-// heldPages finds its pages' one stream only once released, telling when it starts looking.
-type heldPages struct{ looking, release chan struct{} }
-
-func (h heldPages) ExtractAll(ctx context.Context, pages []string) ([]*source.Stream, error) {
-	close(h.looking)
-	select {
-	case <-h.release:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-	return links{}.ExtractAll(ctx, pages)
 }
 
 // statusOf is cast id's status now, as a new watcher is first shown it.
@@ -479,37 +451,21 @@ func statusOf(t *testing.T, c server, id string) *castorv1.CastStatus {
 	return stream.Msg().GetStatus()
 }
 
-func TestACastOfPagesShowsExtractingWhileItsPagesAreSearchedThenMeasuring(t *testing.T) {
-	pages := heldPages{looking: make(chan struct{}), release: make(chan struct{})}
-	measuring := make(chan struct{})
-	b := machinery(func(ctx context.Context, _ execute.Device, _ deliver.Listeners, _ []*source.Stream, _ recovery.Turns) error {
-		<-measuring
-		return nil
-	}).backend()
-	b.Extractor = pages
-	c := serve(t, b)
-
-	id := start(t, c, pagesOf("https://cdn.example/a.m3u8"))
-	go func() { _ = lend(t.Context(), c, id, newLentDevice()) }()
-	<-pages.looking
-	if got := statusOf(t, c, id); got.GetPhase() != castorv1.Phase_PHASE_EXTRACTING {
-		t.Errorf("while its pages were searched the cast showed %v, want extracting", got)
+func TestResolvedCandidatesWaitForTheirDeviceAlreadyMeasuring(t *testing.T) {
+	c := serve(t, machinery(nil).backend())
+	id := start(t, c, candidatesOf("https://cdn.example/ready.m3u8"))
+	if got := statusOf(t, c, id); got.GetMeasuring() == nil || got.GetMeasuring().Castable != nil {
+		t.Fatalf("resolved candidates showed %v while waiting for a device, want measuring", got)
 	}
-	close(pages.release)
-	deadline := time.Now().Add(5 * time.Second)
-	for got := statusOf(t, c, id); got.GetPhase() != castorv1.Phase_PHASE_MEASURING || got.GetStreams() != 1; got = statusOf(t, c, id) {
-		if time.Now().After(deadline) {
-			t.Fatalf("once its pages gave their stream the cast showed %v, want it measuring that stream", got)
-		}
-		time.Sleep(10 * time.Millisecond)
+	if _, err := c.casts.Stop(t.Context(), &mediav1.StopRequest{CastId: id}); err != nil {
+		t.Fatal(err)
 	}
-	close(measuring)
 }
 
-func TestAStreamCastNeverShowsExtractingAndItsPhaseNeverGoesBack(t *testing.T) {
+func TestAStreamCastNeverShowsExtractingAndItsStateNeverGoesBack(t *testing.T) {
 	c := serve(t, machinery(func(ctx context.Context, device execute.Device, _ deliver.Listeners, streams []*source.Stream, turns recovery.Turns) error {
 		turns.Attempting(1)
-		turns.Revising("remux", "refused")
+		turns.Revising(recovery.ServeInstead, "refused")
 		turns.Attempting(2)
 		return device.Play(ctx, streams[0].URL, streams[0].ContentType)
 	}).backend())
@@ -519,15 +475,32 @@ func TestAStreamCastNeverShowsExtractingAndItsPhaseNeverGoesBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, s := range w.shown {
-		if s.GetPhase() == castorv1.Phase_PHASE_EXTRACTING {
+		if s.GetExtracting() != nil {
 			t.Errorf("a cast of a stream showed %v", s)
 		}
-		if i > 0 && s.GetPhase() < w.shown[i-1].GetPhase() {
-			t.Errorf("the cast went back from %v to %v", w.shown[i-1].GetPhase(), s.GetPhase())
+		if i > 0 && stateOrder(t, s) < stateOrder(t, w.shown[i-1]) {
+			t.Errorf("the cast went back from %v to %v", w.shown[i-1], s)
 		}
 	}
-	if last := w.shown[len(w.shown)-1]; last.GetPhase() != castorv1.Phase_PHASE_CASTING || last.GetAttempt() != 2 {
+	if last := w.shown[len(w.shown)-1]; last.GetCasting() == nil || last.GetCasting().GetAttempt() != 2 || last.GetCasting().GetRevision().GetAction() != castorv1.RecoveryAction_RECOVERY_ACTION_SERVE_INSTEAD || last.GetCasting().GetRevision().GetWhy() != "refused" {
 		t.Errorf("the cast ended showing %v, want its last attempt casting", last)
+	}
+}
+
+func stateOrder(t *testing.T, status *castorv1.CastStatus) int {
+	t.Helper()
+	switch status.GetState().(type) {
+	case *castorv1.CastStatus_Connecting:
+		return 0
+	case *castorv1.CastStatus_Extracting:
+		return 1
+	case *castorv1.CastStatus_Measuring:
+		return 2
+	case *castorv1.CastStatus_Casting:
+		return 3
+	default:
+		t.Fatalf("status has no state: %v", status)
+		return -1
 	}
 }
 
@@ -581,7 +554,7 @@ func TestTheServersLinesForACastReachOnlyTheWatchersThatAskedForThem(t *testing.
 		"asked for warn": {castorv1.LogLevel_LOG_LEVEL_WARN.Enum(), false},
 		"asked for none": {nil, false},
 	} {
-		id := start(t, c, pagesOf("https://cdn.example/a.m3u8"))
+		id := start(t, c, candidatesOf("https://cdn.example/a.m3u8"))
 		w := watching(t, c, id, tc.logs)
 		go func() { _ = lend(t.Context(), c, id, newLentDevice()) }()
 		got := <-w
@@ -606,7 +579,7 @@ func TestTheServersOwnLinesStayOffTheProcessThatEmbedsIt(t *testing.T) {
 	c := serve(t, machinery(nil).backend())
 
 	// A ranking logs on the server with no cast to carry it.
-	if _, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: pagesOf("https://cdn.example/a.m3u8"), Preferences: asked}); err != nil {
+	if _, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: candidatesOf("https://cdn.example/a.m3u8"), Settings: asked}); err != nil {
 		t.Fatal(err)
 	}
 	slog.InfoContext(t.Context(), "process line")
@@ -707,11 +680,12 @@ func TestADeviceGoneOnItsNetworkIsGoneToTheCastsRecovery(t *testing.T) {
 		return err
 	}).backend())
 
-	err := castOn(t, c, streamOf("https://cdn.example/direct"), device).outcome()
+	w := castOn(t, c, streamOf("https://cdn.example/direct"), device)
+	err := w.outcome()
 	if gone, ok := errors.AsType[*media.Gone](<-seen); !ok || gone.Device != "Bedroom" || gone.Observed != "stopped answering" || gone.Err == nil || gone.Err.Error() != "connection refused" {
 		t.Errorf("the engine saw %v, want a *media.Gone it can classify, with how and why", gone)
 	}
-	if err == nil || !strings.Contains(err.Error(), "unreachable") {
+	if err == nil || !strings.Contains(err.Error(), "unreachable") || w.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_DEVICE_UNREACHABLE {
 		t.Errorf("the cast ended with %v, want the device's loss", err)
 	}
 }
@@ -746,7 +720,7 @@ func TestACastHasOneDeviceAndPlaysOnWhenItsLenderLeaves(t *testing.T) {
 	if _, err := c.casts.Stop(t.Context(), &mediav1.StopRequest{CastId: id}); err != nil {
 		t.Fatal(err)
 	}
-	if got := <-w; got.ended.GetOutcome() != castorv1.Outcome_OUTCOME_STOPPED {
+	if got := <-w; got.ended.GetStopped() == nil {
 		t.Errorf("the cast ended %v, want the stop that ended the cast its lender had left", got.ended)
 	}
 }
@@ -772,8 +746,8 @@ func TestACastThatNeedsItsDeviceAgainOnceItsLenderLeftEndsThere(t *testing.T) {
 	<-lent
 	leave()
 	close(again)
-	if err := (<-w).outcome(); err == nil || !strings.Contains(err.Error(), "left") {
-		t.Errorf("the cast ended with %v, want it failed for its lender leaving", err)
+	if got := <-w; got.outcome() == nil || !strings.Contains(got.outcome().Error(), "left") || got.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_DEVICE_UNREACHABLE {
+		t.Errorf("the cast ended with %v, want it failed for its lender leaving", got.ended)
 	}
 }
 
@@ -803,26 +777,18 @@ func TestWatchingNeverDrivesAndTheCastStartsWithItsLender(t *testing.T) {
 	}
 }
 
-// master finds on any page a master, read whole in the browser, and one rendition beside it.
-type master struct{}
-
-func (master) ExtractAll(context.Context, []string) ([]*source.Stream, error) {
-	m, _ := url.Parse("https://cdn.example/master.m3u8")
-	r, _ := url.Parse("https://cdn.example/720.m3u8")
-	headers := http.Header{"Referer": {"https://site.example/watch"}}
-	return []*source.Stream{
-		{URL: m, Headers: headers, ContentType: "application/vnd.apple.mpegurl", Ladder: source.LadderMultivariant},
-		{URL: r, Headers: headers, ContentType: "application/vnd.apple.mpegurl"},
-	}, nil
-}
-
-func TestWhatAPageCarriedReachesRankingWhole(t *testing.T) {
+func TestCandidateMetadataReachesRankingWhole(t *testing.T) {
 	e := machinery(nil)
-	b := e.backend()
-	b.Extractor = master{}
-	c := serve(t, b)
+	c := serve(t, e.backend())
+	input := candidatesOf("https://cdn.example/master.m3u8", "https://cdn.example/720.m3u8")
+	for _, stream := range input.GetStreams().GetStreams() {
+		stream.Stream.Headers = map[string]string{"Referer": "https://site.example/watch"}
+		stream.Stream.ContentType = "application/vnd.apple.mpegurl"
+		stream.SourcePage = "https://site.example/watch"
+	}
+	input.GetStreams().Streams[0].Ladder = castorv1.Ladder_LADDER_MULTIVARIANT
 
-	if _, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: pagesOf("https://site.example/watch"), Preferences: asked}); err != nil {
+	if _, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: input, Settings: asked}); err != nil {
 		t.Fatal(err)
 	}
 	ranked := <-e.ranked
@@ -834,15 +800,19 @@ func TestWhatAPageCarriedReachesRankingWhole(t *testing.T) {
 	}
 }
 
-func TestAPageThatPlaysNothingIsNotFound(t *testing.T) {
-	c := serve(t, machinery(handoff).backend())
-
-	_, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Source: pagesOf("https://site.example/empty"), Preferences: asked})
-	if connect.CodeOf(err) != connect.CodeNotFound {
-		t.Errorf("ranking a page that plays nothing answered %v, want not found", err)
+func TestMalformedSourcesAreRejectedBeforeRankingOrPlayback(t *testing.T) {
+	e := machinery(handoff)
+	c := serve(t, e.backend())
+	if _, err := c.casts.Start(t.Context(), &mediav1.StartRequest{Settings: asked}); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("Start answered %v, want invalid argument", err)
 	}
-	if err := castOn(t, c, pagesOf("https://site.example/empty"), newLentDevice()).outcome(); err == nil || !strings.Contains(err.Error(), "finding streams") {
-		t.Errorf("casting a page that plays nothing ended with %v, want it failed for finding no stream", err)
+	if _, err := c.streams.Rank(t.Context(), &mediav1.RankRequest{Settings: asked}); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("Rank answered %v, want invalid argument", err)
+	}
+	select {
+	case settings := <-e.asked:
+		t.Errorf("a malformed source reached the engine: %v", settings)
+	default:
 	}
 }
 
@@ -866,10 +836,10 @@ func TestAServerShuttingDownFailsItsCastsSayingSoAndTakesNoMore(t *testing.T) {
 	if !tornDown.Load() {
 		t.Error("shutting down returned before its cast had let go of what it held")
 	}
-	if got := <-w; got.ended.GetOutcome() != castorv1.Outcome_OUTCOME_FAILED || got.ended.GetReason() != "server shutting down" {
+	if got := <-w; got.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_SERVER_SHUTDOWN || got.ended.GetFailed().GetMessage() != "server shutting down" {
 		t.Errorf("the cast ended %v, want it failed as the server shut down", got.ended)
 	}
-	if _, err := c.casts.Start(t.Context(), &mediav1.StartRequest{Source: streamOf("https://cdn.example/direct"), Preferences: asked}); connect.CodeOf(err) != connect.CodeUnavailable {
+	if _, err := c.casts.Start(t.Context(), &mediav1.StartRequest{Source: streamOf("https://cdn.example/direct"), Settings: asked}); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Errorf("a cast started on a server shutting down was met with %v, want unavailable", err)
 	}
 }

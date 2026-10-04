@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/registry"
 	"github.com/stupside/castor/services/apiserver/internal/device"
@@ -43,16 +44,17 @@ type Service struct {
 	ctx      context.Context
 	shut     context.CancelCauseFunc
 	media    *mediaclient.Client
-	defaults *castorv1.Preferences
+	scraping Resolver
+	defaults *mediav1.PlaybackSettings
 	devices  Devices
 	casts    *registry.Registry[*cast]
 }
 
 // New casts on devices through media, every cast asking defaults unless its request says otherwise.
-func New(defaults *castorv1.Preferences, devices Devices, media *mediaclient.Client) *Service {
+func New(defaults *mediav1.PlaybackSettings, devices Devices, media *mediaclient.Client, scraping Resolver) *Service {
 	// Casts outlive the request that started them, and end only once the server shuts down.
 	running, shut := context.WithCancelCause(context.Background())
-	return &Service{ctx: running, shut: shut, media: media, defaults: defaults, devices: devices, casts: registry.New[*cast](linger)}
+	return &Service{ctx: running, shut: shut, media: media, scraping: scraping, defaults: defaults, devices: devices, casts: registry.New[*cast](linger)}
 }
 
 func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv1.CastResponse, error) {
@@ -62,7 +64,7 @@ func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv
 	}
 	asked := s.asked(req.GetPreferences())
 	run, stop := context.WithCancelCause(s.ctx)
-	c := newCast(rand.Text(), target.Public(), req.GetSource(), stop)
+	c := newCast(rand.Text(), target.Public(), proto.CloneOf(req.GetSource()), stop)
 	done := make(chan struct{})
 	if !s.casts.Add(c.id, c, done) {
 		stop(nil)
@@ -73,7 +75,7 @@ func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv
 		defer stop(nil)
 		ended := s.play(run, c, target, asked)
 		c.update(func(v *view) { v.ended = ended })
-		slog.Info("cast ended", "id", c.id, "device", cmp.Or(c.device.GetName(), c.device.GetAddress()), "outcome", ended.GetOutcome().String(), "reason", ended.GetReason())
+		slog.Info("cast ended", "id", c.id, "device", cmp.Or(c.device.GetName(), c.device.GetAddress()), "completed", ended.GetCompleted() != nil, "stopped", ended.GetStopped() != nil, "failure", ended.GetFailed())
 	}()
 	return &castorv1.CastResponse{CastId: c.id}, nil
 }
@@ -85,20 +87,57 @@ func (s *Service) Drain(ctx context.Context) {
 }
 
 // asked is what a cast asks: the server's defaults, overridden field by field by the request's.
-func (s *Service) asked(p *castorv1.Preferences) *castorv1.Preferences {
+func (s *Service) asked(p *castorv1.Preferences) *mediav1.PlaybackSettings {
 	asked := proto.CloneOf(s.defaults)
 	if p != nil {
-		proto.Merge(asked, p)
+		if p.Delivery != nil {
+			asked.Delivery = p.GetDelivery()
+		}
+		if p.MaxHeight != nil {
+			asked.MaxHeight = p.GetMaxHeight()
+		}
+		if p.Subtitles != nil {
+			asked.Subtitles = proto.CloneOf(p.Subtitles)
+		}
 	}
 	return asked
 }
 
 func (s *Service) Resolve(ctx context.Context, req *castorv1.ResolveRequest) (*castorv1.ResolveResponse, error) {
-	ranked, err := s.media.Rank(ctx, req.GetSource(), s.asked(req.GetPreferences()))
+	source, err := s.resolve(ctx, req.GetSource())
+	if err != nil {
+		return nil, err
+	}
+	ranked, err := s.media.Rank(ctx, source, s.asked(req.GetPreferences()))
 	if err != nil {
 		return nil, fromMedia(err)
 	}
 	return &castorv1.ResolveResponse{Ranked: ranked}, nil
+}
+
+// resolve is the only translation from public sources to media candidates.
+func (s *Service) resolve(ctx context.Context, source *castorv1.Source) (*mediav1.Source, error) {
+	if one := source.GetStream(); one != nil {
+		return &mediav1.Source{Source: &mediav1.Source_Stream{Stream: one}}, nil
+	}
+	if ready := source.GetStreams(); ready != nil {
+		return &mediav1.Source{Source: &mediav1.Source_Streams_{Streams: &mediav1.Source_Streams{Streams: ready.GetStreams()}}}, nil
+	}
+	if s.scraping == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("page resolution requires scrapingserver"))
+	}
+	streams, err := s.scraping.ResolvePages(ctx, source.GetPages().GetUrls())
+	if err != nil {
+		switch connect.CodeOf(err) {
+		case connect.CodeUnauthenticated, connect.CodePermissionDenied, connect.CodeInvalidArgument:
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("scrapingserver refused the API server (check scraping.token): %w", err))
+		}
+		return nil, err
+	}
+	if len(streams) == 0 {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("no stream candidates found"))
+	}
+	return &mediav1.Source{Source: &mediav1.Source_Streams_{Streams: &mediav1.Source_Streams{Streams: streams}}}, nil
 }
 
 // fromMedia is err from the media server as this API answers it: the media server refusing this server is this server's fault, not the caller's.
@@ -140,6 +179,11 @@ func shareable(source *castorv1.Source) *castorv1.Source {
 	out := proto.CloneOf(source)
 	if stream := out.GetStream(); stream != nil {
 		stream.Headers = nil
+	}
+	if streams := out.GetStreams(); streams != nil {
+		for _, candidate := range streams.GetStreams() {
+			candidate.GetStream().Headers = nil
+		}
 	}
 	return out
 }

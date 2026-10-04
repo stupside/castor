@@ -4,56 +4,48 @@ import (
 	"context"
 	"fmt"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/services/mediaserver/internal/source"
 	"github.com/stupside/castor/services/mediaserver/internal/wire"
 )
 
-// origin is what a cast's source is: pages to search in this server's browser, or the one stream it names.
+// origin is a direct stream or already-resolved candidates; no page is opened here.
 type origin interface {
-	// phase is what the cast shows while it awaits its device, so its status never goes back.
-	phase() castorv1.Phase
-	// lent is the move lending the cast its device makes.
-	lent() string
-	streams(ctx context.Context, extractor Extractor) ([]*source.Stream, error)
+	streams() ([]*source.Stream, error)
 	// ready is streams in the order the cast walks them.
 	ready(ctx context.Context, caster Caster, streams []*source.Stream) ([]*source.Stream, error)
 }
 
-func originOf(src *castorv1.Source) origin {
-	if p := src.GetPages(); p != nil {
-		return pages{urls: p.GetUrls()}
+func originOf(src *mediav1.Source) origin {
+	if streams := src.GetStreams(); streams != nil {
+		return resolved{candidates: streams.GetStreams()}
 	}
 	return stream{src.GetStream()}
 }
 
-// pages are found in this server's browser, so all they carried reaches ranking.
-type pages struct{ urls []string }
+// resolved is a candidate list produced by scrapingserver; mediaserver only measures and ranks it.
+type resolved struct{ candidates []*castorv1.StreamCandidate }
 
-func (pages) phase() castorv1.Phase { return castorv1.Phase_PHASE_EXTRACTING }
-
-func (pages) lent() string { return eventLendPages }
-
-func (p pages) streams(ctx context.Context, extractor Extractor) ([]*source.Stream, error) {
-	found, err := extractor.ExtractAll(ctx, p.urls)
-	if err != nil {
-		return nil, fmt.Errorf("finding streams: %w", err)
+func (r resolved) streams() ([]*source.Stream, error) {
+	found := make([]*source.Stream, 0, len(r.candidates))
+	for _, s := range r.candidates {
+		one, err := wire.FromCandidate(s)
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, one)
 	}
 	return found, nil
 }
-
-func (pages) ready(ctx context.Context, caster Caster, streams []*source.Stream) ([]*source.Stream, error) {
+func (resolved) ready(ctx context.Context, caster Caster, streams []*source.Stream) ([]*source.Stream, error) {
 	return caster.Rank(ctx, streams)
 }
 
 // stream is measured as is, never ranked.
 type stream struct{ *castorv1.Stream }
 
-func (stream) phase() castorv1.Phase { return castorv1.Phase_PHASE_MEASURING }
-
-func (stream) lent() string { return eventLendStream }
-
-func (s stream) streams(context.Context, Extractor) ([]*source.Stream, error) {
+func (s stream) streams() ([]*source.Stream, error) {
 	one, err := wire.FromStream(s.Stream)
 	if err != nil {
 		return nil, err

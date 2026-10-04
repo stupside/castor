@@ -63,8 +63,8 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 		}
 
 		revising(ctx, f, rev)
-		in.Turns.Revising(rev.strategy.name, f.why)
-		tried = append(tried, rev.strategy.name)
+		in.Turns.Revising(rev.strategy.action, f.why)
+		tried = append(tried, string(rev.strategy.action))
 		a = rev.attempt
 	}
 }
@@ -124,7 +124,7 @@ func revising(ctx context.Context, f *fault, rev revision) {
 	slog.WarnContext(ctx, "revising the cast",
 		"verdict", f.kind.String(),
 		"why", f.why,
-		"strategy", rev.strategy.name,
+		"strategy", rev.strategy.action,
 		"expecting", rev.strategy.why,
 		"health", f.evidence.Vitals.String(),
 		"next", rev.attempt.String(),

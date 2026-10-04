@@ -7,21 +7,21 @@ import (
 	"connectrpc.com/connect"
 	"github.com/looplab/fsm"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/services/mediaserver/internal/lend"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-// A cast's lifecycle: it waits for its device, finds its pages' streams, measures them, casts them, and ends once.
+// A cast waits for its device, measures its streams, plays them, and ends once.
 const (
-	stateAwaiting   = "awaiting"
-	stateExtracting = "extracting"
-	stateMeasuring  = "measuring"
-	stateCasting    = "casting"
-	stateEnded      = "ended"
+	stateAwaiting  = "awaiting"
+	stateMeasuring = "measuring"
+	stateCasting   = "casting"
+	stateEnded     = "ended"
 
-	// A device lent to a cast of pages starts it extracting, one lent to a cast of a stream starts it measuring.
-	eventLendPages  = "lend-pages"
+	// Lending a device starts measuring, for both a direct stream and candidates.
 	eventLendStream = "lend-stream"
 	eventMeasure    = "measure"
 	eventRank       = "rank"
@@ -31,23 +31,15 @@ const (
 	eventAbandon    = "abandon"
 )
 
-// phases is how the states a cast works in show in its status; awaiting and ended show the phase before them.
-var phases = map[string]castorv1.Phase{
-	stateExtracting: castorv1.Phase_PHASE_EXTRACTING,
-	stateMeasuring:  castorv1.Phase_PHASE_MEASURING,
-	stateCasting:    castorv1.Phase_PHASE_CASTING,
-}
-
 // lifecycle is the moves a cast may make; reaching its end releases the device and everything the cast holds.
 func (c *cast) lifecycle() *fsm.FSM {
 	return fsm.NewFSM(stateAwaiting, fsm.Events{
-		{Name: eventLendPages, Src: []string{stateAwaiting}, Dst: stateExtracting},
 		{Name: eventLendStream, Src: []string{stateAwaiting}, Dst: stateMeasuring},
-		{Name: eventMeasure, Src: []string{stateExtracting, stateMeasuring}, Dst: stateMeasuring},
+		{Name: eventMeasure, Src: []string{stateMeasuring}, Dst: stateMeasuring},
 		{Name: eventRank, Src: []string{stateMeasuring}, Dst: stateMeasuring},
 		{Name: eventAttempt, Src: []string{stateMeasuring, stateCasting}, Dst: stateCasting},
 		{Name: eventRevise, Src: []string{stateCasting}, Dst: stateCasting},
-		{Name: eventEnd, Src: []string{stateExtracting, stateMeasuring, stateCasting}, Dst: stateEnded},
+		{Name: eventEnd, Src: []string{stateMeasuring, stateCasting}, Dst: stateEnded},
 		// Only a cast still awaiting is abandoned, so a grace that runs out as a device is lent changes nothing.
 		{Name: eventAbandon, Src: []string{stateAwaiting}, Dst: stateEnded},
 	}, fsm.Callbacks{
@@ -68,8 +60,11 @@ func (c *cast) fire(event string, change func(*view)) bool {
 			return now, false
 		}
 		next := view{status: proto.CloneOf(now.status), ended: now.ended}
-		if phase, ok := phases[c.machine.Current()]; ok {
-			next.status.Phase = phase
+		if c.machine.Is(stateCasting) && next.status.GetCasting() == nil {
+			measured := next.status.GetMeasuring()
+			next.status.State = &castorv1.CastStatus_Casting{Casting: &castorv1.CastingStatus{
+				Streams: measured.GetStreams(), Castable: measured.GetCastable(),
+			}}
 		}
 		change(&next)
 		taken = true
@@ -80,7 +75,7 @@ func (c *cast) fire(event string, change func(*view)) bool {
 
 // lend gives the cast its device, as its lender connected it, and starts the cast; a cast takes one device, and none once it is over.
 func (c *cast) lend(caps media.Capabilities) error {
-	if !c.fire(c.source.lent(), func(*view) {}) {
+	if !c.fire(eventLendStream, func(*view) {}) {
 		if c.machine.Is(stateEnded) {
 			return connect.NewError(connect.CodeFailedPrecondition, errors.New("this cast is over"))
 		}
@@ -92,12 +87,26 @@ func (c *cast) lend(caps media.Capabilities) error {
 
 // end ends the cast by event with outcome: nil ended, errStopped stopped, else why it failed.
 func (c *cast) end(event string, outcome error) {
-	ended := &castorv1.Ended{Outcome: castorv1.Outcome_OUTCOME_ENDED}
+	ended := &castorv1.Ended{Result: &castorv1.Ended_Completed{Completed: &emptypb.Empty{}}}
 	switch {
 	case errors.Is(outcome, errStopped):
-		ended.Outcome = castorv1.Outcome_OUTCOME_STOPPED
+		ended.Result = &castorv1.Ended_Stopped{Stopped: &emptypb.Empty{}}
 	case outcome != nil:
-		ended.Outcome, ended.Reason = castorv1.Outcome_OUTCOME_FAILED, outcome.Error()
+		ended.Result = &castorv1.Ended_Failed{Failed: &castorv1.Failure{Code: failureCode(outcome), Message: outcome.Error()}}
 	}
 	c.fire(event, func(next *view) { next.ended = ended })
+}
+
+// failureCode names failures from their causes, preserving the error's account for people.
+func failureCode(err error) castorv1.FailureCode {
+	switch {
+	case errors.Is(err, errShutdown):
+		return castorv1.FailureCode_FAILURE_CODE_SERVER_SHUTDOWN
+	case errors.Is(err, errUndriven), errors.Is(err, lend.ErrLenderLeft):
+		return castorv1.FailureCode_FAILURE_CODE_DEVICE_UNREACHABLE
+	}
+	if _, gone := errors.AsType[*media.Gone](err); gone {
+		return castorv1.FailureCode_FAILURE_CODE_DEVICE_UNREACHABLE
+	}
+	return castorv1.FailureCode_FAILURE_CODE_PLAYBACK_FAILED
 }

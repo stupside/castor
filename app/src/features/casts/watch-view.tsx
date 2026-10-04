@@ -7,7 +7,8 @@ import { Bubble } from "@/components/bubble";
 import { Button, buttonClass } from "@/components/button";
 import { Scene } from "@/components/scene";
 import type { Mood } from "@/components/castor-logo";
-import { CastService, Outcome, type CastStatus, type Ended } from "@/gen/castor/v1/cast_pb";
+import { CastService, type CastStatus, type Ended } from "@/gen/castor/v1/cast_pb";
+import { RecoveryAction } from "@/gen/castor/v1/revision_pb";
 import { LogLevel, type LogLine } from "@/gen/castor/v1/log_pb";
 import { browserTransport } from "@/lib/browser";
 import { stopAction } from "./actions";
@@ -15,6 +16,13 @@ import { Diary } from "./diary";
 import { journey } from "./phases";
 
 const client = createClient(CastService, browserTransport);
+const recoveryActions: Record<RecoveryAction, string> = {
+  [RecoveryAction.UNSPECIFIED]: "unspecified",
+  [RecoveryAction.SWITCH_CANDIDATE]: "switch candidate",
+  [RecoveryAction.DECODE_AXIS]: "decode axis",
+  [RecoveryAction.RELAX_READ]: "relax read",
+  [RecoveryAction.SERVE_INSTEAD]: "serve instead",
+};
 
 export function WatchView({ castId }: { castId: string }) {
   const [status, setStatus] = useState<CastStatus>();
@@ -40,18 +48,22 @@ export function WatchView({ castId }: { castId: string }) {
     return () => abort.abort();
   }, [castId, run]);
 
-  const at = Math.max(0, journey.findIndex((j) => j.phase === status?.phase));
-  const failed = ended?.outcome === Outcome.FAILED;
+  const state = status?.state;
+  const progress = state?.case === "measuring" || state?.case === "casting" ? state.value : undefined;
+  const casting = state?.case === "casting" ? state.value : undefined;
+  const result = ended?.result;
+  const at = Math.max(0, journey.findIndex((j) => j.state === state?.case));
+  const failed = result?.case === "failed";
   const lost = !!error && !ended;
   const [mood, say]: [Mood, string] =
-    ended ? failed ? ["oops", ended.reason || "Something went wrong."]
-      : ended.outcome === Outcome.STOPPED ? ["sleep", "Stopped. Home for a nap."]
+    ended ? result?.case === "failed" ? ["oops", result.value.message || "Something went wrong."]
+      : result?.case === "stopped" ? ["sleep", "Stopped. Home for a nap."]
       : ["cheer", "All done. Hope you enjoyed the show!"]
     : lost ? ["oops", "I lost the thread. Reconnect?"]
     : [at === journey.length - 1 ? "cheer" : "think", status ? journey[at].say : "Waking up the beaver…"];
   const over = !!ended;
 
-  const title = lost ? "Lost the thread." : over ? failed ? "That didn’t work." : ended.outcome === Outcome.STOPPED ? "Stopped." : "All done." : at === journey.length - 1 ? "Now playing." : "Getting ready…";
+  const title = lost ? "Lost the thread." : over ? failed ? "That didn’t work." : result?.case === "stopped" ? "Stopped." : "All done." : at === journey.length - 1 ? "Now playing." : "Getting ready…";
 
   return <Scene screen={over || lost ? "idle" : at === journey.length - 1 ? "playing" : "loading"} title={title} mood={mood}>
     <ol className="mb-5 flex max-w-md flex-col gap-2.5">
@@ -67,9 +79,9 @@ export function WatchView({ castId }: { castId: string }) {
     </ol>
     <div className="flex max-w-md flex-col gap-3">
       <Bubble>{say}</Bubble>
-      {status && !over && (status.streams > 0 || status.revision) && <p className="text-xs font-semibold text-white/60">
-        {status.streams > 0 && `${status.streams} streams found, ${status.castable} playable`}{status.attempt > 1 && ` · try ${status.attempt}`}
-        {status.revision && <span className="block">Changed plan: {status.revision.strategy}, {status.revision.why}</span>}
+      {progress && !over && (progress.streams > 0 || casting?.revision) && <p className="text-xs font-semibold text-white/60">
+        {progress.streams > 0 && `${progress.streams} streams found${progress.castable === undefined ? "" : `, ${progress.castable} playable`}`}{casting && casting.attempt > 1 && ` · try ${casting.attempt}`}
+        {casting?.revision && <span className="block">Changed plan: {recoveryActions[casting.revision.action] ?? "unspecified"}, {casting.revision.why}</span>}
       </p>}
       <div className="mt-1 flex flex-wrap items-center gap-3">
         {!over && !lost && <form action={stopAction.bind(null, castId)}><Button variant="glass">Stop</Button></form>}

@@ -5,33 +5,33 @@
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
-import type { Preferences, Source, WatchRequestSchema, WatchResponseSchema } from "../../v1/cast_pb";
+import type { SubtitleSelection, WatchRequestSchema, WatchResponseSchema } from "../../v1/cast_pb";
 import { file_castor_v1_cast } from "../../v1/cast_pb";
+import type { Delivery, Stream, StreamCandidate } from "../../v1/stream_pb";
+import { file_castor_v1_stream } from "../../v1/stream_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file castor/media/v1/cast.proto.
  */
 export const file_castor_media_v1_cast: GenFile = /*@__PURE__*/
-  fileDesc("ChpjYXN0b3IvbWVkaWEvdjEvY2FzdC5wcm90bxIPY2FzdG9yLm1lZGlhLnYxIv4BCgxTdGFydFJlcXVlc3QSKQoGc291cmNlGAEgASgLMhEuY2FzdG9yLnYxLlNvdXJjZUIGukgDyAEBEsIBCgtwcmVmZXJlbmNlcxgCIAEoCzIWLmNhc3Rvci52MS5QcmVmZXJlbmNlc0KUAbpIkAG6AYkBChRwcmVmZXJlbmNlcy5jb21wbGV0ZRIuZGVsaXZlcnksIG1heF9oZWlnaHQgYW5kIHN1YnRpdGxlcyBhcmUgYWxsIHNldBpBaGFzKHRoaXMuZGVsaXZlcnkpICYmIGhhcyh0aGlzLm1heF9oZWlnaHQpICYmIGhhcyh0aGlzLnN1YnRpdGxlcynIAQEiIAoNU3RhcnRSZXNwb25zZRIPCgdjYXN0X2lkGAEgASgJIicKC1N0b3BSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAEiDgoMU3RvcFJlc3BvbnNlMtgBCgtDYXN0U2VydmljZRJGCgVTdGFydBIdLmNhc3Rvci5tZWRpYS52MS5TdGFydFJlcXVlc3QaHi5jYXN0b3IubWVkaWEudjEuU3RhcnRSZXNwb25zZRJDCgRTdG9wEhwuY2FzdG9yLm1lZGlhLnYxLlN0b3BSZXF1ZXN0Gh0uY2FzdG9yLm1lZGlhLnYxLlN0b3BSZXNwb25zZRI8CgVXYXRjaBIXLmNhc3Rvci52MS5XYXRjaFJlcXVlc3QaGC5jYXN0b3IudjEuV2F0Y2hSZXNwb25zZTABYgZwcm90bzM", [file_buf_validate_validate, file_castor_v1_cast]);
+  fileDesc("ChpjYXN0b3IvbWVkaWEvdjEvY2FzdC5wcm90bxIPY2FzdG9yLm1lZGlhLnYxInwKDFN0YXJ0UmVxdWVzdBIvCgZzb3VyY2UYASABKAsyFy5jYXN0b3IubWVkaWEudjEuU291cmNlQga6SAPIAQESOwoIc2V0dGluZ3MYAiABKAsyIS5jYXN0b3IubWVkaWEudjEuUGxheWJhY2tTZXR0aW5nc0IGukgDyAEBIpsBChBQbGF5YmFja1NldHRpbmdzEjEKCGRlbGl2ZXJ5GAEgASgOMhMuY2FzdG9yLnYxLkRlbGl2ZXJ5Qgq6SAeCAQQQASAAEhsKCm1heF9oZWlnaHQYAiABKA1CB7pIBCoCKAISNwoJc3VidGl0bGVzGAMgASgLMhwuY2FzdG9yLnYxLlN1YnRpdGxlU2VsZWN0aW9uQga6SAPIAQEiIAoNU3RhcnRSZXNwb25zZRIPCgdjYXN0X2lkGAEgASgJIicKC1N0b3BSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAEiDgoMU3RvcFJlc3BvbnNlIrcBCgZTb3VyY2USIwoGc3RyZWFtGAEgASgLMhEuY2FzdG9yLnYxLlN0cmVhbUgAEjIKB3N0cmVhbXMYAiABKAsyHy5jYXN0b3IubWVkaWEudjEuU291cmNlLlN0cmVhbXNIABpDCgdTdHJlYW1zEjgKB3N0cmVhbXMYASADKAsyGi5jYXN0b3IudjEuU3RyZWFtQ2FuZGlkYXRlQgu6SAiSAQUIARDADEIPCgZzb3VyY2USBbpIAggBMtgBCgtDYXN0U2VydmljZRJGCgVTdGFydBIdLmNhc3Rvci5tZWRpYS52MS5TdGFydFJlcXVlc3QaHi5jYXN0b3IubWVkaWEudjEuU3RhcnRSZXNwb25zZRJDCgRTdG9wEhwuY2FzdG9yLm1lZGlhLnYxLlN0b3BSZXF1ZXN0Gh0uY2FzdG9yLm1lZGlhLnYxLlN0b3BSZXNwb25zZRI8CgVXYXRjaBIXLmNhc3Rvci52MS5XYXRjaFJlcXVlc3QaGC5jYXN0b3IudjEuV2F0Y2hSZXNwb25zZTABYgZwcm90bzM", [file_buf_validate_validate, file_castor_v1_cast, file_castor_v1_stream]);
 
 /**
  * @generated from message castor.media.v1.StartRequest
  */
 export type StartRequest = Message<"castor.media.v1.StartRequest"> & {
   /**
-   * source is a stream measured and cast as is, or pages whose streams the media server finds and ranks.
+   * source is a direct stream or resolved candidates, never unresolved pages.
    *
-   * @generated from field: castor.v1.Source source = 1;
+   * @generated from field: castor.media.v1.Source source = 1;
    */
   source?: Source | undefined;
 
   /**
-   * preferences are the cast's, every one of them set.
-   *
-   * @generated from field: castor.v1.Preferences preferences = 2;
+   * @generated from field: castor.media.v1.PlaybackSettings settings = 2;
    */
-  preferences?: Preferences | undefined;
+  settings?: PlaybackSettings | undefined;
 };
 
 /**
@@ -40,6 +40,35 @@ export type StartRequest = Message<"castor.media.v1.StartRequest"> & {
  */
 export const StartRequestSchema: GenMessage<StartRequest> = /*@__PURE__*/
   messageDesc(file_castor_media_v1_cast, 0);
+
+/**
+ * PlaybackSettings is the complete policy resolved by API before media is called.
+ *
+ * @generated from message castor.media.v1.PlaybackSettings
+ */
+export type PlaybackSettings = Message<"castor.media.v1.PlaybackSettings"> & {
+  /**
+   * @generated from field: castor.v1.Delivery delivery = 1;
+   */
+  delivery: Delivery;
+
+  /**
+   * @generated from field: uint32 max_height = 2;
+   */
+  maxHeight: number;
+
+  /**
+   * @generated from field: castor.v1.SubtitleSelection subtitles = 3;
+   */
+  subtitles?: SubtitleSelection | undefined;
+};
+
+/**
+ * Describes the message castor.media.v1.PlaybackSettings.
+ * Use `create(PlaybackSettingsSchema)` to create a new message.
+ */
+export const PlaybackSettingsSchema: GenMessage<PlaybackSettings> = /*@__PURE__*/
+  messageDesc(file_castor_media_v1_cast, 1);
 
 /**
  * @generated from message castor.media.v1.StartResponse
@@ -56,7 +85,7 @@ export type StartResponse = Message<"castor.media.v1.StartResponse"> & {
  * Use `create(StartResponseSchema)` to create a new message.
  */
 export const StartResponseSchema: GenMessage<StartResponse> = /*@__PURE__*/
-  messageDesc(file_castor_media_v1_cast, 1);
+  messageDesc(file_castor_media_v1_cast, 2);
 
 /**
  * @generated from message castor.media.v1.StopRequest
@@ -73,7 +102,7 @@ export type StopRequest = Message<"castor.media.v1.StopRequest"> & {
  * Use `create(StopRequestSchema)` to create a new message.
  */
 export const StopRequestSchema: GenMessage<StopRequest> = /*@__PURE__*/
-  messageDesc(file_castor_media_v1_cast, 2);
+  messageDesc(file_castor_media_v1_cast, 3);
 
 /**
  * @generated from message castor.media.v1.StopResponse
@@ -86,7 +115,55 @@ export type StopResponse = Message<"castor.media.v1.StopResponse"> & {
  * Use `create(StopResponseSchema)` to create a new message.
  */
 export const StopResponseSchema: GenMessage<StopResponse> = /*@__PURE__*/
-  messageDesc(file_castor_media_v1_cast, 3);
+  messageDesc(file_castor_media_v1_cast, 4);
+
+/**
+ * Source is a direct stream or extracted candidates to measure, rank, and play.
+ *
+ * @generated from message castor.media.v1.Source
+ */
+export type Source = Message<"castor.media.v1.Source"> & {
+  /**
+   * @generated from oneof castor.media.v1.Source.source
+   */
+  source: {
+    /**
+     * @generated from field: castor.v1.Stream stream = 1;
+     */
+    value: Stream;
+    case: "stream";
+  } | {
+    /**
+     * @generated from field: castor.media.v1.Source.Streams streams = 2;
+     */
+    value: Source_Streams;
+    case: "streams";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message castor.media.v1.Source.
+ * Use `create(SourceSchema)` to create a new message.
+ */
+export const SourceSchema: GenMessage<Source> = /*@__PURE__*/
+  messageDesc(file_castor_media_v1_cast, 5);
+
+/**
+ * @generated from message castor.media.v1.Source.Streams
+ */
+export type Source_Streams = Message<"castor.media.v1.Source.Streams"> & {
+  /**
+   * @generated from field: repeated castor.v1.StreamCandidate streams = 1;
+   */
+  streams: StreamCandidate[];
+};
+
+/**
+ * Describes the message castor.media.v1.Source.Streams.
+ * Use `create(Source_StreamsSchema)` to create a new message.
+ */
+export const Source_StreamsSchema: GenMessage<Source_Streams> = /*@__PURE__*/
+  messageDesc(file_castor_media_v1_cast, 5, 0);
 
 /**
  * CastService starts, stops and follows casts.

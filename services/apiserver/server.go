@@ -30,13 +30,13 @@ type Server struct {
 
 // New serves the public contract with b, every cast asking what cfg says unless its request says otherwise.
 func New(b Backend, cfg CastConfig) (*Server, error) {
-	defaults := cfg.preferences()
+	defaults := cfg.settings()
 	// The contract alone states what a cast may ask, so the defaults are held to it before the first cast.
 	if err := protovalidate.Validate(defaults); err != nil {
 		return nil, fmt.Errorf("cast: %w", err)
 	}
 	devices := device.NewDirectory(b.Devices)
-	casts := cast.New(defaults, devices, b.Media)
+	casts := cast.New(defaults, devices, b.Media, b.Scraping)
 
 	valid := transport.Checked()
 	mux := http.NewServeMux()

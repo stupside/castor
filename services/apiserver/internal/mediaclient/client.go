@@ -28,8 +28,8 @@ func New(client *http.Client, baseURL string) *Client {
 }
 
 // Start begins a cast of source as asked, and returns its id on the media server.
-func (c *Client) Start(ctx context.Context, source *castorv1.Source, asked *castorv1.Preferences) (string, error) {
-	started, err := c.casts.Start(ctx, &mediav1.StartRequest{Source: source, Preferences: asked})
+func (c *Client) Start(ctx context.Context, source *mediav1.Source, asked *mediav1.PlaybackSettings) (string, error) {
+	started, err := c.casts.Start(ctx, &mediav1.StartRequest{Source: source, Settings: asked})
 	if err != nil {
 		return "", err
 	}
@@ -42,8 +42,8 @@ func (c *Client) Stop(ctx context.Context, id string) error {
 }
 
 // Rank is the streams a cast of source as asked would walk, best first.
-func (c *Client) Rank(ctx context.Context, source *castorv1.Source, asked *castorv1.Preferences) ([]*castorv1.RankedStream, error) {
-	ranked, err := c.streams.Rank(ctx, &mediav1.RankRequest{Source: source, Preferences: asked})
+func (c *Client) Rank(ctx context.Context, source *mediav1.Source, asked *mediav1.PlaybackSettings) ([]*castorv1.RankedStream, error) {
+	ranked, err := c.streams.Rank(ctx, &mediav1.RankRequest{Source: source, Settings: asked})
 	if err != nil {
 		return nil, err
 	}

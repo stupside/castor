@@ -3,20 +3,17 @@ package mediaserver
 import (
 	"time"
 
-	"github.com/stupside/castor/services/mediaserver/internal/extract"
 	"github.com/stupside/castor/services/mediaserver/internal/source/rank"
 	"github.com/stupside/castor/services/mediaserver/internal/subtitle/whisper"
 )
 
 // Config is the media server's sections of castor's configuration.
 type Config struct {
-	Browser   extract.BrowserConfig `yaml:"browser" validate:"required"`
-	Capture   extract.CaptureConfig `yaml:"capture" validate:"required"`
-	Resolver  ResolverConfig        `yaml:"resolver" validate:"required"`
-	Transcode TranscodeConfig       `yaml:"transcode" validate:"required"`
-	Server    ServerConfig          `yaml:"server" validate:"required"`
-	Network   NetworkConfig         `yaml:"network"`
-	Whisper   whisper.Config        `yaml:"whisper"`
+	Resolver  ResolverConfig  `yaml:"resolver" validate:"required"`
+	Transcode TranscodeConfig `yaml:"transcode" validate:"required"`
+	Server    ServerConfig    `yaml:"server" validate:"required"`
+	Network   NetworkConfig   `yaml:"network"`
+	Whisper   whisper.Config  `yaml:"whisper"`
 }
 
 // TranscodeConfig is the ffmpeg binary, and how long one upstream read may stall.
@@ -51,8 +48,6 @@ type NetworkConfig struct {
 
 func defaults() Config {
 	return Config{
-		Browser: extract.BrowserConfig{Timeout: 30 * time.Second, Headless: true},
-		Capture: extract.CaptureConfig{MaxConcurrency: 4},
 		Resolver: ResolverConfig{
 			Config:          rank.Config{ProbeMaxConcurrency: 2},
 			PlaylistTimeout: 30 * time.Second,

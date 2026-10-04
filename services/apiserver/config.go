@@ -4,8 +4,10 @@ import (
 	"strings"
 	"time"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/services/apiserver/internal/device/roku"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // Config is the API server's sections of castor's configuration.
@@ -57,11 +59,20 @@ func defaults() Config {
 	}
 }
 
-// preferences is the cast section as the contract asks it; a delivery the contract does not name is left unspecified, which it refuses.
-func (c CastConfig) preferences() *castorv1.Preferences {
-	return &castorv1.Preferences{
-		Delivery:  castorv1.Delivery(castorv1.Delivery_value["DELIVERY_"+strings.ToUpper(c.Delivery)]).Enum(),
-		MaxHeight: new(c.MaxHeight),
-		Subtitles: new(c.Subtitles),
+// settings resolves configuration into media's complete playback policy.
+func (c CastConfig) settings() *mediav1.PlaybackSettings {
+	subtitles := &castorv1.SubtitleSelection{}
+	switch c.Subtitles {
+	case "":
+		subtitles.Mode = &castorv1.SubtitleSelection_Disabled{Disabled: &emptypb.Empty{}}
+	case "auto":
+		subtitles.Mode = &castorv1.SubtitleSelection_AutoDetect{AutoDetect: &emptypb.Empty{}}
+	default:
+		subtitles.Mode = &castorv1.SubtitleSelection_Language{Language: c.Subtitles}
+	}
+	return &mediav1.PlaybackSettings{
+		Delivery:  castorv1.Delivery(castorv1.Delivery_value["DELIVERY_"+strings.ToUpper(c.Delivery)]),
+		MaxHeight: c.MaxHeight,
+		Subtitles: subtitles,
 	}
 }

@@ -5,8 +5,8 @@
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
-import type { Preferences, Source } from "../../v1/cast_pb";
-import { file_castor_v1_cast } from "../../v1/cast_pb";
+import type { PlaybackSettings, Source } from "./cast_pb";
+import { file_castor_media_v1_cast } from "./cast_pb";
 import type { RankedStream } from "../../v1/stream_pb";
 import { file_castor_v1_stream } from "../../v1/stream_pb";
 import type { Message } from "@bufbuild/protobuf";
@@ -15,23 +15,21 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/media/v1/stream.proto.
  */
 export const file_castor_media_v1_stream: GenFile = /*@__PURE__*/
-  fileDesc("ChxjYXN0b3IvbWVkaWEvdjEvc3RyZWFtLnByb3RvEg9jYXN0b3IubWVkaWEudjEi/QEKC1JhbmtSZXF1ZXN0EikKBnNvdXJjZRgBIAEoCzIRLmNhc3Rvci52MS5Tb3VyY2VCBrpIA8gBARLCAQoLcHJlZmVyZW5jZXMYAiABKAsyFi5jYXN0b3IudjEuUHJlZmVyZW5jZXNClAG6SJABugGJAQoUcHJlZmVyZW5jZXMuY29tcGxldGUSLmRlbGl2ZXJ5LCBtYXhfaGVpZ2h0IGFuZCBzdWJ0aXRsZXMgYXJlIGFsbCBzZXQaQWhhcyh0aGlzLmRlbGl2ZXJ5KSAmJiBoYXModGhpcy5tYXhfaGVpZ2h0KSAmJiBoYXModGhpcy5zdWJ0aXRsZXMpyAEBIjcKDFJhbmtSZXNwb25zZRInCgZyYW5rZWQYASADKAsyFy5jYXN0b3IudjEuUmFua2VkU3RyZWFtMlQKDVN0cmVhbVNlcnZpY2USQwoEUmFuaxIcLmNhc3Rvci5tZWRpYS52MS5SYW5rUmVxdWVzdBodLmNhc3Rvci5tZWRpYS52MS5SYW5rUmVzcG9uc2ViBnByb3RvMw", [file_buf_validate_validate, file_castor_v1_cast, file_castor_v1_stream]);
+  fileDesc("ChxjYXN0b3IvbWVkaWEvdjEvc3RyZWFtLnByb3RvEg9jYXN0b3IubWVkaWEudjEiewoLUmFua1JlcXVlc3QSLwoGc291cmNlGAEgASgLMhcuY2FzdG9yLm1lZGlhLnYxLlNvdXJjZUIGukgDyAEBEjsKCHNldHRpbmdzGAIgASgLMiEuY2FzdG9yLm1lZGlhLnYxLlBsYXliYWNrU2V0dGluZ3NCBrpIA8gBASI3CgxSYW5rUmVzcG9uc2USJwoGcmFua2VkGAEgAygLMhcuY2FzdG9yLnYxLlJhbmtlZFN0cmVhbTJUCg1TdHJlYW1TZXJ2aWNlEkMKBFJhbmsSHC5jYXN0b3IubWVkaWEudjEuUmFua1JlcXVlc3QaHS5jYXN0b3IubWVkaWEudjEuUmFua1Jlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate, file_castor_media_v1_cast, file_castor_v1_stream]);
 
 /**
  * @generated from message castor.media.v1.RankRequest
  */
 export type RankRequest = Message<"castor.media.v1.RankRequest"> & {
   /**
-   * @generated from field: castor.v1.Source source = 1;
+   * @generated from field: castor.media.v1.Source source = 1;
    */
   source?: Source | undefined;
 
   /**
-   * preferences are the cast's, every one of them set.
-   *
-   * @generated from field: castor.v1.Preferences preferences = 2;
+   * @generated from field: castor.media.v1.PlaybackSettings settings = 2;
    */
-  preferences?: Preferences | undefined;
+  settings?: PlaybackSettings | undefined;
 };
 
 /**

@@ -13,7 +13,7 @@ export async function CastList() {
       {activeCasts.length > 0 && <h2 className="text-xs font-extrabold uppercase tracking-[0.18em] text-peach">Now playing</h2>}
       <ul className="grid gap-3">
         {activeCasts.map((c) => {
-          const step = journey.find((j) => j.phase === c.status?.phase) ?? journey[0];
+          const step = journey.find((j) => j.state === c.status?.state.case) ?? journey[0];
           return (
             <li key={c.id} className="animate-rise flex items-center gap-3 rounded-2xl bg-white/10 p-4 text-[#fffaf2]">
               <Link href={`/casts/${c.id}`} className="group flex min-w-0 flex-1 items-center gap-3">

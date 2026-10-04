@@ -17,18 +17,28 @@ type change struct {
 	resolver SourceResolver
 }
 
-// strategy is one named recovery, applying only where the facts allow it.
+// Action is a concrete change to the next attempt.
+type Action string
+
+const (
+	SwitchCandidate Action = "switch-candidate"
+	DecodeAxis      Action = "decode-axis"
+	RelaxRead       Action = "relax-read"
+	ServeInstead    Action = "serve-instead"
+)
+
+// strategy is one recovery action, applying only where the facts allow it.
 type strategy struct {
-	name string
-	why  string
+	action Action
+	why    string
 	// apply only ever moves an attempt down a finite order, so recovery ends.
 	apply func(context.Context, change) (Attempt, bool)
 }
 
 // switchCandidate reads the next link the ranker admitted.
 var switchCandidate = strategy{
-	name: "switch-candidate",
-	why:  "read the next link the ranker admitted, which was measured and opened like this one",
+	action: SwitchCandidate,
+	why:    "read the next link the ranker admitted, which was measured and opened like this one",
 	apply: func(ctx context.Context, c change) (Attempt, bool) {
 		a, ok := nextReadable(ctx, c.intent, c.resolver, c.attempt)
 		if !ok {
@@ -58,8 +68,8 @@ func nextReadable(ctx context.Context, in Intent, resolver SourceResolver, a Att
 
 // decodeAxis decodes the packets the reader died copying.
 var decodeAxis = strategy{
-	name: "decode-axis",
-	why:  "stop copying the packets the reader died on and decode them, which is what a truncated bitstream needs",
+	action: DecodeAxis,
+	why:    "stop copying the packets the reader died on and decode them, which is what a truncated bitstream needs",
 	apply: func(_ context.Context, c change) (Attempt, bool) {
 		a := c.attempt
 		next := a.Decode.Or(c.outcome.Evidence.Copied)
@@ -73,8 +83,8 @@ var decodeAxis = strategy{
 
 // relaxRead asks for the same link at playback pace, with no burst for an origin to stall on.
 var relaxRead = strategy{
-	name: "relax-read",
-	why:  "ask for the same link at playback pace with no wire-speed burst, in case the burst is what it stopped answering",
+	action: RelaxRead,
+	why:    "ask for the same link at playback pace with no wire-speed burst, in case the burst is what it stopped answering",
 	apply: func(_ context.Context, c change) (Attempt, bool) {
 		a := c.attempt
 		plan, ok := a.Fetch.Cautious()
@@ -88,8 +98,8 @@ var relaxRead = strategy{
 
 // serveInstead serves a device that refused to fetch the source itself.
 var serveInstead = strategy{
-	name: "serve-instead",
-	why:  "read the source and serve it locally, since the device would not fetch it itself",
+	action: ServeInstead,
+	why:    "read the source and serve it locally, since the device would not fetch it itself",
 	apply: func(_ context.Context, c change) (Attempt, bool) {
 		a := c.attempt
 		// A device already served would refuse the next attempt's identical serve.

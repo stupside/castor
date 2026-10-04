@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/url"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/gen/castor/media/v1/mediav1connect"
-	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/transport"
 	"github.com/stupside/castor/services/mediaserver/internal/cast"
 	"github.com/stupside/castor/services/mediaserver/internal/castlog"
@@ -16,9 +16,8 @@ import (
 
 // Backend is what the media server casts with, bound at the composition root.
 type Backend struct {
-	Extractor cast.Extractor
 	// Caster binds one cast to what it asked.
-	Caster func(asked *castorv1.Preferences) cast.Caster
+	Caster func(asked *mediav1.PlaybackSettings) cast.Caster
 }
 
 // Server is the media server: its API, for the API server alone, and its media route, for devices.
@@ -30,7 +29,7 @@ type Server struct {
 
 // New serves the media contract with b, telling devices to reach its media route at reach.
 func New(b Backend, reach *url.URL) *Server {
-	casts := cast.New(b.Extractor, b.Caster, reach)
+	casts := cast.New(b.Caster, reach)
 
 	valid := transport.Checked()
 	api := http.NewServeMux()

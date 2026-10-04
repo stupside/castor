@@ -25,10 +25,9 @@ const (
 
 type StartRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// source is a stream measured and cast as is, or pages whose streams the media server finds and ranks.
-	Source *v1.Source `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	// preferences are the cast's, every one of them set.
-	Preferences   *v1.Preferences `protobuf:"bytes,2,opt,name=preferences,proto3" json:"preferences,omitempty"`
+	// source is a direct stream or resolved candidates, never unresolved pages.
+	Source        *Source           `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	Settings      *PlaybackSettings `protobuf:"bytes,2,opt,name=settings,proto3" json:"settings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -63,16 +62,77 @@ func (*StartRequest) Descriptor() ([]byte, []int) {
 	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *StartRequest) GetSource() *v1.Source {
+func (x *StartRequest) GetSource() *Source {
 	if x != nil {
 		return x.Source
 	}
 	return nil
 }
 
-func (x *StartRequest) GetPreferences() *v1.Preferences {
+func (x *StartRequest) GetSettings() *PlaybackSettings {
 	if x != nil {
-		return x.Preferences
+		return x.Settings
+	}
+	return nil
+}
+
+// PlaybackSettings is the complete policy resolved by API before media is called.
+type PlaybackSettings struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Delivery      v1.Delivery            `protobuf:"varint,1,opt,name=delivery,proto3,enum=castor.v1.Delivery" json:"delivery,omitempty"`
+	MaxHeight     uint32                 `protobuf:"varint,2,opt,name=max_height,json=maxHeight,proto3" json:"max_height,omitempty"`
+	Subtitles     *v1.SubtitleSelection  `protobuf:"bytes,3,opt,name=subtitles,proto3" json:"subtitles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaybackSettings) Reset() {
+	*x = PlaybackSettings{}
+	mi := &file_castor_media_v1_cast_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaybackSettings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaybackSettings) ProtoMessage() {}
+
+func (x *PlaybackSettings) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_media_v1_cast_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaybackSettings.ProtoReflect.Descriptor instead.
+func (*PlaybackSettings) Descriptor() ([]byte, []int) {
+	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PlaybackSettings) GetDelivery() v1.Delivery {
+	if x != nil {
+		return x.Delivery
+	}
+	return v1.Delivery(0)
+}
+
+func (x *PlaybackSettings) GetMaxHeight() uint32 {
+	if x != nil {
+		return x.MaxHeight
+	}
+	return 0
+}
+
+func (x *PlaybackSettings) GetSubtitles() *v1.SubtitleSelection {
+	if x != nil {
+		return x.Subtitles
 	}
 	return nil
 }
@@ -86,7 +146,7 @@ type StartResponse struct {
 
 func (x *StartResponse) Reset() {
 	*x = StartResponse{}
-	mi := &file_castor_media_v1_cast_proto_msgTypes[1]
+	mi := &file_castor_media_v1_cast_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -98,7 +158,7 @@ func (x *StartResponse) String() string {
 func (*StartResponse) ProtoMessage() {}
 
 func (x *StartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_cast_proto_msgTypes[1]
+	mi := &file_castor_media_v1_cast_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -111,7 +171,7 @@ func (x *StartResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartResponse.ProtoReflect.Descriptor instead.
 func (*StartResponse) Descriptor() ([]byte, []int) {
-	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{1}
+	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *StartResponse) GetCastId() string {
@@ -130,7 +190,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_castor_media_v1_cast_proto_msgTypes[2]
+	mi := &file_castor_media_v1_cast_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -142,7 +202,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_cast_proto_msgTypes[2]
+	mi := &file_castor_media_v1_cast_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -155,7 +215,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{2}
+	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *StopRequest) GetCastId() string {
@@ -173,7 +233,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_castor_media_v1_cast_proto_msgTypes[3]
+	mi := &file_castor_media_v1_cast_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -185,7 +245,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_cast_proto_msgTypes[3]
+	mi := &file_castor_media_v1_cast_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -198,23 +258,161 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{3}
+	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{4}
+}
+
+// Source is a direct stream or extracted candidates to measure, rank, and play.
+type Source struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Source:
+	//
+	//	*Source_Stream
+	//	*Source_Streams_
+	Source        isSource_Source `protobuf_oneof:"source"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Source) Reset() {
+	*x = Source{}
+	mi := &file_castor_media_v1_cast_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Source) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Source) ProtoMessage() {}
+
+func (x *Source) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_media_v1_cast_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Source.ProtoReflect.Descriptor instead.
+func (*Source) Descriptor() ([]byte, []int) {
+	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Source) GetSource() isSource_Source {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+func (x *Source) GetStream() *v1.Stream {
+	if x != nil {
+		if x, ok := x.Source.(*Source_Stream); ok {
+			return x.Stream
+		}
+	}
+	return nil
+}
+
+func (x *Source) GetStreams() *Source_Streams {
+	if x != nil {
+		if x, ok := x.Source.(*Source_Streams_); ok {
+			return x.Streams
+		}
+	}
+	return nil
+}
+
+type isSource_Source interface {
+	isSource_Source()
+}
+
+type Source_Stream struct {
+	Stream *v1.Stream `protobuf:"bytes,1,opt,name=stream,proto3,oneof"`
+}
+
+type Source_Streams_ struct {
+	Streams *Source_Streams `protobuf:"bytes,2,opt,name=streams,proto3,oneof"`
+}
+
+func (*Source_Stream) isSource_Source() {}
+
+func (*Source_Streams_) isSource_Source() {}
+
+type Source_Streams struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Streams       []*v1.StreamCandidate  `protobuf:"bytes,1,rep,name=streams,proto3" json:"streams,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Source_Streams) Reset() {
+	*x = Source_Streams{}
+	mi := &file_castor_media_v1_cast_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Source_Streams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Source_Streams) ProtoMessage() {}
+
+func (x *Source_Streams) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_media_v1_cast_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Source_Streams.ProtoReflect.Descriptor instead.
+func (*Source_Streams) Descriptor() ([]byte, []int) {
+	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *Source_Streams) GetStreams() []*v1.StreamCandidate {
+	if x != nil {
+		return x.Streams
+	}
+	return nil
 }
 
 var File_castor_media_v1_cast_proto protoreflect.FileDescriptor
 
 const file_castor_media_v1_cast_proto_rawDesc = "" +
 	"\n" +
-	"\x1acastor/media/v1/cast.proto\x12\x0fcastor.media.v1\x1a\x1bbuf/validate/validate.proto\x1a\x14castor/v1/cast.proto\"\x93\x02\n" +
-	"\fStartRequest\x121\n" +
-	"\x06source\x18\x01 \x01(\v2\x11.castor.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x12\xcf\x01\n" +
-	"\vpreferences\x18\x02 \x01(\v2\x16.castor.v1.PreferencesB\x94\x01\xbaH\x90\x01\xba\x01\x89\x01\n" +
-	"\x14preferences.complete\x12.delivery, max_height and subtitles are all set\x1aAhas(this.delivery) && has(this.max_height) && has(this.subtitles)\xc8\x01\x01R\vpreferences\"(\n" +
+	"\x1acastor/media/v1/cast.proto\x12\x0fcastor.media.v1\x1a\x1bbuf/validate/validate.proto\x1a\x14castor/v1/cast.proto\x1a\x16castor/v1/stream.proto\"\x8e\x01\n" +
+	"\fStartRequest\x127\n" +
+	"\x06source\x18\x01 \x01(\v2\x17.castor.media.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x12E\n" +
+	"\bsettings\x18\x02 \x01(\v2!.castor.media.v1.PlaybackSettingsB\x06\xbaH\x03\xc8\x01\x01R\bsettings\"\xbb\x01\n" +
+	"\x10PlaybackSettings\x12;\n" +
+	"\bdelivery\x18\x01 \x01(\x0e2\x13.castor.v1.DeliveryB\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bdelivery\x12&\n" +
+	"\n" +
+	"max_height\x18\x02 \x01(\rB\a\xbaH\x04*\x02(\x02R\tmaxHeight\x12B\n" +
+	"\tsubtitles\x18\x03 \x01(\v2\x1c.castor.v1.SubtitleSelectionB\x06\xbaH\x03\xc8\x01\x01R\tsubtitles\"(\n" +
 	"\rStartResponse\x12\x17\n" +
 	"\acast_id\x18\x01 \x01(\tR\x06castId\"/\n" +
 	"\vStopRequest\x12 \n" +
 	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"\x0e\n" +
-	"\fStopResponse2\xd8\x01\n" +
+	"\fStopResponse\"\xd1\x01\n" +
+	"\x06Source\x12+\n" +
+	"\x06stream\x18\x01 \x01(\v2\x11.castor.v1.StreamH\x00R\x06stream\x12;\n" +
+	"\astreams\x18\x02 \x01(\v2\x1f.castor.media.v1.Source.StreamsH\x00R\astreams\x1aL\n" +
+	"\aStreams\x12A\n" +
+	"\astreams\x18\x01 \x03(\v2\x1a.castor.v1.StreamCandidateB\v\xbaH\b\x92\x01\x05\b\x01\x10\xc0\fR\astreamsB\x0f\n" +
+	"\x06source\x12\x05\xbaH\x02\b\x012\xd8\x01\n" +
 	"\vCastService\x12F\n" +
 	"\x05Start\x12\x1d.castor.media.v1.StartRequest\x1a\x1e.castor.media.v1.StartResponse\x12C\n" +
 	"\x04Stop\x12\x1c.castor.media.v1.StopRequest\x1a\x1d.castor.media.v1.StopResponse\x12<\n" +
@@ -233,31 +431,41 @@ func file_castor_media_v1_cast_proto_rawDescGZIP() []byte {
 	return file_castor_media_v1_cast_proto_rawDescData
 }
 
-var file_castor_media_v1_cast_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_castor_media_v1_cast_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_castor_media_v1_cast_proto_goTypes = []any{
-	(*StartRequest)(nil),     // 0: castor.media.v1.StartRequest
-	(*StartResponse)(nil),    // 1: castor.media.v1.StartResponse
-	(*StopRequest)(nil),      // 2: castor.media.v1.StopRequest
-	(*StopResponse)(nil),     // 3: castor.media.v1.StopResponse
-	(*v1.Source)(nil),        // 4: castor.v1.Source
-	(*v1.Preferences)(nil),   // 5: castor.v1.Preferences
-	(*v1.WatchRequest)(nil),  // 6: castor.v1.WatchRequest
-	(*v1.WatchResponse)(nil), // 7: castor.v1.WatchResponse
+	(*StartRequest)(nil),         // 0: castor.media.v1.StartRequest
+	(*PlaybackSettings)(nil),     // 1: castor.media.v1.PlaybackSettings
+	(*StartResponse)(nil),        // 2: castor.media.v1.StartResponse
+	(*StopRequest)(nil),          // 3: castor.media.v1.StopRequest
+	(*StopResponse)(nil),         // 4: castor.media.v1.StopResponse
+	(*Source)(nil),               // 5: castor.media.v1.Source
+	(*Source_Streams)(nil),       // 6: castor.media.v1.Source.Streams
+	(v1.Delivery)(0),             // 7: castor.v1.Delivery
+	(*v1.SubtitleSelection)(nil), // 8: castor.v1.SubtitleSelection
+	(*v1.Stream)(nil),            // 9: castor.v1.Stream
+	(*v1.StreamCandidate)(nil),   // 10: castor.v1.StreamCandidate
+	(*v1.WatchRequest)(nil),      // 11: castor.v1.WatchRequest
+	(*v1.WatchResponse)(nil),     // 12: castor.v1.WatchResponse
 }
 var file_castor_media_v1_cast_proto_depIdxs = []int32{
-	4, // 0: castor.media.v1.StartRequest.source:type_name -> castor.v1.Source
-	5, // 1: castor.media.v1.StartRequest.preferences:type_name -> castor.v1.Preferences
-	0, // 2: castor.media.v1.CastService.Start:input_type -> castor.media.v1.StartRequest
-	2, // 3: castor.media.v1.CastService.Stop:input_type -> castor.media.v1.StopRequest
-	6, // 4: castor.media.v1.CastService.Watch:input_type -> castor.v1.WatchRequest
-	1, // 5: castor.media.v1.CastService.Start:output_type -> castor.media.v1.StartResponse
-	3, // 6: castor.media.v1.CastService.Stop:output_type -> castor.media.v1.StopResponse
-	7, // 7: castor.media.v1.CastService.Watch:output_type -> castor.v1.WatchResponse
-	5, // [5:8] is the sub-list for method output_type
-	2, // [2:5] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	5,  // 0: castor.media.v1.StartRequest.source:type_name -> castor.media.v1.Source
+	1,  // 1: castor.media.v1.StartRequest.settings:type_name -> castor.media.v1.PlaybackSettings
+	7,  // 2: castor.media.v1.PlaybackSettings.delivery:type_name -> castor.v1.Delivery
+	8,  // 3: castor.media.v1.PlaybackSettings.subtitles:type_name -> castor.v1.SubtitleSelection
+	9,  // 4: castor.media.v1.Source.stream:type_name -> castor.v1.Stream
+	6,  // 5: castor.media.v1.Source.streams:type_name -> castor.media.v1.Source.Streams
+	10, // 6: castor.media.v1.Source.Streams.streams:type_name -> castor.v1.StreamCandidate
+	0,  // 7: castor.media.v1.CastService.Start:input_type -> castor.media.v1.StartRequest
+	3,  // 8: castor.media.v1.CastService.Stop:input_type -> castor.media.v1.StopRequest
+	11, // 9: castor.media.v1.CastService.Watch:input_type -> castor.v1.WatchRequest
+	2,  // 10: castor.media.v1.CastService.Start:output_type -> castor.media.v1.StartResponse
+	4,  // 11: castor.media.v1.CastService.Stop:output_type -> castor.media.v1.StopResponse
+	12, // 12: castor.media.v1.CastService.Watch:output_type -> castor.v1.WatchResponse
+	10, // [10:13] is the sub-list for method output_type
+	7,  // [7:10] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_castor_media_v1_cast_proto_init() }
@@ -265,13 +473,17 @@ func file_castor_media_v1_cast_proto_init() {
 	if File_castor_media_v1_cast_proto != nil {
 		return
 	}
+	file_castor_media_v1_cast_proto_msgTypes[5].OneofWrappers = []any{
+		(*Source_Stream)(nil),
+		(*Source_Streams_)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_media_v1_cast_proto_rawDesc), len(file_castor_media_v1_cast_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

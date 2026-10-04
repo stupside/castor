@@ -2,8 +2,21 @@ syntax = "proto3";
 
 package castor.v1;
 
+import "buf/validate/validate.proto";
+
 // Revision is a cast's latest change of plan, and why.
 message Revision {
-  string strategy = 1;
-  string why = 2;
+  RecoveryAction action = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  string why = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+enum RecoveryAction {
+  RECOVERY_ACTION_UNSPECIFIED = 0;
+  RECOVERY_ACTION_SWITCH_CANDIDATE = 1;
+  RECOVERY_ACTION_DECODE_AXIS = 2;
+  RECOVERY_ACTION_RELAX_READ = 3;
+  RECOVERY_ACTION_SERVE_INSTEAD = 4;
 }

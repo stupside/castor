@@ -24,10 +24,9 @@ const (
 )
 
 type RankRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Source *v1.Source             `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	// preferences are the cast's, every one of them set.
-	Preferences   *v1.Preferences `protobuf:"bytes,2,opt,name=preferences,proto3" json:"preferences,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        *Source                `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	Settings      *PlaybackSettings      `protobuf:"bytes,2,opt,name=settings,proto3" json:"settings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -62,16 +61,16 @@ func (*RankRequest) Descriptor() ([]byte, []int) {
 	return file_castor_media_v1_stream_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *RankRequest) GetSource() *v1.Source {
+func (x *RankRequest) GetSource() *Source {
 	if x != nil {
 		return x.Source
 	}
 	return nil
 }
 
-func (x *RankRequest) GetPreferences() *v1.Preferences {
+func (x *RankRequest) GetSettings() *PlaybackSettings {
 	if x != nil {
-		return x.Preferences
+		return x.Settings
 	}
 	return nil
 }
@@ -125,11 +124,10 @@ var File_castor_media_v1_stream_proto protoreflect.FileDescriptor
 
 const file_castor_media_v1_stream_proto_rawDesc = "" +
 	"\n" +
-	"\x1ccastor/media/v1/stream.proto\x12\x0fcastor.media.v1\x1a\x1bbuf/validate/validate.proto\x1a\x14castor/v1/cast.proto\x1a\x16castor/v1/stream.proto\"\x92\x02\n" +
-	"\vRankRequest\x121\n" +
-	"\x06source\x18\x01 \x01(\v2\x11.castor.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x12\xcf\x01\n" +
-	"\vpreferences\x18\x02 \x01(\v2\x16.castor.v1.PreferencesB\x94\x01\xbaH\x90\x01\xba\x01\x89\x01\n" +
-	"\x14preferences.complete\x12.delivery, max_height and subtitles are all set\x1aAhas(this.delivery) && has(this.max_height) && has(this.subtitles)\xc8\x01\x01R\vpreferences\"?\n" +
+	"\x1ccastor/media/v1/stream.proto\x12\x0fcastor.media.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1acastor/media/v1/cast.proto\x1a\x16castor/v1/stream.proto\"\x8d\x01\n" +
+	"\vRankRequest\x127\n" +
+	"\x06source\x18\x01 \x01(\v2\x17.castor.media.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x12E\n" +
+	"\bsettings\x18\x02 \x01(\v2!.castor.media.v1.PlaybackSettingsB\x06\xbaH\x03\xc8\x01\x01R\bsettings\"?\n" +
 	"\fRankResponse\x12/\n" +
 	"\x06ranked\x18\x01 \x03(\v2\x17.castor.v1.RankedStreamR\x06ranked2T\n" +
 	"\rStreamService\x12C\n" +
@@ -150,15 +148,15 @@ func file_castor_media_v1_stream_proto_rawDescGZIP() []byte {
 
 var file_castor_media_v1_stream_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_castor_media_v1_stream_proto_goTypes = []any{
-	(*RankRequest)(nil),     // 0: castor.media.v1.RankRequest
-	(*RankResponse)(nil),    // 1: castor.media.v1.RankResponse
-	(*v1.Source)(nil),       // 2: castor.v1.Source
-	(*v1.Preferences)(nil),  // 3: castor.v1.Preferences
-	(*v1.RankedStream)(nil), // 4: castor.v1.RankedStream
+	(*RankRequest)(nil),      // 0: castor.media.v1.RankRequest
+	(*RankResponse)(nil),     // 1: castor.media.v1.RankResponse
+	(*Source)(nil),           // 2: castor.media.v1.Source
+	(*PlaybackSettings)(nil), // 3: castor.media.v1.PlaybackSettings
+	(*v1.RankedStream)(nil),  // 4: castor.v1.RankedStream
 }
 var file_castor_media_v1_stream_proto_depIdxs = []int32{
-	2, // 0: castor.media.v1.RankRequest.source:type_name -> castor.v1.Source
-	3, // 1: castor.media.v1.RankRequest.preferences:type_name -> castor.v1.Preferences
+	2, // 0: castor.media.v1.RankRequest.source:type_name -> castor.media.v1.Source
+	3, // 1: castor.media.v1.RankRequest.settings:type_name -> castor.media.v1.PlaybackSettings
 	4, // 2: castor.media.v1.RankResponse.ranked:type_name -> castor.v1.RankedStream
 	0, // 3: castor.media.v1.StreamService.Rank:input_type -> castor.media.v1.RankRequest
 	1, // 4: castor.media.v1.StreamService.Rank:output_type -> castor.media.v1.RankResponse
@@ -174,6 +172,7 @@ func file_castor_media_v1_stream_proto_init() {
 	if File_castor_media_v1_stream_proto != nil {
 		return
 	}
+	file_castor_media_v1_cast_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

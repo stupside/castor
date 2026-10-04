@@ -12,7 +12,6 @@ import (
 	"connectrpc.com/connect"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
-	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/registry"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/deliver"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/execute"
@@ -25,12 +24,7 @@ const linger = 5 * time.Minute
 
 var errShutdown = errors.New("server shutting down")
 
-// Extractor finds the streams pages play.
-type Extractor interface {
-	ExtractAll(ctx context.Context, pages []string) ([]*source.Stream, error)
-}
-
-// Caster readies and plays one cast's streams: pages' streams are ranked, a stream source measured (and identified when it says nothing).
+// Caster ranks resolved candidates or measures a direct stream, then plays it.
 type Caster interface {
 	Rank(ctx context.Context, streams []*source.Stream) ([]*source.Stream, error)
 	Measure(ctx context.Context, stream *source.Stream) (*source.Stream, error)
@@ -39,23 +33,22 @@ type Caster interface {
 
 // Service runs every cast behind the media contract: it starts, stops and follows them, takes the device each is lent, and ranks streams without casting.
 type Service struct {
-	ctx       context.Context
-	shut      context.CancelCauseFunc
-	extractor Extractor
-	caster    func(asked *castorv1.Preferences) Caster
-	reach     *url.URL
-	casts     *registry.Registry[*cast]
+	ctx    context.Context
+	shut   context.CancelCauseFunc
+	caster func(asked *mediav1.PlaybackSettings) Caster
+	reach  *url.URL
+	casts  *registry.Registry[*cast]
 }
 
-// New casts with extractor and caster, telling devices to reach the media route at reach.
-func New(extractor Extractor, caster func(asked *castorv1.Preferences) Caster, reach *url.URL) *Service {
+// New casts with caster, telling devices to reach the media route at reach.
+func New(caster func(asked *mediav1.PlaybackSettings) Caster, reach *url.URL) *Service {
 	// Casts outlive the request that started them, and end only once the server shuts down.
 	ctx, shut := context.WithCancelCause(context.Background())
-	return &Service{ctx: ctx, shut: shut, extractor: extractor, caster: caster, reach: reach, casts: registry.New[*cast](linger)}
+	return &Service{ctx: ctx, shut: shut, caster: caster, reach: reach, casts: registry.New[*cast](linger)}
 }
 
 func (s *Service) Start(_ context.Context, req *mediav1.StartRequest) (*mediav1.StartResponse, error) {
-	c := newCast(s.ctx, rand.Text(), s.reach, s.extractor, s.caster(req.GetPreferences()), req.GetSource())
+	c := newCast(s.ctx, rand.Text(), s.reach, s.caster(req.GetSettings()), req.GetSource())
 	if !s.casts.Add(c.id, c, c.done) {
 		c.cancel(errShutdown)
 		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)

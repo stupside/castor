@@ -68,11 +68,14 @@ func outcome(ended *castorv1.Ended, err error) error {
 	if err != nil {
 		return err
 	}
-	switch ended.GetOutcome() {
-	case castorv1.Outcome_OUTCOME_ENDED:
+	switch result := ended.GetResult().(type) {
+	case *castorv1.Ended_Completed:
 		return nil
-	case castorv1.Outcome_OUTCOME_STOPPED:
+	case *castorv1.Ended_Stopped:
 		return errStopped
+	case *castorv1.Ended_Failed:
+		return errors.New(result.Failed.GetMessage())
+	default:
+		return errors.New("the cast ended without saying how it did")
 	}
-	return errors.New(ended.GetReason())
 }

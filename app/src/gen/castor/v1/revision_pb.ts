@@ -2,15 +2,16 @@
 // @generated from file castor/v1/revision.proto (package castor.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file castor/v1/revision.proto.
  */
 export const file_castor_v1_revision: GenFile = /*@__PURE__*/
-  fileDesc("ChhjYXN0b3IvdjEvcmV2aXNpb24ucHJvdG8SCWNhc3Rvci52MSIpCghSZXZpc2lvbhIQCghzdHJhdGVneRgBIAEoCRILCgN3aHkYAiABKAliBnByb3RvMw");
+  fileDesc("ChhjYXN0b3IvdjEvcmV2aXNpb24ucHJvdG8SCWNhc3Rvci52MSJXCghSZXZpc2lvbhI1CgZhY3Rpb24YASABKA4yGS5jYXN0b3IudjEuUmVjb3ZlcnlBY3Rpb25CCrpIB4IBBBABIAASFAoDd2h5GAIgASgJQge6SARyAhABKrsBCg5SZWNvdmVyeUFjdGlvbhIfChtSRUNPVkVSWV9BQ1RJT05fVU5TUEVDSUZJRUQQABIkCiBSRUNPVkVSWV9BQ1RJT05fU1dJVENIX0NBTkRJREFURRABEh8KG1JFQ09WRVJZX0FDVElPTl9ERUNPREVfQVhJUxACEh4KGlJFQ09WRVJZX0FDVElPTl9SRUxBWF9SRUFEEAMSIQodUkVDT1ZFUllfQUNUSU9OX1NFUlZFX0lOU1RFQUQQBGIGcHJvdG8z", [file_buf_validate_validate]);
 
 /**
  * Revision is a cast's latest change of plan, and why.
@@ -19,9 +20,9 @@ export const file_castor_v1_revision: GenFile = /*@__PURE__*/
  */
 export type Revision = Message<"castor.v1.Revision"> & {
   /**
-   * @generated from field: string strategy = 1;
+   * @generated from field: castor.v1.RecoveryAction action = 1;
    */
-  strategy: string;
+  action: RecoveryAction;
 
   /**
    * @generated from field: string why = 2;
@@ -35,4 +36,40 @@ export type Revision = Message<"castor.v1.Revision"> & {
  */
 export const RevisionSchema: GenMessage<Revision> = /*@__PURE__*/
   messageDesc(file_castor_v1_revision, 0);
+
+/**
+ * @generated from enum castor.v1.RecoveryAction
+ */
+export enum RecoveryAction {
+  /**
+   * @generated from enum value: RECOVERY_ACTION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECOVERY_ACTION_SWITCH_CANDIDATE = 1;
+   */
+  SWITCH_CANDIDATE = 1,
+
+  /**
+   * @generated from enum value: RECOVERY_ACTION_DECODE_AXIS = 2;
+   */
+  DECODE_AXIS = 2,
+
+  /**
+   * @generated from enum value: RECOVERY_ACTION_RELAX_READ = 3;
+   */
+  RELAX_READ = 3,
+
+  /**
+   * @generated from enum value: RECOVERY_ACTION_SERVE_INSTEAD = 4;
+   */
+  SERVE_INSTEAD = 4,
+}
+
+/**
+ * Describes the enum castor.v1.RecoveryAction.
+ */
+export const RecoveryActionSchema: GenEnum<RecoveryAction> = /*@__PURE__*/
+  enumDesc(file_castor_v1_revision, 0);
 

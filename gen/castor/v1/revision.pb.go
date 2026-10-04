@@ -7,6 +7,7 @@
 package castorv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -21,10 +22,65 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type RecoveryAction int32
+
+const (
+	RecoveryAction_RECOVERY_ACTION_UNSPECIFIED      RecoveryAction = 0
+	RecoveryAction_RECOVERY_ACTION_SWITCH_CANDIDATE RecoveryAction = 1
+	RecoveryAction_RECOVERY_ACTION_DECODE_AXIS      RecoveryAction = 2
+	RecoveryAction_RECOVERY_ACTION_RELAX_READ       RecoveryAction = 3
+	RecoveryAction_RECOVERY_ACTION_SERVE_INSTEAD    RecoveryAction = 4
+)
+
+// Enum value maps for RecoveryAction.
+var (
+	RecoveryAction_name = map[int32]string{
+		0: "RECOVERY_ACTION_UNSPECIFIED",
+		1: "RECOVERY_ACTION_SWITCH_CANDIDATE",
+		2: "RECOVERY_ACTION_DECODE_AXIS",
+		3: "RECOVERY_ACTION_RELAX_READ",
+		4: "RECOVERY_ACTION_SERVE_INSTEAD",
+	}
+	RecoveryAction_value = map[string]int32{
+		"RECOVERY_ACTION_UNSPECIFIED":      0,
+		"RECOVERY_ACTION_SWITCH_CANDIDATE": 1,
+		"RECOVERY_ACTION_DECODE_AXIS":      2,
+		"RECOVERY_ACTION_RELAX_READ":       3,
+		"RECOVERY_ACTION_SERVE_INSTEAD":    4,
+	}
+)
+
+func (x RecoveryAction) Enum() *RecoveryAction {
+	p := new(RecoveryAction)
+	*p = x
+	return p
+}
+
+func (x RecoveryAction) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RecoveryAction) Descriptor() protoreflect.EnumDescriptor {
+	return file_castor_v1_revision_proto_enumTypes[0].Descriptor()
+}
+
+func (RecoveryAction) Type() protoreflect.EnumType {
+	return &file_castor_v1_revision_proto_enumTypes[0]
+}
+
+func (x RecoveryAction) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RecoveryAction.Descriptor instead.
+func (RecoveryAction) EnumDescriptor() ([]byte, []int) {
+	return file_castor_v1_revision_proto_rawDescGZIP(), []int{0}
+}
+
 // Revision is a cast's latest change of plan, and why.
 type Revision struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Strategy      string                 `protobuf:"bytes,1,opt,name=strategy,proto3" json:"strategy,omitempty"`
+	Action        RecoveryAction         `protobuf:"varint,1,opt,name=action,proto3,enum=castor.v1.RecoveryAction" json:"action,omitempty"`
 	Why           string                 `protobuf:"bytes,2,opt,name=why,proto3" json:"why,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -60,11 +116,11 @@ func (*Revision) Descriptor() ([]byte, []int) {
 	return file_castor_v1_revision_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Revision) GetStrategy() string {
+func (x *Revision) GetAction() RecoveryAction {
 	if x != nil {
-		return x.Strategy
+		return x.Action
 	}
-	return ""
+	return RecoveryAction_RECOVERY_ACTION_UNSPECIFIED
 }
 
 func (x *Revision) GetWhy() string {
@@ -78,10 +134,17 @@ var File_castor_v1_revision_proto protoreflect.FileDescriptor
 
 const file_castor_v1_revision_proto_rawDesc = "" +
 	"\n" +
-	"\x18castor/v1/revision.proto\x12\tcastor.v1\"8\n" +
-	"\bRevision\x12\x1a\n" +
-	"\bstrategy\x18\x01 \x01(\tR\bstrategy\x12\x10\n" +
-	"\x03why\x18\x02 \x01(\tR\x03whyB\x96\x01\n" +
+	"\x18castor/v1/revision.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"d\n" +
+	"\bRevision\x12=\n" +
+	"\x06action\x18\x01 \x01(\x0e2\x19.castor.v1.RecoveryActionB\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x06action\x12\x19\n" +
+	"\x03why\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03why*\xbb\x01\n" +
+	"\x0eRecoveryAction\x12\x1f\n" +
+	"\x1bRECOVERY_ACTION_UNSPECIFIED\x10\x00\x12$\n" +
+	" RECOVERY_ACTION_SWITCH_CANDIDATE\x10\x01\x12\x1f\n" +
+	"\x1bRECOVERY_ACTION_DECODE_AXIS\x10\x02\x12\x1e\n" +
+	"\x1aRECOVERY_ACTION_RELAX_READ\x10\x03\x12!\n" +
+	"\x1dRECOVERY_ACTION_SERVE_INSTEAD\x10\x04B\x96\x01\n" +
 	"\rcom.castor.v1B\rRevisionProtoP\x01Z1github.com/stupside/castor/gen/castor/v1;castorv1\xa2\x02\x03CXX\xaa\x02\tCastor.V1\xca\x02\tCastor\\V1\xe2\x02\x15Castor\\V1\\GPBMetadata\xea\x02\n" +
 	"Castor::V1b\x06proto3"
 
@@ -97,16 +160,19 @@ func file_castor_v1_revision_proto_rawDescGZIP() []byte {
 	return file_castor_v1_revision_proto_rawDescData
 }
 
+var file_castor_v1_revision_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_castor_v1_revision_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_castor_v1_revision_proto_goTypes = []any{
-	(*Revision)(nil), // 0: castor.v1.Revision
+	(RecoveryAction)(0), // 0: castor.v1.RecoveryAction
+	(*Revision)(nil),    // 1: castor.v1.Revision
 }
 var file_castor_v1_revision_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: castor.v1.Revision.action:type_name -> castor.v1.RecoveryAction
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_castor_v1_revision_proto_init() }
@@ -119,13 +185,14 @@ func file_castor_v1_revision_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_v1_revision_proto_rawDesc), len(file_castor_v1_revision_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_castor_v1_revision_proto_goTypes,
 		DependencyIndexes: file_castor_v1_revision_proto_depIdxs,
+		EnumInfos:         file_castor_v1_revision_proto_enumTypes,
 		MessageInfos:      file_castor_v1_revision_proto_msgTypes,
 	}.Build()
 	File_castor_v1_revision_proto = out.File

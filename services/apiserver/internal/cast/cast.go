@@ -2,6 +2,7 @@ package cast
 
 import (
 	"context"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"time"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
@@ -28,7 +29,7 @@ type view struct {
 }
 
 func newCast(id string, device *castorv1.Device, source *castorv1.Source, stop context.CancelCauseFunc) *cast {
-	return &cast{id: id, device: device, source: source, started: time.Now(), stop: stop, now: latest.New(view{status: &castorv1.CastStatus{Phase: castorv1.Phase_PHASE_CONNECTING}})}
+	return &cast{id: id, device: device, source: source, started: time.Now(), stop: stop, now: latest.New(view{status: &castorv1.CastStatus{State: &castorv1.CastStatus_Connecting{Connecting: &emptypb.Empty{}}}})}
 }
 
 // update publishes what change makes of the cast, unless it has ended.

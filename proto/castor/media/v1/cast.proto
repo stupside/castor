@@ -4,6 +4,7 @@ package castor.media.v1;
 
 import "buf/validate/validate.proto";
 import "castor/v1/cast.proto";
+import "castor/v1/stream.proto";
 
 // CastService starts, stops and follows casts.
 service CastService {
@@ -17,17 +18,19 @@ service CastService {
 }
 
 message StartRequest {
-  // source is a stream measured and cast as is, or pages whose streams the media server finds and ranks.
-  castor.v1.Source source = 1 [(buf.validate.field).required = true];
-  // preferences are the cast's, every one of them set.
-  castor.v1.Preferences preferences = 2 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).cel = {
-      id: "preferences.complete"
-      message: "delivery, max_height and subtitles are all set"
-      expression: "has(this.delivery) && has(this.max_height) && has(this.subtitles)"
-    }
-  ];
+  // source is a direct stream or resolved candidates, never unresolved pages.
+  Source source = 1 [(buf.validate.field).required = true];
+  PlaybackSettings settings = 2 [(buf.validate.field).required = true];
+}
+
+// PlaybackSettings is the complete policy resolved by API before media is called.
+message PlaybackSettings {
+  castor.v1.Delivery delivery = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  uint32 max_height = 2 [(buf.validate.field).uint32.gte = 2];
+  castor.v1.SubtitleSelection subtitles = 3 [(buf.validate.field).required = true];
 }
 
 message StartResponse {
@@ -39,3 +42,18 @@ message StopRequest {
 }
 
 message StopResponse {}
+
+// Source is a direct stream or extracted candidates to measure, rank, and play.
+message Source {
+  oneof source {
+    option (buf.validate.oneof).required = true;
+    castor.v1.Stream stream = 1;
+    Streams streams = 2;
+  }
+  message Streams {
+    repeated castor.v1.StreamCandidate streams = 1 [
+      (buf.validate.field).repeated.min_items = 1,
+      (buf.validate.field).repeated.max_items = 1600
+    ];
+  }
+}

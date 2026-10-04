@@ -7,6 +7,7 @@ import "castor/v1/device.proto";
 import "castor/v1/log.proto";
 import "castor/v1/revision.proto";
 import "castor/v1/stream.proto";
+import "google/protobuf/empty.proto";
 
 // CastService plays video on devices.
 service CastService {
@@ -45,12 +46,13 @@ message ResolveResponse {
   repeated RankedStream ranked = 1;
 }
 
-// Source is what to play: one stream as is, or pages whose streams are found and ranked.
+// Source is a direct stream, pages to resolve, or already-resolved candidates to rank.
 message Source {
   oneof source {
     option (buf.validate.oneof).required = true;
     Stream stream = 1;
     Pages pages = 2;
+    ResolvedStreams streams = 3;
   }
 
   message Pages {
@@ -65,6 +67,13 @@ message Source {
       }
     ];
   }
+
+  message ResolvedStreams {
+    repeated StreamCandidate streams = 1 [
+      (buf.validate.field).repeated.min_items = 1,
+      (buf.validate.field).repeated.max_items = 1600
+    ];
+  }
 }
 
 // Preferences are what one cast asks; each unset field takes the server's configuration.
@@ -75,9 +84,17 @@ message Preferences {
   }];
   // max_height is the tallest picture the cast may show.
   optional uint32 max_height = 2 [(buf.validate.field).uint32.gte = 2];
-  // subtitles is the language to burn in, a whisper code or auto to detect it, empty for none.
-  // The default model understands English only; subtitles are burnt in only where castor draws the frames, never on a hand-off.
-  optional string subtitles = 3 [(buf.validate.field).string.pattern = "^(auto|[a-z]{2,3})?$"];
+  // Absent subtitles inherit the server's default; an explicit mode replaces it.
+  SubtitleSelection subtitles = 3;
+}
+
+message SubtitleSelection {
+  oneof mode {
+    option (buf.validate.oneof).required = true;
+    google.protobuf.Empty disabled = 1;
+    google.protobuf.Empty auto_detect = 2;
+    string language = 3 [(buf.validate.field).string.pattern = "^[a-z]{2,3}$"];
+  }
 }
 
 message WatchRequest {
@@ -100,54 +117,53 @@ message WatchResponse {
 
 // CastStatus is where a cast stands, for people to read.
 message CastStatus {
-  Phase phase = 1;
-  // streams is how many streams the cast was handed, once it measures them.
-  uint32 streams = 2;
-  // castable is how many of them measuring kept.
-  uint32 castable = 3;
-  // attempt counts tries from 1, once casting.
-  uint32 attempt = 4;
-  // revision is the latest change of plan, unset before any.
-  Revision revision = 5;
+  oneof state {
+    option (buf.validate.oneof).required = true;
+    google.protobuf.Empty connecting = 1;
+    google.protobuf.Empty extracting = 2;
+    MeasuringStatus measuring = 3;
+    CastingStatus casting = 4;
+  }
 }
 
-// Phase is where a cast is; it stays at its last phase once the cast has ended, which Ended tells.
-// Phase only moves forward, in the order of its values.
-enum Phase {
-  PHASE_UNSPECIFIED = 0;
-  // PHASE_CONNECTING reaches the device, before anything is read.
-  PHASE_CONNECTING = 1;
-  // PHASE_EXTRACTING opens the source's pages to find their streams.
-  PHASE_EXTRACTING = 2;
-  // PHASE_MEASURING readies the streams and the device.
-  PHASE_MEASURING = 3;
-  // PHASE_CASTING plays on the device, attempt after attempt.
-  PHASE_CASTING = 4;
+message MeasuringStatus {
+  uint32 streams = 1;
+  // Absent until ranking finishes; zero means no candidate was retained.
+  optional uint32 castable = 2;
+}
+
+message CastingStatus {
+  uint32 streams = 1;
+  uint32 castable = 2;
+  uint32 attempt = 3 [(buf.validate.field).uint32.gte = 1];
+  Revision revision = 4;
 }
 
 message Ended {
-  option (buf.validate.message).cel = {
-    id: "ended.reason"
-    message: "reason is set when, and only when, the cast failed"
-    expression: "(this.outcome == 3) == (this.reason != '')"
-  };
+  oneof result {
+    option (buf.validate.oneof).required = true;
+    // Completion means playback ended or the device accepted a direct hand-off.
+    google.protobuf.Empty completed = 1;
+    google.protobuf.Empty stopped = 2;
+    Failure failed = 3;
+  }
+}
 
-  Outcome outcome = 1 [(buf.validate.field).enum = {
+message Failure {
+  FailureCode code = 1 [(buf.validate.field).enum = {
     defined_only: true
     not_in: [0]
   }];
-  // reason is why a failed cast failed.
-  string reason = 2;
+  string message = 2 [(buf.validate.field).string.min_len = 1];
 }
 
-enum Outcome {
-  OUTCOME_UNSPECIFIED = 0;
-  // OUTCOME_ENDED is a cast that played to its end; a hand-off ends once the device accepted the URL.
-  OUTCOME_ENDED = 1;
-  // OUTCOME_STOPPED is a cast Stop ended.
-  OUTCOME_STOPPED = 2;
-  // OUTCOME_FAILED is a cast that could not play on, or that its server ended as it shut down; reason says why.
-  OUTCOME_FAILED = 3;
+enum FailureCode {
+  FAILURE_CODE_UNSPECIFIED = 0;
+  FAILURE_CODE_PLAYBACK_FAILED = 1;
+  FAILURE_CODE_DEVICE_UNREACHABLE = 2;
+  FAILURE_CODE_EXTRACTION_FAILED = 3;
+  FAILURE_CODE_SERVER_SHUTDOWN = 4;
+  FAILURE_CODE_INTERNAL = 5;
 }
 
 message StopRequest {

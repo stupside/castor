@@ -31,7 +31,7 @@ type Intent struct {
 // Turns is told the turns a cast takes, as they are taken.
 type Turns interface {
 	Attempting(try int)
-	Revising(strategy, why string)
+	Revising(action Action, why string)
 }
 
 // Attempt is one fully decided try: link, rung, fetch terms, delivery preference.

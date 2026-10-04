@@ -4,12 +4,12 @@ import (
 	"context"
 	"log/slog"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/services/mediaserver/internal/cast"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/deliver"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/execute"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
-	"github.com/stupside/castor/services/mediaserver/internal/extract"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/probe"
@@ -44,8 +44,7 @@ func (c *Config) backend() Backend {
 		},
 	}
 	return Backend{
-		Extractor: extract.New(extract.Config{Browser: c.Browser, Capture: c.Capture, Documents: formats}),
-		Caster: func(asked *castorv1.Preferences) cast.Caster {
+		Caster: func(asked *mediav1.PlaybackSettings) cast.Caster {
 			return caster{
 				Ranker: rank.New(c.Resolver.Config, media.HeightCap(asked.GetMaxHeight()), func(s *source.Stream) media.Prober {
 					return e.machinery.Probes.Link(probe.Link{URL: s.URL, Headers: s.Headers, InputArgs: formats.InputArgs(s.ContentType, 0)}, c.Resolver.ProbeTimeout)
@@ -65,9 +64,13 @@ type engine struct {
 }
 
 // subtitles burns in language with the configured whisper model, none when language is empty.
-func (e *engine) subtitles(language string) execute.Subtitles {
-	if language == "" {
+func (e *engine) subtitles(selection *castorv1.SubtitleSelection) execute.Subtitles {
+	if selection.GetDisabled() != nil {
 		return nil
+	}
+	language := selection.GetLanguage()
+	if selection.GetAutoDetect() != nil {
+		language = "auto"
 	}
 	return func(ctx context.Context, workDir string) execute.Burn {
 		b, err := whisper.New(ctx, e.cfg.Whisper, language, workDir)
@@ -79,16 +82,11 @@ func (e *engine) subtitles(language string) execute.Subtitles {
 	}
 }
 
-// resolver reads links for a cast asked as asked.
-func (e *engine) resolver(asked *castorv1.Preferences) *source.Resolver {
-	return source.NewResolver(e.client, media.HeightCap(asked.GetMaxHeight()), formats)
-}
-
 // caster ranks and plays one cast as it was asked.
 type caster struct {
 	*rank.Ranker
 	engine *engine
-	asked  *castorv1.Preferences
+	asked  *mediav1.PlaybackSettings
 	subs   execute.Subtitles
 }
 
@@ -114,5 +112,5 @@ func (k caster) Play(ctx context.Context, device execute.Device, listeners deliv
 		Deadline:   k.engine.cfg.Transcode.RWTimeout,
 		Delivery:   wire.FromDelivery(k.asked.GetDelivery()),
 		Turns:      turns,
-	}, run, k.engine.resolver(k.asked))
+	}, run, source.NewResolver(k.engine.client, run.MaxHeight, formats))
 }

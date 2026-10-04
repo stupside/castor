@@ -8,6 +8,7 @@ import (
 
 	"github.com/looplab/fsm"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/latest"
 	"github.com/stupside/castor/services/mediaserver/internal/castlog"
@@ -25,12 +26,11 @@ const undriven = time.Minute
 
 // cast is one cast: where it stands, its line to the device, what it serves, and who reads its lines.
 type cast struct {
-	ctx       context.Context
-	id        string
-	cancel    context.CancelCauseFunc
-	extractor Extractor
-	caster    Caster
-	source    origin
+	ctx    context.Context
+	id     string
+	cancel context.CancelCauseFunc
+	caster Caster
+	source origin
 
 	// machine moves only inside an update of now, so each move is taken and published as one.
 	machine *fsm.FSM
@@ -43,12 +43,11 @@ type cast struct {
 }
 
 // newCast awaits its device for undriven, and no longer than parent lasts; lending it one starts the cast.
-func newCast(parent context.Context, id string, reach *url.URL, extractor Extractor, caster Caster, src *castorv1.Source) *cast {
+func newCast(parent context.Context, id string, reach *url.URL, caster Caster, src *mediav1.Source) *cast {
 	ctx, cancel := context.WithCancelCause(parent)
 	c := &cast{
 		id:         id,
 		cancel:     cancel,
-		extractor:  extractor,
 		caster:     caster,
 		source:     originOf(src),
 		done:       make(chan struct{}),
@@ -59,7 +58,7 @@ func newCast(parent context.Context, id string, reach *url.URL, extractor Extrac
 	// Everything the cast logs carries its feed, so its lines reach the watchers who asked for them.
 	c.ctx = castlog.Into(ctx, c.logs)
 	c.machine = c.lifecycle()
-	c.now = latest.New(view{status: &castorv1.CastStatus{Phase: c.source.phase()}})
+	c.now = latest.New(view{status: &castorv1.CastStatus{State: &castorv1.CastStatus_Measuring{Measuring: &castorv1.MeasuringStatus{}}}})
 	time.AfterFunc(undriven, func() { c.end(eventAbandon, errUndriven) })
 	context.AfterFunc(ctx, func() { c.end(eventAbandon, outcome(ctx, nil)) })
 	return c

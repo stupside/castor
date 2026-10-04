@@ -11,15 +11,17 @@ import type { LogLevel, LogLine } from "./log_pb";
 import { file_castor_v1_log } from "./log_pb";
 import type { Revision } from "./revision_pb";
 import { file_castor_v1_revision } from "./revision_pb";
-import type { Delivery, RankedStream, Stream } from "./stream_pb";
+import type { Delivery, RankedStream, Stream, StreamCandidate } from "./stream_pb";
 import { file_castor_v1_stream } from "./stream_pb";
+import type { Empty } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_empty } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file castor/v1/cast.proto.
  */
 export const file_castor_v1_cast: GenFile = /*@__PURE__*/
-  fileDesc("ChRjYXN0b3IvdjEvY2FzdC5wcm90bxIJY2FzdG9yLnYxIpABCgtDYXN0UmVxdWVzdBIpCgZ0YXJnZXQYASABKAsyES5jYXN0b3IudjEuVGFyZ2V0Qga6SAPIAQESKQoGc291cmNlGAIgASgLMhEuY2FzdG9yLnYxLlNvdXJjZUIGukgDyAEBEisKC3ByZWZlcmVuY2VzGAMgASgLMhYuY2FzdG9yLnYxLlByZWZlcmVuY2VzIh8KDENhc3RSZXNwb25zZRIPCgdjYXN0X2lkGAEgASgJImgKDlJlc29sdmVSZXF1ZXN0EikKBnNvdXJjZRgBIAEoCzIRLmNhc3Rvci52MS5Tb3VyY2VCBrpIA8gBARIrCgtwcmVmZXJlbmNlcxgCIAEoCzIWLmNhc3Rvci52MS5QcmVmZXJlbmNlcyI6Cg9SZXNvbHZlUmVzcG9uc2USJwoGcmFua2VkGAEgAygLMhcuY2FzdG9yLnYxLlJhbmtlZFN0cmVhbSKPAgoGU291cmNlEiMKBnN0cmVhbRgBIAEoCzIRLmNhc3Rvci52MS5TdHJlYW1IABIoCgVwYWdlcxgCIAEoCzIXLmNhc3Rvci52MS5Tb3VyY2UuUGFnZXNIABqkAQoFUGFnZXMSmgEKBHVybHMYASADKAlCiwG6SIcBkgGDAQgBEBAifboBdQoIdXJsLmh0dHASHG11c3QgYmUgYW4gaHR0cCBvciBodHRwcyBVUkwaS3RoaXMuaXNVcmkoKSAmJiAodGhpcy5zdGFydHNXaXRoKCdodHRwOi8vJykgfHwgdGhpcy5zdGFydHNXaXRoKCdodHRwczovLycpKXIDGIBAQg8KBnNvdXJjZRIFukgCCAEixgEKC1ByZWZlcmVuY2VzEjYKCGRlbGl2ZXJ5GAEgASgOMhMuY2FzdG9yLnYxLkRlbGl2ZXJ5Qgq6SAeCAQQQASAASACIAQESIAoKbWF4X2hlaWdodBgCIAEoDUIHukgEKgIoAkgBiAEBEjMKCXN1YnRpdGxlcxgDIAEoCUIbukgYchYyFF4oYXV0b3xbYS16XXsyLDN9KT8kSAKIAQFCCwoJX2RlbGl2ZXJ5Qg0KC19tYXhfaGVpZ2h0QgwKCl9zdWJ0aXRsZXMiZQoMV2F0Y2hSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAESMgoEbG9ncxgCIAEoDjITLmNhc3Rvci52MS5Mb2dMZXZlbEIKukgHggEEEAEgAEgAiAEBQgcKBV9sb2dzIokBCg1XYXRjaFJlc3BvbnNlEicKBnN0YXR1cxgBIAEoCzIVLmNhc3Rvci52MS5DYXN0U3RhdHVzSAASIgoEbGluZRgCIAEoCzISLmNhc3Rvci52MS5Mb2dMaW5lSAASIQoFZW5kZWQYAyABKAsyEC5jYXN0b3IudjEuRW5kZWRIAEIICgZ1cGRhdGUiiAEKCkNhc3RTdGF0dXMSHwoFcGhhc2UYASABKA4yEC5jYXN0b3IudjEuUGhhc2USDwoHc3RyZWFtcxgCIAEoDRIQCghjYXN0YWJsZRgDIAEoDRIPCgdhdHRlbXB0GAQgASgNEiUKCHJldmlzaW9uGAUgASgLMhMuY2FzdG9yLnYxLlJldmlzaW9uIr0BCgVFbmRlZBIvCgdvdXRjb21lGAEgASgOMhIuY2FzdG9yLnYxLk91dGNvbWVCCrpIB4IBBBABIAASDgoGcmVhc29uGAIgASgJOnO6SHAabgoMZW5kZWQucmVhc29uEjJyZWFzb24gaXMgc2V0IHdoZW4sIGFuZCBvbmx5IHdoZW4sIHRoZSBjYXN0IGZhaWxlZBoqKHRoaXMub3V0Y29tZSA9PSAzKSA9PSAodGhpcy5yZWFzb24gIT0gJycpIicKC1N0b3BSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAEiDgoMU3RvcFJlc3BvbnNlIhIKEExpc3RDYXN0c1JlcXVlc3QiMwoRTGlzdENhc3RzUmVzcG9uc2USHgoFY2FzdHMYASADKAsyDy5jYXN0b3IudjEuQ2FzdCJ/CgRDYXN0EgoKAmlkGAEgASgJEiEKBmRldmljZRgCIAEoCzIRLmNhc3Rvci52MS5EZXZpY2USIQoGc291cmNlGAMgASgLMhEuY2FzdG9yLnYxLlNvdXJjZRIlCgZzdGF0dXMYBCABKAsyFS5jYXN0b3IudjEuQ2FzdFN0YXR1cypyCgVQaGFzZRIVChFQSEFTRV9VTlNQRUNJRklFRBAAEhQKEFBIQVNFX0NPTk5FQ1RJTkcQARIUChBQSEFTRV9FWFRSQUNUSU5HEAISEwoPUEhBU0VfTUVBU1VSSU5HEAMSEQoNUEhBU0VfQ0FTVElORxAEKl4KB091dGNvbWUSFwoTT1VUQ09NRV9VTlNQRUNJRklFRBAAEhEKDU9VVENPTUVfRU5ERUQQARITCg9PVVRDT01FX1NUT1BQRUQQAhISCg5PVVRDT01FX0ZBSUxFRBADMscCCgtDYXN0U2VydmljZRI3CgRDYXN0EhYuY2FzdG9yLnYxLkNhc3RSZXF1ZXN0GhcuY2FzdG9yLnYxLkNhc3RSZXNwb25zZRJACgdSZXNvbHZlEhkuY2FzdG9yLnYxLlJlc29sdmVSZXF1ZXN0GhouY2FzdG9yLnYxLlJlc29sdmVSZXNwb25zZRI8CgVXYXRjaBIXLmNhc3Rvci52MS5XYXRjaFJlcXVlc3QaGC5jYXN0b3IudjEuV2F0Y2hSZXNwb25zZTABEjcKBFN0b3ASFi5jYXN0b3IudjEuU3RvcFJlcXVlc3QaFy5jYXN0b3IudjEuU3RvcFJlc3BvbnNlEkYKCUxpc3RDYXN0cxIbLmNhc3Rvci52MS5MaXN0Q2FzdHNSZXF1ZXN0GhwuY2FzdG9yLnYxLkxpc3RDYXN0c1Jlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate, file_castor_v1_device, file_castor_v1_log, file_castor_v1_revision, file_castor_v1_stream]);
+  fileDesc("ChRjYXN0b3IvdjEvY2FzdC5wcm90bxIJY2FzdG9yLnYxIpABCgtDYXN0UmVxdWVzdBIpCgZ0YXJnZXQYASABKAsyES5jYXN0b3IudjEuVGFyZ2V0Qga6SAPIAQESKQoGc291cmNlGAIgASgLMhEuY2FzdG9yLnYxLlNvdXJjZUIGukgDyAEBEisKC3ByZWZlcmVuY2VzGAMgASgLMhYuY2FzdG9yLnYxLlByZWZlcmVuY2VzIh8KDENhc3RSZXNwb25zZRIPCgdjYXN0X2lkGAEgASgJImgKDlJlc29sdmVSZXF1ZXN0EikKBnNvdXJjZRgBIAEoCzIRLmNhc3Rvci52MS5Tb3VyY2VCBrpIA8gBARIrCgtwcmVmZXJlbmNlcxgCIAEoCzIWLmNhc3Rvci52MS5QcmVmZXJlbmNlcyI6Cg9SZXNvbHZlUmVzcG9uc2USJwoGcmFua2VkGAEgAygLMhcuY2FzdG9yLnYxLlJhbmtlZFN0cmVhbSKSAwoGU291cmNlEiMKBnN0cmVhbRgBIAEoCzIRLmNhc3Rvci52MS5TdHJlYW1IABIoCgVwYWdlcxgCIAEoCzIXLmNhc3Rvci52MS5Tb3VyY2UuUGFnZXNIABI0CgdzdHJlYW1zGAMgASgLMiEuY2FzdG9yLnYxLlNvdXJjZS5SZXNvbHZlZFN0cmVhbXNIABqkAQoFUGFnZXMSmgEKBHVybHMYASADKAlCiwG6SIcBkgGDAQgBEBAifboBdQoIdXJsLmh0dHASHG11c3QgYmUgYW4gaHR0cCBvciBodHRwcyBVUkwaS3RoaXMuaXNVcmkoKSAmJiAodGhpcy5zdGFydHNXaXRoKCdodHRwOi8vJykgfHwgdGhpcy5zdGFydHNXaXRoKCdodHRwczovLycpKXIDGIBAGksKD1Jlc29sdmVkU3RyZWFtcxI4CgdzdHJlYW1zGAEgAygLMhouY2FzdG9yLnYxLlN0cmVhbUNhbmRpZGF0ZUILukgIkgEFCAEQwAxCDwoGc291cmNlEgW6SAIIASK0AQoLUHJlZmVyZW5jZXMSNgoIZGVsaXZlcnkYASABKA4yEy5jYXN0b3IudjEuRGVsaXZlcnlCCrpIB4IBBBABIABIAIgBARIgCgptYXhfaGVpZ2h0GAIgASgNQge6SAQqAigCSAGIAQESLwoJc3VidGl0bGVzGAMgASgLMhwuY2FzdG9yLnYxLlN1YnRpdGxlU2VsZWN0aW9uQgsKCV9kZWxpdmVyeUINCgtfbWF4X2hlaWdodCKmAQoRU3VidGl0bGVTZWxlY3Rpb24SKgoIZGlzYWJsZWQYASABKAsyFi5nb29nbGUucHJvdG9idWYuRW1wdHlIABItCgthdXRvX2RldGVjdBgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEicKCGxhbmd1YWdlGAMgASgJQhO6SBByDjIMXlthLXpdezIsM30kSABCDQoEbW9kZRIFukgCCAEiZQoMV2F0Y2hSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAESMgoEbG9ncxgCIAEoDjITLmNhc3Rvci52MS5Mb2dMZXZlbEIKukgHggEEEAEgAEgAiAEBQgcKBV9sb2dzIokBCg1XYXRjaFJlc3BvbnNlEicKBnN0YXR1cxgBIAEoCzIVLmNhc3Rvci52MS5DYXN0U3RhdHVzSAASIgoEbGluZRgCIAEoCzISLmNhc3Rvci52MS5Mb2dMaW5lSAASIQoFZW5kZWQYAyABKAsyEC5jYXN0b3IudjEuRW5kZWRIAEIICgZ1cGRhdGUi1gEKCkNhc3RTdGF0dXMSLAoKY29ubmVjdGluZxgBIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEiwKCmV4dHJhY3RpbmcYAiABKAsyFi5nb29nbGUucHJvdG9idWYuRW1wdHlIABIvCgltZWFzdXJpbmcYAyABKAsyGi5jYXN0b3IudjEuTWVhc3VyaW5nU3RhdHVzSAASKwoHY2FzdGluZxgEIAEoCzIYLmNhc3Rvci52MS5DYXN0aW5nU3RhdHVzSABCDgoFc3RhdGUSBbpIAggBIkYKD01lYXN1cmluZ1N0YXR1cxIPCgdzdHJlYW1zGAEgASgNEhUKCGNhc3RhYmxlGAIgASgNSACIAQFCCwoJX2Nhc3RhYmxlInMKDUNhc3RpbmdTdGF0dXMSDwoHc3RyZWFtcxgBIAEoDRIQCghjYXN0YWJsZRgCIAEoDRIYCgdhdHRlbXB0GAMgASgNQge6SAQqAigBEiUKCHJldmlzaW9uGAQgASgLMhMuY2FzdG9yLnYxLlJldmlzaW9uIpYBCgVFbmRlZBIrCgljb21wbGV0ZWQYASABKAsyFi5nb29nbGUucHJvdG9idWYuRW1wdHlIABIpCgdzdG9wcGVkGAIgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASJAoGZmFpbGVkGAMgASgLMhIuY2FzdG9yLnYxLkZhaWx1cmVIAEIPCgZyZXN1bHQSBbpIAggBIlUKB0ZhaWx1cmUSMAoEY29kZRgBIAEoDjIWLmNhc3Rvci52MS5GYWlsdXJlQ29kZUIKukgHggEEEAEgABIYCgdtZXNzYWdlGAIgASgJQge6SARyAhABIicKC1N0b3BSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAEiDgoMU3RvcFJlc3BvbnNlIhIKEExpc3RDYXN0c1JlcXVlc3QiMwoRTGlzdENhc3RzUmVzcG9uc2USHgoFY2FzdHMYASADKAsyDy5jYXN0b3IudjEuQ2FzdCJ/CgRDYXN0EgoKAmlkGAEgASgJEiEKBmRldmljZRgCIAEoCzIRLmNhc3Rvci52MS5EZXZpY2USIQoGc291cmNlGAMgASgLMhEuY2FzdG9yLnYxLlNvdXJjZRIlCgZzdGF0dXMYBCABKAsyFS5jYXN0b3IudjEuQ2FzdFN0YXR1cyrTAQoLRmFpbHVyZUNvZGUSHAoYRkFJTFVSRV9DT0RFX1VOU1BFQ0lGSUVEEAASIAocRkFJTFVSRV9DT0RFX1BMQVlCQUNLX0ZBSUxFRBABEiMKH0ZBSUxVUkVfQ09ERV9ERVZJQ0VfVU5SRUFDSEFCTEUQAhIiCh5GQUlMVVJFX0NPREVfRVhUUkFDVElPTl9GQUlMRUQQAxIgChxGQUlMVVJFX0NPREVfU0VSVkVSX1NIVVRET1dOEAQSGQoVRkFJTFVSRV9DT0RFX0lOVEVSTkFMEAUyxwIKC0Nhc3RTZXJ2aWNlEjcKBENhc3QSFi5jYXN0b3IudjEuQ2FzdFJlcXVlc3QaFy5jYXN0b3IudjEuQ2FzdFJlc3BvbnNlEkAKB1Jlc29sdmUSGS5jYXN0b3IudjEuUmVzb2x2ZVJlcXVlc3QaGi5jYXN0b3IudjEuUmVzb2x2ZVJlc3BvbnNlEjwKBVdhdGNoEhcuY2FzdG9yLnYxLldhdGNoUmVxdWVzdBoYLmNhc3Rvci52MS5XYXRjaFJlc3BvbnNlMAESNwoEU3RvcBIWLmNhc3Rvci52MS5TdG9wUmVxdWVzdBoXLmNhc3Rvci52MS5TdG9wUmVzcG9uc2USRgoJTGlzdENhc3RzEhsuY2FzdG9yLnYxLkxpc3RDYXN0c1JlcXVlc3QaHC5jYXN0b3IudjEuTGlzdENhc3RzUmVzcG9uc2ViBnByb3RvMw", [file_buf_validate_validate, file_castor_v1_device, file_castor_v1_log, file_castor_v1_revision, file_castor_v1_stream, file_google_protobuf_empty]);
 
 /**
  * @generated from message castor.v1.CastRequest
@@ -109,7 +111,7 @@ export const ResolveResponseSchema: GenMessage<ResolveResponse> = /*@__PURE__*/
   messageDesc(file_castor_v1_cast, 3);
 
 /**
- * Source is what to play: one stream as is, or pages whose streams are found and ranked.
+ * Source is a direct stream, pages to resolve, or already-resolved candidates to rank.
  *
  * @generated from message castor.v1.Source
  */
@@ -129,6 +131,12 @@ export type Source = Message<"castor.v1.Source"> & {
      */
     value: Source_Pages;
     case: "pages";
+  } | {
+    /**
+     * @generated from field: castor.v1.Source.ResolvedStreams streams = 3;
+     */
+    value: Source_ResolvedStreams;
+    case: "streams";
   } | { case: undefined; value?: undefined };
 };
 
@@ -157,6 +165,23 @@ export const Source_PagesSchema: GenMessage<Source_Pages> = /*@__PURE__*/
   messageDesc(file_castor_v1_cast, 4, 0);
 
 /**
+ * @generated from message castor.v1.Source.ResolvedStreams
+ */
+export type Source_ResolvedStreams = Message<"castor.v1.Source.ResolvedStreams"> & {
+  /**
+   * @generated from field: repeated castor.v1.StreamCandidate streams = 1;
+   */
+  streams: StreamCandidate[];
+};
+
+/**
+ * Describes the message castor.v1.Source.ResolvedStreams.
+ * Use `create(Source_ResolvedStreamsSchema)` to create a new message.
+ */
+export const Source_ResolvedStreamsSchema: GenMessage<Source_ResolvedStreams> = /*@__PURE__*/
+  messageDesc(file_castor_v1_cast, 4, 1);
+
+/**
  * Preferences are what one cast asks; each unset field takes the server's configuration.
  *
  * @generated from message castor.v1.Preferences
@@ -175,12 +200,11 @@ export type Preferences = Message<"castor.v1.Preferences"> & {
   maxHeight?: number | undefined;
 
   /**
-   * subtitles is the language to burn in, a whisper code or auto to detect it, empty for none.
-   * The default model understands English only; subtitles are burnt in only where castor draws the frames, never on a hand-off.
+   * Absent subtitles inherit the server's default; an explicit mode replaces it.
    *
-   * @generated from field: optional string subtitles = 3;
+   * @generated from field: castor.v1.SubtitleSelection subtitles = 3;
    */
-  subtitles?: string | undefined;
+  subtitles?: SubtitleSelection | undefined;
 };
 
 /**
@@ -189,6 +213,41 @@ export type Preferences = Message<"castor.v1.Preferences"> & {
  */
 export const PreferencesSchema: GenMessage<Preferences> = /*@__PURE__*/
   messageDesc(file_castor_v1_cast, 5);
+
+/**
+ * @generated from message castor.v1.SubtitleSelection
+ */
+export type SubtitleSelection = Message<"castor.v1.SubtitleSelection"> & {
+  /**
+   * @generated from oneof castor.v1.SubtitleSelection.mode
+   */
+  mode: {
+    /**
+     * @generated from field: google.protobuf.Empty disabled = 1;
+     */
+    value: Empty;
+    case: "disabled";
+  } | {
+    /**
+     * @generated from field: google.protobuf.Empty auto_detect = 2;
+     */
+    value: Empty;
+    case: "autoDetect";
+  } | {
+    /**
+     * @generated from field: string language = 3;
+     */
+    value: string;
+    case: "language";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message castor.v1.SubtitleSelection.
+ * Use `create(SubtitleSelectionSchema)` to create a new message.
+ */
+export const SubtitleSelectionSchema: GenMessage<SubtitleSelection> = /*@__PURE__*/
+  messageDesc(file_castor_v1_cast, 6);
 
 /**
  * @generated from message castor.v1.WatchRequest
@@ -212,7 +271,7 @@ export type WatchRequest = Message<"castor.v1.WatchRequest"> & {
  * Use `create(WatchRequestSchema)` to create a new message.
  */
 export const WatchRequestSchema: GenMessage<WatchRequest> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 6);
+  messageDesc(file_castor_v1_cast, 7);
 
 /**
  * @generated from message castor.v1.WatchResponse
@@ -249,7 +308,7 @@ export type WatchResponse = Message<"castor.v1.WatchResponse"> & {
  * Use `create(WatchResponseSchema)` to create a new message.
  */
 export const WatchResponseSchema: GenMessage<WatchResponse> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 7);
+  messageDesc(file_castor_v1_cast, 8);
 
 /**
  * CastStatus is where a cast stands, for people to read.
@@ -258,37 +317,33 @@ export const WatchResponseSchema: GenMessage<WatchResponse> = /*@__PURE__*/
  */
 export type CastStatus = Message<"castor.v1.CastStatus"> & {
   /**
-   * @generated from field: castor.v1.Phase phase = 1;
+   * @generated from oneof castor.v1.CastStatus.state
    */
-  phase: Phase;
-
-  /**
-   * streams is how many streams the cast was handed, once it measures them.
-   *
-   * @generated from field: uint32 streams = 2;
-   */
-  streams: number;
-
-  /**
-   * castable is how many of them measuring kept.
-   *
-   * @generated from field: uint32 castable = 3;
-   */
-  castable: number;
-
-  /**
-   * attempt counts tries from 1, once casting.
-   *
-   * @generated from field: uint32 attempt = 4;
-   */
-  attempt: number;
-
-  /**
-   * revision is the latest change of plan, unset before any.
-   *
-   * @generated from field: castor.v1.Revision revision = 5;
-   */
-  revision?: Revision | undefined;
+  state: {
+    /**
+     * @generated from field: google.protobuf.Empty connecting = 1;
+     */
+    value: Empty;
+    case: "connecting";
+  } | {
+    /**
+     * @generated from field: google.protobuf.Empty extracting = 2;
+     */
+    value: Empty;
+    case: "extracting";
+  } | {
+    /**
+     * @generated from field: castor.v1.MeasuringStatus measuring = 3;
+     */
+    value: MeasuringStatus;
+    case: "measuring";
+  } | {
+    /**
+     * @generated from field: castor.v1.CastingStatus casting = 4;
+     */
+    value: CastingStatus;
+    case: "casting";
+  } | { case: undefined; value?: undefined };
 };
 
 /**
@@ -296,23 +351,92 @@ export type CastStatus = Message<"castor.v1.CastStatus"> & {
  * Use `create(CastStatusSchema)` to create a new message.
  */
 export const CastStatusSchema: GenMessage<CastStatus> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 8);
+  messageDesc(file_castor_v1_cast, 9);
+
+/**
+ * @generated from message castor.v1.MeasuringStatus
+ */
+export type MeasuringStatus = Message<"castor.v1.MeasuringStatus"> & {
+  /**
+   * @generated from field: uint32 streams = 1;
+   */
+  streams: number;
+
+  /**
+   * Absent until ranking finishes; zero means no candidate was retained.
+   *
+   * @generated from field: optional uint32 castable = 2;
+   */
+  castable?: number | undefined;
+};
+
+/**
+ * Describes the message castor.v1.MeasuringStatus.
+ * Use `create(MeasuringStatusSchema)` to create a new message.
+ */
+export const MeasuringStatusSchema: GenMessage<MeasuringStatus> = /*@__PURE__*/
+  messageDesc(file_castor_v1_cast, 10);
+
+/**
+ * @generated from message castor.v1.CastingStatus
+ */
+export type CastingStatus = Message<"castor.v1.CastingStatus"> & {
+  /**
+   * @generated from field: uint32 streams = 1;
+   */
+  streams: number;
+
+  /**
+   * @generated from field: uint32 castable = 2;
+   */
+  castable: number;
+
+  /**
+   * @generated from field: uint32 attempt = 3;
+   */
+  attempt: number;
+
+  /**
+   * @generated from field: castor.v1.Revision revision = 4;
+   */
+  revision?: Revision | undefined;
+};
+
+/**
+ * Describes the message castor.v1.CastingStatus.
+ * Use `create(CastingStatusSchema)` to create a new message.
+ */
+export const CastingStatusSchema: GenMessage<CastingStatus> = /*@__PURE__*/
+  messageDesc(file_castor_v1_cast, 11);
 
 /**
  * @generated from message castor.v1.Ended
  */
 export type Ended = Message<"castor.v1.Ended"> & {
   /**
-   * @generated from field: castor.v1.Outcome outcome = 1;
+   * @generated from oneof castor.v1.Ended.result
    */
-  outcome: Outcome;
-
-  /**
-   * reason is why a failed cast failed.
-   *
-   * @generated from field: string reason = 2;
-   */
-  reason: string;
+  result: {
+    /**
+     * Completion means playback ended or the device accepted a direct hand-off.
+     *
+     * @generated from field: google.protobuf.Empty completed = 1;
+     */
+    value: Empty;
+    case: "completed";
+  } | {
+    /**
+     * @generated from field: google.protobuf.Empty stopped = 2;
+     */
+    value: Empty;
+    case: "stopped";
+  } | {
+    /**
+     * @generated from field: castor.v1.Failure failed = 3;
+     */
+    value: Failure;
+    case: "failed";
+  } | { case: undefined; value?: undefined };
 };
 
 /**
@@ -320,7 +444,29 @@ export type Ended = Message<"castor.v1.Ended"> & {
  * Use `create(EndedSchema)` to create a new message.
  */
 export const EndedSchema: GenMessage<Ended> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 9);
+  messageDesc(file_castor_v1_cast, 12);
+
+/**
+ * @generated from message castor.v1.Failure
+ */
+export type Failure = Message<"castor.v1.Failure"> & {
+  /**
+   * @generated from field: castor.v1.FailureCode code = 1;
+   */
+  code: FailureCode;
+
+  /**
+   * @generated from field: string message = 2;
+   */
+  message: string;
+};
+
+/**
+ * Describes the message castor.v1.Failure.
+ * Use `create(FailureSchema)` to create a new message.
+ */
+export const FailureSchema: GenMessage<Failure> = /*@__PURE__*/
+  messageDesc(file_castor_v1_cast, 13);
 
 /**
  * @generated from message castor.v1.StopRequest
@@ -337,7 +483,7 @@ export type StopRequest = Message<"castor.v1.StopRequest"> & {
  * Use `create(StopRequestSchema)` to create a new message.
  */
 export const StopRequestSchema: GenMessage<StopRequest> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 10);
+  messageDesc(file_castor_v1_cast, 14);
 
 /**
  * @generated from message castor.v1.StopResponse
@@ -350,7 +496,7 @@ export type StopResponse = Message<"castor.v1.StopResponse"> & {
  * Use `create(StopResponseSchema)` to create a new message.
  */
 export const StopResponseSchema: GenMessage<StopResponse> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 11);
+  messageDesc(file_castor_v1_cast, 15);
 
 /**
  * @generated from message castor.v1.ListCastsRequest
@@ -363,7 +509,7 @@ export type ListCastsRequest = Message<"castor.v1.ListCastsRequest"> & {
  * Use `create(ListCastsRequestSchema)` to create a new message.
  */
 export const ListCastsRequestSchema: GenMessage<ListCastsRequest> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 12);
+  messageDesc(file_castor_v1_cast, 16);
 
 /**
  * @generated from message castor.v1.ListCastsResponse
@@ -380,7 +526,7 @@ export type ListCastsResponse = Message<"castor.v1.ListCastsResponse"> & {
  * Use `create(ListCastsResponseSchema)` to create a new message.
  */
 export const ListCastsResponseSchema: GenMessage<ListCastsResponse> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 13);
+  messageDesc(file_castor_v1_cast, 17);
 
 /**
  * @generated from message castor.v1.Cast
@@ -416,91 +562,48 @@ export type Cast = Message<"castor.v1.Cast"> & {
  * Use `create(CastSchema)` to create a new message.
  */
 export const CastSchema: GenMessage<Cast> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 14);
+  messageDesc(file_castor_v1_cast, 18);
 
 /**
- * Phase is where a cast is; it stays at its last phase once the cast has ended, which Ended tells.
- * Phase only moves forward, in the order of its values.
- *
- * @generated from enum castor.v1.Phase
+ * @generated from enum castor.v1.FailureCode
  */
-export enum Phase {
+export enum FailureCode {
   /**
-   * @generated from enum value: PHASE_UNSPECIFIED = 0;
+   * @generated from enum value: FAILURE_CODE_UNSPECIFIED = 0;
    */
   UNSPECIFIED = 0,
 
   /**
-   * PHASE_CONNECTING reaches the device, before anything is read.
-   *
-   * @generated from enum value: PHASE_CONNECTING = 1;
+   * @generated from enum value: FAILURE_CODE_PLAYBACK_FAILED = 1;
    */
-  CONNECTING = 1,
+  PLAYBACK_FAILED = 1,
 
   /**
-   * PHASE_EXTRACTING opens the source's pages to find their streams.
-   *
-   * @generated from enum value: PHASE_EXTRACTING = 2;
+   * @generated from enum value: FAILURE_CODE_DEVICE_UNREACHABLE = 2;
    */
-  EXTRACTING = 2,
+  DEVICE_UNREACHABLE = 2,
 
   /**
-   * PHASE_MEASURING readies the streams and the device.
-   *
-   * @generated from enum value: PHASE_MEASURING = 3;
+   * @generated from enum value: FAILURE_CODE_EXTRACTION_FAILED = 3;
    */
-  MEASURING = 3,
+  EXTRACTION_FAILED = 3,
 
   /**
-   * PHASE_CASTING plays on the device, attempt after attempt.
-   *
-   * @generated from enum value: PHASE_CASTING = 4;
+   * @generated from enum value: FAILURE_CODE_SERVER_SHUTDOWN = 4;
    */
-  CASTING = 4,
+  SERVER_SHUTDOWN = 4,
+
+  /**
+   * @generated from enum value: FAILURE_CODE_INTERNAL = 5;
+   */
+  INTERNAL = 5,
 }
 
 /**
- * Describes the enum castor.v1.Phase.
+ * Describes the enum castor.v1.FailureCode.
  */
-export const PhaseSchema: GenEnum<Phase> = /*@__PURE__*/
+export const FailureCodeSchema: GenEnum<FailureCode> = /*@__PURE__*/
   enumDesc(file_castor_v1_cast, 0);
-
-/**
- * @generated from enum castor.v1.Outcome
- */
-export enum Outcome {
-  /**
-   * @generated from enum value: OUTCOME_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * OUTCOME_ENDED is a cast that played to its end; a hand-off ends once the device accepted the URL.
-   *
-   * @generated from enum value: OUTCOME_ENDED = 1;
-   */
-  ENDED = 1,
-
-  /**
-   * OUTCOME_STOPPED is a cast Stop ended.
-   *
-   * @generated from enum value: OUTCOME_STOPPED = 2;
-   */
-  STOPPED = 2,
-
-  /**
-   * OUTCOME_FAILED is a cast that could not play on, or that its server ended as it shut down; reason says why.
-   *
-   * @generated from enum value: OUTCOME_FAILED = 3;
-   */
-  FAILED = 3,
-}
-
-/**
- * Describes the enum castor.v1.Outcome.
- */
-export const OutcomeSchema: GenEnum<Outcome> = /*@__PURE__*/
-  enumDesc(file_castor_v1_cast, 1);
 
 /**
  * CastService plays video on devices.

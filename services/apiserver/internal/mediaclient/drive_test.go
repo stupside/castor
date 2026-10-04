@@ -12,6 +12,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/gen/castor/media/v1/mediav1connect"
@@ -43,7 +44,7 @@ func (*media) Stop(context.Context, *mediav1.StopRequest) (*mediav1.StopResponse
 
 // Watch shows the cast casting, then how its device answered: ended, or failed by the device.
 func (m *media) Watch(ctx context.Context, _ *castorv1.WatchRequest, out *connect.ServerStream[castorv1.WatchResponse]) error {
-	if err := out.Send(&castorv1.WatchResponse{Update: &castorv1.WatchResponse_Status{Status: &castorv1.CastStatus{Phase: castorv1.Phase_PHASE_CASTING, Attempt: 1}}}); err != nil {
+	if err := out.Send(&castorv1.WatchResponse{Update: &castorv1.WatchResponse_Status{Status: &castorv1.CastStatus{State: &castorv1.CastStatus_Casting{Casting: &castorv1.CastingStatus{Attempt: 1}}}}}); err != nil {
 		return err
 	}
 	if err := out.Send(&castorv1.WatchResponse{Update: &castorv1.WatchResponse_Line{Line: &castorv1.LogLine{Level: castorv1.LogLevel_LOG_LEVEL_INFO, Message: "casting"}}}); err != nil {
@@ -54,7 +55,7 @@ func (m *media) Watch(ctx context.Context, _ *castorv1.WatchRequest, out *connec
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return out.Send(&castorv1.WatchResponse{Update: &castorv1.WatchResponse_Ended{Ended: &castorv1.Ended{Outcome: castorv1.Outcome_OUTCOME_ENDED}}})
+	return out.Send(&castorv1.WatchResponse{Update: &castorv1.WatchResponse_Ended{Ended: &castorv1.Ended{Result: &castorv1.Ended_Completed{Completed: &emptypb.Empty{}}}}})
 }
 
 func (m *media) Drive(ctx context.Context, req *mediav1.DriveRequest, out *connect.ServerStream[mediav1.DriveResponse]) error {
@@ -124,7 +125,7 @@ func (*lentDevice) Capabilities() *mediav1.Capabilities {
 	return &mediav1.Capabilities{SelfFetch: true, Video: []*mediav1.VideoSupport{{Codec: mediav1.VideoCodec_VIDEO_CODEC_H264, MaxLevel: 42}}}
 }
 
-var asked = &castorv1.Preferences{Delivery: castorv1.Delivery_DELIVERY_AUTO.Enum(), MaxHeight: new(uint32(1080)), Subtitles: new("")}
+var asked = &mediav1.PlaybackSettings{Delivery: castorv1.Delivery_DELIVERY_AUTO, MaxHeight: 1080, Subtitles: &castorv1.SubtitleSelection{Mode: &castorv1.SubtitleSelection_Disabled{Disabled: &emptypb.Empty{}}}}
 
 var bedroom = &castorv1.Device{Id: "dlna:uuid-1", Name: "Bedroom", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "10.0.0.9"}
 
@@ -138,7 +139,7 @@ type watching struct {
 // cast starts a cast of one stream, lends it device and watches it to its end, returning what the watch saw and what the drive returned.
 func cast(t *testing.T, c *mediaclient.Client, lent mediaclient.Device) (watching, error) {
 	t.Helper()
-	id, err := c.Start(t.Context(), &castorv1.Source{Source: &castorv1.Source_Stream{Stream: &castorv1.Stream{Url: "https://cdn.example/direct"}}}, asked)
+	id, err := c.Start(t.Context(), &mediav1.Source{Source: &mediav1.Source_Stream{Stream: &castorv1.Stream{Url: "https://cdn.example/direct"}}}, asked)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +176,7 @@ func TestADriveLendsItsDeviceForTheCastToPlayOn(t *testing.T) {
 	if driven != nil {
 		t.Errorf("the drive ended with %v", driven)
 	}
-	if w.ended.GetOutcome() != castorv1.Outcome_OUTCOME_ENDED || len(w.shown) != 1 || w.shown[0].GetAttempt() != 1 || len(w.lines) != 1 {
+	if w.ended.GetCompleted() == nil || len(w.shown) != 1 || w.shown[0].GetCasting().GetAttempt() != 1 || len(w.lines) != 1 {
 		t.Errorf("the watch was shown %v and %v then %v, want the cast's status and line then its end", w.shown, w.lines, w.ended)
 	}
 	if got, as := taken(t, lent.played), taken(t, lent.as); got.String() != "https://cdn.example/direct" || as != mediav1.Container_CONTAINER_HLS {

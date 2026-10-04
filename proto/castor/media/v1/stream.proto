@@ -3,7 +3,7 @@ syntax = "proto3";
 package castor.media.v1;
 
 import "buf/validate/validate.proto";
-import "castor/v1/cast.proto";
+import "castor/media/v1/cast.proto";
 import "castor/v1/stream.proto";
 
 // StreamService ranks a source's streams as a cast would, without casting.
@@ -12,16 +12,8 @@ service StreamService {
 }
 
 message RankRequest {
-  castor.v1.Source source = 1 [(buf.validate.field).required = true];
-  // preferences are the cast's, every one of them set.
-  castor.v1.Preferences preferences = 2 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).cel = {
-      id: "preferences.complete"
-      message: "delivery, max_height and subtitles are all set"
-      expression: "has(this.delivery) && has(this.max_height) && has(this.subtitles)"
-    }
-  ];
+  Source source = 1 [(buf.validate.field).required = true];
+  PlaybackSettings settings = 2 [(buf.validate.field).required = true];
 }
 
 message RankResponse {

@@ -12,11 +12,11 @@ import (
 // Rank readies a source's streams as a cast asked the same would, casting nothing.
 func (s *Service) Rank(ctx context.Context, req *mediav1.RankRequest) (*mediav1.RankResponse, error) {
 	src := originOf(req.GetSource())
-	found, err := src.streams(ctx, s.extractor)
+	found, err := src.streams()
 	if err != nil {
 		return nil, failed(ctx, connect.CodeNotFound, err)
 	}
-	ranked, err := src.ready(ctx, s.caster(req.GetPreferences()), found)
+	ranked, err := src.ready(ctx, s.caster(req.GetSettings()), found)
 	if err != nil {
 		return nil, failed(ctx, connect.CodeFailedPrecondition, err)
 	}

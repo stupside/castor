@@ -135,8 +135,8 @@ func TestOnlyADeviceHandedTheSourceIsServedInstead(t *testing.T) {
 		handoff bool
 		want    string
 	}{
-		{"handed the source", true, serveInstead.name},
-		{"already served", false, switchCandidate.name},
+		{"handed the source", true, string(serveInstead.action)},
+		{"already served", false, string(switchCandidate.action)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8", "https://other.example/two.m3u8"), Deadline: 30 * time.Second}
@@ -145,9 +145,9 @@ func TestOnlyADeviceHandedTheSourceIsServedInstead(t *testing.T) {
 			if err := Cast(t.Context(), in, run, &fakeProgram{}); err != nil || len(run.seen) != 2 {
 				t.Fatalf("Cast error = %v after %d attempts, want the second attempt to deliver", err, len(run.seen))
 			}
-			got := switchCandidate.name
+			got := string(switchCandidate.action)
 			if next := run.seen[1]; next.candidate == 0 && next.Delivery == compose.DeliveryServe {
-				got = serveInstead.name
+				got = string(serveInstead.action)
 			}
 			if got != tc.want {
 				t.Errorf("the refusal was answered by %s, want %s", got, tc.want)
@@ -317,7 +317,7 @@ func TestADeviceThatIsGoneIsNotRetried(t *testing.T) {
 }
 
 func TestTheLedgerStopsAStrategyRepeatingAnAttempt(t *testing.T) {
-	sameAgain := strategy{name: "same-again", apply: func(_ context.Context, c change) (Attempt, bool) { return c.attempt, true }}
+	sameAgain := strategy{action: RelaxRead, apply: func(_ context.Context, c change) (Attempt, bool) { return c.attempt, true }}
 	shipped := playbook
 	playbook = map[kind][]strategy{sourceStalled: {sameAgain}}
 	t.Cleanup(func() { playbook = shipped })
@@ -361,11 +361,11 @@ func TestTheRefusalNamesWhatWasTriedAndItsMeasurements(t *testing.T) {
 
 	err := Cast(t.Context(), in, run, prog)
 	f := mustFault(t, err)
-	if f.kind != unreachable || !slices.Equal(f.tried, []string{switchCandidate.name}) || f.attempt.candidate != 1 {
+	if f.kind != unreachable || !slices.Equal(f.tried, []string{string(switchCandidate.action)}) || f.attempt.candidate != 1 {
 		t.Errorf("refused %s on candidate %d having tried %v, want %s on candidate 1 having tried [%s]",
-			f.kind, f.attempt.candidate, f.tried, unreachable, switchCandidate.name)
+			f.kind, f.attempt.candidate, f.tried, unreachable, switchCandidate.action)
 	}
-	for _, want := range []string{"landed=0", "2h1m55s", "candidate 2 of 2", "already tried: " + switchCandidate.name} {
+	for _, want := range []string{"landed=0", "2h1m55s", "candidate 2 of 2", "already tried: " + string(switchCandidate.action)} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the refusal %q does not carry %q", err, want)
 		}
@@ -385,4 +385,4 @@ func broke(copied media.Axes) Outcome {
 type unheard struct{}
 
 func (unheard) Attempting(int)          {}
-func (unheard) Revising(string, string) {}
+func (unheard) Revising(Action, string) {}

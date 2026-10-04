@@ -26,6 +26,16 @@ func FromStream(s *castorv1.Stream) (*source.Stream, error) {
 	return &source.Stream{URL: u, Headers: headers, ContentType: s.GetContentType()}, nil
 }
 
+// FromCandidate translates playback data and discovery evidence independently.
+func FromCandidate(c *castorv1.StreamCandidate) (*source.Stream, error) {
+	stream, err := FromStream(c.GetStream())
+	if err != nil {
+		return nil, err
+	}
+	stream.Ladder = source.Ladder(c.GetLadder())
+	return stream, nil
+}
+
 // FromDelivery is the delivery a cast asked for.
 func FromDelivery(d castorv1.Delivery) compose.DeliveryPreference {
 	if d == castorv1.Delivery_DELIVERY_SERVE {
