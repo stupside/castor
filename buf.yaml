@@ -6,6 +6,3 @@ deps:
 lint:
   use:
     - STANDARD
-breaking:
-  use:
-    - FILE
