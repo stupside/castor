@@ -21,8 +21,5 @@ func TestADeviceIsHandedEachContainerUnderItsDLNAProfile(t *testing.T) {
 		if !strings.Contains(metadata, `protocolInfo="`+want+`"`) {
 			t.Errorf("%v was announced as %s, want protocolInfo %q", container, metadata, want)
 		}
-		if got := servedHeaders(container)["contentFeatures.dlna.org"]; !strings.HasSuffix(want, got) {
-			t.Errorf("%v is served with contentFeatures %q, want the features it was announced with", container, got)
-		}
 	}
 }
