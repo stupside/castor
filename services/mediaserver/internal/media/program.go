@@ -70,8 +70,10 @@ func (p *Program) SetMeasurement(info ProbeInfo) {
 
 // MeasuredHeight is the probed height, or zero when no measurement established one.
 func (p *Program) MeasuredHeight() int {
-	info, _ := p.Measurement()
-	return info.VideoHeight
+	if p.measurement == nil {
+		return 0
+	}
+	return p.measurement.VideoHeight
 }
 
 // SameBindings reports whether two programs read the same media (same resources, identities, tracks).
