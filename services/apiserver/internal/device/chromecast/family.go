@@ -41,7 +41,7 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 		return nil, fmt.Errorf("connecting to chromecast: %w", err)
 	}
 	dev.ch = ch
-	if err := ch.send(receiverID, nsConnection, &castmedia.PayloadHeader{Type: msgConnect}); err != nil {
+	if err := ch.send(ctx, receiverID, nsConnection, &castmedia.PayloadHeader{Type: msgConnect}); err != nil {
 		_ = ch.Close()
 		return nil, fmt.Errorf("connecting to chromecast: %w", err)
 	}

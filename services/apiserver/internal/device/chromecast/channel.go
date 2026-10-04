@@ -55,7 +55,7 @@ var wire = json.JoinOptions(jsonv1.OmitEmptyWithLegacySemantics(true), json.Form
 type channel struct {
 	conn    net.Conn
 	observe func(payload []byte)
-	wmu     sync.Mutex
+	writing chan struct{}
 
 	mu      sync.Mutex
 	next    int
@@ -77,13 +77,14 @@ func dial(ctx context.Context, address string, observe func([]byte)) (*channel, 
 }
 
 func newChannel(conn net.Conn, observe func([]byte)) *channel {
-	ch := &channel{conn: conn, observe: observe, waiting: map[int]chan []byte{}, gone: make(chan struct{})}
+	ch := &channel{conn: conn, observe: observe, writing: make(chan struct{}, 1), waiting: map[int]chan []byte{}, gone: make(chan struct{})}
 	go ch.read()
 	return ch
 }
 
 func (ch *channel) read() {
 	defer close(ch.gone)
+	defer ch.closeOnce.Do(func() { _ = ch.conn.Close() })
 	for {
 		msg, err := ch.receive()
 		if err != nil {
@@ -95,7 +96,7 @@ func (ch *channel) read() {
 			continue
 		}
 		if msg.GetNamespace() == nsHeartbeat && header.Type == msgPing {
-			_ = ch.send(msg.GetSourceId(), nsHeartbeat, &castmedia.PayloadHeader{Type: msgPong})
+			_ = ch.send(context.Background(), msg.GetSourceId(), nsHeartbeat, &castmedia.PayloadHeader{Type: msgPong})
 			continue
 		}
 		ch.observe(payload)
@@ -134,6 +135,8 @@ func (ch *channel) answer(requestID int, payload []byte) {
 
 // request sends payload under a fresh request id and returns the receiver's answer to it.
 func (ch *channel) request(ctx context.Context, destination, namespace string, payload castmedia.Payload) ([]byte, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, answerWithin, fmt.Errorf("the chromecast did not answer within %s", answerWithin))
+	defer cancel()
 	reply := make(chan []byte, 1)
 	ch.mu.Lock()
 	ch.next++
@@ -147,11 +150,9 @@ func (ch *channel) request(ctx context.Context, destination, namespace string, p
 	}()
 
 	payload.SetRequestId(id)
-	if err := ch.send(destination, namespace, payload); err != nil {
+	if err := ch.send(ctx, destination, namespace, payload); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeoutCause(ctx, answerWithin, fmt.Errorf("the chromecast did not answer within %s", answerWithin))
-	defer cancel()
 	select {
 	case body := <-reply:
 		return body, nil
@@ -162,7 +163,9 @@ func (ch *channel) request(ctx context.Context, destination, namespace string, p
 	}
 }
 
-func (ch *channel) send(destination, namespace string, payload any) error {
+func (ch *channel) send(ctx context.Context, destination, namespace string, payload any) error {
+	ctx, cancel := context.WithTimeout(ctx, answerWithin)
+	defer cancel()
 	body, err := json.Marshal(payload, wire)
 	if err != nil {
 		return err
@@ -178,9 +181,41 @@ func (ch *channel) send(destination, namespace string, payload any) error {
 	if err != nil {
 		return err
 	}
-	ch.wmu.Lock()
-	defer ch.wmu.Unlock()
-	_, err = ch.conn.Write(append(binary.BigEndian.AppendUint32(nil, uint32(len(frame))), frame...))
+	select {
+	case ch.writing <- struct{}{}:
+		defer func() { <-ch.writing }()
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	}
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
+	}
+	deadline, _ := ctx.Deadline()
+	if err := ch.conn.SetWriteDeadline(deadline); err != nil {
+		return err
+	}
+	// Cancellation must interrupt a blocked write, and its callback must finish
+	// before the next sender installs its own deadline.
+	interrupted := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		_ = ch.conn.SetWriteDeadline(time.Now())
+		close(interrupted)
+	})
+	defer func() {
+		if !stop() {
+			<-interrupted
+		}
+		_ = ch.conn.SetWriteDeadline(time.Time{})
+	}()
+	packet := append(binary.BigEndian.AppendUint32(nil, uint32(len(frame))), frame...)
+	n, err := ch.conn.Write(packet)
+	if n > 0 && n < len(packet) {
+		// A partial frame cannot be retried on this connection.
+		ch.closeOnce.Do(func() { _ = ch.conn.Close() })
+	}
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
+	}
 	return err
 }
 

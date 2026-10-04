@@ -44,7 +44,7 @@ func (s *session) play(ctx context.Context, streamURL *url.URL, contentType stri
 	if err != nil {
 		return fmt.Errorf("starting the chromecast's media receiver: %w", err)
 	}
-	if err := s.ch.send(transport, nsConnection, &castmedia.PayloadHeader{Type: msgConnect}); err != nil {
+	if err := s.ch.send(ctx, transport, nsConnection, &castmedia.PayloadHeader{Type: msgConnect}); err != nil {
 		return fmt.Errorf("starting chromecast playback: %w", err)
 	}
 	// Each Play is awaited to its own end, so a retry after a refused one starts clean on the same connection.
