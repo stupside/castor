@@ -28,6 +28,8 @@ func searchDescription(ctx context.Context, host string) (string, error) {
 		return "", fmt.Errorf("dialing %s: %w", target, err)
 	}
 	defer conn.Close()
+	stopCancel := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stopCancel()
 
 	deadline, ok := ctx.Deadline()
 	if !ok {
@@ -54,6 +56,9 @@ func searchDescription(ctx context.Context, host string) (string, error) {
 	for {
 		n, err := conn.Read(buf)
 		if err != nil {
+			if ctx.Err() != nil {
+				return "", context.Cause(ctx)
+			}
 			return "", fmt.Errorf("awaiting SSDP response: %w", err)
 		}
 		if location := parseSSDPLocation(buf[:n]); location != "" {
