@@ -6,10 +6,16 @@ import { Bubble } from "@/components/bubble";
 import { Button } from "@/components/button";
 import type { Mood } from "@/components/castor-logo";
 import { Tv } from "@/components/tv";
-import type { Device } from "@/gen/castor/v1/device_pb";
+import { DeviceType, type Device } from "@/gen/castor/v1/device_pb";
 import { submitAction } from "./actions";
 
 const kinds = [["pages", "A video page"], ["stream", "A direct file"]] as const;
+const deviceTypes: Record<DeviceType, string> = {
+  [DeviceType.UNSPECIFIED]: "Screen",
+  [DeviceType.DLNA]: "DLNA",
+  [DeviceType.CHROMECAST]: "Chromecast",
+  [DeviceType.ROKU]: "Roku",
+};
 
 export function CastForm({ devices, casts }: { devices: Device[]; casts: React.ReactNode }) {
   const [state, action, pending] = useActionState(submitAction, {});
@@ -36,7 +42,7 @@ export function CastForm({ devices, casts }: { devices: Device[]; casts: React.R
     <div className="flex max-w-md flex-col gap-3">
       <Bubble>{!devices.length ? "I can’t see any screens. Turn a TV on, then refresh." : devices.length === 1 ? `Hi! I found ${devices[0].name}. What are we watching?` : "Hi! Which screen shall we send something to?"}</Bubble>
       {devices.length > 0 && stage === 1 && <div className="flex animate-rise flex-wrap justify-end gap-2">
-        {devices.map((d) => <Button variant="choice" type="button" key={d.id} onClick={() => setDeviceId(d.id)}><Tv className="size-4" />{d.name}<span className="text-[10px] uppercase opacity-70">{d.type}</span></Button>)}
+        {devices.map((d) => <Button variant="choice" type="button" key={d.id} onClick={() => setDeviceId(d.id)}><Tv className="size-4" />{d.name}<span className="text-[10px] uppercase opacity-70">{deviceTypes[d.type] ?? "Screen"}</span></Button>)}
       </div>}
 
       {device && <>

@@ -59,7 +59,7 @@ func pickDevice(ctx context.Context, devices castorv1connect.DeviceServiceClient
 	if !ok {
 		return nil, "", "", nil
 	}
-	return &castorv1.Target{Target: &castorv1.Target_DeviceId{DeviceId: picked.GetId()}}, picked.GetName(), picked.GetType(), nil
+	return &castorv1.Target{Target: &castorv1.Target_DeviceId{DeviceId: picked.GetId()}}, picked.GetName(), cast.DeviceTypeName(picked.GetType()), nil
 }
 
 // listDevices sweeps for the devices the API server finds, warning when it cannot.

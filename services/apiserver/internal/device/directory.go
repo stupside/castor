@@ -35,7 +35,10 @@ func (d *Directory) ListDevices(ctx context.Context, _ *castorv1.ListDevicesRequ
 // Target is the device t names: one seen, discovered again when not yet seen, or one pinned at its address.
 func (d *Directory) Target(ctx context.Context, t *castorv1.Target) (Info, error) {
 	if pinned := t.GetPinned(); pinned != nil {
-		kind := Type(pinned.GetType())
+		kind, err := requestedType(pinned.GetType())
+		if err != nil {
+			return Info{}, connect.NewError(connect.CodeInvalidArgument, err)
+		}
 		if _, err := d.reach.family(kind); err != nil {
 			return Info{}, connect.NewError(connect.CodeInvalidArgument, err)
 		}
@@ -49,6 +52,15 @@ func (d *Directory) Target(ctx context.Context, t *castorv1.Target) (Info, error
 		return info, nil
 	}
 	return Info{}, connect.NewError(connect.CodeNotFound, fmt.Errorf("no device %q on the network", t.GetDeviceId()))
+}
+
+func requestedType(t castorv1.DeviceType) (Type, error) {
+	for kind, public := range publicTypes {
+		if public == t {
+			return kind, nil
+		}
+	}
+	return "", fmt.Errorf("unknown device type: %v", t)
 }
 
 // Connect opens target for one cast, which holds it to its end; a Play that finds it gone connects it again.

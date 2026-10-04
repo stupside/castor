@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/stupside/castor/cmd/castor/internal/cast"
 	"github.com/stupside/castor/cmd/castor/internal/palette"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
@@ -49,7 +50,7 @@ type item struct{ *castorv1.Device }
 
 func (i item) Title() string { return i.GetName() }
 func (i item) Description() string {
-	return fmt.Sprintf("%s  %s", strings.ToUpper(i.GetType()), i.GetAddress())
+	return fmt.Sprintf("%s  %s", strings.ToUpper(cast.DeviceTypeName(i.GetType())), i.GetAddress())
 }
 func (i item) FilterValue() string { return i.GetName() }
 

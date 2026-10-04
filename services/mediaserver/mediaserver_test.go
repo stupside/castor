@@ -226,7 +226,7 @@ func start(t *testing.T, c server, source *castorv1.Source) string {
 func lend(ctx context.Context, c server, id string, device *lentDevice) error {
 	stream, err := c.devices.Drive(ctx, &mediav1.DriveRequest{
 		CastId:       id,
-		Device:       &castorv1.Device{Name: "Bedroom", Type: "dlna", Address: "10.0.0.9"},
+		Device:       &castorv1.Device{Name: "Bedroom", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "10.0.0.9"},
 		Capabilities: device.caps,
 	})
 	if err != nil {

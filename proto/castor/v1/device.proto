@@ -20,8 +20,10 @@ message Device {
   // id is opaque and the same on every discovery; a cast's target names it.
   string id = 1;
   string name = 2;
-  // type is the device's family: dlna, chromecast or roku.
-  string type = 3;
+  DeviceType type = 3 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
   string address = 4;
 }
 
@@ -35,8 +37,18 @@ message Target {
 
   message Pinned {
     // type is the device's family, as Device.type reports it.
-    string type = 1 [(buf.validate.field).string.min_len = 1];
+    DeviceType type = 1 [(buf.validate.field).enum = {
+      defined_only: true
+      not_in: [0]
+    }];
     // address is a host, a host:port, or the URL the family answers at.
     string address = 2 [(buf.validate.field).string.min_len = 1];
   }
+}
+
+enum DeviceType {
+  DEVICE_TYPE_UNSPECIFIED = 0;
+  DEVICE_TYPE_DLNA = 1;
+  DEVICE_TYPE_CHROMECAST = 2;
+  DEVICE_TYPE_ROKU = 3;
 }

@@ -126,7 +126,7 @@ func (*lentDevice) Capabilities() *mediav1.Capabilities {
 
 var asked = &castorv1.Preferences{Delivery: castorv1.Delivery_DELIVERY_AUTO.Enum(), MaxHeight: new(uint32(1080)), Subtitles: new("")}
 
-var bedroom = &castorv1.Device{Id: "dlna:uuid-1", Name: "Bedroom", Type: "dlna", Address: "10.0.0.9"}
+var bedroom = &castorv1.Device{Id: "dlna:uuid-1", Name: "Bedroom", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "10.0.0.9"}
 
 // watching is what a watch of a cast was shown, its lines, and how it ended.
 type watching struct {

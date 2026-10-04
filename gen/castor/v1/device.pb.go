@@ -22,6 +22,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type DeviceType int32
+
+const (
+	DeviceType_DEVICE_TYPE_UNSPECIFIED DeviceType = 0
+	DeviceType_DEVICE_TYPE_DLNA        DeviceType = 1
+	DeviceType_DEVICE_TYPE_CHROMECAST  DeviceType = 2
+	DeviceType_DEVICE_TYPE_ROKU        DeviceType = 3
+)
+
+// Enum value maps for DeviceType.
+var (
+	DeviceType_name = map[int32]string{
+		0: "DEVICE_TYPE_UNSPECIFIED",
+		1: "DEVICE_TYPE_DLNA",
+		2: "DEVICE_TYPE_CHROMECAST",
+		3: "DEVICE_TYPE_ROKU",
+	}
+	DeviceType_value = map[string]int32{
+		"DEVICE_TYPE_UNSPECIFIED": 0,
+		"DEVICE_TYPE_DLNA":        1,
+		"DEVICE_TYPE_CHROMECAST":  2,
+		"DEVICE_TYPE_ROKU":        3,
+	}
+)
+
+func (x DeviceType) Enum() *DeviceType {
+	p := new(DeviceType)
+	*p = x
+	return p
+}
+
+func (x DeviceType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DeviceType) Descriptor() protoreflect.EnumDescriptor {
+	return file_castor_v1_device_proto_enumTypes[0].Descriptor()
+}
+
+func (DeviceType) Type() protoreflect.EnumType {
+	return &file_castor_v1_device_proto_enumTypes[0]
+}
+
+func (x DeviceType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DeviceType.Descriptor instead.
+func (DeviceType) EnumDescriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{0}
+}
+
 type ListDevicesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -105,11 +157,10 @@ func (x *ListDevicesResponse) GetDevices() []*Device {
 type Device struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// id is opaque and the same on every discovery; a cast's target names it.
-	Id   string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// type is the device's family: dlna, chromecast or roku.
-	Type          string `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
-	Address       string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
+	Id            string     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string     `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Type          DeviceType `protobuf:"varint,3,opt,name=type,proto3,enum=castor.v1.DeviceType" json:"type,omitempty"`
+	Address       string     `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -158,11 +209,11 @@ func (x *Device) GetName() string {
 	return ""
 }
 
-func (x *Device) GetType() string {
+func (x *Device) GetType() DeviceType {
 	if x != nil {
 		return x.Type
 	}
-	return ""
+	return DeviceType_DEVICE_TYPE_UNSPECIFIED
 }
 
 func (x *Device) GetAddress() string {
@@ -258,7 +309,7 @@ func (*Target_Pinned_) isTarget_Target() {}
 type Target_Pinned struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// type is the device's family, as Device.type reports it.
-	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Type DeviceType `protobuf:"varint,1,opt,name=type,proto3,enum=castor.v1.DeviceType" json:"type,omitempty"`
 	// address is a host, a host:port, or the URL the family answers at.
 	Address       string `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -295,11 +346,11 @@ func (*Target_Pinned) Descriptor() ([]byte, []int) {
 	return file_castor_v1_device_proto_rawDescGZIP(), []int{3, 0}
 }
 
-func (x *Target_Pinned) GetType() string {
+func (x *Target_Pinned) GetType() DeviceType {
 	if x != nil {
 		return x.Type
 	}
-	return ""
+	return DeviceType_DEVICE_TYPE_UNSPECIFIED
 }
 
 func (x *Target_Pinned) GetAddress() string {
@@ -316,19 +367,27 @@ const file_castor_v1_device_proto_rawDesc = "" +
 	"\x16castor/v1/device.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"\x14\n" +
 	"\x12ListDevicesRequest\"B\n" +
 	"\x13ListDevicesResponse\x12+\n" +
-	"\adevices\x18\x01 \x03(\v2\x11.castor.v1.DeviceR\adevices\"Z\n" +
+	"\adevices\x18\x01 \x03(\v2\x11.castor.v1.DeviceR\adevices\"}\n" +
 	"\x06Device\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
-	"\x04type\x18\x03 \x01(\tR\x04type\x12\x18\n" +
-	"\aaddress\x18\x04 \x01(\tR\aaddress\"\xbf\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x125\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x15.castor.v1.DeviceTypeB\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12\x18\n" +
+	"\aaddress\x18\x04 \x01(\tR\aaddress\"\xd9\x01\n" +
 	"\x06Target\x12&\n" +
 	"\tdevice_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01H\x00R\bdeviceId\x122\n" +
-	"\x06pinned\x18\x02 \x01(\v2\x18.castor.v1.Target.PinnedH\x00R\x06pinned\x1aH\n" +
-	"\x06Pinned\x12\x1b\n" +
-	"\x04type\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04type\x12!\n" +
+	"\x06pinned\x18\x02 \x01(\v2\x18.castor.v1.Target.PinnedH\x00R\x06pinned\x1ab\n" +
+	"\x06Pinned\x125\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x15.castor.v1.DeviceTypeB\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12!\n" +
 	"\aaddress\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aaddressB\x0f\n" +
-	"\x06target\x12\x05\xbaH\x02\b\x012]\n" +
+	"\x06target\x12\x05\xbaH\x02\b\x01*q\n" +
+	"\n" +
+	"DeviceType\x12\x1b\n" +
+	"\x17DEVICE_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10DEVICE_TYPE_DLNA\x10\x01\x12\x1a\n" +
+	"\x16DEVICE_TYPE_CHROMECAST\x10\x02\x12\x14\n" +
+	"\x10DEVICE_TYPE_ROKU\x10\x032]\n" +
 	"\rDeviceService\x12L\n" +
 	"\vListDevices\x12\x1d.castor.v1.ListDevicesRequest\x1a\x1e.castor.v1.ListDevicesResponseB\x94\x01\n" +
 	"\rcom.castor.v1B\vDeviceProtoP\x01Z1github.com/stupside/castor/gen/castor/v1;castorv1\xa2\x02\x03CXX\xaa\x02\tCastor.V1\xca\x02\tCastor\\V1\xe2\x02\x15Castor\\V1\\GPBMetadata\xea\x02\n" +
@@ -346,24 +405,28 @@ func file_castor_v1_device_proto_rawDescGZIP() []byte {
 	return file_castor_v1_device_proto_rawDescData
 }
 
+var file_castor_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_castor_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_castor_v1_device_proto_goTypes = []any{
-	(*ListDevicesRequest)(nil),  // 0: castor.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil), // 1: castor.v1.ListDevicesResponse
-	(*Device)(nil),              // 2: castor.v1.Device
-	(*Target)(nil),              // 3: castor.v1.Target
-	(*Target_Pinned)(nil),       // 4: castor.v1.Target.Pinned
+	(DeviceType)(0),             // 0: castor.v1.DeviceType
+	(*ListDevicesRequest)(nil),  // 1: castor.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil), // 2: castor.v1.ListDevicesResponse
+	(*Device)(nil),              // 3: castor.v1.Device
+	(*Target)(nil),              // 4: castor.v1.Target
+	(*Target_Pinned)(nil),       // 5: castor.v1.Target.Pinned
 }
 var file_castor_v1_device_proto_depIdxs = []int32{
-	2, // 0: castor.v1.ListDevicesResponse.devices:type_name -> castor.v1.Device
-	4, // 1: castor.v1.Target.pinned:type_name -> castor.v1.Target.Pinned
-	0, // 2: castor.v1.DeviceService.ListDevices:input_type -> castor.v1.ListDevicesRequest
-	1, // 3: castor.v1.DeviceService.ListDevices:output_type -> castor.v1.ListDevicesResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	3, // 0: castor.v1.ListDevicesResponse.devices:type_name -> castor.v1.Device
+	0, // 1: castor.v1.Device.type:type_name -> castor.v1.DeviceType
+	5, // 2: castor.v1.Target.pinned:type_name -> castor.v1.Target.Pinned
+	0, // 3: castor.v1.Target.Pinned.type:type_name -> castor.v1.DeviceType
+	1, // 4: castor.v1.DeviceService.ListDevices:input_type -> castor.v1.ListDevicesRequest
+	2, // 5: castor.v1.DeviceService.ListDevices:output_type -> castor.v1.ListDevicesResponse
+	5, // [5:6] is the sub-list for method output_type
+	4, // [4:5] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_castor_v1_device_proto_init() }
@@ -380,13 +443,14 @@ func file_castor_v1_device_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_v1_device_proto_rawDesc), len(file_castor_v1_device_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_castor_v1_device_proto_goTypes,
 		DependencyIndexes: file_castor_v1_device_proto_depIdxs,
+		EnumInfos:         file_castor_v1_device_proto_enumTypes,
 		MessageInfos:      file_castor_v1_device_proto_msgTypes,
 	}.Build()
 	File_castor_v1_device_proto = out.File

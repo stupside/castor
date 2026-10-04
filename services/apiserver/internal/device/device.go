@@ -9,7 +9,7 @@ import (
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
 
-// Type names a device family, as the contract's Device.type and Target.Pinned.type do.
+// Type names a device family in configuration and inside the registry.
 type Type string
 
 // Device is a connected device, ready to play; whoever connected it closes it.
@@ -58,5 +58,13 @@ func (i Info) id() string {
 
 // Public is the device as the contract shows it.
 func (i Info) Public() *castorv1.Device {
-	return &castorv1.Device{Id: i.id(), Name: i.Name, Type: string(i.Type), Address: i.Address}
+	return &castorv1.Device{Id: i.id(), Name: i.Name, Type: i.Type.public(), Address: i.Address}
 }
+
+var publicTypes = map[Type]castorv1.DeviceType{
+	"dlna":       castorv1.DeviceType_DEVICE_TYPE_DLNA,
+	"chromecast": castorv1.DeviceType_DEVICE_TYPE_CHROMECAST,
+	"roku":       castorv1.DeviceType_DEVICE_TYPE_ROKU,
+}
+
+func (t Type) public() castorv1.DeviceType { return publicTypes[t] }

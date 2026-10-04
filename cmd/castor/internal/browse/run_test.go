@@ -15,7 +15,7 @@ func TestAPinnedDeviceIsCastToWithoutPicking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := &castorv1.Target{Target: &castorv1.Target_Pinned_{Pinned: &castorv1.Target_Pinned{Type: "dlna", Address: "http://10.0.0.9:9197/dmr"}}}
+	want := &castorv1.Target{Target: &castorv1.Target_Pinned_{Pinned: &castorv1.Target_Pinned{Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "http://10.0.0.9:9197/dmr"}}}
 	if !proto.Equal(to, want) {
 		t.Errorf("targeted %v, want the pinned %v", to, want)
 	}

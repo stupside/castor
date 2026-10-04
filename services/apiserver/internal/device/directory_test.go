@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
+
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
@@ -15,6 +17,21 @@ import (
 type moving struct {
 	stub
 	at string
+}
+
+type typedStub struct {
+	stub
+	kind Type
+}
+
+func (s typedStub) Type() Type { return s.kind }
+
+func TestPinnedDeviceWithDisabledFamilyIsRejected(t *testing.T) {
+	d := NewDirectory(Registry{Families: []Family{typedStub{kind: "dlna"}}})
+	got, err := d.Target(t.Context(), &castorv1.Target{Target: &castorv1.Target_Pinned_{Pinned: &castorv1.Target_Pinned{Type: castorv1.DeviceType_DEVICE_TYPE_ROKU, Address: "10.0.0.9"}}})
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || got != (Info{}) {
+		t.Errorf("Target = %+v, %v, want no device and invalid_argument", got, err)
+	}
 }
 
 func (m *moving) Discover(context.Context) []Info {

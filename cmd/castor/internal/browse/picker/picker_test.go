@@ -16,7 +16,7 @@ import (
 // Esc must not return a device as the selection.
 func TestEscDoesNotQuit(t *testing.T) {
 	m := newModel(t.Context(), func(context.Context) []*castorv1.Device { return nil }, "")
-	tm, _ := m.Update(devicesDoneMsg{devices: []*castorv1.Device{{Name: "Living room", Type: "dlna", Address: "10.0.0.2"}}})
+	tm, _ := m.Update(devicesDoneMsg{devices: []*castorv1.Device{{Name: "Living room", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "10.0.0.2"}}})
 	m = tm.(model)
 
 	tm, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -34,7 +34,7 @@ func TestEscDoesNotQuit(t *testing.T) {
 // q leaves at once, asking nothing, and selects nothing.
 func TestQQuitsWithoutSelecting(t *testing.T) {
 	m := newModel(t.Context(), func(context.Context) []*castorv1.Device { return nil }, "")
-	tm, _ := m.Update(devicesDoneMsg{devices: []*castorv1.Device{{Name: "Living room", Type: "dlna", Address: "10.0.0.2"}}})
+	tm, _ := m.Update(devicesDoneMsg{devices: []*castorv1.Device{{Name: "Living room", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "10.0.0.2"}}})
 	tm, cmd := tm.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if cmd == nil {
 		t.Fatal("q asked before quitting")
@@ -48,9 +48,9 @@ func TestQQuitsWithoutSelecting(t *testing.T) {
 }
 
 func TestTheConfiguredDeviceIsPreselectedAndEnterCastsToIt(t *testing.T) {
-	bedroom := &castorv1.Device{Name: "Bedroom", Type: "chromecast", Address: "10.0.0.9"}
+	bedroom := &castorv1.Device{Name: "Bedroom", Type: castorv1.DeviceType_DEVICE_TYPE_CHROMECAST, Address: "10.0.0.9"}
 	discover := func(context.Context) []*castorv1.Device {
-		return []*castorv1.Device{{Name: "Living room", Type: "dlna", Address: "10.0.0.2"}, bedroom}
+		return []*castorv1.Device{{Name: "Living room", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "10.0.0.2"}, bedroom}
 	}
 	tm := teatest.NewTestModel(t, newModel(t.Context(), discover, "Bedroom"),
 		teatest.WithInitialTermSize(80, 20),

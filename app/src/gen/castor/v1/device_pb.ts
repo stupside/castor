@@ -2,8 +2,8 @@
 // @generated from file castor/v1/device.proto (package castor.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/device.proto.
  */
 export const file_castor_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiQQoGRGV2aWNlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEdHlwZRgDIAEoCRIPCgdhZGRyZXNzGAQgASgJIp4BCgZUYXJnZXQSHAoJZGV2aWNlX2lkGAEgASgJQge6SARyAhABSAASKgoGcGlubmVkGAIgASgLMhguY2FzdG9yLnYxLlRhcmdldC5QaW5uZWRIABo5CgZQaW5uZWQSFQoEdHlwZRgBIAEoCUIHukgEcgIQARIYCgdhZGRyZXNzGAIgASgJQge6SARyAhABQg8KBnRhcmdldBIFukgCCAEyXQoNRGV2aWNlU2VydmljZRJMCgtMaXN0RGV2aWNlcxIdLmNhc3Rvci52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHi5jYXN0b3IudjEuTGlzdERldmljZXNSZXNwb25zZWIGcHJvdG8z", [file_buf_validate_validate]);
+  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiZAoGRGV2aWNlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSLwoEdHlwZRgDIAEoDjIVLmNhc3Rvci52MS5EZXZpY2VUeXBlQgq6SAeCAQQQASAAEg8KB2FkZHJlc3MYBCABKAkiuAEKBlRhcmdldBIcCglkZXZpY2VfaWQYASABKAlCB7pIBHICEAFIABIqCgZwaW5uZWQYAiABKAsyGC5jYXN0b3IudjEuVGFyZ2V0LlBpbm5lZEgAGlMKBlBpbm5lZBIvCgR0eXBlGAEgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASGAoHYWRkcmVzcxgCIAEoCUIHukgEcgIQAUIPCgZ0YXJnZXQSBbpIAggBKnEKCkRldmljZVR5cGUSGwoXREVWSUNFX1RZUEVfVU5TUEVDSUZJRUQQABIUChBERVZJQ0VfVFlQRV9ETE5BEAESGgoWREVWSUNFX1RZUEVfQ0hST01FQ0FTVBACEhQKEERFVklDRV9UWVBFX1JPS1UQAzJdCg1EZXZpY2VTZXJ2aWNlEkwKC0xpc3REZXZpY2VzEh0uY2FzdG9yLnYxLkxpc3REZXZpY2VzUmVxdWVzdBoeLmNhc3Rvci52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate]);
 
 /**
  * @generated from message castor.v1.ListDevicesRequest
@@ -60,11 +60,9 @@ export type Device = Message<"castor.v1.Device"> & {
   name: string;
 
   /**
-   * type is the device's family: dlna, chromecast or roku.
-   *
-   * @generated from field: string type = 3;
+   * @generated from field: castor.v1.DeviceType type = 3;
    */
-  type: string;
+  type: DeviceType;
 
   /**
    * @generated from field: string address = 4;
@@ -117,9 +115,9 @@ export type Target_Pinned = Message<"castor.v1.Target.Pinned"> & {
   /**
    * type is the device's family, as Device.type reports it.
    *
-   * @generated from field: string type = 1;
+   * @generated from field: castor.v1.DeviceType type = 1;
    */
-  type: string;
+  type: DeviceType;
 
   /**
    * address is a host, a host:port, or the URL the family answers at.
@@ -135,6 +133,37 @@ export type Target_Pinned = Message<"castor.v1.Target.Pinned"> & {
  */
 export const Target_PinnedSchema: GenMessage<Target_Pinned> = /*@__PURE__*/
   messageDesc(file_castor_v1_device, 3, 0);
+
+/**
+ * @generated from enum castor.v1.DeviceType
+ */
+export enum DeviceType {
+  /**
+   * @generated from enum value: DEVICE_TYPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: DEVICE_TYPE_DLNA = 1;
+   */
+  DLNA = 1,
+
+  /**
+   * @generated from enum value: DEVICE_TYPE_CHROMECAST = 2;
+   */
+  CHROMECAST = 2,
+
+  /**
+   * @generated from enum value: DEVICE_TYPE_ROKU = 3;
+   */
+  ROKU = 3,
+}
+
+/**
+ * Describes the enum castor.v1.DeviceType.
+ */
+export const DeviceTypeSchema: GenEnum<DeviceType> = /*@__PURE__*/
+  enumDesc(file_castor_v1_device, 0);
 
 /**
  * DeviceService finds the devices on the network.

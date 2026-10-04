@@ -443,7 +443,7 @@ func TestPagesAreSearchedThenTheirBestStreamIsCast(t *testing.T) {
 	}
 
 	started, err := c.casts.Cast(t.Context(), &castorv1.CastRequest{
-		Target: &castorv1.Target{Target: &castorv1.Target_Pinned_{Pinned: &castorv1.Target_Pinned{Type: "dlna", Address: "10.0.0.9"}}},
+		Target: &castorv1.Target{Target: &castorv1.Target_Pinned_{Pinned: &castorv1.Target_Pinned{Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "10.0.0.9"}}},
 		Source: pagesOf("https://site.example/watch"),
 	})
 	if err != nil {
