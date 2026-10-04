@@ -17,6 +17,8 @@ func (s *Service) Watch(ctx context.Context, req *castorv1.WatchRequest, out *co
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	var lines chan *castorv1.LogLine
 	if req.Logs != nil {
 		lines = make(chan *castorv1.LogLine, 64)
@@ -39,6 +41,8 @@ func (s *Service) Watch(ctx context.Context, req *castorv1.WatchRequest, out *co
 			drained := time.After(stopGrace)
 			for lines != nil {
 				select {
+				case <-ctx.Done():
+					return ctx.Err()
 				case line, open := <-lines:
 					if !open {
 						lines = nil
