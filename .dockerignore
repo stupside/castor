@@ -1,10 +1,7 @@
-# Keep host-built artifacts out of the build context: the image takes only the
-# prebuilt binaries the release stages.
-/castor
-
-# Ignore build artifacts from the whisper.cpp submodule. The build artifacts are
-third_party/whisper.cpp/build_go/
-third_party/whisper.cpp/build_*/
-
-# .git isn't needed; excluding it shrinks the context.
-.git/
+# The release image needs only its Dockerfile and the staged Linux binaries.
+# Keep sources, dependencies, native build caches, and local secrets out.
+**
+!Dockerfile
+!docker/
+!docker/*/
+!docker/*/castor
