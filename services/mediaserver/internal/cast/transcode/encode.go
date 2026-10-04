@@ -43,13 +43,6 @@ func (o EncodeOptions) Verbatim() bool {
 		o.Format.Delivery == container.DeliverStream
 }
 
-func encodeTuning(format container.Format) (container.Tuning, error) {
-	if format.Muxer == "" {
-		return container.Tuning{}, fmt.Errorf("no output container: EncodeOptions.Format is unset")
-	}
-	return format.Tuning, nil
-}
-
 func encodeInputArgs(in EncodeInput) []string {
 	if !in.piped {
 		return sourceInputArgs(in.source)
@@ -67,7 +60,7 @@ func encodeMapArgs(in EncodeInput) []string {
 	return sourceMapArgs(in.source)
 }
 
-func encodeOutputTarget(opts EncodeOptions, tuning container.Tuning, burnIn string) []string {
+func encodeOutputTarget(opts EncodeOptions, burnIn string) []string {
 	args := []string{"-progress", ffmpeg.ProgressPipe}
 	if burnIn != "" {
 		args = append(args, "-stats_period", "0.1")
@@ -77,8 +70,8 @@ func encodeOutputTarget(opts EncodeOptions, tuning container.Tuning, burnIn stri
 	}
 
 	args = append(args, "-f", opts.Format.Muxer)
-	args = append(args, tuning.Args...)
-	return append(args, tuning.Output)
+	args = append(args, opts.Format.Tuning.Args...)
+	return append(args, opts.Format.Tuning.Output)
 }
 
 func EncodeArgs(opts EncodeOptions) (ffmpeg.Command, error) {
@@ -88,9 +81,8 @@ func EncodeArgs(opts EncodeOptions) (ffmpeg.Command, error) {
 	if err := decidedTracks(opts.Video, opts.Audio); err != nil {
 		return ffmpeg.Command{}, err
 	}
-	tuning, err := encodeTuning(opts.Format)
-	if err != nil {
-		return ffmpeg.Command{}, err
+	if opts.Format.Muxer == "" {
+		return ffmpeg.Command{}, fmt.Errorf("no output container: EncodeOptions.Format is unset")
 	}
 	codecs, output, err := trackArgs(opts.Probe, opts.Format, opts.Video, opts.Audio)
 	if err != nil {
@@ -110,5 +102,5 @@ func EncodeArgs(opts EncodeOptions) (ffmpeg.Command, error) {
 	args = append(args, codecs...)
 	args = append(args, "-strict", "-2")
 	args = append(args, output...)
-	return ffmpeg.NewCommand(append(args, encodeOutputTarget(opts, tuning, burnIn)...)), nil
+	return ffmpeg.NewCommand(append(args, encodeOutputTarget(opts, burnIn)...)), nil
 }
