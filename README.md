@@ -27,11 +27,9 @@
 
 # Castor
 
-Smart TVs won't cast arbitrary web video, and screen mirroring is laggy. Castor puts the video from a web page or a link on your TV, even when the TV can't play it as it is, with generated subtitles if you want them.
+Cast web video to your TV without screen mirroring. Castor extracts streams, converts incompatible formats, and optionally generates subtitles. Run locally or offload media processing to a NAS.
 
-Use it on your computer alone, or run a castor media server on a machine that stays on, such as a NAS, and cast through it from every computer at home.
-
-*A general-purpose casting tool: it casts only what you point it at. See [Purpose and disclaimer](#purpose-and-disclaimer).*
+Castor bundles no content or sources and refuses DRM. Use only content you are authorized to access; see [Purpose and disclaimer](#purpose-and-disclaimer).
 
 <p align="center">
   <img src=".github/images/screen-selection.png" alt="Browsing titles in the castor TUI" width="640"/>
@@ -41,19 +39,14 @@ Use it on your computer alone, or run a castor media server on a machine that st
 
 ## Quick start
 
-**1. Install** (macOS. [Other options](#installation))
+Install on macOS ([other platforms](#installation)) and find your TV:
 
 ```sh
 brew install --cask stupside/tap/castor
-```
-
-**2. Find your TV**
-
-```sh
 castor scan
 ```
 
-**3. Save it to `config.yaml`**, in the directory you run castor from
+Save `config.yaml` in your working directory:
 
 ```yaml
 device:
@@ -61,7 +54,7 @@ device:
   type: dlna               # or: chromecast, roku
 ```
 
-**4. Cast**
+Cast a page:
 
 ```sh
 castor cast player https://example.com/watch/some-video
@@ -79,38 +72,36 @@ castor cast player https://example.com/watch/some-video
 | `castor cast` | Browse titles and cast, interactively (needs a [TMDB key](#tmdb-key)) |
 | `castor cast movie <id>` | Resolve a movie id against your [sources](#sources) and cast |
 | `castor cast episode <id> --season N --episode N` | Same, for a TV episode |
-| `castor media-server` | Run the media server other computers cast through ([another machine](#run-castor-on-another-machine)) |
-| `castor api-server` | Serve castor's API, for apps and integrations ([another machine](#run-castor-on-another-machine)) |
+| `castor media-server` | Probe, rank, convert, and serve streams |
+| `castor scraping-server` | Extract stream candidates using Chrome |
+| `castor api-server` | Discover/control devices and orchestrate casts |
 
 `castor cast --dry-run ...` prints the streams it found instead of casting. Run `castor --help` for all flags.
 
 ## Installation
 
-Castor runs best as a native binary on the same network as your TV. It needs three tools on your `PATH`:
+Use a native binary on your TV's network, with these tools on `PATH`:
 
 | Tool | Version | Used for |
 | --- | --- | --- |
 | **Chrome / Chromium** | Any recent | Finding the video on a page |
-| **ffmpeg** | 7.1+ (older builds reject flags castor uses) | Converting the video for your TV |
+| **ffmpeg** | 7.1+ | Converting the video for your TV |
 | **ffprobe** | 7.1+ | Reading the video's format |
 
-Castor converts video on the GPU when ffmpeg can (VideoToolbox, NVENC, Quick Sync, VA-API or AMF, whichever works first), and in software otherwise.
+Encoding uses a working GPU encoder, falling back to software.
 
 - **macOS:** `brew install --cask stupside/tap/castor`.
 - **Linux:** download `castor_<version>_linux_amd64.tar.gz` (or `_arm64`) from the [latest release](https://github.com/stupside/castor/releases/latest) and put `castor` on your `PATH`.
-- **Windows:** download `castor_<version>_windows_amd64.zip` (or `_arm64`), extract `castor.exe` into a folder on your `PATH`, and install the tools with `winget install Gyan.FFmpeg` and `winget install Google.Chrome`. On first run, SmartScreen may block the unsigned binary (choose *More info*, then *Run anyway*), and the firewall asks about network access: allow it on **private** networks, or Castor finds no devices.
+- **Windows:** download the [release](https://github.com/stupside/castor/releases/latest) ZIP for your architecture and put `castor.exe` on `PATH`. Install tools with `winget install Gyan.FFmpeg` and `winget install Google.Chrome`. For SmartScreen, choose *More info → Run anyway*; allow firewall access on **private** networks for discovery.
 - **From source:** see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Configuration
 
-Castor reads `config.yaml` from the working directory (or `--config <path>`). Casting from the command line needs `device`; every other key has a default. Any key can also be set as a `CASTOR_SECTION__FIELD` environment variable, e.g. `CASTOR_CAST__MAX_HEIGHT=720`.
-
-> [!TIP]
-> Keep secrets (keys, tokens, passwords) in a git-ignored `config.local.yaml`, which overlays `config.yaml`, or in environment variables. See [SECURITY.md](SECURITY.md).
+Castor reads `config.yaml` (or `--config <path>`), then overlays git-ignored `config.local.yaml`. Environment variables such as `CASTOR_CAST__MAX_HEIGHT=720` override both. CLI casting needs `device`; other keys have defaults. Keep secrets out of git; see [SECURITY.md](SECURITY.md).
 
 ### Subtitles
 
-Generated subtitles, burned into the video. The model downloads once to your user cache.
+Subtitles are burned into served, read-once video (e.g. DLNA), not self-fetching Chromecast/Roku playback. The default English model downloads once to your cache.
 
 ```yaml
 cast:
@@ -121,12 +112,9 @@ whisper:
 
 For another language or `auto`, point `whisper.model_path` at a multilingual whisper.cpp model (e.g. `ggml-base.bin`).
 
-> [!NOTE]
-> Burn-in applies only to devices castor always streams to, such as DLNA. A device that fetches the video itself (Chromecast, Roku) gets none, even when castor relays it.
-
 ### Video quality
 
-Set `max_height` to your TV's vertical resolution: castor picks the tallest stream that fits and scales down anything taller it knows about. Raise it if you'd rather the TV play a taller video as it is.
+Choose the tallest stream within this ceiling and scale known taller video down:
 
 ```yaml
 cast:
@@ -135,7 +123,7 @@ cast:
 
 ### Sources
 
-`cast movie`, `cast episode`, and the interactive browser turn a title id into a page URL. Castor bundles no sources: you add your own, for sites you are authorized to use. The id is substituted into your `templates` under each of your `proxies`, and the page is cast like `cast player`.
+Title commands substitute IDs into your source templates, trying proxies in order. Add only sites you are authorized to use:
 
 ```yaml
 sources:
@@ -145,11 +133,9 @@ sources:
       episode: "/embed/tv/{itemID}/{season}-{episode}"
 ```
 
-So `castor cast movie tt12300742` opens `https://your-source.example/embed/movie/tt12300742`.
-
 ### TMDB key
 
-Only the interactive browser (`castor cast`) needs one. Get a free key from [themoviedb.org](https://www.themoviedb.org/settings/api):
+Only the interactive browser needs a [TMDB key](https://www.themoviedb.org/settings/api):
 
 ```yaml
 tmdb:
@@ -160,7 +146,7 @@ tmdb:
 
 ### A shared media server
 
-A machine that stays on, such as a NAS, does the heavy work; your computer finds the TV and drives it. On the server, with a token in its config:
+Run on the server with `server.token` set:
 
 ```sh
 castor media-server   # listens on :8410 (server.listen)
@@ -174,16 +160,19 @@ server:
   token: "<a long random string, the same on both>"
 ```
 
-Once the TV plays, closing the terminal leaves the cast playing; Ctrl+C stops it. Subtitles, quality and delivery come from your computer's config; the whisper model is the server's. For a server outside your home network, set where the TV reaches it with `server.advertise` (e.g. `http://castor.example.com:8410`) and put it behind HTTPS.
+Your computer discovers and controls the TV; the server processes media. Closing the terminal leaves playback running; Ctrl+C stops it. Cast preferences come from the client, the Whisper model from media. Set `server.advertise` to an address the TV can reach; use HTTPS outside a trusted network.
 
 ### The API, for apps and integrations
 
-Everything castor does to your TVs is an API: list them, cast a link or a page on one, follow the cast, stop it. Run it on a machine on your TV's network, casting through a media server (the [shared one](#a-shared-media-server), or one beside it on the same machine):
+Run each command in a separate process; API must reach the TV's network:
 
 ```sh
-castor media-server   # listens on :8410 (server.listen)
-castor api-server     # listens on :8411 (api.listen), with server.url: http://localhost:8410
+castor media-server      # :8410
+castor scraping-server   # :8412
+castor api-server        # :8411
 ```
+
+Set `server.url: http://localhost:8410` and `scraping.url: http://localhost:8412` for API. Configure independent `server.token`, `scraping.token`, and `api.token`; `$TOKEN` below is the API token.
 
 ```sh
 curl -X POST http://localhost:8411/castor.v1.DeviceService/ListDevices \
@@ -196,7 +185,9 @@ curl -X POST http://localhost:8411/castor.v1.CastService/Cast \
   -d '{"target": {"deviceId": "<id from ListDevices>"}, "source": {"stream": {"url": "https://example.com/video.m3u8"}}}'
 ```
 
-Set `api.token` once the API leaves your machine; the header is needed only then. A page instead of a link is `"source": {"pages": {"urls": ["https://example.com/watch"]}}`. End a cast with `Stop`. `Watch` follows a cast to its end; it is a server stream, so use [`buf curl`](https://buf.build/docs/reference/cli/buf/curl), `grpcurl`, or a client generated from the [contract](proto/castor/v1) with [buf](https://buf.build). Point other castor commands at it with `api.url` and `api.token`.
+For a page, use `"source": {"pages": {"urls": ["https://example.com/watch"]}}`. `Stop` ends a cast; `Watch` streams feedback (use [`buf curl`](https://buf.build/docs/reference/cli/buf/curl) or a generated [client](proto/castor/v1)). CLI clients connect with `api.url` and `api.token`.
+
+Page casts go API → scraping → media; direct streams bypass scraping. Media never receives webpages. Without `api.url`, CLI starts missing services on loopback. See [ARCHITECTURE.md](ARCHITECTURE.md) for contracts, ownership, and lifecycle.
 
 ## Supported devices
 
@@ -208,7 +199,7 @@ Set `api.token` once the API leaves your machine; the header is needed only then
 
 ### Roku setup
 
-Roku can't play an arbitrary URL from a preinstalled app, so Castor installs a small channel of its own:
+Castor sideloads a playback channel:
 
 1. **Turn on Developer Mode** (once, by hand): on the remote press **Home x3, Up x2, Right, Left, Right, Left, Right**, enable developer mode, and set a **web-server password**. The device reboots.
 2. **Put the password in your config** (out of git, see [Configuration](#configuration)):
@@ -219,13 +210,13 @@ Roku can't play an arbitrary URL from a preinstalled app, so Castor installs a s
    ```
 3. **Cast.** Castor sideloads its channel automatically; later casts reuse it.
 
-Already published the channel to your account? Set `devices.roku.app_id` to its numeric id instead: no dev mode, no password. When castor relays the video, a Roku plays about 30 s behind.
+For a published channel, set `devices.roku.app_id` instead; no developer mode/password needed. Relayed Roku playback runs about 30 s behind.
 
 ## Troubleshooting
 
 ### `castor scan` finds nothing: pin the device by IP
 
-Discovery doesn't cross VLANs or subnets, and is blocked on Android/Termux (`netlinkrib: permission denied`). Pinning a `host` reaches the device directly, and skips the discovery wait.
+Discovery cannot cross VLANs/subnets and is blocked on Android/Termux. Set `host` to skip discovery:
 
 ```yaml
 device:
@@ -234,26 +225,26 @@ device:
   host: 192.168.0.3        # the device's LAN IP
 ```
 
-If a DLNA TV doesn't answer at its IP, use its full description URL instead (e.g. `http://192.168.0.3:9197/dmr`). On Android/Termux, also leave `network.interface` empty (the default): pinning one needs the same blocked interface lookup.
+For DLNA, `host` can be a full description URL (e.g. `http://192.168.0.3:9197/dmr`). On Android/Termux, leave `network.interface` empty.
 
 ### The page won't play
 
-Castor plays the page to find its video, so it only works on pages whose video starts without a click. DRM-protected streams are refused.
+The page's video must start without a click. DRM streams are refused.
 
 ### The device loads the stream but plays nothing
 
-Have castor always send the video itself, rather than handing the TV the link:
+Force served playback rather than handing the TV a link:
 
 ```yaml
 cast:
   delivery: serve   # "auto" (the default) decides per source
 ```
 
-Relaying costs bandwidth and CPU, so try it once first with `CASTOR_CAST__DELIVERY=serve`. `castor --debug` logs which way each cast went and why.
+Try once with `CASTOR_CAST__DELIVERY=serve`; it costs bandwidth and CPU. `castor --debug` explains delivery decisions.
 
 ## Docker
 
-The `ghcr.io/stupside/castor` image is the full `castor` with Chrome, ffmpeg, and ffprobe. It converts video on an Intel GPU through VA-API when you pass `--device /dev/dri`, and in software otherwise.
+The image includes Chrome, ffmpeg, and ffprobe. `--device /dev/dri` enables Intel VA-API; otherwise encoding uses software.
 
 > [!WARNING]
 > Discovery and the API server need `--network host`, which Docker Desktop (macOS/Windows) ignores, so `scan` finds nothing there. Use the native binary instead.
@@ -268,17 +259,13 @@ docker run --rm --network host --device /dev/dri \
   cast player https://example.com/watch/some-video
 ```
 
-The `castor-cache` volume keeps downloaded whisper models. To keep a server running, pass `-d` with `server` (and `-e CASTOR_SERVER__TOKEN=<token>`) or `api` (and `-e CASTOR_API__TOKEN=<token>`). A lone `server` can also run without host networking: publish `-p 8410:8410` and set `server.advertise`. Health checks (`grpc.health.v1.Health`) need no token, so an orchestrator can probe either server.
-
-`docker-compose.yml` runs `media-server` and `api-server` as separate services on the host network: put `CASTOR_SERVER__TOKEN` and `CASTOR_API__TOKEN` in a git-ignored `.env`, then `docker compose up -d`.
+The cache volume preserves Whisper models. For all three services, put `CASTOR_SERVER__TOKEN`, `CASTOR_SCRAPING__TOKEN`, and `CASTOR_API__TOKEN` in git-ignored `.env`, then run `docker compose up -d`. Discovery still needs native execution or Linux host networking. A standalone media container can use `-p 8410:8410` with `server.advertise` set to a device-reachable address.
 
 Tags: `:latest` (stable), `:canary` (preview), or a pinned `:vX.Y.Z`.
 
 ## Purpose and disclaimer
 
-- **It hosts nothing.** No bundled video, catalog, or sources. Castor casts only what you supply and are authorized to use.
-- **It does not touch DRM.** It never decrypts or circumvents DRM, and refuses protected streams.
-- **Lawful use is your responsibility.** Check a site's terms and your local law. Provided as-is for lawful, personal, and educational use.
+No bundled video or sources; no DRM decryption or circumvention. You are responsible for lawful use and compliance with site terms. Provided as-is for lawful, personal, and educational use.
 
 ## Contributing
 
