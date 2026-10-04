@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package castor.scraping.v1;
+
+import "buf/validate/validate.proto";
+import "castor/v1/stream.proto";
+
+// ScrapingService resolves web pages into playable stream candidates.
+service ScrapingService {
+  rpc Resolve(ResolveRequest) returns (ResolveResponse);
+}
+
+message ResolveRequest {
+  repeated string urls = 1 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 16,
+    (buf.validate.field).repeated.items.string.max_len = 8192,
+    (buf.validate.field).repeated.items.cel = {
+      id: "url.http"
+      message: "must be an http or https URL"
+      expression: "this.isUri() && (this.startsWith('http://') || this.startsWith('https://'))"
+    }
+  ];
+}
+
+message ResolveResponse {
+  repeated castor.v1.StreamCandidate streams = 1 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 1600
+  ];
+}
