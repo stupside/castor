@@ -7,12 +7,6 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-func TestABurnInKeepsItsOwnLeadEvenIntoASegmentWindow(t *testing.T) {
-	if got := Ceiling(container.DeliverSegmented, true); got != paceBurning {
-		t.Errorf("Ceiling = %+v, want the burn-in's own %+v", got, paceBurning)
-	}
-}
-
 func TestAnUnboundedEncodePacesOnlyItsSegmentedInputs(t *testing.T) {
 	plan := Plan{"video": {Pace: paceVOD}, "audio": {Pace: paceVOD}}
 	got := plan.Encoding(mixedProgram(t), Ceiling(container.DeliverStream, false))

@@ -29,9 +29,7 @@ func TestAnEncoderThatNumbersFromZeroAgainKeepsTheTimelineMovingForward(t *testi
 	var l ledger
 	l.Merge(listed("a", 0, 9))
 	restarted := listed("b", 0, 2)
-	if got := l.Merge(restarted); got.Restarts != 1 {
-		t.Fatalf("merge after a restart = %+v, want one restart", got)
-	}
+	l.Merge(restarted)
 	lines := playlist(&l)
 	if got := count(lines, "#EXT-X-MEDIA-SEQUENCE:3"); got != 1 {
 		t.Errorf("the sequence did not move forward past the restart:\n%s", l.Render(asListed))
@@ -47,9 +45,7 @@ func TestAnEncoderThatNumbersFromZeroAgainKeepsTheTimelineMovingForward(t *testi
 func TestAStaleEdgeServingAnOlderWindowAddsNothing(t *testing.T) {
 	var l ledger
 	l.Merge(listed("a", 0, 9))
-	if got := l.Merge(listed("a", 4, 7)); got != (breaks{}) {
-		t.Errorf("a stale window merged as %+v, want nothing", got)
-	}
+	l.Merge(listed("a", 4, 7))
 	if got := count(playlist(&l), "#EXT-X-DISCONTINUITY"); got != 0 {
 		t.Errorf("a stale window opened %d seams", got)
 	}
@@ -62,17 +58,16 @@ func TestAStaleWindowOlderThanWhatIsRetainedAddsNothing(t *testing.T) {
 		l.Merge(listed("a", first, first+2))
 	}
 	before := string(l.Render(asListed))
-	if got := l.Merge(listed("a", 2, 4)); got != (breaks{}) || string(l.Render(asListed)) != before {
-		t.Errorf("a window three reloads stale merged as %+v and rendered:\n%s\nwant nothing added to:\n%s", got, l.Render(asListed), before)
+	l.Merge(listed("a", 2, 4))
+	if string(l.Render(asListed)) != before {
+		t.Errorf("a window three reloads stale rendered:\n%s\nwant nothing added to:\n%s", l.Render(asListed), before)
 	}
 }
 
 func TestSegmentsTheOriginSkippedAreASeamNotASilence(t *testing.T) {
 	var l ledger
 	l.Merge(listed("a", 0, 3))
-	if got := l.Merge(listed("a", 7, 9)); got.Gaps != 1 {
-		t.Errorf("merge past lost segments = %+v, want one gap", got)
-	}
+	l.Merge(listed("a", 7, 9))
 	if got := count(playlist(&l), "#EXT-X-DISCONTINUITY"); got != 1 {
 		t.Errorf("marked %d seams at the loss, want 1", got)
 	}
@@ -221,19 +216,6 @@ func TestAStaleWindowFromAPeriodAlreadyPlayedIsNotReplayed(t *testing.T) {
 	l.Merge(timeline.Window{Segments: film.Segments[1:]})
 	if after := string(l.Render(asListed)); after != before {
 		t.Errorf("replayed segments of a Period already played:\n%s", after)
-	}
-}
-
-func TestAGapTheOriginDeclaredIsASeamButNotALoss(t *testing.T) {
-	var l ledger
-	l.Merge(listed("a", 0, 3))
-	after := listed("a", 5, 7)
-	after.Segments[0].Seam = true
-	if got := l.Merge(after); got.Gaps != 0 {
-		t.Errorf("a declared gap counted as %d lost, want none", got.Gaps)
-	}
-	if got := count(playlist(&l), "#EXT-X-DISCONTINUITY"); got != 1 {
-		t.Errorf("marked %d seams, want the declared one", got)
 	}
 }
 

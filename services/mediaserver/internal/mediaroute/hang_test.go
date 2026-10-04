@@ -1,7 +1,6 @@
 package mediaroute
 
 import (
-	"context"
 	"io"
 	"net"
 	"net/http"
@@ -29,7 +28,7 @@ func TestAStreamWithNothingToServeIsHeldOpenThroughTheRoute(t *testing.T) {
 	deliveries := NewDeliveries(&url.URL{Scheme: "http", Host: "unused"}, "cast")
 	srv, err := deliver.OpenSpooledStream(t.Context(), deliver.Opening{
 		Format:        container.Format{ContentType: media.MPEGTS, Extension: ".ts"},
-		Listeners:     listeners{deliveries},
+		Listeners:     deliveries,
 		WriteDeadline: time.Minute,
 	}, sp, make(chan struct{}))
 	if err != nil {
@@ -76,7 +75,3 @@ func TestAStreamWithNothingToServeIsHeldOpenThroughTheRoute(t *testing.T) {
 		t.Fatal("the connection did not carry data written after the dry spell")
 	}
 }
-
-type listeners struct{ d *Deliveries }
-
-func (l listeners) Listen(ctx context.Context) (net.Listener, error) { return l.d.Listen(ctx) }

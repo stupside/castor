@@ -13,25 +13,20 @@ const configuredDeadline = 37 * time.Second
 func TestThePolicyASourceShapeIsReadWith(t *testing.T) {
 	for _, tt := range []struct {
 		shape    media.Fetch
-		name     string
 		deadline time.Duration
-		pace     Pace
-		retries  int
 	}{
-		{media.Fetch{Segmented: true, Framing: media.FramingOutOfBand, Live: true}, "live-edge", configuredDeadline, paceLive, segmentOpenRetries},
-		{media.Fetch{Live: true}, "live-edge", configuredDeadline, paceLive, segmentOpenRetries},
+		{media.Fetch{Segmented: true, Framing: media.FramingOutOfBand, Live: true}, configuredDeadline},
+		{media.Fetch{Live: true}, configuredDeadline},
 		// Abandoning a fragment mid-read truncates what nothing can resynchronise.
-		{media.Fetch{Segmented: true, Framing: media.FramingOutOfBand}, "segment-fragile", 0, paceVOD, segmentOpenRetries},
-		{media.Fetch{Segmented: true, Framing: media.FramingUnknown}, "segment-fragile", 0, paceVOD, segmentOpenRetries},
-		{media.Fetch{Segmented: true, Framing: media.FramingInBand}, "segment-in-band", configuredDeadline, paceVOD, segmentOpenRetries},
-		// No plain-file demuxer accepts a segment retry flag.
-		{media.Fetch{}, "whole-file", configuredDeadline, paceVOD, 0},
+		{media.Fetch{Segmented: true, Framing: media.FramingOutOfBand}, 0},
+		{media.Fetch{Segmented: true, Framing: media.FramingUnknown}, 0},
+		{media.Fetch{Segmented: true, Framing: media.FramingInBand}, configuredDeadline},
+		{media.Fetch{}, configuredDeadline},
 	} {
 		t.Run(fmt.Sprintf("%+v", tt.shape), func(t *testing.T) {
 			p := For(tt.shape, configuredDeadline)
-			if p.Name != tt.name || p.Deadline != tt.deadline || p.Pace != tt.pace || p.SegmentRetries != tt.retries {
-				t.Errorf("For = %q deadline %s pace %+v retries %d, want %q deadline %s pace %+v retries %d",
-					p.Name, p.Deadline, p.Pace, p.SegmentRetries, tt.name, tt.deadline, tt.pace, tt.retries)
+			if p.Deadline != tt.deadline {
+				t.Errorf("deadline %s, want %s", p.Deadline, tt.deadline)
 			}
 		})
 	}

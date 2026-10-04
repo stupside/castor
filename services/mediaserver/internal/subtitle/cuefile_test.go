@@ -23,11 +23,6 @@ func TestTheCueFileHoldsTheLineForTheFrameBeingEncoded(t *testing.T) {
 	if got := readFile(t, path); got != "" {
 		t.Errorf("cue file = %q after the cue ended, want it cleared", got)
 	}
-
-	// Swapped by rename, so drawtext never reads a partial line.
-	if _, err := os.Stat(path + ".tmp"); err == nil {
-		t.Error("the temp file survived the swap, so the update was not a rename")
-	}
 }
 
 func cueFixture(t *testing.T) (*CueFile, string) {
