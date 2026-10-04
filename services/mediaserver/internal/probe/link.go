@@ -36,7 +36,7 @@ func (p linkProber) Probe(ctx context.Context) (media.ProbeInfo, media.Reach, er
 	if l.InputArgs != nil {
 		args = append(args, l.InputArgs...)
 	} else {
-		args = append(args, ffmpeg.LenientInputArgs()...)
+		args = append(args, ffmpeg.HLSTolerances(0)...)
 	}
 
 	slog.DebugContext(ctx, "running ffprobe", "url", l.URL.String(), "header_count", len(l.Headers))

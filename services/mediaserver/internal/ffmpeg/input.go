@@ -10,9 +10,6 @@ import (
 
 // The command-line fragments ffmpeg and ffprobe both open a source with, so the probe opens it as the reader will.
 
-// LenientInputArgs opens a source of unknown format with every HLS tolerance, without naming a demuxer.
-func LenientInputArgs() []string { return HLSTolerances(0) }
-
 // HLSTolerances are the HLS demuxer's options castor reads every playlist with.
 func HLSTolerances(segmentRetries int) []string {
 	args := []string{
