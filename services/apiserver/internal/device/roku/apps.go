@@ -15,21 +15,22 @@ func (s *session) ensureChannel(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("querying roku apps: %w", err)
 	}
-	if devChannelInstalled(apps) {
-		return nil
+	for _, a := range apps {
+		if a.ID == devAppID {
+			if strings.TrimSpace(a.Title) == channelTitle {
+				return nil
+			}
+			if cfg.Password == "" {
+				return errors.New("a different sideloaded channel occupies the Roku dev slot; set devices.roku.password so Castor can replace it")
+			}
+			break
+		}
 	}
 	if cfg.Password == "" {
-		if appInstalled(apps, devAppID) {
-			return errors.New("a different sideloaded channel occupies the Roku dev slot; set devices.roku.password so Castor can replace it")
-		}
 		return errors.New("roku channel not installed and no developer password set: enable Developer Mode on the Roku, set a web-server password, and put it in devices.roku.password")
 	}
 	slog.InfoContext(ctx, "sideloading roku channel", "host", s.ecp.Hostname())
 	return s.sideloadChannel(ctx, cfg.Password)
-}
-
-func (s *session) queryApps(ctx context.Context) ([]byte, error) {
-	return get(ctx, s.hc, s.ecp.JoinPath("query", "apps"), 1<<20)
 }
 
 type app struct {
@@ -37,27 +38,22 @@ type app struct {
 	Title string `xml:",chardata"`
 }
 
-func parseApps(body []byte) []app {
+func (s *session) queryApps(ctx context.Context) ([]app, error) {
+	body, err := get(ctx, s.hc, s.ecp.JoinPath("query", "apps"), 1<<20)
+	if err != nil {
+		return nil, err
+	}
 	var list struct {
 		Apps []app `xml:"app"`
 	}
 	if err := xml.Unmarshal(body, &list); err != nil {
-		return nil
+		return nil, fmt.Errorf("decoding roku apps: %w", err)
 	}
-	return list.Apps
+	return list.Apps, nil
 }
 
-func devChannelInstalled(body []byte) bool {
-	for _, a := range parseApps(body) {
-		if a.ID == devAppID && strings.TrimSpace(a.Title) == channelTitle {
-			return true
-		}
-	}
-	return false
-}
-
-func appInstalled(body []byte, id string) bool {
-	for _, a := range parseApps(body) {
+func appInstalled(apps []app, id string) bool {
+	for _, a := range apps {
 		if a.ID == id {
 			return true
 		}
