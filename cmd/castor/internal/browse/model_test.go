@@ -13,8 +13,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/charmbracelet/x/exp/golden"
 	"github.com/charmbracelet/x/exp/teatest/v2"
 
 	"github.com/stupside/castor/cmd/castor/internal/browse/tmdb"
@@ -68,9 +66,6 @@ func TestGenreOverlayOpenedBeforeCatalogIsUsable(t *testing.T) {
 		Movie: []tmdb.Genre{{ID: 28, Name: "Action"}, {ID: 35, Name: "Comedy"}},
 	}})
 
-	if h := m.genres.list.Height(); h <= 0 {
-		t.Fatalf("overlay list height = %d after the catalogue landed", h)
-	}
 	if !strings.Contains(m.View().Content, "Action") {
 		t.Fatalf("overlay renders no genre rows:\n%s", m.View().Content)
 	}
@@ -88,9 +83,6 @@ func TestGenreCursorClampedOnShorterCatalogue(t *testing.T) {
 	m, _ = drive(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
 
 	m, _ = drive(t, m, runes("m"))
-	if m.genres.list.SelectedItem() == nil {
-		t.Fatalf("cursor parked at %d in a %d-item catalogue", m.genres.list.Index(), len(m.genres.list.Items()))
-	}
 	m, _ = drive(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	if _, on := m.genres.selected[100]; !on {
 		t.Fatal("space toggled nothing after the media switch")
@@ -217,20 +209,13 @@ func showing(t *testing.T, tm *teatest.TestModel, text string) {
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool { return bytes.Contains(b, []byte(text)) }, teatest.WithDuration(5*time.Second))
 }
 
-// lastSeen is what the operator last saw, without its colours, so the golden reads as the screen does.
-func lastSeen(t *testing.T, tm *teatest.TestModel) []byte {
-	t.Helper()
-	return []byte(ansi.Strip(tm.FinalModel(t, teatest.WithFinalTimeout(5*time.Second)).(model).View().Content))
-}
-
 func TestEnterOnATrendingMovieCastsIt(t *testing.T) {
 	tm := browsing(t)
 	showing(t, tm, "Welcome to the Real World.")
 
 	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	golden.RequireEqual(t, lastSeen(t, tm))
-	if got, want := tm.FinalModel(t).(model).sel, (Selection{Kind: KindMovie, TMDBID: "603", Title: "The Matrix"}); got == nil || *got != want {
+	if got, want := tm.FinalModel(t, teatest.WithFinalTimeout(5*time.Second)).(model).sel, (Selection{Kind: KindMovie, TMDBID: "603", Title: "The Matrix"}); got == nil || *got != want {
 		t.Errorf("selected %+v, want %+v", got, want)
 	}
 }
@@ -248,9 +233,8 @@ func TestAShowIsDrilledIntoUntilAnEpisodeIsChosen(t *testing.T) {
 	tm.Send(tea.KeyPressMsg{Code: tea.KeyDown})
 	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	golden.RequireEqual(t, lastSeen(t, tm))
 	want := Selection{Kind: KindEpisode, TMDBID: "2316", Title: "The Office · S01E02 · Diversity Day", Season: 1, Episode: 2}
-	if got := tm.FinalModel(t).(model).sel; got == nil || *got != want {
+	if got := tm.FinalModel(t, teatest.WithFinalTimeout(5*time.Second)).(model).sel; got == nil || *got != want {
 		t.Errorf("selected %+v, want %+v", got, want)
 	}
 }

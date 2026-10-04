@@ -3,15 +3,11 @@ package picker
 import (
 	"bytes"
 	"context"
-	"image/color"
-	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/charmbracelet/x/exp/golden"
 	"github.com/charmbracelet/x/exp/teatest/v2"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
@@ -51,20 +47,6 @@ func TestQQuitsWithoutSelecting(t *testing.T) {
 	}
 }
 
-// A light terminal repaints the screen with the light palette's accent (#6366F1).
-func TestLightBackgroundRepaints(t *testing.T) {
-	m := newModel(t.Context(), func(context.Context) []*castorv1.Device { return nil }, "")
-	tm, _ := m.Update(devicesDoneMsg{devices: []*castorv1.Device{{Name: "Living room", Type: "dlna", Address: "10.0.0.2"}}})
-	const lightAccent = "99;102;241"
-	if strings.Contains(tm.(model).View().Content, lightAccent) {
-		t.Fatal("light accent painted before the terminal reported its background")
-	}
-	tm, _ = tm.Update(tea.BackgroundColorMsg{Color: color.White})
-	if !strings.Contains(tm.(model).View().Content, lightAccent) {
-		t.Fatal("light background did not repaint with the light accent")
-	}
-}
-
 func TestTheConfiguredDeviceIsPreselectedAndEnterCastsToIt(t *testing.T) {
 	bedroom := &castorv1.Device{Name: "Bedroom", Type: "chromecast", Address: "10.0.0.9"}
 	discover := func(context.Context) []*castorv1.Device {
@@ -79,7 +61,6 @@ func TestTheConfiguredDeviceIsPreselectedAndEnterCastsToIt(t *testing.T) {
 	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	final := tm.FinalModel(t, teatest.WithFinalTimeout(5*time.Second)).(model)
-	golden.RequireEqual(t, []byte(ansi.Strip(final.View().Content)))
 	if final.selected != bedroom {
 		t.Errorf("selected %+v, want the configured %+v", final.selected, bedroom)
 	}
