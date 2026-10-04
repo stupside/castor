@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { Button } from "@/components/button";
+import { casts } from "@/lib/server";
 import { stopAction } from "./actions";
 import { AutoRefresh } from "./auto-refresh";
 import { journey } from "./phases";
-import { listCasts } from "./queries";
 
 export async function CastList() {
-  const casts = await listCasts();
+  const { casts: activeCasts } = await casts.listCasts({});
   return (
     <section className="mt-10 max-w-md space-y-3">
       <AutoRefresh />
-      {casts.length > 0 && <h2 className="text-xs font-extrabold uppercase tracking-[0.18em] text-peach">Now playing</h2>}
+      {activeCasts.length > 0 && <h2 className="text-xs font-extrabold uppercase tracking-[0.18em] text-peach">Now playing</h2>}
       <ul className="grid gap-3">
-        {casts.map((c) => {
+        {activeCasts.map((c) => {
           const step = journey.find((j) => j.phase === c.status?.phase) ?? journey[0];
           return (
             <li key={c.id} className="animate-rise flex items-center gap-3 rounded-2xl bg-white/10 p-4 text-[#fffaf2]">
