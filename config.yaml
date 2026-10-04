@@ -65,3 +65,22 @@ server:
   # listen: ":8410"
   # Where devices reach it, for a server outside their network (default: its own address).
   # advertise: http://castor.example.com:8410
+
+# The scraping server alone owns Chrome, page navigation, and stream capture.
+scraping:
+  # Remote resolver; unset, CLI commands run one on loopback. `api-server` uses
+  # http://localhost:8412 when unset, never the media endpoint.
+  # url: http://my-nas:8412
+  # Where `castor scraping-server` listens (default :8412).
+  # listen: ":8412"
+  # Its own token, independent of server.token and api.token.
+  # token: "<A_LONG_RANDOM_STRING>"
+
+# Read only by scraping-server (including the CLI's embedded resolver).
+browser:
+  # chrome_path: /usr/bin/chromium
+  # headless: true
+  # no_sandbox: false
+  # timeout: 30s
+capture:
+  # max_concurrency: 4

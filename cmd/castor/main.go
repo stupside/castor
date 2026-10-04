@@ -1,4 +1,4 @@
-// Command castor is castor's command line: it casts over castor's public API, and runs both servers in its own process when no server is named.
+// Command castor casts over the public API, composing missing services in its own process.
 package main
 
 import (
@@ -9,13 +9,14 @@ import (
 	"github.com/stupside/castor/cmd/internal/process"
 	"github.com/stupside/castor/services/apiserver"
 	"github.com/stupside/castor/services/mediaserver"
+	"github.com/stupside/castor/services/scrapingserver"
 )
 
 func main() {
-	local := Local(apiserver.Embedded(mediaserver.Embedded))
+	local := Local(apiserver.Embedded(mediaserver.Embedded, scrapingserver.Embedded))
 	process.Run(&cli.Command{
 		Name:     "castor",
 		Usage:    "Cast video streams to networked devices",
-		Commands: slices.Concat(Commands(local), []*cli.Command{apiserver.Command(), mediaserver.Command()}),
+		Commands: slices.Concat(Commands(local), []*cli.Command{apiserver.Command(), mediaserver.Command(), scrapingserver.Command()}),
 	})
 }

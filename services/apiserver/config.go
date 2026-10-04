@@ -10,11 +10,13 @@ import (
 
 // Config is the API server's sections of castor's configuration.
 type Config struct {
-	Cast    CastConfig    `yaml:"cast"`
-	API     APIConfig     `yaml:"api" validate:"required"`
-	Server  ServerConfig  `yaml:"server"`
-	Network NetworkConfig `yaml:"network" validate:"required"`
-	Devices DevicesConfig `yaml:"devices"`
+	Cast   CastConfig   `yaml:"cast"`
+	API    APIConfig    `yaml:"api" validate:"required"`
+	Server ServerConfig `yaml:"server"`
+	// Scraping names only the resolver endpoint and credentials, never browser settings.
+	Scraping ServerConfig  `yaml:"scraping"`
+	Network  NetworkConfig `yaml:"network" validate:"required"`
+	Devices  DevicesConfig `yaml:"devices"`
 }
 
 // CastConfig is what every cast asks unless its request says otherwise; New holds it to the contract's rules.

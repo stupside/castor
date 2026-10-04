@@ -17,8 +17,9 @@ import (
 
 // Backend is what the API server casts with, bound at the composition root.
 type Backend struct {
-	Devices device.Registry
-	Media   *mediaclient.Client
+	Devices  device.Registry
+	Media    *mediaclient.Client
+	Scraping cast.Resolver
 }
 
 // Server is the API server: the public API, for UIs and integrations.

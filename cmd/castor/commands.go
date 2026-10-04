@@ -106,7 +106,7 @@ func pagesCommand(local Local, name, usage, arg string, flags []cli.Flag, pagesO
 	}
 }
 
-// pages is a source whose streams the media server finds on urls.
+// pages is a source whose URLs the API server asks scrapingserver to resolve.
 func pages(urls []string) *castorv1.Source {
 	return &castorv1.Source{Source: &castorv1.Source_Pages_{Pages: &castorv1.Source_Pages{Urls: urls}}}
 }

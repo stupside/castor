@@ -33,7 +33,7 @@ type spec struct {
 	Castor yaml.Node `yaml:"castor"`
 	// Config is how that config reaches castor: a file (the default) or the environment alone.
 	Config string `yaml:"config"`
-	// Topology is each layout of castor's processes the case casts under: one command (the default), its two servers apart, or both.
+	// Topology is one command (the default), three services apart, or both.
 	Topology []string         `yaml:"topology"`
 	Outcome  string           `yaml:"outcome"`
 	Expect   strategy.Choices `yaml:"expect"`

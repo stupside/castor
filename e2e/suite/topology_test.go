@@ -15,7 +15,7 @@ type topology interface {
 	Cast(t *testing.T, ctx context.Context, carrier settings.Carrier, doc map[string]any, args []string) ([]byte, error)
 }
 
-// embedded is castor as most users run it: one command, both servers inside it.
+// embedded is castor as most users run it: one command, all three services inside it.
 type embedded struct{}
 
 func (embedded) Name() string { return "embedded" }
@@ -28,19 +28,22 @@ func (embedded) Cast(t *testing.T, ctx context.Context, carrier settings.Carrier
 	return castor.Cast(ctx, launch, args)
 }
 
-// split runs `castor media-server` and `castor api-server` as processes of their own, each behind its token, and castor as their client.
+// split runs all three services in separate processes, with independent tokens, and castor as their client.
 type split struct{}
 
 func (split) Name() string { return "split" }
 
 func (split) Cast(t *testing.T, ctx context.Context, carrier settings.Carrier, doc map[string]any, args []string) ([]byte, error) {
-	mediaToken, apiToken := rand.Text(), rand.Text()
+	mediaToken, apiToken, scrapingToken := rand.Text(), rand.Text(), rand.Text()
 	// Port 0 so parallel cases never race for one; castor's config only accepts it on every interface.
 	media := start(t, carrier, with(t, doc, map[string]any{"server": map[string]any{"listen": ":0", "token": mediaToken}}), "media-server")
 	mediaURL := media.ready(t, mediaToken)
+	scraping := start(t, carrier, with(t, doc, map[string]any{"scraping": map[string]any{"listen": ":0", "token": scrapingToken}}), "scraping-server")
+	scrapingURL := scraping.ready(t, scrapingToken)
 	api := start(t, carrier, with(t, doc, map[string]any{
-		"server": map[string]any{"url": mediaURL, "token": mediaToken},
-		"api":    map[string]any{"listen": ":0", "token": apiToken},
+		"server":   map[string]any{"url": mediaURL, "token": mediaToken},
+		"scraping": map[string]any{"url": scrapingURL, "token": scrapingToken},
+		"api":      map[string]any{"listen": ":0", "token": apiToken},
 	}), "api-server")
 	apiURL := api.ready(t, apiToken)
 

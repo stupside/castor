@@ -34,6 +34,10 @@ type Devices interface {
 	Connect(ctx context.Context, target device.Info) (device.Device, error)
 }
 
+type Resolver interface {
+	ResolvePages(context.Context, []string) ([]*castorv1.StreamCandidate, error)
+}
+
 // Service runs every cast on the device it targets, each played through the media server.
 type Service struct {
 	ctx      context.Context

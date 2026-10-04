@@ -1,4 +1,4 @@
-# A TV that never advertised HEVC gets the picture re-encoded to a codec it did advertise, in one command or across both servers behind their tokens.
+# A TV that never advertised HEVC gets the picture re-encoded to a codec it did advertise, in one command or across three services behind their tokens.
 topology: [embedded, split]
 stream:
   packaging: hls-ts

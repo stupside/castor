@@ -1,4 +1,4 @@
-# A stream only its page may fetch is relayed with the page's headers, never handed to a Chromecast that has none (#53). Split, the page is opened inside the media server's Start.
+# A page-restricted stream keeps its headers across API -> scraping -> media, embedded or split (#53).
 topology: [embedded, split]
 command: player
 stream:

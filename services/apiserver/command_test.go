@@ -1,75 +1,71 @@
 package apiserver
 
 import (
-	"os"
-	"path/filepath"
+	"context"
+	"errors"
+	"log/slog"
 	"testing"
-	"time"
 
-	"github.com/stupside/castor/internal/settings"
+	"github.com/stupside/castor/internal/transport"
+	"github.com/urfave/cli/v3"
 )
 
-// shipped is the repository's config.yaml, read apart from any git-ignored overlay beside it.
-func shipped(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile("../../config.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
-func TestEveryKeyTheAPIServerReadsLandsWhereItReadsIt(t *testing.T) {
-	for k, v := range map[string]string{
-		"CASTOR_CAST__DELIVERY":          "serve",
-		"CASTOR_CAST__MAX_HEIGHT":        "720",
-		"CASTOR_CAST__SUBTITLES":         "fr",
-		"CASTOR_API__LISTEN":             ":9411",
-		"CASTOR_API__TOKEN":              "api-secret",
-		"CASTOR_SERVER__URL":             "http://my-nas:8410",
-		"CASTOR_SERVER__TOKEN":           "server-secret",
-		"CASTOR_NETWORK__TIMEOUT":        "15s",
-		"CASTOR_DEVICES__ROKU__APP_ID":   "dev",
-		"CASTOR_DEVICES__ROKU__PASSWORD": "roku-secret",
+func TestEmbeddedCompositionStartsOnlyMissingServices(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		media, scraping bool
+	}{
+		{"both local", true, true}, {"remote media", false, true},
+		{"remote scraping", true, false}, {"both remote", false, false},
 	} {
-		t.Setenv(k, v)
-	}
-	cfg, err := settings.Read(shipped(t), defaults())
-	if err != nil {
-		t.Fatal(err)
-	}
-	for key, ok := range map[string]bool{
-		"cast.delivery":         cfg.Cast.Delivery == "serve",
-		"cast.max_height":       cfg.Cast.MaxHeight == 720,
-		"cast.subtitles":        cfg.Cast.Subtitles == "fr",
-		"api.listen":            cfg.API.Listen == ":9411",
-		"api.token":             cfg.API.Token == "api-secret",
-		"server.url":            cfg.Server.URL == "http://my-nas:8410",
-		"server.token":          cfg.Server.Token == "server-secret",
-		"network.timeout":       cfg.Network.Timeout == 15*time.Second,
-		"devices.roku.app_id":   cfg.Devices.Roku.AppID == "dev",
-		"devices.roku.password": cfg.Devices.Roku.Password == "roku-secret",
-	} {
-		if !ok {
-			t.Errorf("%s did not land where the API server reads it", key)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := defaults()
+			if !tc.media {
+				cfg.Server.URL = "http://media.example:8410"
+			}
+			if !tc.scraping {
+				cfg.Scraping.URL = "http://scraping.example:8412"
+			}
+			var mediaRuns, scrapingRuns, mediaStops, scrapingStops int
+			media := func(context.Context, *cli.Command, slog.Handler) (transport.Endpoint, func(), error) {
+				mediaRuns++
+				return transport.Endpoint{URL: "http://localhost:8410", Token: "media-only"}, func() { mediaStops++ }, nil
+			}
+			scraping := func(context.Context, *cli.Command) (transport.Endpoint, func(), error) {
+				scrapingRuns++
+				return transport.Endpoint{URL: "http://localhost:8412", Token: "scraping-only"}, func() { scrapingStops++ }, nil
+			}
+			srv, stop, err := cfg.server(t.Context(), &cli.Command{}, media, scraping, slog.Default().Handler())
+			if err != nil {
+				t.Fatal(err)
+			}
+			srv.Shutdown(t.Context())
+			stop()
+			wantMedia, wantScraping := 0, 0
+			if tc.media {
+				wantMedia = 1
+			}
+			if tc.scraping {
+				wantScraping = 1
+			}
+			if mediaRuns != wantMedia || mediaStops != wantMedia || scrapingRuns != wantScraping || scrapingStops != wantScraping {
+				t.Fatalf("started/stopped media %d/%d, scraping %d/%d; want %d, %d", mediaRuns, mediaStops, scrapingRuns, scrapingStops, wantMedia, wantScraping)
+			}
+		})
 	}
 }
 
-func TestCastDefaultsAreLeftForTheAPIServerToHoldToTheContract(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte("cast:\n  delivery: fast\n"), 0o600); err != nil {
-		t.Fatal(err)
+func TestEmbeddedResolverFailureStopsAlreadyStartedMedia(t *testing.T) {
+	cfg := defaults()
+	stopped := false
+	media := func(context.Context, *cli.Command, slog.Handler) (transport.Endpoint, func(), error) {
+		return transport.Endpoint{URL: "http://localhost:8410"}, func() { stopped = true }, nil
 	}
-	cfg, err := settings.Read(path, defaults())
-	if err != nil {
-		t.Fatal(err)
+	failure := errors.New("resolver unavailable")
+	scraping := func(context.Context, *cli.Command) (transport.Endpoint, func(), error) {
+		return transport.Endpoint{}, nil, failure
 	}
-	if cfg.Cast.Delivery != "fast" {
-		t.Errorf("cast.delivery = %q, want it as written, for apiserver.New to refuse", cfg.Cast.Delivery)
+	if _, _, err := cfg.server(t.Context(), &cli.Command{}, media, scraping, slog.Default().Handler()); !errors.Is(err, failure) || !stopped {
+		t.Fatalf("failed composition leaked media: %v, stopped=%v", err, stopped)
 	}
 }
