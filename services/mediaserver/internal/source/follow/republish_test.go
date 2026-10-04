@@ -17,9 +17,9 @@ import (
 // shape is a format whose inputs follow timeline, or are read directly when it is nil.
 type shape struct{ timeline timeline.Source }
 
-func (shape) Identity() source.Identity       { return source.Identity{ContentType: media.HLS} }
-func (shape) Recognize(string) source.Reading { return source.Reading{} }
-func (shape) InputArgs(int) []string          { return nil }
+func (shape) Identity() source.Identity { return source.Identity{ContentType: media.HLS} }
+func (shape) Recognize(string) bool     { return false }
+func (shape) InputArgs(int) []string    { return nil }
 func (s shape) Timeline(source.Client, media.Input, media.TrackKind) timeline.Source {
 	return s.timeline
 }

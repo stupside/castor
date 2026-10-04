@@ -2,8 +2,6 @@
 package hls
 
 import (
-	"net/url"
-	"regexp"
 	"strings"
 
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
@@ -38,38 +36,7 @@ const (
 	renditionDeclaration = "#EXT-X-STREAM-INF"
 )
 
-// Recognize reads a line-oriented playlist by its signature, and as a master when it declares renditions.
-func (Format) Recognize(body string) source.Reading {
-	switch {
-	case !strings.Contains(body, signature):
-		return source.Reading{}
-	case multivariant(body):
-		return source.Reading{Ladder: source.LadderMultivariant, Refs: references(body)}
-	}
-	read := source.Reading{Ladder: source.LadderSole, Refs: references(body)}
-	if doc, err := parsePlaylist(body, &url.URL{}, &url.URL{}); err == nil {
-		read.Runtime = doc.duration
-	}
-	return read
-}
-
-var reference = regexp.MustCompile(`URI="([^"]*)"`)
-
-// references reads the two things that name a resource in HLS: a non-comment line and a URI attribute.
-func references(body string) []string {
-	var out []string
-	for line := range strings.Lines(body) {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if !strings.HasPrefix(line, "#") {
-			out = append(out, line)
-			continue
-		}
-		for _, match := range reference.FindAllStringSubmatch(line, -1) {
-			out = append(out, match[1])
-		}
-	}
-	return out
+// Recognize identifies a playlist by its signature without parsing the whole document.
+func (Format) Recognize(body string) bool {
+	return strings.Contains(body, signature)
 }

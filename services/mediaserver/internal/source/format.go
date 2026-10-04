@@ -27,8 +27,8 @@ type Format interface {
 	// Identity is the content type this format reads and the names a link announces it under.
 	Identity() Identity
 
-	// Recognize reads a body in this format's grammar; LadderUnknown means it is not this format.
-	Recognize(body string) Reading
+	// Recognize reports whether a body carries this format's signature, even when a sniffed head is incomplete.
+	Recognize(body string) bool
 }
 
 // Identity is how a link says it carries one content type: a file extension, or a server-confirmed MIME type.

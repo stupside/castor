@@ -1,1 +1,0 @@
-document.querySelector('__TURNSTILE__') === null

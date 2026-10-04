@@ -1,1 +1,0 @@
-Object.defineProperty(Notification, 'permission', { get: () => 'default' });

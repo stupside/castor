@@ -64,41 +64,15 @@ func (fs Formats) Identify(ctx context.Context, c Client, u *url.URL) string {
 	if err != nil {
 		return ""
 	}
-	return fs.sniff(body)
-}
-
-// InputArgs is how ffmpeg and ffprobe open an input of contentType, as its format says.
-func (fs Formats) InputArgs(contentType string, segmentRetries int) []string {
-	return fs.Claiming(contentType).InputArgs(segmentRetries)
-}
-
-// sniff names the content type of the first grammar that recognises body, "" when none does.
-func (fs Formats) sniff(body string) string {
 	for _, f := range fs {
-		if f.Recognize(body).Ladder != LadderUnknown {
+		if f.Recognize(body) {
 			return f.Identity().ContentType
 		}
 	}
 	return ""
 }
 
-// Parse reads a body in the first grammar that recognises it, what it names resolved against base.
-func (fs Formats) Parse(body string, base *url.URL) Document {
-	for _, f := range fs {
-		read := f.Recognize(body)
-		if read.Ladder == LadderUnknown {
-			continue
-		}
-		doc := Document{Ladder: read.Ladder, Runtime: read.Runtime}
-		if base == nil {
-			return doc
-		}
-		for _, ref := range read.Refs {
-			if resolved, err := base.Parse(ref); err == nil {
-				doc.Names = append(doc.Names, resolved)
-			}
-		}
-		return doc
-	}
-	return Document{}
+// InputArgs is how ffmpeg and ffprobe open an input of contentType, as its format says.
+func (fs Formats) InputArgs(contentType string, segmentRetries int) []string {
+	return fs.Claiming(contentType).InputArgs(segmentRetries)
 }

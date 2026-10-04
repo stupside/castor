@@ -1,1 +1,0 @@
-Object.defineProperty(navigator, 'deviceMemory', { get: () => __DEVICE_MEMORY__ });
