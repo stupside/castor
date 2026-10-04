@@ -37,7 +37,6 @@ type Stream struct {
 	// Facts a quirk records for the judge.
 	Rotation   int
 	AudioDelay time.Duration
-	SampleRate int
 	Interlaced bool
 	Chroma     int
 }

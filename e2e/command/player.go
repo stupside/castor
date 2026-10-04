@@ -51,5 +51,5 @@ func (player) Name() string { return "player" }
 
 func (p player) Invoke(t *testing.T, src *origin.Origin) Invocation {
 	site := serveSite(t, src, p.page)
-	return Invocation{Args: []string{"cast", "player", site.url + "/watch"}, Checks: []judge.Check{site.visited("/watch")}}
+	return Invocation{Args: []string{"cast", "player", site.url + "/watch"}, Checks: []judge.Check{visited{site: site, route: "/watch"}}}
 }

@@ -46,8 +46,6 @@ func serveSite(t *testing.T, src *origin.Origin, p Page) *site {
 	return s
 }
 
-func (s *site) visited(route string) judge.Check { return visited{site: s, route: route} }
-
 // visited holds that castor's browser opened the page at the route the command names.
 type visited struct {
 	site  *site

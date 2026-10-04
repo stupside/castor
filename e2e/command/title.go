@@ -63,6 +63,6 @@ func (c title) Invoke(t *testing.T, src *origin.Origin) Invocation {
 	return Invocation{
 		Args:   c.args,
 		Config: map[string]any{"sources": []any{map[string]any{"proxies": []any{site.url}, "templates": sourceTemplates}}},
-		Checks: []judge.Check{site.visited(c.route)},
+		Checks: []judge.Check{visited{site: site, route: c.route}},
 	}
 }

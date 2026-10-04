@@ -32,7 +32,11 @@ func (*stall) Name() string { return "stalls-at" }
 
 func (s *stall) Wrap(next http.Handler, p origin.Published) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !p.IsSegment(r) || s.arrival(r.URL.Path) < s.at {
+		if !p.IsSegment(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if n, _ := s.seen.Arrive(r.URL.Path); n < s.at {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -41,9 +45,4 @@ func (s *stall) Wrap(next http.Handler, p origin.Published) http.Handler {
 		_ = http.NewResponseController(w).Flush()
 		p.Held(r)
 	})
-}
-
-func (s *stall) arrival(p string) int {
-	n, _ := s.seen.Arrive(p)
-	return n
 }

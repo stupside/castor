@@ -36,6 +36,5 @@ func (r sampleRate) Bend(s *origin.Stream) error {
 		return errors.New("a silent stream has no sample rate")
 	}
 	s.AudioOut = append(s.AudioOut, "-ar", strconv.Itoa(r.hz))
-	s.SampleRate = r.hz
 	return nil
 }

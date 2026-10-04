@@ -43,9 +43,7 @@ type Received struct {
 	URL string
 	// ContentType is what castor declared the handed media to be.
 	ContentType string
-	// Header is the response to the receiver's fetch.
-	Header http.Header
-	Played Measured
+	Played      Measured
 	// Playback is how it ended; Ended is when.
 	Playback Playback
 	Ended    time.Time
@@ -200,7 +198,6 @@ func (s *Session) play(url string) Playback {
 	}
 	defer resp.Body.Close()
 	s.mu.Lock()
-	s.received.Header = resp.Header.Clone()
 	declared := s.received.ContentType
 	s.mu.Unlock()
 	for _, check := range s.checks {
