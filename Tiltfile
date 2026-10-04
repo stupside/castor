@@ -23,10 +23,10 @@ local_resource(
 
 local_resource(
     'api-server',
-    serve_cmd=run + 'CASTOR_SERVER__URL=http://localhost:8410 exec go run ./cmd/castor api-server',
+    serve_cmd=run + 'CASTOR_SERVER__URL=http://localhost:8410 CASTOR_SCRAPING__URL=http://localhost:8412 exec go run ./cmd/castor api-server',
     deps=src,
     ignore=['**/*_test.go'],
-    resource_deps=['media-server'],
+    resource_deps=['media-server', 'scraping-server'],
     links=['http://localhost:8411'],
     labels=['go'],
 )
@@ -38,6 +38,16 @@ local_resource(
     ignore=['**/*_test.go'],
     resource_deps=['lib'],
     links=['http://localhost:8410'],
+    labels=['go'],
+)
+
+local_resource(
+    'scraping-server',
+    serve_cmd=run + 'exec go run ./cmd/castor scraping-server',
+    deps=src,
+    ignore=['**/*_test.go'],
+    resource_deps=['lib'],
+    links=['http://localhost:8412'],
     labels=['go'],
 )
 

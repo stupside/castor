@@ -8,6 +8,14 @@ x-castor: &castor
     - castor-cache:/root/.cache
 
 services:
+  scraping-server:
+    <<: *castor
+    command: ["scraping-server"]
+    ports:
+      - "8412:8412"
+    environment:
+      CASTOR_SCRAPING__TOKEN: ${CASTOR_SCRAPING__TOKEN:?set it in .env}
+
   media-server:
     <<: *castor
     command: ["media-server"]
@@ -26,10 +34,13 @@ services:
       - "8411:8411"
     depends_on:
       - media-server
+      - scraping-server
     environment:
       CASTOR_API__TOKEN: ${CASTOR_API__TOKEN:?set it in .env}
       CASTOR_SERVER__URL: http://media-server:8410
       CASTOR_SERVER__TOKEN: ${CASTOR_SERVER__TOKEN:?set it in .env}
+      CASTOR_SCRAPING__URL: http://scraping-server:8412
+      CASTOR_SCRAPING__TOKEN: ${CASTOR_SCRAPING__TOKEN:?set it in .env}
 
 volumes:
   castor-cache:
