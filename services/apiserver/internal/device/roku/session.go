@@ -100,11 +100,11 @@ func (s *session) Capabilities() *mediav1.Capabilities {
 		SelfFetch:       true,
 		Containers:      []mediav1.Container{mediav1.Container_CONTAINER_HLS, mediav1.Container_CONTAINER_MP4, mediav1.Container_CONTAINER_MKV},
 		ServedContainer: mediav1.Container_CONTAINER_HLS,
-		Video:           []*mediav1.VideoSupport{device.VideoSupport(mediav1.Codec_CODEC_H264)},
+		Video:           []*mediav1.VideoSupport{device.VideoSupport(mediav1.VideoCodec_VIDEO_CODEC_H264)},
 		Audio: []*mediav1.AudioSupport{
-			{Codec: mediav1.Codec_CODEC_AAC, MaxChannels: 6},
-			{Codec: mediav1.Codec_CODEC_AC3},
-			{Codec: mediav1.Codec_CODEC_EAC3},
+			{Codec: mediav1.AudioCodec_AUDIO_CODEC_AAC, MaxChannels: 6},
+			{Codec: mediav1.AudioCodec_AUDIO_CODEC_AC3},
+			{Codec: mediav1.AudioCodec_AUDIO_CODEC_EAC3},
 		},
 	}
 }

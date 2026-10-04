@@ -50,8 +50,8 @@ func negotiateCaps(ctx context.Context, loc *goupnp.RootDevice, u *url.URL) *med
 }
 
 // audioSupportFor builds the copy envelope for an audio codec.
-func audioSupportFor(codec mediav1.Codec) *mediav1.AudioSupport {
-	if codec == mediav1.Codec_CODEC_AAC {
+func audioSupportFor(codec mediav1.AudioCodec) *mediav1.AudioSupport {
+	if codec == mediav1.AudioCodec_AUDIO_CODEC_AAC {
 		return &mediav1.AudioSupport{Codec: codec, MaxChannels: 2}
 	}
 	return &mediav1.AudioSupport{Codec: codec}
@@ -59,16 +59,16 @@ func audioSupportFor(codec mediav1.Codec) *mediav1.AudioSupport {
 
 // The fixed order capabilities are reported in, so a given Sink always yields the same record.
 var (
-	discoverableCodecs      = []mediav1.Codec{mediav1.Codec_CODEC_H264, mediav1.Codec_CODEC_HEVC}
-	discoverableAudioCodecs = []mediav1.Codec{mediav1.Codec_CODEC_AAC, mediav1.Codec_CODEC_AC3, mediav1.Codec_CODEC_EAC3}
+	discoverableCodecs      = []mediav1.VideoCodec{mediav1.VideoCodec_VIDEO_CODEC_H264, mediav1.VideoCodec_VIDEO_CODEC_HEVC}
+	discoverableAudioCodecs = []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AAC, mediav1.AudioCodec_AUDIO_CODEC_AC3, mediav1.AudioCodec_AUDIO_CODEC_EAC3}
 	discoverableContainers  = []mediav1.Container{mediav1.Container_CONTAINER_MPEGTS, mediav1.Container_CONTAINER_MP4}
 )
 
 func fallbackCaps() *mediav1.Capabilities {
 	return &mediav1.Capabilities{
 		Containers:      []mediav1.Container{mediav1.Container_CONTAINER_MPEGTS},
-		Video:           []*mediav1.VideoSupport{device.VideoSupport(mediav1.Codec_CODEC_H264)},
-		Audio:           []*mediav1.AudioSupport{audioSupportFor(mediav1.Codec_CODEC_AAC)},
+		Video:           []*mediav1.VideoSupport{device.VideoSupport(mediav1.VideoCodec_VIDEO_CODEC_H264)},
+		Audio:           []*mediav1.AudioSupport{audioSupportFor(mediav1.AudioCodec_AUDIO_CODEC_AAC)},
 		ServedContainer: servedContainer,
 		Deinterlaces:    true,
 	}
@@ -79,8 +79,8 @@ const servedContainer = mediav1.Container_CONTAINER_MPEGTS
 
 // parseSinkProtocolInfo maps a ConnectionManager Sink protocolInfo CSV into capabilities.
 func parseSinkProtocolInfo(sink string) *mediav1.Capabilities {
-	present := map[mediav1.Codec]bool{}
-	audioPresent := map[mediav1.Codec]bool{}
+	present := map[mediav1.VideoCodec]bool{}
+	audioPresent := map[mediav1.AudioCodec]bool{}
 	containers := map[mediav1.Container]bool{}
 	for entry := range strings.SplitSeq(sink, ",") {
 		fields := strings.SplitN(strings.TrimSpace(entry), ":", 4)
@@ -124,26 +124,26 @@ func parseSinkProtocolInfo(sink string) *mediav1.Capabilities {
 }
 
 // codecFromProfile reads the DLNA.ORG_PN token (already upper-cased), failing that the MIME type.
-func codecFromProfile(mime, pn string) (mediav1.Codec, bool) {
+func codecFromProfile(mime, pn string) (mediav1.VideoCodec, bool) {
 	switch {
 	case strings.Contains(pn, "HEVC") || strings.Contains(pn, "H265") || strings.Contains(mime, "hevc") || strings.Contains(mime, "h265"):
-		return mediav1.Codec_CODEC_HEVC, true
+		return mediav1.VideoCodec_VIDEO_CODEC_HEVC, true
 	case strings.Contains(pn, "AVC") || strings.Contains(pn, "H264") || strings.Contains(mime, "avc") || strings.Contains(mime, "h264"):
-		return mediav1.Codec_CODEC_H264, true
+		return mediav1.VideoCodec_VIDEO_CODEC_H264, true
 	}
-	return mediav1.Codec_CODEC_UNSPECIFIED, false
+	return mediav1.VideoCodec_VIDEO_CODEC_UNSPECIFIED, false
 }
 
-func audioFromProfile(mime, pn string) (mediav1.Codec, bool) {
+func audioFromProfile(mime, pn string) (mediav1.AudioCodec, bool) {
 	switch {
 	case strings.Contains(pn, "EAC3") || strings.Contains(mime, "eac3") || strings.Contains(mime, "dd+"):
-		return mediav1.Codec_CODEC_EAC3, true
+		return mediav1.AudioCodec_AUDIO_CODEC_EAC3, true
 	case strings.Contains(pn, "AC3") || strings.Contains(mime, "ac3") || strings.Contains(mime, "dolby.dd"):
-		return mediav1.Codec_CODEC_AC3, true
+		return mediav1.AudioCodec_AUDIO_CODEC_AC3, true
 	case strings.Contains(pn, "AAC") || strings.Contains(mime, "aac") || mime == "audio/mp4":
-		return mediav1.Codec_CODEC_AAC, true
+		return mediav1.AudioCodec_AUDIO_CODEC_AAC, true
 	}
-	return mediav1.Codec_CODEC_UNSPECIFIED, false
+	return mediav1.AudioCodec_AUDIO_CODEC_UNSPECIFIED, false
 }
 
 // containerFromMIME reads the DLNA MIME spellings of the containers castor serves.
@@ -158,8 +158,10 @@ func containerFromMIME(mime string) (mediav1.Container, bool) {
 }
 
 // codecs names the codec of each support, video or audio.
-func codecs[S interface{ GetCodec() mediav1.Codec }](supports []S) []mediav1.Codec {
-	out := make([]mediav1.Codec, len(supports))
+func codecs[C interface {
+	mediav1.VideoCodec | mediav1.AudioCodec
+}, S interface{ GetCodec() C }](supports []S) []C {
+	out := make([]C, len(supports))
 	for i, s := range supports {
 		out[i] = s.GetCodec()
 	}

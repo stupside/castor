@@ -115,7 +115,7 @@ func newLentDevice() *lentDevice {
 		caps: &mediav1.Capabilities{
 			SelfFetch:     true,
 			Containers:    []mediav1.Container{mediav1.Container_CONTAINER_MPEGTS},
-			Video:         []*mediav1.VideoSupport{{Codec: mediav1.Codec_CODEC_H264, MaxLevel: 42}},
+			Video:         []*mediav1.VideoSupport{{Codec: mediav1.VideoCodec_VIDEO_CODEC_H264, MaxLevel: 42}},
 			ServedHeaders: map[string]string{"transferMode.dlna.org": "Streaming"},
 		},
 		handed: make(chan *url.URL, 4),
@@ -366,12 +366,12 @@ func TestALentDevicesCapabilitiesReachTheEngineWithoutWhatThisServerDoesNotKnow(
 		ServedContainer: mediav1.Container_CONTAINER_MP4,
 		Deinterlaces:    true,
 		Video: []*mediav1.VideoSupport{
-			{Codec: mediav1.Codec_CODEC_H264, Profiles: []mediav1.Profile{mediav1.Profile_PROFILE_HIGH, unknown}, MaxLevel: 42},
+			{Codec: mediav1.VideoCodec_VIDEO_CODEC_H264, Profiles: []mediav1.Profile{mediav1.Profile_PROFILE_HIGH, unknown}, MaxLevel: 42},
 			{Codec: unknown},
-			{Codec: mediav1.Codec_CODEC_HEVC, Profiles: []mediav1.Profile{unknown}},
-			{Codec: mediav1.Codec_CODEC_HEVC, Profiles: []mediav1.Profile{mediav1.Profile_PROFILE_MAIN_10}, BitDepths: []uint32{10}},
+			{Codec: mediav1.VideoCodec_VIDEO_CODEC_HEVC, Profiles: []mediav1.Profile{unknown}},
+			{Codec: mediav1.VideoCodec_VIDEO_CODEC_HEVC, Profiles: []mediav1.Profile{mediav1.Profile_PROFILE_MAIN_10}, BitDepths: []uint32{10}},
 		},
-		Audio: []*mediav1.AudioSupport{{Codec: mediav1.Codec_CODEC_AAC, MaxChannels: 2}, {Codec: unknown}},
+		Audio: []*mediav1.AudioSupport{{Codec: mediav1.AudioCodec_AUDIO_CODEC_AAC, MaxChannels: 2}, {Codec: unknown}},
 	}
 	seen := make(chan media.Capabilities, 1)
 	c := serve(t, machinery(func(ctx context.Context, lent execute.Device, l deliver.Listeners, streams []*source.Stream, turns recovery.Turns) error {

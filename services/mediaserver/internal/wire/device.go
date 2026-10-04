@@ -10,15 +10,18 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-var codecs = map[mediav1.Codec]media.Codec{
-	mediav1.Codec_CODEC_H264:   media.CodecH264,
-	mediav1.Codec_CODEC_HEVC:   media.CodecHEVC,
-	mediav1.Codec_CODEC_VP8:    media.CodecVP8,
-	mediav1.Codec_CODEC_AAC:    media.CodecAAC,
-	mediav1.Codec_CODEC_AC3:    media.CodecAC3,
-	mediav1.Codec_CODEC_EAC3:   media.CodecEAC3,
-	mediav1.Codec_CODEC_MP3:    media.CodecMP3,
-	mediav1.Codec_CODEC_VORBIS: media.CodecVorbis,
+var videoCodecs = map[mediav1.VideoCodec]media.Codec{
+	mediav1.VideoCodec_VIDEO_CODEC_H264: media.CodecH264,
+	mediav1.VideoCodec_VIDEO_CODEC_HEVC: media.CodecHEVC,
+	mediav1.VideoCodec_VIDEO_CODEC_VP8:  media.CodecVP8,
+}
+
+var audioCodecs = map[mediav1.AudioCodec]media.Codec{
+	mediav1.AudioCodec_AUDIO_CODEC_AAC:    media.CodecAAC,
+	mediav1.AudioCodec_AUDIO_CODEC_AC3:    media.CodecAC3,
+	mediav1.AudioCodec_AUDIO_CODEC_EAC3:   media.CodecEAC3,
+	mediav1.AudioCodec_AUDIO_CODEC_MP3:    media.CodecMP3,
+	mediav1.AudioCodec_AUDIO_CODEC_VORBIS: media.CodecVorbis,
 }
 
 var profiles = map[mediav1.Profile]media.Profile{
@@ -68,7 +71,7 @@ func FromCapabilities(c *mediav1.Capabilities) media.Capabilities {
 		}
 	}
 	for _, a := range c.GetAudio() {
-		if codec, ok := codecs[a.GetCodec()]; ok {
+		if codec, ok := audioCodecs[a.GetCodec()]; ok {
 			out.Audio = append(out.Audio, media.AudioSupport{Codec: codec, MaxChannels: int(a.GetMaxChannels())})
 		}
 	}
@@ -76,7 +79,7 @@ func FromCapabilities(c *mediav1.Capabilities) media.Capabilities {
 }
 
 func fromVideo(v *mediav1.VideoSupport) (media.VideoSupport, bool) {
-	codec, ok := codecs[v.GetCodec()]
+	codec, ok := videoCodecs[v.GetCodec()]
 	if !ok {
 		return media.VideoSupport{}, false
 	}

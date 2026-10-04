@@ -143,15 +143,15 @@ func (s *session) Capabilities() *mediav1.Capabilities {
 		Containers:      []mediav1.Container{mediav1.Container_CONTAINER_HLS, mediav1.Container_CONTAINER_MPEGTS, mediav1.Container_CONTAINER_MP4, mediav1.Container_CONTAINER_WEBM},
 		ServedContainer: mediav1.Container_CONTAINER_MP4,
 		Video: []*mediav1.VideoSupport{
-			device.VideoSupport(mediav1.Codec_CODEC_H264),
-			device.VideoSupport(mediav1.Codec_CODEC_VP8),
+			device.VideoSupport(mediav1.VideoCodec_VIDEO_CODEC_H264),
+			device.VideoSupport(mediav1.VideoCodec_VIDEO_CODEC_VP8),
 		},
 		Audio: []*mediav1.AudioSupport{
-			{Codec: mediav1.Codec_CODEC_AAC, MaxChannels: 6},
-			{Codec: mediav1.Codec_CODEC_AC3},
-			{Codec: mediav1.Codec_CODEC_EAC3},
-			{Codec: mediav1.Codec_CODEC_MP3},
-			{Codec: mediav1.Codec_CODEC_VORBIS},
+			{Codec: mediav1.AudioCodec_AUDIO_CODEC_AAC, MaxChannels: 6},
+			{Codec: mediav1.AudioCodec_AUDIO_CODEC_AC3},
+			{Codec: mediav1.AudioCodec_AUDIO_CODEC_EAC3},
+			{Codec: mediav1.AudioCodec_AUDIO_CODEC_MP3},
+			{Codec: mediav1.AudioCodec_AUDIO_CODEC_VORBIS},
 		},
 	}
 }

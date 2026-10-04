@@ -23,15 +23,15 @@ type codecEnvelope struct {
 	maxLevel  uint32
 }
 
-var codecEnvelopes = map[mediav1.Codec]codecEnvelope{
+var codecEnvelopes = map[mediav1.VideoCodec]codecEnvelope{
 	// Level 4.2 (1080p60) is what every HD H.264 decoder castor targets is built to.
-	mediav1.Codec_CODEC_H264: {profiles: []mediav1.Profile{mediav1.Profile_PROFILE_CONSTRAINED_BASELINE, mediav1.Profile_PROFILE_BASELINE, mediav1.Profile_PROFILE_MAIN, mediav1.Profile_PROFILE_HIGH}, maxLevel: 42},
-	mediav1.Codec_CODEC_HEVC: {profiles: []mediav1.Profile{mediav1.Profile_PROFILE_MAIN, mediav1.Profile_PROFILE_MAIN_10}, bitDepths: []uint32{8, 10}},
-	mediav1.Codec_CODEC_VP8:  {}, // VP8 has no profile split in Castor's probe model; 8-bit is the default.
+	mediav1.VideoCodec_VIDEO_CODEC_H264: {profiles: []mediav1.Profile{mediav1.Profile_PROFILE_CONSTRAINED_BASELINE, mediav1.Profile_PROFILE_BASELINE, mediav1.Profile_PROFILE_MAIN, mediav1.Profile_PROFILE_HIGH}, maxLevel: 42},
+	mediav1.VideoCodec_VIDEO_CODEC_HEVC: {profiles: []mediav1.Profile{mediav1.Profile_PROFILE_MAIN, mediav1.Profile_PROFILE_MAIN_10}, bitDepths: []uint32{8, 10}},
+	mediav1.VideoCodec_VIDEO_CODEC_VP8:  {}, // VP8 has no profile split in Castor's probe model; 8-bit is the default.
 }
 
 // VideoSupport is the envelope every family states for codec.
-func VideoSupport(codec mediav1.Codec) *mediav1.VideoSupport {
+func VideoSupport(codec mediav1.VideoCodec) *mediav1.VideoSupport {
 	env := codecEnvelopes[codec]
 	return &mediav1.VideoSupport{
 		Codec:     codec,

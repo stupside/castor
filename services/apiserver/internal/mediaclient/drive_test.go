@@ -121,7 +121,7 @@ func (*lentDevice) AwaitEnd(ctx context.Context) error {
 }
 
 func (*lentDevice) Capabilities() *mediav1.Capabilities {
-	return &mediav1.Capabilities{SelfFetch: true, Video: []*mediav1.VideoSupport{{Codec: mediav1.Codec_CODEC_H264, MaxLevel: 42}}}
+	return &mediav1.Capabilities{SelfFetch: true, Video: []*mediav1.VideoSupport{{Codec: mediav1.VideoCodec_VIDEO_CODEC_H264, MaxLevel: 42}}}
 }
 
 var asked = &castorv1.Preferences{Delivery: castorv1.Delivery_DELIVERY_AUTO.Enum(), MaxHeight: new(uint32(1080)), Subtitles: new("")}

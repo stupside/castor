@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/media/v1/device.proto.
  */
 export const file_castor_media_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChxjYXN0b3IvbWVkaWEvdjEvZGV2aWNlLnByb3RvEg9jYXN0b3IubWVkaWEudjEikAEKDERyaXZlUmVxdWVzdBIYCgdjYXN0X2lkGAEgASgJQge6SARyAhABEikKBmRldmljZRgCIAEoCzIRLmNhc3Rvci52MS5EZXZpY2VCBrpIA8gBARI7CgxjYXBhYmlsaXRpZXMYAyABKAsyHS5jYXN0b3IubWVkaWEudjEuQ2FwYWJpbGl0aWVzQga6SAPIAQEiQAoNRHJpdmVSZXNwb25zZRIvCgdjb21tYW5kGAEgASgLMh4uY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmQiwwEKDUFuc3dlclJlcXVlc3QSGAoHY2FzdF9pZBgBIAEoCUIHukgEcgIQARIbCgpjb21tYW5kX2lkGAIgASgJQge6SARyAhABEjMKBGRvbmUYAyABKAsyIy5jYXN0b3IubWVkaWEudjEuQW5zd2VyUmVxdWVzdC5Eb25lSAASLQoFZXJyb3IYBCABKAsyHC5jYXN0b3IubWVkaWEudjEuRGV2aWNlRXJyb3JIABoGCgREb25lQg8KBmFuc3dlchIFukgCCAEiEAoOQW5zd2VyUmVzcG9uc2UikwMKDENhcGFiaWxpdGllcxIuCgpjb250YWluZXJzGAEgAygOMhouY2FzdG9yLm1lZGlhLnYxLkNvbnRhaW5lchIsCgV2aWRlbxgCIAMoCzIdLmNhc3Rvci5tZWRpYS52MS5WaWRlb1N1cHBvcnQSLAoFYXVkaW8YAyADKAsyHS5jYXN0b3IubWVkaWEudjEuQXVkaW9TdXBwb3J0EjQKEHNlcnZlZF9jb250YWluZXIYBCABKA4yGi5jYXN0b3IubWVkaWEudjEuQ29udGFpbmVyEhQKDGRlaW50ZXJsYWNlcxgFIAEoCBJhCg5zZXJ2ZWRfaGVhZGVycxgGIAMoCzIwLmNhc3Rvci5tZWRpYS52MS5DYXBhYmlsaXRpZXMuU2VydmVkSGVhZGVyc0VudHJ5Qhe6SBSaAREiBXIDwAEBKghyBsgBAMABAhISCgpzZWxmX2ZldGNoGAcgASgIGjQKElNlcnZlZEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIogBCgxWaWRlb1N1cHBvcnQSJQoFY29kZWMYASABKA4yFi5jYXN0b3IubWVkaWEudjEuQ29kZWMSKgoIcHJvZmlsZXMYAiADKA4yGC5jYXN0b3IubWVkaWEudjEuUHJvZmlsZRISCgpiaXRfZGVwdGhzGAMgAygNEhEKCW1heF9sZXZlbBgEIAEoDSJLCgxBdWRpb1N1cHBvcnQSJQoFY29kZWMYASABKA4yFi5jYXN0b3IubWVkaWEudjEuQ29kZWMSFAoMbWF4X2NoYW5uZWxzGAIgASgNIssDCg1EZXZpY2VDb21tYW5kEgoKAmlkGAEgASgJEjMKBHBsYXkYAiABKAsyIy5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5QbGF5SAASPAoJYXdhaXRfZW5kGAMgASgLMicuY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmQuQXdhaXRFbmRIABI3CgZjYW5jZWwYBCABKAsyJS5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5DYW5jZWxIABpCCgRQbGF5EgsKA3VybBgBIAEoCRItCgljb250YWluZXIYAiABKA4yGi5jYXN0b3IubWVkaWEudjEuQ29udGFpbmVyGgoKCEF3YWl0RW5kGiUKBkNhbmNlbBIbCgpjb21tYW5kX2lkGAEgASgJQge6SARyAhABOnm6SHYadAoRZGV2aWNlX2NvbW1hbmQuaWQSOmlkIGlzIHNldCBvbiBldmVyeSBjb21tYW5kIGJ1dCBjYW5jZWwsIGFuZCBlbXB0eSBvbiBjYW5jZWwaI2hhcyh0aGlzLmNhbmNlbCkgPT0gKHRoaXMuaWQgPT0gJycpQhAKB2NvbW1hbmQSBbpIAggBIqUBCgtEZXZpY2VFcnJvchIaCgdtZXNzYWdlGAEgASgJQge6SARyAhABSAASMQoEZ29uZRgCIAEoCzIhLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VFcnJvci5Hb25lSAAaNwoER29uZRIOCgZkZXZpY2UYASABKAkSEAoIb2JzZXJ2ZWQYAiABKAkSDQoFY2F1c2UYAyABKAlCDgoFZXJyb3ISBbpIAggBKukBCglDb250YWluZXISGQoVQ09OVEFJTkVSX1VOU1BFQ0lGSUVEEAASIAoNQ09OVEFJTkVSX01QNBABGg3C8xgJdmlkZW8vbXA0EiQKEENPTlRBSU5FUl9NUEVHVFMQAhoOwvMYCnZpZGVvL21wMnQSLAoNQ09OVEFJTkVSX0hMUxADGhnC8xgVYXBwbGljYXRpb24veC1tcGVnVVJMEicKDUNPTlRBSU5FUl9NS1YQBBoUwvMYEHZpZGVvL3gtbWF0cm9za2ESIgoOQ09OVEFJTkVSX1dFQk0QBRoOwvMYCnZpZGVvL3dlYm0qnAEKBUNvZGVjEhUKEUNPREVDX1VOU1BFQ0lGSUVEEAASDgoKQ09ERUNfSDI2NBABEg4KCkNPREVDX0hFVkMQAhINCglDT0RFQ19WUDgQAxINCglDT0RFQ19BQUMQBBINCglDT0RFQ19BQzMQBRIOCgpDT0RFQ19FQUMzEAYSDQoJQ09ERUNfTVAzEAcSEAoMQ09ERUNfVk9SQklTEAgqkwEKB1Byb2ZpbGUSFwoTUFJPRklMRV9VTlNQRUNJRklFRBAAEhQKEFBST0ZJTEVfQkFTRUxJTkUQARIgChxQUk9GSUxFX0NPTlNUUkFJTkVEX0JBU0VMSU5FEAISEAoMUFJPRklMRV9NQUlOEAMSEwoPUFJPRklMRV9NQUlOXzEwEAQSEAoMUFJPRklMRV9ISUdIEAUypAEKDURldmljZVNlcnZpY2USSAoFRHJpdmUSHS5jYXN0b3IubWVkaWEudjEuRHJpdmVSZXF1ZXN0Gh4uY2FzdG9yLm1lZGlhLnYxLkRyaXZlUmVzcG9uc2UwARJJCgZBbnN3ZXISHi5jYXN0b3IubWVkaWEudjEuQW5zd2VyUmVxdWVzdBofLmNhc3Rvci5tZWRpYS52MS5BbnN3ZXJSZXNwb25zZTo3CgRtaW1lEiEuZ29vZ2xlLnByb3RvYnVmLkVudW1WYWx1ZU9wdGlvbnMYuI4DIAEoCVIEbWltZWIGcHJvdG8z", [file_buf_validate_validate, file_castor_v1_device, file_google_protobuf_descriptor]);
+  fileDesc("ChxjYXN0b3IvbWVkaWEvdjEvZGV2aWNlLnByb3RvEg9jYXN0b3IubWVkaWEudjEikAEKDERyaXZlUmVxdWVzdBIYCgdjYXN0X2lkGAEgASgJQge6SARyAhABEikKBmRldmljZRgCIAEoCzIRLmNhc3Rvci52MS5EZXZpY2VCBrpIA8gBARI7CgxjYXBhYmlsaXRpZXMYAyABKAsyHS5jYXN0b3IubWVkaWEudjEuQ2FwYWJpbGl0aWVzQga6SAPIAQEiSAoNRHJpdmVSZXNwb25zZRI3Cgdjb21tYW5kGAEgASgLMh4uY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmRCBrpIA8gBASLDAQoNQW5zd2VyUmVxdWVzdBIYCgdjYXN0X2lkGAEgASgJQge6SARyAhABEhsKCmNvbW1hbmRfaWQYAiABKAlCB7pIBHICEAESMwoEZG9uZRgDIAEoCzIjLmNhc3Rvci5tZWRpYS52MS5BbnN3ZXJSZXF1ZXN0LkRvbmVIABItCgVlcnJvchgEIAEoCzIcLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VFcnJvckgAGgYKBERvbmVCDwoGYW5zd2VyEgW6SAIIASIQCg5BbnN3ZXJSZXNwb25zZSKTAwoMQ2FwYWJpbGl0aWVzEi4KCmNvbnRhaW5lcnMYASADKA4yGi5jYXN0b3IubWVkaWEudjEuQ29udGFpbmVyEiwKBXZpZGVvGAIgAygLMh0uY2FzdG9yLm1lZGlhLnYxLlZpZGVvU3VwcG9ydBIsCgVhdWRpbxgDIAMoCzIdLmNhc3Rvci5tZWRpYS52MS5BdWRpb1N1cHBvcnQSNAoQc2VydmVkX2NvbnRhaW5lchgEIAEoDjIaLmNhc3Rvci5tZWRpYS52MS5Db250YWluZXISFAoMZGVpbnRlcmxhY2VzGAUgASgIEmEKDnNlcnZlZF9oZWFkZXJzGAYgAygLMjAuY2FzdG9yLm1lZGlhLnYxLkNhcGFiaWxpdGllcy5TZXJ2ZWRIZWFkZXJzRW50cnlCF7pIFJoBESIFcgPAAQEqCHIGyAEAwAECEhIKCnNlbGZfZmV0Y2gYByABKAgaNAoSU2VydmVkSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEijQEKDFZpZGVvU3VwcG9ydBIqCgVjb2RlYxgBIAEoDjIbLmNhc3Rvci5tZWRpYS52MS5WaWRlb0NvZGVjEioKCHByb2ZpbGVzGAIgAygOMhguY2FzdG9yLm1lZGlhLnYxLlByb2ZpbGUSEgoKYml0X2RlcHRocxgDIAMoDRIRCgltYXhfbGV2ZWwYBCABKA0iUAoMQXVkaW9TdXBwb3J0EioKBWNvZGVjGAEgASgOMhsuY2FzdG9yLm1lZGlhLnYxLkF1ZGlvQ29kZWMSFAoMbWF4X2NoYW5uZWxzGAIgASgNIssDCg1EZXZpY2VDb21tYW5kEgoKAmlkGAEgASgJEjMKBHBsYXkYAiABKAsyIy5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5QbGF5SAASPAoJYXdhaXRfZW5kGAMgASgLMicuY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmQuQXdhaXRFbmRIABI3CgZjYW5jZWwYBCABKAsyJS5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5DYW5jZWxIABpCCgRQbGF5EgsKA3VybBgBIAEoCRItCgljb250YWluZXIYAiABKA4yGi5jYXN0b3IubWVkaWEudjEuQ29udGFpbmVyGgoKCEF3YWl0RW5kGiUKBkNhbmNlbBIbCgpjb21tYW5kX2lkGAEgASgJQge6SARyAhABOnm6SHYadAoRZGV2aWNlX2NvbW1hbmQuaWQSOmlkIGlzIHNldCBvbiBldmVyeSBjb21tYW5kIGJ1dCBjYW5jZWwsIGFuZCBlbXB0eSBvbiBjYW5jZWwaI2hhcyh0aGlzLmNhbmNlbCkgPT0gKHRoaXMuaWQgPT0gJycpQhAKB2NvbW1hbmQSBbpIAggBIqUBCgtEZXZpY2VFcnJvchIaCgdtZXNzYWdlGAEgASgJQge6SARyAhABSAASMQoEZ29uZRgCIAEoCzIhLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VFcnJvci5Hb25lSAAaNwoER29uZRIOCgZkZXZpY2UYASABKAkSEAoIb2JzZXJ2ZWQYAiABKAkSDQoFY2F1c2UYAyABKAlCDgoFZXJyb3ISBbpIAggBKukBCglDb250YWluZXISGQoVQ09OVEFJTkVSX1VOU1BFQ0lGSUVEEAASIAoNQ09OVEFJTkVSX01QNBABGg3C8xgJdmlkZW8vbXA0EiQKEENPTlRBSU5FUl9NUEVHVFMQAhoOwvMYCnZpZGVvL21wMnQSLAoNQ09OVEFJTkVSX0hMUxADGhnC8xgVYXBwbGljYXRpb24veC1tcGVnVVJMEicKDUNPTlRBSU5FUl9NS1YQBBoUwvMYEHZpZGVvL3gtbWF0cm9za2ESIgoOQ09OVEFJTkVSX1dFQk0QBRoOwvMYCnZpZGVvL3dlYm0qagoKVmlkZW9Db2RlYxIbChdWSURFT19DT0RFQ19VTlNQRUNJRklFRBAAEhQKEFZJREVPX0NPREVDX0gyNjQQARIUChBWSURFT19DT0RFQ19IRVZDEAISEwoPVklERU9fQ09ERUNfVlA4EAMqlgEKCkF1ZGlvQ29kZWMSGwoXQVVESU9fQ09ERUNfVU5TUEVDSUZJRUQQABITCg9BVURJT19DT0RFQ19BQUMQARITCg9BVURJT19DT0RFQ19BQzMQAhIUChBBVURJT19DT0RFQ19FQUMzEAMSEwoPQVVESU9fQ09ERUNfTVAzEAQSFgoSQVVESU9fQ09ERUNfVk9SQklTEAUqkwEKB1Byb2ZpbGUSFwoTUFJPRklMRV9VTlNQRUNJRklFRBAAEhQKEFBST0ZJTEVfQkFTRUxJTkUQARIgChxQUk9GSUxFX0NPTlNUUkFJTkVEX0JBU0VMSU5FEAISEAoMUFJPRklMRV9NQUlOEAMSEwoPUFJPRklMRV9NQUlOXzEwEAQSEAoMUFJPRklMRV9ISUdIEAUypAEKDURldmljZVNlcnZpY2USSAoFRHJpdmUSHS5jYXN0b3IubWVkaWEudjEuRHJpdmVSZXF1ZXN0Gh4uY2FzdG9yLm1lZGlhLnYxLkRyaXZlUmVzcG9uc2UwARJJCgZBbnN3ZXISHi5jYXN0b3IubWVkaWEudjEuQW5zd2VyUmVxdWVzdBofLmNhc3Rvci5tZWRpYS52MS5BbnN3ZXJSZXNwb25zZTo3CgRtaW1lEiEuZ29vZ2xlLnByb3RvYnVmLkVudW1WYWx1ZU9wdGlvbnMYuI4DIAEoCVIEbWltZWIGcHJvdG8z", [file_buf_validate_validate, file_castor_v1_device, file_google_protobuf_descriptor]);
 
 /**
  * @generated from message castor.media.v1.DriveRequest
@@ -190,9 +190,9 @@ export const CapabilitiesSchema: GenMessage<Capabilities> = /*@__PURE__*/
  */
 export type VideoSupport = Message<"castor.media.v1.VideoSupport"> & {
   /**
-   * @generated from field: castor.media.v1.Codec codec = 1;
+   * @generated from field: castor.media.v1.VideoCodec codec = 1;
    */
-  codec: Codec;
+  codec: VideoCodec;
 
   /**
    * profiles are those decoded; none is any.
@@ -224,9 +224,9 @@ export const VideoSupportSchema: GenMessage<VideoSupport> = /*@__PURE__*/
  */
 export type AudioSupport = Message<"castor.media.v1.AudioSupport"> & {
   /**
-   * @generated from field: castor.media.v1.Codec codec = 1;
+   * @generated from field: castor.media.v1.AudioCodec codec = 1;
    */
-  codec: Codec;
+  codec: AudioCodec;
 
   /**
    * @generated from field: uint32 max_channels = 2;
@@ -445,62 +445,76 @@ export const ContainerSchema: GenEnum<Container> = /*@__PURE__*/
   enumDesc(file_castor_media_v1_device, 0);
 
 /**
- * Codec is a video or audio codec a device decodes.
- *
- * @generated from enum castor.media.v1.Codec
+ * @generated from enum castor.media.v1.VideoCodec
  */
-export enum Codec {
+export enum VideoCodec {
   /**
-   * @generated from enum value: CODEC_UNSPECIFIED = 0;
+   * @generated from enum value: VIDEO_CODEC_UNSPECIFIED = 0;
    */
   UNSPECIFIED = 0,
 
   /**
-   * @generated from enum value: CODEC_H264 = 1;
+   * @generated from enum value: VIDEO_CODEC_H264 = 1;
    */
   H264 = 1,
 
   /**
-   * @generated from enum value: CODEC_HEVC = 2;
+   * @generated from enum value: VIDEO_CODEC_HEVC = 2;
    */
   HEVC = 2,
 
   /**
-   * @generated from enum value: CODEC_VP8 = 3;
+   * @generated from enum value: VIDEO_CODEC_VP8 = 3;
    */
   VP8 = 3,
-
-  /**
-   * @generated from enum value: CODEC_AAC = 4;
-   */
-  AAC = 4,
-
-  /**
-   * @generated from enum value: CODEC_AC3 = 5;
-   */
-  AC3 = 5,
-
-  /**
-   * @generated from enum value: CODEC_EAC3 = 6;
-   */
-  EAC3 = 6,
-
-  /**
-   * @generated from enum value: CODEC_MP3 = 7;
-   */
-  MP3 = 7,
-
-  /**
-   * @generated from enum value: CODEC_VORBIS = 8;
-   */
-  VORBIS = 8,
 }
 
 /**
- * Describes the enum castor.media.v1.Codec.
+ * Describes the enum castor.media.v1.VideoCodec.
  */
-export const CodecSchema: GenEnum<Codec> = /*@__PURE__*/
+export const VideoCodecSchema: GenEnum<VideoCodec> = /*@__PURE__*/
   enumDesc(file_castor_media_v1_device, 1);
+
+/**
+ * @generated from enum castor.media.v1.AudioCodec
+ */
+export enum AudioCodec {
+  /**
+   * @generated from enum value: AUDIO_CODEC_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_AAC = 1;
+   */
+  AAC = 1,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_AC3 = 2;
+   */
+  AC3 = 2,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_EAC3 = 3;
+   */
+  EAC3 = 3,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_MP3 = 4;
+   */
+  MP3 = 4,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_VORBIS = 5;
+   */
+  VORBIS = 5,
+}
+
+/**
+ * Describes the enum castor.media.v1.AudioCodec.
+ */
+export const AudioCodecSchema: GenEnum<AudioCodec> = /*@__PURE__*/
+  enumDesc(file_castor_media_v1_device, 2);
 
 /**
  * Profile is a video codec profile a device decodes.
@@ -543,7 +557,7 @@ export enum Profile {
  * Describes the enum castor.media.v1.Profile.
  */
 export const ProfileSchema: GenEnum<Profile> = /*@__PURE__*/
-  enumDesc(file_castor_media_v1_device, 2);
+  enumDesc(file_castor_media_v1_device, 3);
 
 /**
  * DeviceService lends a device to a cast: its lender holds it for the whole cast, playing what the cast asks through Drive and answering through Answer.
