@@ -25,12 +25,9 @@ func (r SearchResult) DisplayTitle() string {
 	return cmp.Or(r.Title, r.Name)
 }
 
-// date is the release date (movie) or first air date (TV) in TMDB's YYYY-MM-DD form, or "".
-func (r SearchResult) date() string { return cmp.Or(r.ReleaseDate, r.FirstAirDate) }
-
 // Year is the 4-digit release/air year, or "" if TMDB stated no date.
 func (r SearchResult) Year() string {
-	if d := r.date(); len(d) >= 4 {
+	if d := cmp.Or(r.ReleaseDate, r.FirstAirDate); len(d) >= 4 {
 		return d[:4]
 	}
 	return ""
