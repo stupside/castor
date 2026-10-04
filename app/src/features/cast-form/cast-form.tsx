@@ -70,7 +70,7 @@ export function CastForm({ devices, casts }: { devices: Device[]; casts: React.R
 
       {stage === 3 && !pending && <form action={action} className="animate-rise">
         <input type="hidden" name="deviceId" value={deviceId} /><input type="hidden" name="kind" value={kind} /><input type="hidden" name="url" value={sent} />
-        <Button variant="wide" name="intent" value="cast">{state.error ? "Try again" : "Start casting"}</Button>
+        <Button variant="wide">{state.error ? "Try again" : "Start casting"}</Button>
       </form>}
 
       {pending && <Bubble>Gnawing a path to {device?.name}<span className="ml-1 inline-flex gap-0.5" aria-hidden>{[0, 1, 2].map((i) => <span key={i} className="animate-swim" style={{ animationDelay: `${i * 150}ms` }}>.</span>)}</span></Bubble>}
