@@ -3,9 +3,6 @@
 import json
 import sys
 
-# Its test needs a whisper model no CI run downloads.
-EXEMPT = "github.com/stupside/castor/services/mediaserver/internal/subtitle/whisper"
-
 # A redirected stdout is block buffered, so a slow suite would look hung.
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -20,7 +17,7 @@ for line in sys.stdin:
     # A compile failure reports its diagnostics only as build-output.
     if action in ("output", "build-output"):
         sys.stdout.write(event.get("Output", ""))
-    elif action == "skip" and event.get("Test") and event.get("Package") != EXEMPT:
+    elif action == "skip" and event.get("Test"):
         skipped.append(event["Package"] + "." + event["Test"])
 
 if skipped:

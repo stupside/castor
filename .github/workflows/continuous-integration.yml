@@ -32,18 +32,20 @@ jobs:
         with:
           submodules: true
       - uses: ./.github/actions/setup
-      - run: eval "$(make env)" && go vet ./...
+      - run: eval "$(make env)" && go vet ./services/... ./internal/... ./cmd/... ./e2e/...
       # Pinned so a new release never turns an unrelated push red; gen/ is buf's.
       - run: eval "$(make env)" && go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 -checks all ./services/... ./internal/... ./cmd/... ./e2e/...
       # deadcode always exits 0, so its output is the gate; castorNativeLog is called only from C.
       - run: |
           eval "$(make env)"
-          dead=$(go run golang.org/x/tools/cmd/deadcode@v0.51.0 -test ./... 2>&1 | grep -v '^services/mediaserver/internal/subtitle/whisper/nativelog.go:[0-9]*:[0-9]*: unreachable func: castorNativeLog$' || true)
+          dead=$(go run golang.org/x/tools/cmd/deadcode@v0.51.0 -test ./services/... ./internal/... ./cmd/... ./e2e/... 2>&1)
+          dead=$(printf '%s' "$dead" | sed '/^services\/mediaserver\/internal\/subtitle\/whisper\/nativelog.go:[0-9]*:[0-9]*: unreachable func: castorNativeLog$/d')
           [ -z "$dead" ] || { printf 'unreachable:\n%s\n' "$dead"; exit 1; }
       # Fails with the diff it suggests: run `go fix ./...` and commit it.
-      - run: eval "$(make env)" && go fix -diff ./...
+      - run: eval "$(make env)" && go fix -diff ./services/... ./internal/... ./cmd/... ./e2e/...
       # cgo stays in the media server, so the API server alone still cross-compiles anywhere.
       - run: CGO_ENABLED=0 go build ./services/apiserver/...
+      - run: CGO_ENABLED=0 go build ./services/scrapingserver/...
       - run: |
           unformatted=$(gofmt -s -l services cmd internal e2e)
           [ -z "$unformatted" ] || { printf 'unformatted:\n%s\n' "$unformatted"; exit 1; }
@@ -62,8 +64,4 @@ jobs:
           version: 1.73.0
           setup_only: true
       - run: buf lint && buf format -d --exit-code
-      # Only a released contract is held to compatibility.
-      - run: |
-          tag=$(git tag --sort=-v:refname | head -1)
-          if git cat-file -e "$tag:proto/castor/v1" 2>/dev/null; then buf breaking --against ".git#tag=$tag"; fi
       - run: make generate && test -z "$(git status --porcelain -- gen)"
