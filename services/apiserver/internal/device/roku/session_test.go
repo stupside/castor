@@ -45,6 +45,14 @@ func TestTheChannelIsLaunchedWithTheFormatOfWhatItPlays(t *testing.T) {
 	}
 }
 
+func TestUnsupportedContainersDoNotLaunchTheRokuChannel(t *testing.T) {
+	// No client is needed: an unsupported container must fail before ECP.
+	dev := &session{}
+	if err := dev.Play(t.Context(), &url.URL{Scheme: "http", Host: "media.test"}, mediav1.Container_CONTAINER_MPEGTS); err == nil {
+		t.Error("Play accepted unsupported MPEG-TS container")
+	}
+}
+
 // refusingAfter answers the media-player query as playing its first polls, then refuses every one, as a Roku unplugged would.
 type refusingAfter struct{ answers, polls atomic.Int32 }
 

@@ -39,9 +39,20 @@ func get(ctx context.Context, hc *http.Client, u *url.URL, limit int64) ([]byte,
 }
 
 func (s *session) Play(ctx context.Context, streamURL *url.URL, container mediav1.Container) error {
+	var format string
+	switch container {
+	case mediav1.Container_CONTAINER_MP4:
+		format = "mp4"
+	case mediav1.Container_CONTAINER_MKV:
+		format = "mkv"
+	case mediav1.Container_CONTAINER_HLS:
+		format = "hls"
+	default:
+		return fmt.Errorf("roku does not support container %v", container)
+	}
 	q := url.Values{}
 	q.Set(paramURL, streamURL.String())
-	q.Set(paramFormat, streamFormatFor(container))
+	q.Set(paramFormat, format)
 
 	u := s.ecp.JoinPath("launch", s.appID)
 	u.RawQuery = q.Encode()
@@ -81,17 +92,6 @@ func (s *session) mediaPlayerAnswered(ctx context.Context) (bool, error) {
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
 	return false, nil
-}
-
-func streamFormatFor(container mediav1.Container) string {
-	switch container {
-	case mediav1.Container_CONTAINER_MP4:
-		return "mp4"
-	case mediav1.Container_CONTAINER_MKV:
-		return "mkv"
-	default:
-		return "hls"
-	}
 }
 
 // Capabilities describes what Castor's channel plays.
