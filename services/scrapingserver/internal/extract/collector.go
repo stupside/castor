@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -34,7 +35,30 @@ type capture struct {
 	contentType string
 	ladder      streaminfo.Ladder
 	runtime     time.Duration
+	hop         *requestHop
 }
+
+type requestHop struct {
+	url           string
+	headers       http.Header
+	wireHeaders   http.Header
+	extraKnown    bool
+	extraExpected bool
+}
+
+type requestState struct {
+	hops        []*requestHop
+	extras      []http.Header
+	responseURL string
+	bodyRead    bool
+}
+
+const (
+	maxTrackedRequests = 2048
+	maxRequestHops     = 20
+	maxNamedResources  = 8192
+	maxDocumentReads   = 4
+)
 
 // collector is what one page fetched that may be a stream, and what its documents said.
 type collector struct {
@@ -45,11 +69,10 @@ type collector struct {
 	window   time.Duration
 	preRoll  time.Duration
 
-	mu             sync.Mutex
-	captures       []capture
-	requestHeaders map[network.RequestID]http.Header
-	bodyRead       map[network.RequestID]struct{}
-	responseURL    map[network.RequestID]string
+	mu          sync.Mutex
+	captures    []capture
+	requests    map[network.RequestID]*requestState
+	activeReads int
 	// named contains the resources named by captured documents.
 	named  map[string]struct{}
 	closed bool
@@ -62,22 +85,23 @@ type collector struct {
 
 func newCollector(ctx context.Context, readBody bodyReader, grace, window, preRoll time.Duration) *collector {
 	return &collector{
-		ctx:            ctx,
-		readBody:       readBody,
-		grace:          grace,
-		window:         window,
-		preRoll:        preRoll,
-		requestHeaders: make(map[network.RequestID]http.Header),
-		bodyRead:       make(map[network.RequestID]struct{}),
-		responseURL:    make(map[network.RequestID]string),
-		named:          make(map[string]struct{}),
-		added:          make(chan struct{}),
-		mastered:       make(chan struct{}),
+		ctx:      ctx,
+		readBody: readBody,
+		grace:    grace,
+		window:   window,
+		preRoll:  preRoll,
+		requests: make(map[network.RequestID]*requestState),
+		named:    make(map[string]struct{}),
+		added:    make(chan struct{}),
+		mastered: make(chan struct{}),
 	}
 }
 
 // addByURL records a link whose name says it is a segmented manifest.
 func (c *collector) addByURL(raw string, reqID network.RequestID) {
+	if len(raw) > 8192 || !webPage(raw) {
+		return
+	}
 	u, err := url.Parse(raw)
 	if err != nil {
 		return
@@ -92,6 +116,9 @@ var untypedMIMETypes = []string{"application/octet-stream", "binary/octet-stream
 
 // addByMIME records a response whose server-confirmed MIME type is a stream type, or whose untyped response the link's name types.
 func (c *collector) addByMIME(raw string, reqID network.RequestID, mime string) {
+	if len(raw) > 8192 || !webPage(raw) {
+		return
+	}
 	untyped := slices.Contains(untypedMIMETypes, strings.ToLower(mime))
 	if !untyped && streaminfo.ContentTypeOf(nil, mime) == "" {
 		return
@@ -108,10 +135,24 @@ func (c *collector) addByMIME(raw string, reqID network.RequestID, mime string) 
 func (c *collector) add(raw string, u *url.URL, reqID network.RequestID, contentType string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.closed {
+		return
+	}
+	var hop *requestHop
+	if req := c.request(reqID, true); req != nil {
+		if len(req.hops) == 0 {
+			req.hops = append(req.hops, &requestHop{url: raw})
+		}
+		last := req.hops[len(req.hops)-1]
+		if last.url == raw {
+			hop = last
+		}
+	}
 
 	if i := c.index(raw); i >= 0 {
-		if c.captures[i].reqID == "" && reqID != "" {
+		if reqID != "" {
 			c.captures[i].reqID = reqID
+			c.captures[i].hop = hop
 			slog.DebugContext(c.ctx, "attached request headers to captured URL", "url", raw)
 		}
 		return
@@ -122,7 +163,7 @@ func (c *collector) add(raw string, u *url.URL, reqID network.RequestID, content
 	}
 
 	slog.InfoContext(c.ctx, "captured stream", "url", raw, "content_type", contentType)
-	c.captures = append(c.captures, capture{raw: raw, url: u, reqID: reqID, contentType: contentType})
+	c.captures = append(c.captures, capture{raw: raw, url: u, reqID: reqID, contentType: contentType, hop: hop})
 	close(c.added)
 	c.added = make(chan struct{})
 }
@@ -144,7 +185,7 @@ func (c *collector) entries() []*streaminfo.Stream {
 		out = append(out, &streaminfo.Stream{
 			URL: cp.url,
 			// Normalized under the lock: the listener keeps merging into this map while the caller reads it.
-			Headers:     replayable(c.requestHeaders[cp.reqID]),
+			Headers:     replayable(hopHeaders(cp.hop)),
 			ContentType: cp.contentType,
 			Ladder:      cp.ladder,
 		})
@@ -184,13 +225,24 @@ func (c *collector) askForDocument(reqID network.RequestID, size float64) {
 	if c.closed {
 		return
 	}
+	if c.activeReads >= maxDocumentReads {
+		return
+	}
+	c.activeReads++
 	c.reads.Go(func() {
+		defer func() {
+			c.mu.Lock()
+			c.activeReads--
+			c.mu.Unlock()
+		}()
 		body, err := c.readBody(reqID)
 		if err != nil {
 			slog.DebugContext(c.ctx, "response body unavailable, renditions unknown", "request", reqID, "error", err)
 			return
 		}
-		c.noteDocument(reqID, string(body))
+		if len(body) <= documentSizeLimit {
+			c.noteDocument(reqID, string(body))
+		}
 	})
 }
 
@@ -207,35 +259,27 @@ const documentSizeLimit = 2 << 20
 
 // claimBodyRead decides whether one finished request is worth reading as a document and claims it.
 func (c *collector) claimBodyRead(reqID network.RequestID, size float64) bool {
-	if reqID == "" || size > documentSizeLimit {
+	if reqID == "" || size < 0 || math.IsNaN(size) || size > documentSizeLimit {
 		return false
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, done := c.bodyRead[reqID]; done {
+	req := c.requests[reqID]
+	if req == nil || req.bodyRead {
 		return false
 	}
 	i := c.captureFor(reqID)
-	if i < 0 || c.captures[i].ladder != streaminfo.LadderUnknown {
+	if c.closed || i < 0 || !streaminfo.IsSegmented(c.captures[i].contentType) || c.captures[i].ladder != streaminfo.LadderUnknown {
 		return false
 	}
-	c.bodyRead[reqID] = struct{}{}
+	req.bodyRead = true
 	return true
-}
-
-// noteResponseURL records where one request ended.
-func (c *collector) noteResponseURL(id network.RequestID, u string) {
-	if id == "" || u == "" {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.responseURL[id] = u
 }
 
 // captureFor resolves the capture a finished request's body belongs to. Callers hold the lock.
 func (c *collector) captureFor(reqID network.RequestID) int {
-	if u := c.responseURL[reqID]; u != "" {
+	if req := c.requests[reqID]; req != nil && req.responseURL != "" {
+		u := req.responseURL
 		if i := c.index(u); i >= 0 {
 			return i
 		}
@@ -244,6 +288,9 @@ func (c *collector) captureFor(reqID network.RequestID) int {
 }
 
 func (c *collector) noteDocument(reqID network.RequestID, body string) {
+	if len(body) > documentSizeLimit {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	i := c.captureFor(reqID)
@@ -251,7 +298,11 @@ func (c *collector) noteDocument(reqID network.RequestID, body string) {
 		return
 	}
 	// The URL the body was fetched from, which is what its references resolve against.
-	base, err := url.Parse(cmp.Or(c.responseURL[reqID], c.captures[i].raw))
+	responseURL := ""
+	if req := c.requests[reqID]; req != nil {
+		responseURL = req.responseURL
+	}
+	base, err := url.Parse(cmp.Or(responseURL, c.captures[i].raw))
 	if err != nil {
 		return
 	}
@@ -259,7 +310,7 @@ func (c *collector) noteDocument(reqID network.RequestID, body string) {
 	c.captures[i].ladder = doc.Ladder
 	c.captures[i].runtime = doc.Runtime
 	for _, u := range doc.Names {
-		if name := u.String(); name != c.captures[i].raw {
+		if name := u.String(); name != c.captures[i].raw && len(c.named) < maxNamedResources {
 			c.named[name] = struct{}{}
 		}
 	}
@@ -300,6 +351,9 @@ func (c *collector) Wait(ctx context.Context) ([]*streaminfo.Stream, error) {
 		break
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if entries := c.entries(); len(entries) > 0 {
 		return entries, nil
 	}
@@ -309,21 +363,24 @@ func (c *collector) Wait(ctx context.Context) ([]*streaminfo.Stream, error) {
 func (c *collector) listen(ev any) {
 	switch e := ev.(type) {
 	case *network.EventRequestWillBeSent:
-		// Page-set headers only.
-		c.mergeHeaders(e.RequestID, toHTTPHeader(e.Request.Headers))
+		c.noteRequest(e)
 		c.addByURL(e.Request.URL, e.RequestID)
 
 	case *network.EventRequestWillBeSentExtraInfo:
 		// The real on-the-wire headers (Referer, Origin, Cookie, sec-ch-*).
-		c.mergeHeaders(e.RequestID, toHTTPHeader(e.Headers))
+		c.noteExtraHeaders(e.RequestID, toHTTPHeader(e.Headers))
 
 	case *network.EventResponseReceived:
-		c.noteResponseURL(e.RequestID, e.Response.URL)
 		c.addByMIME(e.Response.URL, e.RequestID, e.Response.MimeType)
+		c.noteResponse(e)
 
 	case *network.EventLoadingFinished:
 		// This event, and not responseReceived, is when a body read is worth attempting.
 		c.askForDocument(e.RequestID, e.EncodedDataLength)
+		c.forgetUncaptured(e.RequestID)
+
+	case *network.EventLoadingFailed:
+		c.forgetUncaptured(e.RequestID)
 
 	case *runtime.EventConsoleAPICalled:
 		for _, arg := range e.Args {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strings"
 
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
@@ -27,19 +28,18 @@ func navigateIframe(ctx context.Context) error {
 		err := chromedp.Run(iframeCtx,
 			chromedp.Poll(iframeSrcJS, &iframeSrc, chromedp.WithPollingTimeout(0)),
 			chromedp.Location(&parent),
-			chromedp.ActionFunc(func(ctx context.Context) error {
-				slog.DebugContext(ctx, "navigating to iframe", "src", iframeSrc, "depth", depth+1)
-				return openFrame(ctx, iframeSrc, parent)
-			}),
-			chromedp.WaitReady("body"),
 		)
 
 		if err != nil {
 			// No frame at all is a failure; none past the first is the leaf.
-			if depth == 0 {
+			if depth == 0 || ctx.Err() != nil || iframeCtx.Err() == nil {
 				return err
 			}
 			return nil
+		}
+		slog.DebugContext(ctx, "navigating to iframe", "src", iframeSrc, "depth", depth+1)
+		if err := openFrame(iframeCtx, iframeSrc, parent); err != nil {
+			return err
 		}
 	}
 
@@ -51,21 +51,24 @@ func openFrame(ctx context.Context, src, parent string) error {
 	if !webPage(src) {
 		return fmt.Errorf("frame %q is not a web page", src)
 	}
-	_, _, errorText, _, err := page.Navigate(src).
-		WithReferrer(parent).
-		WithReferrerPolicy(page.ReferrerPolicyStrictOriginWhenCrossOrigin).
-		Do(ctx)
-	if err != nil {
-		return err
-	}
-	if errorText != "" {
-		return fmt.Errorf("page load error %s", errorText)
-	}
-	return nil
+	_, err := chromedp.RunResponse(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		_, _, errorText, _, err := page.Navigate(src).
+			WithReferrer(parent).
+			WithReferrerPolicy(page.ReferrerPolicyStrictOriginWhenCrossOrigin).
+			Do(ctx)
+		if err != nil {
+			return err
+		}
+		if errorText != "" {
+			return fmt.Errorf("page load error %s", errorText)
+		}
+		return nil
+	}))
+	return err
 }
 
 // webPage is whether src is a page on the web, rather than script, data, a file or the browser's own.
 func webPage(src string) bool {
 	u, err := url.Parse(src)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https")
+	return err == nil && u.Hostname() != "" && u.Opaque == "" && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
 }

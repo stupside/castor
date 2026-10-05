@@ -23,7 +23,11 @@ jobs:
       - uses: ./.github/actions/setup
       # The real-encode tests need ffmpeg, which the runner image lacks; tested.sh fails on their skip.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - run: eval "$(make env)" && ./scripts/tested.sh
+      - run: |
+          eval "$(make env)"
+          CASTOR_TEST_CHROME="$(command -v google-chrome)"
+          export CASTOR_TEST_CHROME
+          ./scripts/tested.sh
 
   lint:
     runs-on: ubuntu-latest

@@ -246,3 +246,95 @@ func TestLateBrowserHeadersReachTheCaptureWithoutChangingEarlierSnapshots(t *tes
 		t.Errorf("caller changed stored browser headers: %q", got)
 	}
 }
+
+func TestRedirectHeadersBelongToTheirOwnHop(t *testing.T) {
+	for _, late := range []bool{false, true} {
+		t.Run(fmt.Sprintf("late-extra=%v", late), func(t *testing.T) {
+			c := testCollector(t)
+			const first, last = "https://site.example/master.m3u8", "https://cdn.example/master.m3u8"
+			c.listen(&network.EventRequestWillBeSent{RequestID: "r", Request: &network.Request{URL: first, Headers: network.Headers{"Referer": "https://site.example/watch"}}})
+			extra := &network.EventRequestWillBeSentExtraInfo{RequestID: "r", Headers: network.Headers{"Cookie": "site=secret", "Authorization": "Bearer site-token"}}
+			if !late {
+				c.listen(extra)
+			}
+			c.listen(&network.EventRequestWillBeSent{RequestID: "r", Request: &network.Request{URL: last, Headers: network.Headers{"Referer": "https://site.example/"}}, RedirectResponse: &network.Response{URL: first}, RedirectHasExtraInfo: true})
+			if late {
+				c.listen(extra)
+			}
+			c.listen(&network.EventRequestWillBeSentExtraInfo{RequestID: "r", Headers: network.Headers{"Cookie": "cdn=token"}})
+			c.listen(&network.EventResponseReceived{RequestID: "r", Response: &network.Response{URL: last, MimeType: streaminfo.HLS}, HasExtraInfo: true})
+			entries := c.entries()
+			if len(entries) != 2 {
+				t.Fatalf("captures: %v", entries)
+			}
+			if got := entries[0].Headers.Get("Cookie"); got != "site=secret" {
+				t.Errorf("first hop cookie = %q", got)
+			}
+			if got := entries[1].Headers.Get("Cookie"); got != "cdn=token" || entries[1].Headers.Get("Authorization") != "" {
+				t.Errorf("redirect leaked first-hop credentials: %v", entries[1].Headers)
+			}
+		})
+	}
+}
+
+func TestCanceledCollectionDoesNotReturnCapturedStreams(t *testing.T) {
+	c := testCollector(t)
+	c.addByURL("https://cdn.example/master.m3u8", "r")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if streams, err := c.Wait(ctx); !errors.Is(err, context.Canceled) || len(streams) != 0 {
+		t.Fatalf("canceled collection = %v, %v", streams, err)
+	}
+}
+
+func TestCollectorDoesNotReadVideoBodiesAsDocuments(t *testing.T) {
+	reads := 0
+	c := newCollector(t.Context(), func(network.RequestID) ([]byte, error) {
+		reads++
+		return []byte("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nother.m3u8\n"), nil
+	}, time.Second, time.Second, time.Second)
+	c.addByMIME("https://cdn.example/movie.mp4", "video", streaminfo.MP4)
+	c.askForDocument("video", 100)
+	c.close()
+	if reads != 0 || c.entries()[0].Ladder != streaminfo.LadderUnknown {
+		t.Fatalf("video interpreted as document: reads=%d, captures=%v", reads, c.entries())
+	}
+}
+
+func TestCollectorRejectsOversizedDecodedDocuments(t *testing.T) {
+	c := newCollector(t.Context(), func(network.RequestID) ([]byte, error) {
+		return []byte(masterDocument + strings.Repeat("#padding\n", documentSizeLimit/8)), nil
+	}, time.Second, time.Second, time.Second)
+	c.addByURL("https://cdn.example/master.m3u8", "r")
+	c.askForDocument("r", 100) // The wire size may be compressed.
+	c.close()
+	if c.entries()[0].Ladder != streaminfo.LadderUnknown {
+		t.Fatal("oversized decoded body was parsed")
+	}
+}
+
+func TestCollectorRetainsStreamHeadersAfterRequestFlood(t *testing.T) {
+	c := testCollector(t)
+	for i := range 2 * maxTrackedRequests {
+		c.listen(&network.EventRequestWillBeSent{RequestID: network.RequestID(fmt.Sprintf("noise-%d", i)), Request: &network.Request{URL: "https://site.example/telemetry", Headers: network.Headers{"X-Noise": "ignored"}}})
+	}
+	if len(c.requests) > maxTrackedRequests {
+		t.Fatalf("unbounded request bookkeeping: %d records", len(c.requests))
+	}
+	c.listen(&network.EventRequestWillBeSent{RequestID: "stream", Request: &network.Request{URL: "https://cdn.example/master.m3u8"}})
+	headers := network.Headers{"cookie": "viewer=token", "authorization": "Bearer stream-token", "referer": "https://site.example/watch", "If-None-Match": "old-cache", "Connection": "X-Hop", "X-Hop": "connection-private"}
+	for i := range 100 {
+		headers[fmt.Sprintf("A-Extra-%03d", i)] = "noise"
+	}
+	c.listen(&network.EventRequestWillBeSentExtraInfo{RequestID: "stream", Headers: headers})
+	entries := c.entries()
+	if len(entries) != 1 || entries[0].Headers.Get("Cookie") != "viewer=token" {
+		t.Fatalf("noise prevented stream replay: %v", entries)
+	}
+	if entries[0].Headers.Get("Authorization") != "Bearer stream-token" || entries[0].Headers.Get("Referer") != "https://site.example/watch" {
+		t.Fatalf("header limits discarded playback credentials: %v", entries[0].Headers)
+	}
+	if entries[0].Headers.Get("If-None-Match") != "" || entries[0].Headers.Get("X-Hop") != "" {
+		t.Fatalf("replay carries cache/connection headers: %v", entries[0].Headers)
+	}
+}

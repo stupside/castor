@@ -14,11 +14,29 @@ import (
 )
 
 // Extractor opens pages in a browser and captures the streams they fetch.
-type Extractor struct{ cfg Config }
+type Extractor struct {
+	cfg   Config
+	slots chan struct{}
+}
 
-func New(cfg Config) *Extractor { return &Extractor{cfg: cfg} }
+func New(cfg Config) *Extractor {
+	cfg.Capture.MaxConcurrency = max(1, cfg.Capture.MaxConcurrency)
+	return &Extractor{cfg: cfg, slots: make(chan struct{}, cfg.Capture.MaxConcurrency)}
+}
 
 func (e *Extractor) extract(ctx context.Context, targetURL string) ([]*streaminfo.Stream, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !webPage(targetURL) {
+		return nil, fmt.Errorf("target %q is not a web page", targetURL)
+	}
+	select {
+	case e.slots <- struct{}{}:
+		defer func() { <-e.slots }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	ctx, cancel := context.WithTimeout(ctx, pageBudget)
 	defer cancel()
 
@@ -49,6 +67,9 @@ func (e *Extractor) ExtractAll(ctx context.Context, urls []string) ([]*streaminf
 	var g errgroup.Group
 	g.SetLimit(e.cfg.Capture.MaxConcurrency)
 	for i, targetURL := range urls {
+		if ctx.Err() != nil {
+			break
+		}
 		g.Go(func() error {
 			slog.DebugContext(ctx, "extracting", "url", targetURL, "index", i+1, "total", len(urls))
 			streams, err := e.extract(ctx, targetURL)
@@ -63,10 +84,16 @@ func (e *Extractor) ExtractAll(ctx context.Context, urls []string) ([]*streaminf
 		})
 	}
 	_ = g.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	deduped := deduplicate(slices.Concat(results...))
 	if len(deduped) == 0 {
-		return nil, fmt.Errorf("no stream extracted from %d URL(s): %w", len(urls), errors.Join(failures...))
+		if err := errors.Join(failures...); err != nil {
+			return nil, fmt.Errorf("no stream extracted from %d URL(s): %w", len(urls), err)
+		}
+		return nil, fmt.Errorf("no stream extracted from %d URL(s)", len(urls))
 	}
 	slog.InfoContext(ctx, "extraction complete", "urls", len(urls), "streams", len(deduped))
 	return deduped, nil

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/chromedp/chromedp"
 )
@@ -36,10 +37,15 @@ func detectTurnstile(ctx context.Context) bool {
 func solveTurnstile(ctx context.Context) bool {
 	tCtx, cancel := context.WithTimeout(ctx, bypassTurnstileTimeout)
 	defer cancel()
+	var workers sync.WaitGroup
+	defer func() {
+		cancel()
+		workers.Wait()
+	}()
 
 	ch := make(chan struct{}, 2)
 
-	go func() {
+	workers.Go(func() {
 		var pos struct {
 			X float64 `json:"x"`
 			Y float64 `json:"y"`
@@ -61,10 +67,10 @@ func solveTurnstile(ctx context.Context) bool {
 			return
 		}
 		ch <- struct{}{}
-	}()
+	})
 
 	// Passive: handles auto-solve token fill and the cftCallback page reload.
-	go func() {
+	workers.Go(func() {
 		var gone bool
 		if err := chromedp.Run(tCtx,
 			chromedp.Poll(turnstileGoneJS, &gone, chromedp.WithPollingTimeout(0)),
@@ -74,7 +80,7 @@ func solveTurnstile(ctx context.Context) bool {
 			return
 		}
 		ch <- struct{}{}
-	}()
+	})
 
 	select {
 	case <-ch:

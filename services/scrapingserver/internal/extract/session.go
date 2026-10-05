@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/cdp"
@@ -39,7 +38,14 @@ func newSession(ctx context.Context, cfg BrowserConfig, targetURL string) (*sess
 		allocCancel: allocCancel,
 		centerX:     float64(width) / 2,
 		centerY:     float64(height) / 2,
-		snapshotDir: filepath.Join(os.TempDir(), "castor-debug", sanitize(targetURL)),
+	}
+	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		// Never write page tokens through a path a different user can pre-create.
+		if dir, err := os.MkdirTemp("", "castor-debug-"); err == nil {
+			s.snapshotDir = dir
+		} else {
+			slog.DebugContext(ctx, "snapshot directory unavailable", "error", err)
+		}
 	}
 	s.collector = newCollector(ctx, s.readBody, graceAfterActions, collectionWindow, preRollWindow)
 	chromedp.ListenTarget(taskCtx, s.collector.listen)
@@ -131,6 +137,10 @@ func (s *session) runActions() {
 
 	ran := len(actions)
 	for i, a := range actions {
+		if s.ctx.Err() != nil {
+			ran = i
+			break
+		}
 		// A master playlist is what the page was driven for, so nothing further is asked of it.
 		if s.collector.hasMaster() {
 			ran = i

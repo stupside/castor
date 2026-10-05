@@ -9,7 +9,7 @@ type Config struct {
 }
 
 type BrowserConfig struct {
-	Timeout    time.Duration `yaml:"timeout" validate:"required"`
+	Timeout    time.Duration `yaml:"timeout" validate:"required,gt=0"`
 	Headless   bool          `yaml:"headless"`
 	NoSandbox  bool          `yaml:"no_sandbox"`
 	ChromePath string        `yaml:"chrome_path"`
