@@ -57,6 +57,9 @@ func (f *feed) answer(ctx context.Context, w http.ResponseWriter, kind string, s
 		slog.WarnContext(ctx, "castor could not "+verb+" a segment", "input", f.name, "uri", s.URI, "error", err)
 		if !out.started {
 			failed(w, err)
+		} else {
+			// The status is already committed; abort the response so a reader sees truncation and retries.
+			panic(http.ErrAbortHandler)
 		}
 	}
 }

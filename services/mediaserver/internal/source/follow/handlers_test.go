@@ -1,10 +1,13 @@
 package follow
 
 import (
+	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/stupside/castor/services/mediaserver/internal/source/timeline"
 )
@@ -37,6 +40,28 @@ func TestABodyThatBreaksBeforeItsFirstByteIsABadGateway(t *testing.T) {
 	fetch(t, server.URL("primary").String())
 	if got, _ := fetch(t, server.base.JoinPath("primary", "1").String()); got != http.StatusBadGateway {
 		t.Errorf("a segment whose body broke before any byte answered %d, want 502", got)
+	}
+}
+
+type truncatedSegment struct{ *stored }
+
+func (s truncatedSegment) Read(ctx context.Context, uri string, r timeline.Range) (io.ReadCloser, error) {
+	if strings.HasSuffix(uri, ".m4s") {
+		return io.NopCloser(io.MultiReader(strings.NewReader("partial fragment"), iotest.ErrReader(io.ErrUnexpectedEOF))), nil
+	}
+	return s.stored.Read(ctx, uri, r)
+}
+
+func TestABodyThatBreaksAfterItsFirstByteDoesNotSucceedAsAPartialSegment(t *testing.T) {
+	server := serving(t, truncatedSegment{fragmented("av01")}, nil)
+	fetch(t, server.URL("primary").String())
+	resp, err := http.Get(server.base.JoinPath("primary", "1").String())
+	if err == nil {
+		defer resp.Body.Close()
+		_, err = io.ReadAll(resp.Body)
+	}
+	if err == nil {
+		t.Fatal("a truncated fragment was answered as a complete HTTP response")
 	}
 }
 

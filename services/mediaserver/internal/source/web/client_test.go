@@ -1,6 +1,7 @@
 package web
 
 import (
+	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/source/sourcetest"
+	"github.com/stupside/castor/services/mediaserver/internal/source/timeline"
 )
 
 func TestFetchReportsWhatTheOriginSaid(t *testing.T) {
@@ -91,5 +93,46 @@ func TestAReplayCarriesTheSessionCookieOverThePagesCopy(t *testing.T) {
 	}
 	if page.Get("Cookie") != "consent=yes; token=stale" {
 		t.Error("Replay changed the headers it was handed")
+	}
+}
+
+func TestReplayPreservesCookiesFromEveryCapturedHeader(t *testing.T) {
+	client := New(time.Second).(*client)
+	u := sourcetest.URL(t, "https://origin.example/film.m3u8")
+	client.http.Jar.SetCookies(u, []*http.Cookie{{Name: "token", Value: "fresh", Path: "/"}})
+	got := client.Replay(u, http.Header{"Cookie": {"token=stale", "consent=yes"}})
+	if got.Get("Cookie") != "consent=yes; token=fresh" {
+		t.Errorf("Cookie = %q, want both the captured consent and refreshed token", got.Get("Cookie"))
+	}
+}
+
+func TestMediaRangeRejectsBytesFromADifferentOffset(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Range", "bytes 0-3/8")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte("init"))
+	}))
+	t.Cleanup(origin.Close)
+	body, err := New(time.Second).Read(t.Context(), sourcetest.URL(t, origin.URL), nil, timeline.Range{Offset: 4, Length: 4})
+	if body != nil {
+		_ = body.Close()
+	}
+	if err == nil {
+		t.Fatal("read init bytes as the requested media fragment at offset 4")
+	}
+}
+
+func TestAnOriginIgnoringRangeMustStillDeliverTheWholeRequestedFragment(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("initshort"))
+	}))
+	t.Cleanup(origin.Close)
+	body, err := New(time.Second).Read(t.Context(), sourcetest.URL(t, origin.URL), nil, timeline.Range{Offset: 4, Length: 8})
+	if err == nil {
+		defer body.Close()
+		_, err = io.ReadAll(body)
+	}
+	if err == nil {
+		t.Fatal("a five-byte response succeeded as the requested eight-byte fragment")
 	}
 }
