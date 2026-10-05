@@ -9,12 +9,11 @@ import (
 	"strings"
 
 	"github.com/chromedp/cdproto/network"
-	"github.com/stupside/castor/services/scrapingserver/internal/streaminfo"
 	"golang.org/x/net/http/httpguts"
 )
 
 // replayable is a copy of headers the browser sent, ready for another reader to send.
-func replayable(h http.Header) http.Header {
+func replayable(h http.Header) map[string]string {
 	out := h.Clone()
 	if out == nil {
 		return nil
@@ -39,10 +38,14 @@ func replayable(h http.Header) http.Header {
 	// more headers than the stream contract can carry.
 	keys := slices.Sorted(maps.Keys(out))
 	keys = append([]string{"Cookie", "Authorization", "Referer", "Origin", "User-Agent", "Accept"}, keys...)
-	bounded := make(http.Header)
+	bounded := make(map[string]string)
 	for _, key := range keys {
 		if values := out.Values(key); len(values) > 0 && strings.Join(values, "") != "" && len(bounded) < 64 {
-			bounded[key] = values
+			separator := ", "
+			if strings.EqualFold(key, "Cookie") {
+				separator = "; "
+			}
+			bounded[key] = strings.Join(values, separator)
 		}
 	}
 	return bounded
@@ -92,7 +95,7 @@ func (c *collector) noteRequest(e *network.EventRequestWillBeSent) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	u, _ := url.Parse(e.Request.URL)
-	req := c.request(e.RequestID, streaminfo.IsSegmented(streaminfo.ContentTypeOf(u, "")))
+	req := c.request(e.RequestID, segmented(contentTypeOf(u, "")))
 	if req == nil {
 		return
 	}

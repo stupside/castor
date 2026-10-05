@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/stupside/castor/services/scrapingserver/internal/streaminfo"
+	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
 
 // Extractor opens pages in a browser and captures the streams they fetch.
@@ -24,7 +24,7 @@ func New(cfg Config) *Extractor {
 	return &Extractor{cfg: cfg, slots: make(chan struct{}, cfg.Capture.MaxConcurrency)}
 }
 
-func (e *Extractor) extract(ctx context.Context, targetURL string) ([]*streaminfo.Stream, error) {
+func (e *Extractor) extract(ctx context.Context, targetURL string) ([]*castorv1.StreamCandidate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -58,11 +58,11 @@ func (e *Extractor) extract(ctx context.Context, targetURL string) ([]*streaminf
 	return streams, nil
 }
 
-// ExtractAll extracts every url at once, within the parallelism the config allows.
-func (e *Extractor) ExtractAll(ctx context.Context, urls []string) ([]*streaminfo.Stream, error) {
+// Resolve captures unranked candidates from pages within the browser concurrency budget.
+func (e *Extractor) Resolve(ctx context.Context, urls []string) ([]*castorv1.StreamCandidate, error) {
 	slog.InfoContext(ctx, "extracting streams", "urls", len(urls))
 
-	results := make([][]*streaminfo.Stream, len(urls))
+	results := make([][]*castorv1.StreamCandidate, len(urls))
 	failures := make([]error, len(urls))
 	var g errgroup.Group
 	g.SetLimit(e.cfg.Capture.MaxConcurrency)
@@ -99,10 +99,10 @@ func (e *Extractor) ExtractAll(ctx context.Context, urls []string) ([]*streaminf
 	return deduped, nil
 }
 
-func deduplicate(streams []*streaminfo.Stream) []*streaminfo.Stream {
+func deduplicate(streams []*castorv1.StreamCandidate) []*castorv1.StreamCandidate {
 	seen := make(map[string]struct{}, len(streams))
-	return slices.DeleteFunc(slices.Clone(streams), func(s *streaminfo.Stream) bool {
-		key := s.URL.String()
+	return slices.DeleteFunc(slices.Clone(streams), func(s *castorv1.StreamCandidate) bool {
+		key := s.GetStream().GetUrl()
 		if _, ok := seen[key]; ok {
 			return true
 		}

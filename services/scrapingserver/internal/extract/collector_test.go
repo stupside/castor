@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -14,7 +13,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 
-	"github.com/stupside/castor/services/scrapingserver/internal/streaminfo"
+	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
 
 // testCollector reads bodies only through noteDocument; the browser hands over none.
@@ -24,10 +23,10 @@ func testCollector(t *testing.T) *collector {
 	return newCollector(t.Context(), unreadable, time.Second, time.Second, time.Second)
 }
 
-func urls(entries []*streaminfo.Stream) []string {
+func urls(entries []*castorv1.StreamCandidate) []string {
 	out := make([]string, len(entries))
 	for i, e := range entries {
-		out[i] = e.URL.String()
+		out[i] = e.GetStream().GetUrl()
 	}
 	return out
 }
@@ -81,13 +80,13 @@ func TestCapturesKeepTheOrderTheyWereFoundIn(t *testing.T) {
 	if got := urls(entries); !slices.Equal(got, want) {
 		t.Fatalf("entries = %v, want capture order %v", got, want)
 	}
-	for i, ladder := range []streaminfo.Ladder{streaminfo.LadderSole, streaminfo.LadderMultivariant, streaminfo.LadderUnknown, streaminfo.LadderUnknown} {
+	for i, ladder := range []castorv1.Ladder{castorv1.Ladder_LADDER_SOLE, castorv1.Ladder_LADDER_MULTIVARIANT, castorv1.Ladder_LADDER_UNSPECIFIED, castorv1.Ladder_LADDER_UNSPECIFIED} {
 		if entries[i].Ladder != ladder {
-			t.Errorf("%s ladder = %v, want %v", entries[i].URL, entries[i].Ladder, ladder)
+			t.Errorf("%s ladder = %v, want %v", entries[i].GetStream().GetUrl(), entries[i].Ladder, ladder)
 		}
 	}
-	if entries[3].ContentType != streaminfo.DASH {
-		t.Errorf("%s content type = %q, want the one its MIME type confirmed", entries[3].URL, entries[3].ContentType)
+	if entries[3].GetStream().GetContentType() != dashMIME {
+		t.Errorf("%s content type = %q, want the one its MIME type confirmed", entries[3].GetStream().GetUrl(), entries[3].GetStream().GetContentType())
 	}
 }
 
@@ -123,7 +122,7 @@ func TestARedirectedDocumentIsReadWhereItLanded(t *testing.T) {
 	if got := urls(entries); !slices.Equal(got, []string{asked, landed}) {
 		t.Fatalf("entries = %v, want both hops and not the variant the landed master names", got)
 	}
-	if entries[1].Ladder != streaminfo.LadderMultivariant || entries[0].Ladder != streaminfo.LadderUnknown {
+	if entries[1].Ladder != castorv1.Ladder_LADDER_MULTIVARIANT || entries[0].Ladder != castorv1.Ladder_LADDER_UNSPECIFIED {
 		t.Errorf("ladders = %v on %s, %v on %s, want the master on %s", entries[0].Ladder, asked, entries[1].Ladder, landed, landed)
 	}
 }
@@ -147,8 +146,8 @@ func TestAnUntypedResponseIsTypedByItsName(t *testing.T) {
 		raw, mime string
 		want      string
 	}{
-		{"https://bucket.example/movie.mp4", "binary/octet-stream", streaminfo.MP4},
-		{"https://bucket.example/movie.mp4", "application/octet-stream", streaminfo.MP4},
+		{"https://bucket.example/movie.mp4", "binary/octet-stream", mp4MIME},
+		{"https://bucket.example/movie.mp4", "application/octet-stream", mp4MIME},
 		{"https://bucket.example/blob/abc", "application/octet-stream", ""},
 		{"https://cdn.example/poster.mp4", "image/jpeg", ""},
 	} {
@@ -156,7 +155,7 @@ func TestAnUntypedResponseIsTypedByItsName(t *testing.T) {
 		c.addByMIME(tc.raw, "req-1", tc.mime)
 		var got string
 		if entries := c.entries(); len(entries) > 0 {
-			got = entries[0].ContentType
+			got = entries[0].GetStream().GetContentType()
 		}
 		if got != tc.want {
 			t.Errorf("%s served as %s captured as %q, want %q", tc.raw, tc.mime, got, tc.want)
@@ -231,18 +230,18 @@ func TestLateBrowserHeadersReachTheCaptureWithoutChangingEarlierSnapshots(t *tes
 	if len(before) != 1 || len(after) != 1 {
 		t.Fatalf("console/request capture was duplicated: %d before, %d after", len(before), len(after))
 	}
-	want := http.Header{
-		"Referer": {"https://site.example/watch"}, "Origin": {"https://embed.example"},
-		"Cookie": {"viewer=secret; session=token"}, "X-Player": {"second"},
+	want := map[string]string{
+		"Referer": "https://site.example/watch", "Origin": "https://embed.example",
+		"Cookie": "viewer=secret; session=token", "X-Player": "second",
 	}
-	if !maps.EqualFunc(after[0].Headers, want, slices.Equal) {
-		t.Errorf("late replay headers: %v, want %v", after[0].Headers, want)
+	if !maps.Equal(after[0].Stream.Headers, want) {
+		t.Errorf("late replay headers: %v, want %v", after[0].Stream.Headers, want)
 	}
-	if before[0].Headers.Get("X-Player") != "first" || before[0].Headers.Get("Cookie") != "" || before[0].Headers.Get("Origin") != "https://site.example" {
-		t.Errorf("earlier capture snapshot changed: %v", before[0].Headers)
+	if before[0].GetStream().GetHeaders()["X-Player"] != "first" || before[0].GetStream().GetHeaders()["Cookie"] != "" || before[0].GetStream().GetHeaders()["Origin"] != "https://site.example" {
+		t.Errorf("earlier capture snapshot changed: %v", before[0].Stream.Headers)
 	}
-	after[0].Headers.Set("Cookie", "changed")
-	if got := c.entries()[0].Headers.Get("Cookie"); got != "viewer=secret; session=token" {
+	after[0].Stream.Headers["Cookie"] = "changed"
+	if got := c.entries()[0].GetStream().GetHeaders()["Cookie"]; got != "viewer=secret; session=token" {
 		t.Errorf("caller changed stored browser headers: %q", got)
 	}
 }
@@ -262,16 +261,16 @@ func TestRedirectHeadersBelongToTheirOwnHop(t *testing.T) {
 				c.listen(extra)
 			}
 			c.listen(&network.EventRequestWillBeSentExtraInfo{RequestID: "r", Headers: network.Headers{"Cookie": "cdn=token"}})
-			c.listen(&network.EventResponseReceived{RequestID: "r", Response: &network.Response{URL: last, MimeType: streaminfo.HLS}, HasExtraInfo: true})
+			c.listen(&network.EventResponseReceived{RequestID: "r", Response: &network.Response{URL: last, MimeType: hlsMIME}, HasExtraInfo: true})
 			entries := c.entries()
 			if len(entries) != 2 {
 				t.Fatalf("captures: %v", entries)
 			}
-			if got := entries[0].Headers.Get("Cookie"); got != "site=secret" {
+			if got := entries[0].GetStream().GetHeaders()["Cookie"]; got != "site=secret" {
 				t.Errorf("first hop cookie = %q", got)
 			}
-			if got := entries[1].Headers.Get("Cookie"); got != "cdn=token" || entries[1].Headers.Get("Authorization") != "" {
-				t.Errorf("redirect leaked first-hop credentials: %v", entries[1].Headers)
+			if got := entries[1].GetStream().GetHeaders()["Cookie"]; got != "cdn=token" || entries[1].GetStream().GetHeaders()["Authorization"] != "" {
+				t.Errorf("redirect leaked first-hop credentials: %v", entries[1].GetStream().GetHeaders())
 			}
 		})
 	}
@@ -293,10 +292,10 @@ func TestCollectorDoesNotReadVideoBodiesAsDocuments(t *testing.T) {
 		reads++
 		return []byte("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nother.m3u8\n"), nil
 	}, time.Second, time.Second, time.Second)
-	c.addByMIME("https://cdn.example/movie.mp4", "video", streaminfo.MP4)
+	c.addByMIME("https://cdn.example/movie.mp4", "video", mp4MIME)
 	c.askForDocument("video", 100)
 	c.close()
-	if reads != 0 || c.entries()[0].Ladder != streaminfo.LadderUnknown {
+	if reads != 0 || c.entries()[0].Ladder != castorv1.Ladder_LADDER_UNSPECIFIED {
 		t.Fatalf("video interpreted as document: reads=%d, captures=%v", reads, c.entries())
 	}
 }
@@ -308,7 +307,7 @@ func TestCollectorRejectsOversizedDecodedDocuments(t *testing.T) {
 	c.addByURL("https://cdn.example/master.m3u8", "r")
 	c.askForDocument("r", 100) // The wire size may be compressed.
 	c.close()
-	if c.entries()[0].Ladder != streaminfo.LadderUnknown {
+	if c.entries()[0].Ladder != castorv1.Ladder_LADDER_UNSPECIFIED {
 		t.Fatal("oversized decoded body was parsed")
 	}
 }
@@ -328,13 +327,13 @@ func TestCollectorRetainsStreamHeadersAfterRequestFlood(t *testing.T) {
 	}
 	c.listen(&network.EventRequestWillBeSentExtraInfo{RequestID: "stream", Headers: headers})
 	entries := c.entries()
-	if len(entries) != 1 || entries[0].Headers.Get("Cookie") != "viewer=token" {
+	if len(entries) != 1 || entries[0].GetStream().GetHeaders()["Cookie"] != "viewer=token" {
 		t.Fatalf("noise prevented stream replay: %v", entries)
 	}
-	if entries[0].Headers.Get("Authorization") != "Bearer stream-token" || entries[0].Headers.Get("Referer") != "https://site.example/watch" {
-		t.Fatalf("header limits discarded playback credentials: %v", entries[0].Headers)
+	if entries[0].GetStream().GetHeaders()["Authorization"] != "Bearer stream-token" || entries[0].GetStream().GetHeaders()["Referer"] != "https://site.example/watch" {
+		t.Fatalf("header limits discarded playback credentials: %v", entries[0].Stream.Headers)
 	}
-	if entries[0].Headers.Get("If-None-Match") != "" || entries[0].Headers.Get("X-Hop") != "" {
-		t.Fatalf("replay carries cache/connection headers: %v", entries[0].Headers)
+	if entries[0].GetStream().GetHeaders()["If-None-Match"] != "" || entries[0].GetStream().GetHeaders()["X-Hop"] != "" {
+		t.Fatalf("replay carries cache/connection headers: %v", entries[0].Stream.Headers)
 	}
 }

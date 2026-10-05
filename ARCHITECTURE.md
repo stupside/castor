@@ -27,7 +27,7 @@ The webpage and media origin are distinct: `watch.example` may load video from `
 | Scraping | Chrome, frames, capture-document parsing; `browser`, `capture` | Devices, probing, ranking, playback |
 | Media | Probing, ranking, recovery, ffmpeg, subtitles, `/media`; `resolver`, `transcode`, `whisper` | Webpages or device control |
 
-Scraping returns unranked candidates with URLs, replay headers, MIME types, source pages, and manifest evidence. API translates public sources into media's page-free `Source`. A direct stream is explicitly chosen and only measured; a candidate list is ranked, with alternatives retained for recovery. Candidates are alternative URLs, not video chunks; one HLS/DASH URL can contain quality variants.
+Scraping emits generated `StreamCandidate` contracts directly, with URLs, replay headers, MIME types, source pages, and manifest evidence. Its private HLS/DASH document inspection identifies referenced resources and pre-rolls from responses Chrome already fetched. API translates public sources into media's page-free `Source`. A direct stream is explicitly chosen and only measured; a candidate list is ranked, with alternatives retained for recovery. Candidates are alternative URLs, not video chunks; one HLS/DASH URL can contain quality variants.
 
 ## Topologies
 

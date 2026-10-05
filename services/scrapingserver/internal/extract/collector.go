@@ -18,7 +18,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 
-	"github.com/stupside/castor/services/scrapingserver/internal/streaminfo"
+	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
 
 // urlInText finds the absolute links a page player prints to its console.
@@ -30,10 +30,9 @@ type bodyReader func(network.RequestID) ([]byte, error)
 // capture is one link the page fetched that may be a stream, and what its body said once read.
 type capture struct {
 	raw         string
-	url         *url.URL
 	reqID       network.RequestID
 	contentType string
-	ladder      streaminfo.Ladder
+	ladder      castorv1.Ladder
 	runtime     time.Duration
 	hop         *requestHop
 }
@@ -106,8 +105,8 @@ func (c *collector) addByURL(raw string, reqID network.RequestID) {
 	if err != nil {
 		return
 	}
-	if ct := streaminfo.ContentTypeOf(u, ""); streaminfo.IsSegmented(ct) {
-		c.add(raw, u, reqID, ct)
+	if ct := contentTypeOf(u, ""); segmented(ct) {
+		c.add(raw, reqID, ct)
 	}
 }
 
@@ -120,19 +119,19 @@ func (c *collector) addByMIME(raw string, reqID network.RequestID, mime string) 
 		return
 	}
 	untyped := slices.Contains(untypedMIMETypes, strings.ToLower(mime))
-	if !untyped && streaminfo.ContentTypeOf(nil, mime) == "" {
+	if !untyped && contentTypeOf(nil, mime) == "" {
 		return
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
 		return
 	}
-	if ct := streaminfo.ContentTypeOf(u, mime); ct != "" {
-		c.add(raw, u, reqID, ct)
+	if ct := contentTypeOf(u, mime); ct != "" {
+		c.add(raw, reqID, ct)
 	}
 }
 
-func (c *collector) add(raw string, u *url.URL, reqID network.RequestID, contentType string) {
+func (c *collector) add(raw string, reqID network.RequestID, contentType string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -163,7 +162,7 @@ func (c *collector) add(raw string, u *url.URL, reqID network.RequestID, content
 	}
 
 	slog.InfoContext(c.ctx, "captured stream", "url", raw, "content_type", contentType)
-	c.captures = append(c.captures, capture{raw: raw, url: u, reqID: reqID, contentType: contentType, hop: hop})
+	c.captures = append(c.captures, capture{raw: raw, reqID: reqID, contentType: contentType, hop: hop})
 	close(c.added)
 	c.added = make(chan struct{})
 }
@@ -173,21 +172,19 @@ func (c *collector) index(raw string) int {
 }
 
 // entries is every capture in the order it was made, less those another capture's document names.
-func (c *collector) entries() []*streaminfo.Stream {
+func (c *collector) entries() []*castorv1.StreamCandidate {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var out []*streaminfo.Stream
+	var out []*castorv1.StreamCandidate
 	for _, cp := range c.captures {
 		if _, part := c.named[cp.raw]; part {
 			continue
 		}
-		out = append(out, &streaminfo.Stream{
-			URL: cp.url,
-			// Normalized under the lock: the listener keeps merging into this map while the caller reads it.
-			Headers:     replayable(hopHeaders(cp.hop)),
-			ContentType: cp.contentType,
-			Ladder:      cp.ladder,
+		out = append(out, &castorv1.StreamCandidate{
+			// The listener keeps merging headers while callers read earlier snapshots.
+			Stream: &castorv1.Stream{Url: cp.raw, Headers: replayable(hopHeaders(cp.hop)), ContentType: cp.contentType},
+			Ladder: cp.ladder,
 		})
 	}
 	return out
@@ -204,7 +201,7 @@ func (c *collector) hasHits() bool {
 func (c *collector) progress() (hits, onlyAds bool, next <-chan struct{}) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	onlyAds = !slices.ContainsFunc(c.captures, func(cp capture) bool { return !streaminfo.ShorterThanContent(cp.runtime) })
+	onlyAds = !slices.ContainsFunc(c.captures, func(cp capture) bool { return cp.runtime <= 0 || cp.runtime >= 5*time.Minute })
 	return len(c.captures) > 0, onlyAds, c.added
 }
 
@@ -212,7 +209,7 @@ func (c *collector) progress() (hits, onlyAds bool, next <-chan struct{}) {
 func (c *collector) hasMaster() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return slices.ContainsFunc(c.captures, func(cp capture) bool { return cp.ladder == streaminfo.LadderMultivariant })
+	return slices.ContainsFunc(c.captures, func(cp capture) bool { return cp.ladder == castorv1.Ladder_LADDER_MULTIVARIANT })
 }
 
 // askForDocument reads a finished response as a document, once, on a read the collector joins on close.
@@ -269,7 +266,7 @@ func (c *collector) claimBodyRead(reqID network.RequestID, size float64) bool {
 		return false
 	}
 	i := c.captureFor(reqID)
-	if c.closed || i < 0 || !streaminfo.IsSegmented(c.captures[i].contentType) || c.captures[i].ladder != streaminfo.LadderUnknown {
+	if c.closed || i < 0 || !segmented(c.captures[i].contentType) || c.captures[i].ladder != castorv1.Ladder_LADDER_UNSPECIFIED {
 		return false
 	}
 	req.bodyRead = true
@@ -306,22 +303,22 @@ func (c *collector) noteDocument(reqID network.RequestID, body string) {
 	if err != nil {
 		return
 	}
-	doc := streaminfo.ParseDocument(body, base)
-	c.captures[i].ladder = doc.Ladder
-	c.captures[i].runtime = doc.Runtime
-	for _, u := range doc.Names {
+	doc := inspectDocument(body, base)
+	c.captures[i].ladder = doc.ladder
+	c.captures[i].runtime = doc.runtime
+	for _, u := range doc.references {
 		if name := u.String(); name != c.captures[i].raw && len(c.named) < maxNamedResources {
 			c.named[name] = struct{}{}
 		}
 	}
-	if doc.Ladder == streaminfo.LadderMultivariant {
+	if doc.ladder == castorv1.Ladder_LADDER_MULTIVARIANT {
 		closeOnce(c.mastered)
 	}
-	slog.InfoContext(c.ctx, "read captured document", "url", c.captures[i].raw, "renditions", doc.Ladder, "names", len(doc.Names), "runtime", doc.Runtime)
+	slog.InfoContext(c.ctx, "read captured document", "url", c.captures[i].raw, "renditions", doc.ladder, "names", len(doc.references), "runtime", doc.runtime)
 }
 
 // Wait gives the page its grace, then a window per capture to fetch a master, and while it holds only ads, its pre-roll.
-func (c *collector) Wait(ctx context.Context) ([]*streaminfo.Stream, error) {
+func (c *collector) Wait(ctx context.Context) ([]*castorv1.StreamCandidate, error) {
 	preRoll := time.After(c.preRoll)
 	if hits, _, next := c.progress(); !hits {
 		select {
