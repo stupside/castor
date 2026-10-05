@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/urfave/cli/v3"
 
@@ -78,7 +77,7 @@ func urlCommand(local Local) *cli.Command {
 	return &cli.Command{
 		Name:      "url",
 		Usage:     "Cast a direct video URL",
-		Arguments: []cli.Argument{&cli.StringArg{Name: "url", Destination: &link}},
+		Arguments: []cli.Argument{&cli.StringArg{Name: "url", Destination: &link, Required: true}},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			// A stream as is ranks to itself, so a dry run needs neither config nor servers.
 			if cmd.Bool(dryRunFlag) {
@@ -99,7 +98,7 @@ func pagesCommand(local Local, name, usage, arg string, flags []cli.Flag, pagesO
 		Name:      name,
 		Usage:     usage,
 		Flags:     flags,
-		Arguments: []cli.Argument{&cli.StringArg{Name: arg, Destination: &value}},
+		Arguments: []cli.Argument{&cli.StringArg{Name: arg, Destination: &value, Required: true}},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return castSource(ctx, cmd, local, func(cfg *Config) *castorv1.Source { return pages(pagesOf(cfg, value, cmd)) })
 		},
@@ -137,13 +136,14 @@ func scanCommand(local Local) *cli.Command {
 		Name:  "scan",
 		Usage: "List all devices on the local network",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			// Scanning is how a config's device is found, so it runs without a valid one.
-			cfg, err := settings.Load(cmd, Config{})
+			// Scanning needs only the API endpoint; a device is what it discovers.
+			cfg, err := settings.Load(cmd, struct {
+				API apiConfig `yaml:"api"`
+			}{})
 			if err != nil {
-				slog.DebugContext(ctx, "scanning without config", "error", err)
-				cfg = &Config{}
+				return err
 			}
-			api, _, release, err := dial(ctx, cmd, cfg, local)
+			api, _, release, err := dial(ctx, cmd, &Config{API: cfg.API}, local)
 			if err != nil {
 				return err
 			}
