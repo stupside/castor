@@ -5,7 +5,7 @@ import { describe } from "@/lib/errors";
 import { casts } from "@/lib/server";
 import { preferences, source } from "./request";
 
-export type FormState = { error?: string };
+export type FormState = { error?: string; deviceId?: string; kind?: string; url?: string };
 
 export async function submitAction(_: FormState, f: FormData): Promise<FormState> {
   let castId: string;
@@ -16,7 +16,7 @@ export async function submitAction(_: FormState, f: FormData): Promise<FormState
       preferences: preferences(f),
     }));
   } catch (e) {
-    return { error: describe(e) };
+    return { error: describe(e), deviceId: String(f.get("deviceId") ?? ""), kind: String(f.get("kind") ?? ""), url: String(f.get("url") ?? "") };
   }
-  redirect(`/casts/${castId}`);
+  redirect(`/casts/${encodeURIComponent(castId)}`);
 }
