@@ -54,11 +54,24 @@ type Service struct {
 func New(defaults *mediav1.PlaybackSettings, devices Devices, media *mediaclient.Client, scraping Resolver) *Service {
 	// Casts outlive the request that started them, and end only once the server shuts down.
 	running, shut := context.WithCancelCause(context.Background())
-	return &Service{ctx: running, shut: shut, media: media, scraping: scraping, defaults: defaults, devices: devices, casts: registry.New[*cast](linger)}
+	return &Service{ctx: running, shut: shut, media: media, scraping: scraping, defaults: proto.CloneOf(defaults), devices: devices, casts: registry.New[*cast](linger)}
 }
 
 func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv1.CastResponse, error) {
-	target, err := s.devices.Target(ctx, req.GetTarget())
+	if s.ctx.Err() != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
+	}
+	finding, cancel := context.WithCancel(ctx)
+	stopFinding := context.AfterFunc(s.ctx, cancel)
+	defer stopFinding()
+	defer cancel()
+	target, err := s.devices.Target(finding, req.GetTarget())
+	if s.ctx.Err() != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +182,7 @@ func (s *Service) ListCasts(context.Context, *castorv1.ListCastsRequest) (*casto
 	listed := make([]*castorv1.Cast, len(playing))
 	for i, c := range playing {
 		v, _ := c.now.Load()
-		listed[i] = &castorv1.Cast{Id: c.id, Device: c.device, Source: shareable(c.source), Status: v.status}
+		listed[i] = &castorv1.Cast{Id: c.id, Device: proto.CloneOf(c.device), Source: shareable(c.source), Status: proto.CloneOf(v.status)}
 	}
 	return &castorv1.ListCastsResponse{Casts: listed}, nil
 }

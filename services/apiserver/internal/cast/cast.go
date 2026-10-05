@@ -2,8 +2,10 @@ package cast
 
 import (
 	"context"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"time"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/latest"
@@ -45,5 +47,5 @@ func (c *cast) update(change func(*view)) {
 
 // show is the media server's status, as the cast's.
 func (c *cast) show(status *castorv1.CastStatus) {
-	c.update(func(v *view) { v.status = status })
+	c.update(func(v *view) { v.status = proto.CloneOf(status) })
 }
