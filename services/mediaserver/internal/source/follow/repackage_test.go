@@ -122,6 +122,18 @@ func TestAFragmentTSCannotCarryIsRelayedWithItsInit(t *testing.T) {
 	}
 }
 
+func TestAFeedWithoutARepackagerRelaysTheFragmentAndInit(t *testing.T) {
+	m := fragmented("avc1")
+	server := serving(t, m, nil)
+	_, playlist := fetch(t, server.URL("primary").String())
+	if !strings.Contains(playlist, "#EXT-X-MAP:") || strings.Contains(playlist, "primary/1.ts") {
+		t.Fatalf("playlist promises repackaging with no repackager: %s", playlist)
+	}
+	if status, body := fetch(t, server.base.JoinPath("primary", "1").String()); status != http.StatusOK || body != "fragment 1" {
+		t.Errorf("segment = %d %q, want the original fragment", status, body)
+	}
+}
+
 func TestAnAES128FragmentIsDecryptedBeforeItIsRepackaged(t *testing.T) {
 	m := fragmented("avc1")
 	secret, iv := bytes.Repeat([]byte{7}, 16), bytes.Repeat([]byte{9}, 16)
