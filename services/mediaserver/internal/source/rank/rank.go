@@ -41,7 +41,11 @@ func (r *Ranker) Rank(ctx context.Context, streams []*source.Stream) ([]*source.
 	pool := make([]*source.Stream, 0, len(streams))
 	rejected := make(map[reason]int)
 	reasons := make(map[*source.Stream]reason, len(streams))
-	for _, m := range r.measureAll(ctx, streams) {
+	measured := r.measureAll(ctx, streams)
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
+	for _, m := range measured {
 		v := admit(m)
 		if !v.admit {
 			rejected[v.reason]++
@@ -70,6 +74,9 @@ func (r *Ranker) Rank(ctx context.Context, streams []*source.Stream) ([]*source.
 // Measure is the other half of Rank, for the one link an operator named themselves.
 func (r *Ranker) Measure(ctx context.Context, stream *source.Stream) (*source.Stream, error) {
 	one := r.measureAll(ctx, []*source.Stream{stream})[0]
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
 	// The operator named it, so nothing is ranked against it: only the admission is overruled.
 	verdict := admit(one)
 	one.LastResort = verdict.lastResort

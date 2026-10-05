@@ -2,6 +2,7 @@ package rank
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -80,5 +81,22 @@ func TestRankMeasuresTheLadderBeforeTheCapDropsIt(t *testing.T) {
 	}
 	if order[0].URL.String() != master || order[0].Ladder != source.LadderMultivariant {
 		t.Errorf("best = %s (ladder %v), want the master carrying its ladder", order[0].URL, order[0].Ladder)
+	}
+}
+
+func TestCancellationDoesNotAdmitAProbeFailureAsAFallback(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	r := New(testConfig, 1080, func(*source.Stream) media.Prober {
+		return proberFunc(func(ctx context.Context) (media.ProbeInfo, media.Reach, error) {
+			return media.ProbeInfo{}, media.ReachUnproven, ctx.Err()
+		})
+	})
+	s := candidateAt(t, media.HLS, "https://origin.example/movie.m3u8")
+	if _, err := r.Rank(ctx, []*source.Stream{s}); !errors.Is(err, context.Canceled) {
+		t.Errorf("Rank = %v, want cancellation", err)
+	}
+	if _, err := r.Measure(ctx, s); !errors.Is(err, context.Canceled) {
+		t.Errorf("Measure = %v, want cancellation", err)
 	}
 }
