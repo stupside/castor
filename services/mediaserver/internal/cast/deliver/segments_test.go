@@ -22,6 +22,7 @@ func TestServedCountsOnlyMediaHandedOver(t *testing.T) {
 	for name, content := range map[string]string{
 		"stream.m3u8":   "#EXTM3U\n#EXTINF:4,\nseg_00001.m4s\n",
 		"seg_00001.m4s": "\x00\x00\x00\x18moof",
+		"seg_00002.m4s": "",
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
 			t.Fatal(err)
@@ -38,6 +39,7 @@ func TestServedCountsOnlyMediaHandedOver(t *testing.T) {
 		{http.MethodHead, "/seg_00001.m4s", 0, ""},
 		{http.MethodGet, "/seg_00000.m4s", 0, ""},
 		{http.MethodGet, "/", 0, ""},
+		{http.MethodGet, "/seg_00002.m4s", 0, ""},
 		{http.MethodGet, "/seg_00001.m4s", 1, "video/iso.segment"},
 	} {
 		t.Run(tt.method+tt.path, func(t *testing.T) {
@@ -103,6 +105,43 @@ func TestADevicePollingThePlaylistIsNotIdle(t *testing.T) {
 	defer cancel()
 	if err := srv.Wait(drained); err != nil {
 		t.Errorf("Wait = %v once the device stopped asking, want nil", err)
+	}
+}
+
+func TestAHungSegmentClientIsReleasedByTheWriteDeadline(t *testing.T) {
+	dir := t.TempDir()
+	f, err := os.Create(filepath.Join(dir, "seg_00000.m4s"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(32 << 20); err != nil {
+		_ = f.Close()
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	srv, _ := serving(t, dir, Opening{WriteDeadline: 100 * time.Millisecond})
+	u := srv.URL()
+	u.Path = "/seg_00000.m4s"
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, u.String(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if _, err := io.ReadFull(resp.Body, make([]byte, 1)); err != nil {
+		t.Fatal(err)
+	}
+	// A completed handler records its transfer. The connection remains open and
+	// the client takes no more bytes, so only the server's write deadline frees it.
+	until := time.Now().Add(2 * time.Second)
+	for srv.Served() == 0 && time.Now().Before(until) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if srv.Served() == 0 {
+		t.Fatal("the segment handler remained blocked writing to a client that stopped reading")
 	}
 }
 

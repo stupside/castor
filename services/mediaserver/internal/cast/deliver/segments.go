@@ -66,6 +66,13 @@ func OpenSegments(ctx context.Context, o Opening, dir string, producer io.Reader
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s.touch()
+		if s.o.WriteDeadline > 0 {
+			control := http.NewResponseController(w)
+			if err := control.SetWriteDeadline(time.Now().Add(s.o.WriteDeadline)); err != nil {
+				slog.WarnContext(r.Context(), "HLS write deadline unavailable", "error", err)
+			}
+			defer control.SetWriteDeadline(time.Time{})
+		}
 		slog.InfoContext(r.Context(), "hls request", "from", r.RemoteAddr, "path", r.URL.Path)
 		// Set device headers first, then artifact's own type.
 		for k, v := range s.o.Headers {
@@ -129,6 +136,7 @@ func (s *Segments) carriesMedia(p string) bool {
 type answered struct {
 	http.ResponseWriter
 	status int
+	bytes  int64
 }
 
 func (a *answered) WriteHeader(code int) {
@@ -144,7 +152,9 @@ func (a *answered) Write(b []byte) (int, error) {
 		// net/http's implicit 200
 		a.status = http.StatusOK
 	}
-	return a.ResponseWriter.Write(b)
+	n, err := a.ResponseWriter.Write(b)
+	a.bytes += int64(n)
+	return n, err
 }
 
 // ReadFrom keeps file server's ReaderFrom (sendfile, not userspace copy).
@@ -152,14 +162,16 @@ func (a *answered) ReadFrom(r io.Reader) (int64, error) {
 	if a.status == 0 {
 		a.status = http.StatusOK
 	}
-	return io.Copy(a.ResponseWriter, r)
+	n, err := io.Copy(a.ResponseWriter, r)
+	a.bytes += n
+	return n, err
 }
 
 // Unwrap lets http.ResponseController reach the connection's own flush and deadlines.
 func (a *answered) Unwrap() http.ResponseWriter { return a.ResponseWriter }
 
 // carriedBytes reports successful response (2xx); 404 and 416 hand over nothing.
-func (a *answered) carriedBytes() bool { return a.status >= 200 && a.status < 300 }
+func (a *answered) carriedBytes() bool { return a.status >= 200 && a.status < 300 && a.bytes > 0 }
 
 // Wait blocks until the encoder's output ended and the device stopped asking, or ctx ends.
 func (s *Segments) Wait(ctx context.Context) error {
