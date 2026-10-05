@@ -70,16 +70,27 @@ func decideAudio(in Inputs) (Track[AudioEncode], []Refusal, error) {
 		targets = append([]audioTarget{floorAudio}, surroundTargets...)
 	}
 	for _, t := range targets {
-		if !in.Caps.SupportsAudioCodec(t.codec) {
+		outputChannels := 0
+		for _, support := range in.Caps.Audio {
+			if support.Codec != t.codec {
+				continue
+			}
+			limit := t.maxChannels
+			if support.MaxChannels > 0 {
+				limit = min(limit, support.MaxChannels)
+			}
+			// Keep the stereo floor unless the device advertises a lower ceiling.
+			outputChannels = max(outputChannels, min(max(channels, 2), limit))
+		}
+		if outputChannels == 0 {
 			continue
 		}
 		return Encode(AudioEncode{
 			Codec:      t.codec,
 			Bitrate:    t.bitrate,
 			SampleRate: media.PlaybackSampleRate,
-			// Never below stereo: the floor is stereo, and a surround codec is not asked to carry mono.
-			Channels: max(min(channels, t.maxChannels), 2),
-			Resync:   in.Spliced,
+			Channels:   outputChannels,
+			Resync:     in.Spliced,
 		}), refused, nil
 	}
 	return Track[AudioEncode]{}, refused, fmt.Errorf("no supported audio codec for re-encoding %q", in.Probe.AudioCodec)

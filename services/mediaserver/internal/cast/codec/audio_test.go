@@ -24,6 +24,8 @@ func TestSurroundAudioTargets(t *testing.T) {
 		{"eac3 is preferred when advertised", []media.AudioSupport{eac3, ac3}, "dts", 6, "eac3", 6},
 		{"7.1 folds to the 5.1 ceiling", []media.AudioSupport{eac3}, "dts", 8, "eac3", 6},
 		{"no surround support downmixes to stereo aac", []media.AudioSupport{aacStereo}, "dts", 6, "aac", 2},
+		{"surround codec advertised only in stereo is downmixed", []media.AudioSupport{{Codec: media.CodecEAC3, MaxChannels: 2}}, "dts", 6, "eac3", 2},
+		{"mono-only audio support is respected", []media.AudioSupport{{Codec: media.CodecAAC, MaxChannels: 1}}, "dts", 6, "aac", 1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			track := mustDecideAudio(t, Inputs{
