@@ -43,6 +43,7 @@ Tilt builds Whisper, installs app dependencies, generates the TypeScript client,
 - `deadcode -test` finds no unreachable code except C-called `castorNativeLog`.
 - API and scraping build without cgo.
 - Protos pass lint, formatting, and generated-code comparison. RPC contracts are not stable yet.
+- The app passes typecheck, lint, functional regressions, generated-code comparison, and production build.
 
 Lint tools are pinned. Test behaviour, not import graphs, code shape, or libraries. Mutation-test additions: break the behaviour, confirm a clear failure, then restore it.
 

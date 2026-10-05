@@ -1,5 +1,6 @@
 # Native dev loop: `tilt up`. Tokens come from .env, as in docker-compose.yml.
-run = 'set -a; . ./.env; set +a; eval "$(make env)"; '
+tokens = 'set -a; . ./.env; set +a; '
+run = tokens + 'eval "$(make env)"; '
 src = ['cmd', 'services', 'internal', 'gen', 'go.mod', 'go.sum']
 
 # whisper.cpp, once; make skips it when libwhisper.a exists.
@@ -7,8 +8,8 @@ local_resource('lib', 'make lib', labels=['go'])
 
 local_resource(
     'app',
-    serve_cmd='yarn workspace castor-app dev',
-    resource_deps=['install', 'api-server'],
+    serve_cmd=tokens + 'CASTOR_API__URL=http://localhost:8411 exec yarn workspace castor-app dev',
+    resource_deps=['app-generate', 'api-server'],
     links=['http://localhost:3000'],
     labels=['app'],
 )
@@ -54,6 +55,6 @@ local_resource(
 local_resource(
     'install',
     'yarn install',
-    deps=['package.json', 'app/package.json'],
+    deps=['package.json', 'app/package.json', 'yarn.lock', '.yarnrc.yml'],
     labels=['app'],
 )
