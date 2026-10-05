@@ -27,7 +27,11 @@ func decrypted(sealed, secret []byte, ivHex string) ([]byte, error) {
 	if len(secret) != aes.BlockSize {
 		return nil, fmt.Errorf("an AES-128 key is 16 bytes, not %d", len(secret))
 	}
-	iv, err := hex.DecodeString(strings.TrimPrefix(strings.TrimPrefix(ivHex, "0x"), "0X"))
+	digits := strings.TrimPrefix(strings.TrimPrefix(ivHex, "0x"), "0X")
+	if len(digits) == 0 || len(digits) > aes.BlockSize*2 {
+		return nil, fmt.Errorf("the IV %q is not a 128-bit integer", ivHex)
+	}
+	iv, err := hex.DecodeString(strings.Repeat("0", aes.BlockSize*2-len(digits)) + digits)
 	if err != nil || len(iv) != aes.BlockSize {
 		return nil, fmt.Errorf("the IV %q is not 16 bytes", ivHex)
 	}

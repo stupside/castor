@@ -20,3 +20,18 @@ func TestAKeyThatIsNotTheOneThatSealedItIsCaught(t *testing.T) {
 		t.Errorf("decrypted = %q (%v), want the sealed text", clear, err)
 	}
 }
+
+func TestAnIVWrittenAsAShortHexIntegerDecrypts(t *testing.T) {
+	secret := bytes.Repeat([]byte{7}, 16)
+	iv := make([]byte, aes.BlockSize)
+	iv[15] = 1
+	block, _ := aes.NewCipher(secret)
+	padded := append([]byte("hello"), bytes.Repeat([]byte{11}, 11)...)
+	sealed := make([]byte, len(padded))
+	cipher.NewCBCEncrypter(block, iv).CryptBlocks(sealed, padded)
+	for _, written := range []string{"0x1", "0X01", "0x00000000000000000000000000000001"} {
+		if clear, err := decrypted(sealed, secret, written); err != nil || string(clear) != "hello" {
+			t.Errorf("decrypt with %s = %q (%v), want hello", written, clear, err)
+		}
+	}
+}
