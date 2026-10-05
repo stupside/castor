@@ -3,6 +3,7 @@ package follow
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -35,8 +36,25 @@ func (f *feed) initBytes(ctx context.Context, m timeline.Map) ([]byte, error) {
 	})
 }
 
+// keyBytes relays a key that the downstream reader handles itself.
 func (f *feed) keyBytes(ctx context.Context, uri string) ([]byte, error) {
 	return f.keysHeld.get(ctx, uri, func(ctx context.Context) ([]byte, error) { return f.whole(ctx, uri, timeline.Range{}) })
+}
+
+// decrypt fetches the raw AES key through the segment's origin session.
+func (f *feed) decrypt(ctx context.Context, sealed []byte, key timeline.Key) ([]byte, error) {
+	secret, err := f.keysHeld.get(ctx, key.URI, func(ctx context.Context) ([]byte, error) {
+		body, err := f.open(ctx, key.URI, timeline.Range{})
+		if err != nil {
+			return nil, err
+		}
+		defer body.Close()
+		return readAESKey(body)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("reading the key: %w", err)
+	}
+	return decryptAES128(sealed, secret, key.IV)
 }
 
 // whole reads a resource to its end.

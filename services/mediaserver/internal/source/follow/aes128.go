@@ -2,28 +2,19 @@ package follow
 
 import (
 	"bytes"
-	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/stupside/castor/services/mediaserver/internal/source/timeline"
 )
 
-// decrypt reverses AES-128 whole-resource encryption under the key the URI serves.
-func (f *feed) decrypt(ctx context.Context, sealed []byte, k timeline.Key) ([]byte, error) {
-	secret, err := f.keyBytes(ctx, k.URI)
-	if err != nil {
-		return nil, fmt.Errorf("reading the key: %w", err)
-	}
-	return decrypted(sealed, secret, k.IV)
-}
-
-// decrypted is CBC under secret and the hex IV, with its PKCS#7 padding checked and removed.
-func decrypted(sealed, secret []byte, ivHex string) ([]byte, error) {
+// decryptAES128 decrypts an HLS whole-resource AES-128/CBC payload and checks its PKCS#7 padding.
+func decryptAES128(sealed, secret []byte, ivHex string) ([]byte, error) {
 	if len(secret) != aes.BlockSize {
 		return nil, fmt.Errorf("an AES-128 key is 16 bytes, not %d", len(secret))
 	}
@@ -56,4 +47,16 @@ const aes128 = "AES-128"
 // decryptable is whole-resource AES-128 under a key whose URI serves the raw key bytes.
 func decryptable(k timeline.Key) bool {
 	return k.Method == aes128 && (k.Format == "" || k.Format == timeline.IdentityFormat)
+}
+
+// readAESKey reads the raw 128-bit key; the extra byte rejects oversized responses.
+func readAESKey(r io.Reader) ([]byte, error) {
+	key, err := io.ReadAll(io.LimitReader(r, aes.BlockSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(key) != aes.BlockSize {
+		return nil, fmt.Errorf("an AES-128 key must contain exactly %d bytes", aes.BlockSize)
+	}
+	return key, nil
 }
