@@ -4,6 +4,9 @@ import (
 	"context"
 	"log/slog"
 
+	"connectrpc.com/connect"
+	"connectrpc.com/validate"
+
 	"github.com/urfave/cli/v3"
 
 	"github.com/stupside/castor/cmd/castor/internal/cast"
@@ -44,8 +47,9 @@ func dial(ctx context.Context, cmd *cli.Command, cfg *Config, local Local) (_ cl
 		}
 	}
 	client := at.Client()
+	checked := connect.WithInterceptors(validate.NewInterceptor(validate.WithValidateResponses()))
 	return clients{
-		casts:   castorv1connect.NewCastServiceClient(client, at.URL),
-		devices: castorv1connect.NewDeviceServiceClient(client, at.URL),
+		casts:   castorv1connect.NewCastServiceClient(client, at.URL, checked),
+		devices: castorv1connect.NewDeviceServiceClient(client, at.URL, checked),
 	}, lines, release, nil
 }

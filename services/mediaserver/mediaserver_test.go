@@ -76,6 +76,10 @@ func (e *engine) Measure(_ context.Context, stream *source.Stream) (*source.Stre
 }
 
 func (e *engine) Play(ctx context.Context, device execute.Device, l deliver.Listeners, streams []*source.Stream, turns recovery.Turns) error {
+	// This fake skips probing: its playable fixtures are MPEG-TS, as the lent device advertises.
+	for _, stream := range streams {
+		stream.ContentType = media.MPEGTS
+	}
 	return e.play(ctx, device, l, streams, turns)
 }
 

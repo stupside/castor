@@ -401,9 +401,9 @@ const file_castor_media_v1_cast_proto_rawDesc = "" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bdelivery\x12&\n" +
 	"\n" +
 	"max_height\x18\x02 \x01(\rB\a\xbaH\x04*\x02(\x02R\tmaxHeight\x12B\n" +
-	"\tsubtitles\x18\x03 \x01(\v2\x1c.castor.v1.SubtitleSelectionB\x06\xbaH\x03\xc8\x01\x01R\tsubtitles\"(\n" +
-	"\rStartResponse\x12\x17\n" +
-	"\acast_id\x18\x01 \x01(\tR\x06castId\"/\n" +
+	"\tsubtitles\x18\x03 \x01(\v2\x1c.castor.v1.SubtitleSelectionB\x06\xbaH\x03\xc8\x01\x01R\tsubtitles\"1\n" +
+	"\rStartResponse\x12 \n" +
+	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"/\n" +
 	"\vStopRequest\x12 \n" +
 	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"\x0e\n" +
 	"\fStopResponse\"\xd1\x01\n" +

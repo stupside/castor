@@ -53,7 +53,7 @@ Follow [ARCHITECTURE.md](ARCHITECTURE.md):
 - Share contracts, not service implementations (including tests). Binary main wires service entry points; internals and TUI stay private.
 - API owns devices, scraping owns extraction, media owns playback, clients own content/UI. Consumers declare narrow ports; entry points wire adapters.
 - Inject settings at construction; keep config with its consumer. Name packages by responsibility, nesting single-feature helpers; one concept per file and one file per strategy.
-- Put contract rules in protos and enforce them only on servers. Use generated types, not mirrors; expose only what integrators need.
+- Put contract rules in protos; validate requests and peer responses at RPC edges. Use generated types, not mirrors; expose only what integrators need.
 - Optional lookups return `(T, bool)`. Comments explain only what code cannot, in one short line. Prefer Go 1.27 idioms; no compatibility shims or dead fallbacks.
 
 ## Commit messages

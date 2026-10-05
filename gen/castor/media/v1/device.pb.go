@@ -1192,15 +1192,17 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\tmax_level\x18\x04 \x01(\rR\bmaxLevel\"d\n" +
 	"\fAudioSupport\x121\n" +
 	"\x05codec\x18\x01 \x01(\x0e2\x1b.castor.media.v1.AudioCodecR\x05codec\x12!\n" +
-	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\x82\x04\n" +
+	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\x99\x05\n" +
 	"\rDeviceCommand\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\x04play\x18\x02 \x01(\v2#.castor.media.v1.DeviceCommand.PlayH\x00R\x04play\x12F\n" +
 	"\tawait_end\x18\x03 \x01(\v2'.castor.media.v1.DeviceCommand.AwaitEndH\x00R\bawaitEnd\x12?\n" +
-	"\x06cancel\x18\x04 \x01(\v2%.castor.media.v1.DeviceCommand.CancelH\x00R\x06cancel\x1aR\n" +
-	"\x04Play\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\x128\n" +
-	"\tcontainer\x18\x02 \x01(\x0e2\x1a.castor.media.v1.ContainerR\tcontainer\x1a\n" +
+	"\x06cancel\x18\x04 \x01(\v2%.castor.media.v1.DeviceCommand.CancelH\x00R\x06cancel\x1a\xe8\x01\n" +
+	"\x04Play\x12\x99\x01\n" +
+	"\x03url\x18\x01 \x01(\tB\x86\x01\xbaH\x82\x01\xba\x01z\n" +
+	"\rplay.url.http\x12\x1cmust be an http or https URL\x1aKthis.isUri() && (this.startsWith('http://') || this.startsWith('https://'))r\x03\x18\x80@R\x03url\x12D\n" +
+	"\tcontainer\x18\x02 \x01(\x0e2\x1a.castor.media.v1.ContainerB\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\tcontainer\x1a\n" +
 	"\n" +
 	"\bAwaitEnd\x1a0\n" +
 	"\x06Cancel\x12&\n" +

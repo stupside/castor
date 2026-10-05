@@ -33,7 +33,7 @@ message CastRequest {
 
 message CastResponse {
   // cast_id is opaque.
-  string cast_id = 1;
+  string cast_id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message ResolveRequest {
@@ -108,6 +108,7 @@ message WatchRequest {
 
 message WatchResponse {
   oneof update {
+    option (buf.validate.oneof).required = true;
     CastStatus status = 1;
     LogLine line = 2;
     // ended is always the last message.

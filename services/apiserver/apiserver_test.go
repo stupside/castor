@@ -103,7 +103,8 @@ func (c *connection) Close() error {
 type media struct {
 	held bool
 	// watchUpdate overrides the normal watch for malformed-response tests.
-	watchUpdate *castorv1.WatchResponse
+	watchUpdate  *castorv1.WatchResponse
+	driveCommand *mediav1.DeviceCommand
 	// asked is every cast's and ranking's resolved settings, as the media server was asked them.
 	asked   chan *mediav1.PlaybackSettings
 	sources chan *mediav1.Source
@@ -214,7 +215,11 @@ func (m *media) Drive(ctx context.Context, req *mediav1.DriveRequest, out *conne
 		return err
 	}
 	play := &mediav1.DeviceCommand_Play{Url: ranked(c.source)[0].GetUrl(), Container: mediav1.Container_CONTAINER_HLS}
-	if err := out.Send(&mediav1.DriveResponse{Command: &mediav1.DeviceCommand{Id: "play", Command: &mediav1.DeviceCommand_Play_{Play: play}}}); err != nil {
+	cmd := m.driveCommand
+	if cmd == nil {
+		cmd = &mediav1.DeviceCommand{Id: "play", Command: &mediav1.DeviceCommand_Play_{Play: play}}
+	}
+	if err := out.Send(&mediav1.DriveResponse{Command: cmd}); err != nil {
 		return err
 	}
 	select {
@@ -311,6 +316,8 @@ type setup struct {
 	resolver resolveFunc
 	// cast is the cast section the API server runs on; unset, the one castor ships.
 	cast apiserver.CastConfig
+	// uncheckedMedia simulates a downstream server that sends malformed responses.
+	uncheckedMedia bool
 }
 
 var shipped = apiserver.CastConfig{Delivery: "auto", MaxHeight: 1080}
@@ -320,10 +327,14 @@ func serve(t *testing.T, s setup) api {
 	t.Helper()
 	// Both ways, every message is held to the rules the contract states, as the media server holds them.
 	valid := connect.WithInterceptors(validate.NewInterceptor(validate.WithValidateResponses()))
+	mediaOptions := []connect.HandlerOption{valid}
+	if s.uncheckedMedia {
+		mediaOptions = nil
+	}
 	mux := http.NewServeMux()
-	mux.Handle(mediav1connect.NewCastServiceHandler(s.media, valid))
-	mux.Handle(mediav1connect.NewDeviceServiceHandler(s.media, valid))
-	mux.Handle(mediav1connect.NewStreamServiceHandler(s.media, valid))
+	mux.Handle(mediav1connect.NewCastServiceHandler(s.media, mediaOptions...))
+	mux.Handle(mediav1connect.NewDeviceServiceHandler(s.media, mediaOptions...))
+	mux.Handle(mediav1connect.NewStreamServiceHandler(s.media, mediaOptions...))
 	var handler http.Handler = mux
 	if s.guard != nil {
 		handler = s.guard(handler)
@@ -672,7 +683,8 @@ func TestSubtitleModesOverrideOrInheritTheConfiguredLanguage(t *testing.T) {
 func TestBrokenMediaWatchStopsTheCast(t *testing.T) {
 	m := newMedia(true)
 	m.watchUpdate = &castorv1.WatchResponse{Update: &castorv1.WatchResponse_Status{Status: &castorv1.CastStatus{}}}
-	c := serve(t, setup{media: m, family: newFamily()})
+	f := newFamily()
+	c := serve(t, setup{media: m, family: f, uncheckedMedia: true})
 	w := watch(t, c, cast(t, c, streamOf("https://cdn.example/direct")), nil)
 	if w.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_INTERNAL || w.ended.GetFailed().GetMessage() == "" {
 		t.Fatalf("broken media watch ended the public cast as %v, want an internal failure", w.ended)
@@ -681,6 +693,36 @@ func TestBrokenMediaWatchStopsTheCast(t *testing.T) {
 	case <-m.stopped:
 	default:
 		t.Error("a broken media watch left its cast running")
+	}
+	select {
+	case <-f.closed:
+	default:
+		t.Error("a broken media watch left its device connected")
+	}
+}
+
+func TestMalformedDeviceCommandsFailTheCastBeforeTouchingTheDevice(t *testing.T) {
+	m, f := newMedia(true), newFamily()
+	m.driveCommand = &mediav1.DeviceCommand{Id: "play", Command: &mediav1.DeviceCommand_Play_{Play: &mediav1.DeviceCommand_Play{Url: "/stream", Container: mediav1.Container_CONTAINER_HLS}}}
+	c := serve(t, setup{media: m, family: f, uncheckedMedia: true})
+	w := watch(t, c, cast(t, c, streamOf("https://cdn.example/direct")), nil)
+	if w.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_INTERNAL {
+		t.Fatalf("malformed command ended the cast as %v", w.ended)
+	}
+	select {
+	case played := <-f.played:
+		t.Fatalf("malformed downstream command played %q on the device", played)
+	default:
+	}
+	select {
+	case <-m.stopped:
+	default:
+		t.Error("a malformed command left the media cast running")
+	}
+	select {
+	case <-f.closed:
+	default:
+		t.Error("a malformed command left its device connected")
 	}
 }
 

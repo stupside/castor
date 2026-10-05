@@ -1408,9 +1408,9 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\vCastRequest\x121\n" +
 	"\x06target\x18\x01 \x01(\v2\x11.castor.v1.TargetB\x06\xbaH\x03\xc8\x01\x01R\x06target\x121\n" +
 	"\x06source\x18\x02 \x01(\v2\x11.castor.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x128\n" +
-	"\vpreferences\x18\x03 \x01(\v2\x16.castor.v1.PreferencesR\vpreferences\"'\n" +
-	"\fCastResponse\x12\x17\n" +
-	"\acast_id\x18\x01 \x01(\tR\x06castId\"}\n" +
+	"\vpreferences\x18\x03 \x01(\v2\x16.castor.v1.PreferencesR\vpreferences\"0\n" +
+	"\fCastResponse\x12 \n" +
+	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"}\n" +
 	"\x0eResolveRequest\x121\n" +
 	"\x06source\x18\x01 \x01(\v2\x11.castor.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x128\n" +
 	"\vpreferences\x18\x02 \x01(\v2\x16.castor.v1.PreferencesR\vpreferences\"B\n" +
@@ -1444,12 +1444,12 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\x128\n" +
 	"\x04logs\x18\x02 \x01(\x0e2\x13.castor.v1.LogLevelB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00H\x00R\x04logs\x88\x01\x01B\a\n" +
-	"\x05_logs\"\x9e\x01\n" +
+	"\x05_logs\"\xa5\x01\n" +
 	"\rWatchResponse\x12/\n" +
 	"\x06status\x18\x01 \x01(\v2\x15.castor.v1.CastStatusH\x00R\x06status\x12(\n" +
 	"\x04line\x18\x02 \x01(\v2\x12.castor.v1.LogLineH\x00R\x04line\x12(\n" +
-	"\x05ended\x18\x03 \x01(\v2\x10.castor.v1.EndedH\x00R\x05endedB\b\n" +
-	"\x06update\"\x82\x02\n" +
+	"\x05ended\x18\x03 \x01(\v2\x10.castor.v1.EndedH\x00R\x05endedB\x0f\n" +
+	"\x06update\x12\x05\xbaH\x02\b\x01\"\x82\x02\n" +
 	"\n" +
 	"CastStatus\x128\n" +
 	"\n" +

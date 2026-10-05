@@ -136,8 +136,18 @@ message DeviceCommand {
 
   message Play {
     // url is what the device fetches: the source itself, or what the media server serves it.
-    string url = 1;
-    Container container = 2;
+    string url = 1 [
+      (buf.validate.field).string.max_len = 8192,
+      (buf.validate.field).cel = {
+        id: "play.url.http"
+        message: "must be an http or https URL"
+        expression: "this.isUri() && (this.startsWith('http://') || this.startsWith('https://'))"
+      }
+    ];
+    Container container = 2 [(buf.validate.field).enum = {
+      defined_only: true
+      not_in: [0]
+    }];
   }
 
   message AwaitEnd {}

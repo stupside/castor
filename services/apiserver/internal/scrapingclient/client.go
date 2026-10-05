@@ -5,6 +5,9 @@ import (
 	"context"
 	"net/http"
 
+	"connectrpc.com/connect"
+	"connectrpc.com/validate"
+
 	scrapingv1 "github.com/stupside/castor/gen/castor/scraping/v1"
 	"github.com/stupside/castor/gen/castor/scraping/v1/scrapingv1connect"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
@@ -15,7 +18,8 @@ type Client struct {
 }
 
 func New(client *http.Client, url string) *Client {
-	return &Client{service: scrapingv1connect.NewScrapingServiceClient(client, url)}
+	valid := connect.WithInterceptors(validate.NewInterceptor(validate.WithValidateResponses()))
+	return &Client{service: scrapingv1connect.NewScrapingServiceClient(client, url, valid)}
 }
 func (c *Client) ResolvePages(ctx context.Context, urls []string) ([]*castorv1.StreamCandidate, error) {
 	response, err := c.service.Resolve(ctx, &scrapingv1.ResolveRequest{Urls: urls})

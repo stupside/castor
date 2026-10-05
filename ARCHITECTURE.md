@@ -50,7 +50,7 @@ Each standalone command starts only its own service. Standalone API defaults scr
 
 ## The contracts
 
-Buf generates Go and TypeScript Connect clients from `proto/`. Servers enforce protobuf rules with protovalidate; contracts are not stable yet. API resolves optional preferences against its validated `cast` defaults into media's complete `PlaybackSettings`.
+Buf generates Go and TypeScript Connect clients from `proto/`. RPC edges validate requests and peer responses with protovalidate; contracts are not stable yet. API resolves optional preferences against its validated `cast` defaults into media's complete `PlaybackSettings`.
 
 - Device types, audio/video codecs, failure codes, and recovery actions are enums.
 - Subtitles select disabled, automatic detection, or a language; an absent API selection inherits defaults.
