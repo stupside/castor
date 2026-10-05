@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +22,11 @@ type binary string
 
 func (b binary) Cast(ctx context.Context, launch settings.Launch, args []string) ([]byte, error) {
 	var out bytes.Buffer
-	err := b.command(ctx, launch, args, &out).Run()
+	cmd := b.command(ctx, launch, args, &out)
+	err := cmd.Run()
+	if cmd.Process != nil {
+		killGroup(cmd)
+	}
 	return out.Bytes(), err
 }
 
@@ -29,7 +34,11 @@ func (b binary) Cast(ctx context.Context, launch settings.Launch, args []string)
 func (b binary) command(ctx context.Context, launch settings.Launch, args []string, out io.Writer) *exec.Cmd {
 	// --debug brings the engine's lines back through the watch, so a failing case shows why.
 	cmd := exec.CommandContext(ctx, string(b), slices.Concat([]string{"--debug"}, launch.Flags, args)...)
-	cmd.Dir, cmd.Env = launch.Dir, append(os.Environ(), launch.Env...)
+	// Personal endpoints, tokens and media settings must never escape into a fixture's cast.
+	env := slices.DeleteFunc(os.Environ(), func(value string) bool {
+		return strings.HasPrefix(value, "CASTOR_")
+	})
+	cmd.Dir, cmd.Env = launch.Dir, append(env, launch.Env...)
 	cmd.Stdout, cmd.Stderr = out, out
 	// Grandchildren holding the output pipe open must not keep Wait from returning.
 	cmd.WaitDelay = 5 * time.Second
