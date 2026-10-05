@@ -43,3 +43,16 @@ func TestDeclaredEnvelopeReadsBothH264Spellings(t *testing.T) {
 		}
 	}
 }
+
+func TestADeclaredLevelCannotBypassTheDevicesDecoderCeiling(t *testing.T) {
+	device := media.Capabilities{Video: []media.VideoSupport{{Codec: media.CodecH264, MaxLevel: 42}}}
+	for _, codecs := range []string{"avc1.640033", "avc1.100.51"} {
+		picture := DeclaredEnvelope(codecs, 1080)
+		if picture == nil {
+			t.Fatalf("no declaration for %s", codecs)
+		}
+		if device.CanCopyVideo(*picture) {
+			t.Errorf("level 5.1 from %s was accepted by a level 4.2 decoder", codecs)
+		}
+	}
+}

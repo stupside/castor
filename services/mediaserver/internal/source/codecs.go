@@ -95,6 +95,7 @@ func DeclaredEnvelope(codecs string, height int) *media.ProbeInfo {
 				return nil
 			}
 			envelope.VideoCodec, envelope.VideoProfile, envelope.VideoBitDepth = codec, profile, 8
+			envelope.VideoLevel = declaredLevel(entry)
 			video++
 			continue
 		}
@@ -157,4 +158,26 @@ func h264Params(params string) (profileIDC uint64, constrained, ok bool) {
 func sampleEntryName(entry string) string {
 	name, _, _ := strings.Cut(entry, ".")
 	return name
+}
+
+// declaredLevel preserves the codec's level in ffprobe's units, after declaredVideo has checked the entry.
+func declaredLevel(entry string) int {
+	_, params, _ := strings.Cut(entry, ".")
+	switch videoCodecEntries[sampleEntryName(entry)] {
+	case media.CodecH264:
+		if _, level, legacy := strings.Cut(params, "."); legacy {
+			n, _ := strconv.Atoi(level)
+			return n
+		}
+		n, _ := strconv.ParseUint(params[4:], 16, 8)
+		return int(n)
+	case media.CodecHEVC:
+		for field := range strings.SplitSeq(params, ".") {
+			if len(field) > 1 && (field[0] == 'l' || field[0] == 'h') {
+				n, _ := strconv.Atoi(field[1:])
+				return n
+			}
+		}
+	}
+	return 0
 }

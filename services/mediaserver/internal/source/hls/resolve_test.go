@@ -119,7 +119,7 @@ func TestResolveDescribesTheChosenRungFromWhatTheMasterDeclared(t *testing.T) {
 		codecs string
 		want   *media.ProbeInfo
 	}{
-		{"avc1.640028,mp4a.40.2", &media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: "High", VideoHeight: 1080, VideoBitDepth: 8, AudioCodec: media.CodecAAC}},
+		{"avc1.640028,mp4a.40.2", &media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: "High", VideoHeight: 1080, VideoBitDepth: 8, VideoLevel: 40, AudioCodec: media.CodecAAC}},
 		// Main 10 does not fix the bit depth, so it declares too little to act on.
 		{"hvc1.2.4.L120.90,mp4a.40.2", nil},
 		{"mp4a.40.2", nil},
