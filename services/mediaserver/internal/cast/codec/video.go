@@ -63,6 +63,9 @@ var videoRefusals = slices.Concat([]refusalRule{{
 }})
 
 func decideVideo(ctx context.Context, in Inputs) (Track[VideoEncode], []Refusal, error) {
+	if in.Measured && in.Probe.VideoCodec == "" {
+		return CopyVideo(), nil, nil
+	}
 	refused := refuse(videoRefusals, in)
 	if len(refused) == 0 {
 		return CopyVideo(), nil, nil

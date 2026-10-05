@@ -152,6 +152,23 @@ func TestADeadReadIsReportedAsTheReadsOwnFailure(t *testing.T) {
 	}
 }
 
+func TestAnAudioOnlyCastDoesNotRequireAVideoEncoder(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+	origin := serveGenerated(t, ffmpegPath, "audio.mp4", "/audio.mp4", media.MP4,
+		"-map", "1:a", "-c:a", "aac", "-ac", "2")
+	caps := dlnaLike()
+	caps.Video = nil
+	dev := &fakeDevice{caps: caps, drain: true}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if err := castOnce(ctx, t, realCast(dev, ffmpegPath, ffprobePath), origin.stream()); err != nil {
+		t.Fatalf("playing supported audio with no video track: %v", err)
+	}
+	if len(dev.served) == 0 {
+		t.Fatal("the audio-only cast delivered no bytes")
+	}
+}
+
 // testReadDeadline is the mid-read stall bound every cast in this suite reads with.
 const testReadDeadline = 30 * time.Second
 
