@@ -247,7 +247,7 @@ Try once with `CASTOR_CAST__DELIVERY=serve`; it costs bandwidth and CPU. `castor
 The image includes Chrome, ffmpeg, and ffprobe. `--device /dev/dri` enables Intel VA-API; otherwise encoding uses software.
 
 > [!WARNING]
-> Discovery and the API server need `--network host`, which Docker Desktop (macOS/Windows) ignores, so `scan` finds nothing there. Use the native binary instead.
+> The Compose stack targets Linux host networking for LAN discovery and device-reachable media URLs. On macOS/Windows, use the native binary for discovery. Docker Desktop 4.34+ has opt-in [host networking](https://docs.docker.com/engine/network/drivers/host/), but cannot bind directly to the host's network interfaces.
 
 ```sh
 docker run --rm --network host ghcr.io/stupside/castor:latest scan
@@ -259,7 +259,7 @@ docker run --rm --network host --device /dev/dri \
   cast player https://example.com/watch/some-video
 ```
 
-The cache volume preserves Whisper models. For all three services, put `CASTOR_SERVER__TOKEN`, `CASTOR_SCRAPING__TOKEN`, and `CASTOR_API__TOKEN` in git-ignored `.env`, then run `docker compose up -d`. Discovery still needs native execution or Linux host networking. A standalone media container can use `-p 8410:8410` with `server.advertise` set to a device-reachable address.
+The cache volume preserves Whisper models. On Linux, put `CASTOR_SERVER__TOKEN`, `CASTOR_SCRAPING__TOKEN`, and `CASTOR_API__TOKEN` in git-ignored `.env`, then run `docker compose up -d`. API and media use host networking; scraping is published only on loopback. Remove the `/dev/dri` mapping on hosts without Intel VA-API. A standalone bridged media container needs `-p 8410:8410` and `server.advertise` set to a device-reachable address.
 
 Tags: `:latest` (stable), `:canary` (preview), or a pinned `:vX.Y.Z`.
 

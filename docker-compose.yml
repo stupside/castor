@@ -12,34 +12,37 @@ services:
     <<: *castor
     command: ["scraping-server"]
     ports:
-      - "8412:8412"
+      - "127.0.0.1:8412:8412"
     environment:
+      CASTOR_SCRAPING__LISTEN: ":8412"
       CASTOR_SCRAPING__TOKEN: ${CASTOR_SCRAPING__TOKEN:?set it in .env}
 
   media-server:
     <<: *castor
     command: ["media-server"]
-    ports:
-      - "8410:8410"
+    # Linux host networking lets TVs reach the advertised media address.
+    network_mode: host
     # Intel VA-API; drop on hosts without /dev/dri.
     devices:
       - /dev/dri:/dev/dri
     environment:
+      CASTOR_SERVER__LISTEN: ":8410"
       CASTOR_SERVER__TOKEN: ${CASTOR_SERVER__TOKEN:?set it in .env}
 
   api-server:
     <<: *castor
     command: ["api-server"]
-    ports:
-      - "8411:8411"
+    # Device discovery and control run on the TV's LAN, not a bridge network.
+    network_mode: host
     depends_on:
       - media-server
       - scraping-server
     environment:
+      CASTOR_API__LISTEN: ":8411"
       CASTOR_API__TOKEN: ${CASTOR_API__TOKEN:?set it in .env}
-      CASTOR_SERVER__URL: http://media-server:8410
+      CASTOR_SERVER__URL: http://127.0.0.1:8410
       CASTOR_SERVER__TOKEN: ${CASTOR_SERVER__TOKEN:?set it in .env}
-      CASTOR_SCRAPING__URL: http://scraping-server:8412
+      CASTOR_SCRAPING__URL: http://127.0.0.1:8412
       CASTOR_SCRAPING__TOKEN: ${CASTOR_SCRAPING__TOKEN:?set it in .env}
 
 volumes:
