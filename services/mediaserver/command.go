@@ -29,13 +29,14 @@ func Command() *cli.Command {
 			if err != nil {
 				return err
 			}
-			// A detached media server keeps every line on its own output too; watchers get their casts' lines live.
-			h := slog.Default().Handler()
-			slog.SetDefault(slog.New(castlog.Router(h, h)))
+			defer l.Close()
 			reach, err := cfg.advertised(ctx, l)
 			if err != nil {
 				return fmt.Errorf("resolving where devices reach this server (set server.advertise): %w", err)
 			}
+			// A detached media server keeps every line on its own output too; watchers get their casts' lines live.
+			h := slog.Default().Handler()
+			slog.SetDefault(slog.New(castlog.Router(h, h)))
 			slog.InfoContext(ctx, "serving", "address", l.Addr().String(), "devices_reach", reach.String())
 			srv := New(cfg.backend(), reach)
 			return transport.Serve(ctx, l, onePort(srv, cfg.Server.Token), srv.Shutdown)

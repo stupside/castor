@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -22,9 +23,10 @@ func Serve(ctx context.Context, l net.Listener, h http.Handler, drain func(conte
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, Protocols: &protocols}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(l) }()
+	var serveErr error
 	select {
 	case err := <-served:
-		return fmt.Errorf("serving %s: %w", l.Addr(), err)
+		serveErr = fmt.Errorf("serving %s: %w", l.Addr(), err)
 	case <-ctx.Done():
 	}
 	grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownGrace)
@@ -35,9 +37,9 @@ func Serve(ctx context.Context, l net.Listener, h http.Handler, drain func(conte
 	draining.Wait()
 	if err != nil {
 		// The grace ran out: what still runs is cut.
-		return srv.Close()
+		return errors.Join(serveErr, srv.Close())
 	}
-	return nil
+	return serveErr
 }
 
 // Background serves h on l until stop, outliving ctx's cancellation so what it runs can still wind down.
