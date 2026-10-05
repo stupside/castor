@@ -32,7 +32,19 @@ func Bearer(token string) *http.Client {
 	if token == "" {
 		return http.DefaultClient
 	}
-	return &http.Client{Transport: bearing{token: token, next: http.DefaultTransport}}
+	return &http.Client{
+		Transport: bearing{token: token, next: http.DefaultTransport},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// The transport adds credentials itself, so HTTP's header stripping cannot protect a redirected request.
+			if req.URL.Scheme != via[0].URL.Scheme || req.URL.Host != via[0].URL.Host {
+				return http.ErrUseLastResponse
+			}
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			return nil
+		},
+	}
 }
 
 type bearing struct {
