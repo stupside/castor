@@ -15,7 +15,7 @@ import (
 
 // Config holds settings for the in-process whisper.cpp transcriber.
 type Config struct {
-	ModelPath string `yaml:"model_path"` // override the auto-downloaded tiny.en model
+	ModelPath string `yaml:"model_path"` // override the auto-downloaded tiny model (tiny.en for English)
 }
 
 // Burn is the running transcription: model, committed cues, and the file the encoder reads.
@@ -31,7 +31,7 @@ type Burn struct {
 
 // New transcribes in language, a whisper code or auto to detect it, buffering its cues in workDir.
 func New(ctx context.Context, cfg Config, language, workDir string) (*Burn, error) {
-	modelPath, err := ensureModel(ctx, cfg.ModelPath)
+	modelPath, err := ensureModel(ctx, cfg.ModelPath, language)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +51,8 @@ func New(ctx context.Context, cfg Config, language, workDir string) (*Burn, erro
 
 // Run transcribes pcm until it ends; on failure it drains pcm so the reader never blocks on it.
 func (b *Burn) Run(ctx context.Context, pcm io.ReadCloser) {
+	stop := context.AfterFunc(ctx, func() { _ = pcm.Close() })
+	defer stop()
 	defer pcm.Close()
 	if err := b.transcription.Run(ctx, pcm, b.load, b.cues); err != nil && ctx.Err() == nil {
 		slog.WarnContext(ctx, "transcription failed; subtitles stop here", "error", err)

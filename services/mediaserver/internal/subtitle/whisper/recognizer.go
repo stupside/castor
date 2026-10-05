@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"strings"
 
 	wcpp "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -21,16 +20,21 @@ type recognizer struct {
 }
 
 func (r recognizer) Recognize(ctx context.Context, samples []float32, offset float64, prompt string) ([]subtitle.Word, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
 	wctx, err := r.model.NewContext()
 	if err != nil {
 		return nil, fmt.Errorf("new whisper context: %w", err)
 	}
 
-	// Pinned, since detection is unreliable over music and silence.
-	if r.language != "auto" && wctx.IsMultilingual() {
+	// New contexts default to English; automatic detection must be requested explicitly too.
+	if wctx.IsMultilingual() {
 		if err := wctx.SetLanguage(r.language); err != nil {
-			slog.WarnContext(ctx, "whisper SetLanguage failed", "language", r.language, "error", err)
+			return nil, fmt.Errorf("setting whisper language %q: %w", r.language, err)
 		}
+	} else if r.language != "en" {
+		return nil, fmt.Errorf("the configured whisper model supports English only, not %q", r.language)
 	}
 
 	// Silero VAD filters silence; whisper.cpp maps the timestamps back.
@@ -46,8 +50,14 @@ func (r recognizer) Recognize(ctx context.Context, samples []float32, offset flo
 		wctx.SetInitialPrompt(prompt)
 	}
 
-	if err := wctx.Process(samples, nil, nil, nil); err != nil {
+	if err := wctx.Process(samples, func() bool { return ctx.Err() == nil }, nil, nil); err != nil {
+		if cause := context.Cause(ctx); cause != nil {
+			return nil, cause
+		}
 		return nil, fmt.Errorf("whisper process: %w", err)
+	}
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
 	}
 
 	var words []subtitle.Word

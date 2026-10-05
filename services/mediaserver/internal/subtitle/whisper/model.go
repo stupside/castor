@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	defaultModelName = "ggml-tiny.en.bin"
-	modelBaseURL     = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
+	defaultModelName      = "ggml-tiny.en.bin"
+	multilingualModelName = "ggml-tiny.bin"
+	modelBaseURL          = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 
 	vadModelName    = "ggml-silero-v5.1.2.bin"
 	vadModelBaseURL = "https://huggingface.co/ggml-org/whisper-vad/resolve/main"
@@ -35,14 +36,18 @@ func cacheDir() (string, error) {
 	return dir, nil
 }
 
-func ensureModel(ctx context.Context, configured string) (string, error) {
+func ensureModel(ctx context.Context, configured, language string) (string, error) {
 	if configured != "" {
 		if _, err := os.Stat(configured); err != nil {
 			return "", fmt.Errorf("whisper.model_path %q: %w", configured, err)
 		}
 		return configured, nil
 	}
-	return ensure(ctx, defaultModelName, modelBaseURL)
+	name := defaultModelName
+	if language != "en" {
+		name = multilingualModelName
+	}
+	return ensure(ctx, name, modelBaseURL)
 }
 
 func ensure(ctx context.Context, name, baseURL string) (string, error) {
@@ -67,7 +72,7 @@ func ensure(ctx context.Context, name, baseURL string) (string, error) {
 	return path, nil
 }
 
-// downloadFile fetches url into dest atomically; written to a .part file and renamed on success.
+// downloadFile fetches url into dest atomically; each concurrent download owns its temporary file.
 func downloadFile(ctx context.Context, url, dest string) error {
 	ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
 	defer cancel()
@@ -85,22 +90,20 @@ func downloadFile(ctx context.Context, url, dest string) error {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	tmp := dest + ".part"
-	f, err := os.Create(tmp)
+	f, err := os.CreateTemp(filepath.Dir(dest), filepath.Base(dest)+"-*.part")
 	if err != nil {
 		return err
 	}
+	tmp := f.Name()
+	defer func() { _ = os.Remove(tmp) }()
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
-		os.Remove(tmp)
 		return err
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(tmp)
 		return err
 	}
 	if err := os.Rename(tmp, dest); err != nil {
-		os.Remove(tmp)
 		return err
 	}
 	return nil

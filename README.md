@@ -101,16 +101,16 @@ Castor reads `config.yaml` (or `--config <path>`), then overlays git-ignored `co
 
 ### Subtitles
 
-Subtitles are burned into served, read-once video (e.g. DLNA), not self-fetching Chromecast/Roku playback. The default English model downloads once to your cache.
+Subtitles are burned into served, read-once video (e.g. DLNA), not self-fetching Chromecast/Roku playback. The appropriate default model downloads once to your cache.
 
 ```yaml
 cast:
   subtitles: en            # a language code, or auto to detect it; unset for none
 whisper:
-  # model_path: ""         # default: ggml-tiny.en (~75 MB, English only)
+  # model_path: ""         # ggml-tiny.en for en, multilingual ggml-tiny otherwise
 ```
 
-For another language or `auto`, point `whisper.model_path` at a multilingual whisper.cpp model (e.g. `ggml-base.bin`).
+Set `whisper.model_path` to use a larger model (e.g. multilingual `ggml-base.bin`). English-only models reject other languages and `auto`.
 
 ### Video quality
 

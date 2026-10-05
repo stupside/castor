@@ -37,8 +37,8 @@ sources:
       episode: "/embed?type=tv&id={itemID}&season={season}&episode={episode}"
 
 whisper:
-  # Defaults to ggml-tiny.en (English only), downloaded once to your user cache; point it at a
-  # multilingual model for other languages or auto.
+  # Downloads ggml-tiny.en for English, multilingual ggml-tiny for other languages or auto.
+  # Point at a larger model to trade speed for accuracy.
   # model_path: ""
 
 tmdb:
