@@ -41,6 +41,7 @@ func TestLocate(t *testing.T) {
 	for address, want := range map[string]string{
 		"192.168.0.3":              "http://192.168.0.3:8060",
 		"http://192.168.0.3:8888/": "http://192.168.0.3:8888",
+		"[2001:db8::3]":            "http://[2001:db8::3]:8060",
 	} {
 		if got, err := (Family{}).Locate(t.Context(), address); err != nil || got != want {
 			t.Errorf("Locate(%q) = %q, %v, want %q", address, got, err, want)
@@ -49,15 +50,19 @@ func TestLocate(t *testing.T) {
 }
 
 func TestMalformedAppListDoesNotTriggerSideloading(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/query/apps" {
-			t.Errorf("malformed app list triggered %s %s", r.Method, r.URL.Path)
-		}
-		_, _ = io.WriteString(w, `<apps><app id="dev">Castor`)
-	}))
-	defer ts.Close()
-	_, err := Family{Config: Config{Password: "developer-password"}}.Connect(t.Context(), device.Info{Address: ts.URL})
-	if err == nil || !strings.Contains(err.Error(), "decoding roku apps") {
-		t.Fatalf("Connect = %v, want the app-list decoding failure before sideloading", err)
+	for _, body := range []string{`<apps><app id="dev">Castor`, `<html><body>Device login required</body></html>`} {
+		t.Run(body, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/query/apps" {
+					t.Errorf("malformed app list triggered %s %s", r.Method, r.URL.Path)
+				}
+				_, _ = io.WriteString(w, body)
+			}))
+			defer ts.Close()
+			_, err := Family{Config: Config{Password: "developer-password"}}.Connect(t.Context(), device.Info{Address: ts.URL})
+			if err == nil || !strings.Contains(err.Error(), "decoding roku apps") {
+				t.Fatalf("Connect = %v, want the app-list decoding failure before sideloading", err)
+			}
+		})
 	}
 }

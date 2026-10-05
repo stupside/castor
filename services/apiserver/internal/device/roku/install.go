@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -20,7 +21,7 @@ func (s *session) sideloadChannel(ctx context.Context, password string) error {
 	if err != nil {
 		return fmt.Errorf("packing channel: %w", err)
 	}
-	return installChannel(ctx, "http://"+s.ecp.Hostname()+"/plugin_install", password, zipBytes)
+	return installChannel(ctx, "http://"+net.JoinHostPort(s.ecp.Hostname(), "80")+"/plugin_install", password, zipBytes)
 }
 
 // installChannel uploads channel to Roku dev web server (Digest auth, multipart, result in HTML body).

@@ -96,7 +96,7 @@ func (Family) Locate(_ context.Context, address string) (string, error) {
 		host = u.Host
 	}
 	if _, _, err := net.SplitHostPort(host); err != nil {
-		host = net.JoinHostPort(host, ecpPort)
+		host = net.JoinHostPort(strings.Trim(host, "[]"), ecpPort)
 	}
 	return (&url.URL{Scheme: "http", Host: host}).String(), nil
 }

@@ -44,7 +44,8 @@ func (s *session) queryApps(ctx context.Context) ([]app, error) {
 		return nil, err
 	}
 	var list struct {
-		Apps []app `xml:"app"`
+		XMLName xml.Name `xml:"apps"`
+		Apps    []app    `xml:"app"`
 	}
 	if err := xml.Unmarshal(body, &list); err != nil {
 		return nil, fmt.Errorf("decoding roku apps: %w", err)
