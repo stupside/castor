@@ -113,6 +113,9 @@ func TestChromecastPlayReturnsTheReceiversVerdictOnTheLoad(t *testing.T) {
 		{"a status already idle on an error fails the hand-off", func(id int, load castmedia.MediaItem) []any {
 			return []any{mediaStatus(id, load.ContentId, "IDLE", "ERROR")}
 		}, true},
+		{"an empty status does not accept the load", func(id int, _ castmedia.MediaItem) []any {
+			return []any{castmedia.MediaStatusResponse{Type: msgMediaStatus, RequestId: id}}
+		}, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dev := receiverAnswering(t, tt.answer)

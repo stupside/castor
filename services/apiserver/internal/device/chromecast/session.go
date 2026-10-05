@@ -82,6 +82,9 @@ func loadVerdict(reply []byte) error {
 	if response.Type != msgMediaStatus {
 		return fmt.Errorf("chromecast refused the media (%s)", response.Type)
 	}
+	if len(response.Status) == 0 {
+		return errors.New("chromecast answered LOAD without a media status")
+	}
 	for _, status := range response.Status {
 		if status.PlayerState == stateIdle && status.IdleReason == idleError {
 			return errors.New("chromecast refused the media: the receiver went idle with an error")
