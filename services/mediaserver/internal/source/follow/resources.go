@@ -61,7 +61,14 @@ func (c *resources[K]) get(ctx context.Context, id K, read func(context.Context)
 		return b, nil
 	}
 	// One reader's disconnect must not fail the others waiting on the same read; patience still bounds it.
-	v, err, _ := c.flight.Do(fmt.Sprint(id), func() (any, error) {
+	result := c.flight.DoChan(fmt.Sprint(id), func() (any, error) {
+		// A preceding flight may have populated the cache between the outer lookup and this flight.
+		c.mu.Lock()
+		b, ok := c.held[id]
+		c.mu.Unlock()
+		if ok {
+			return b, nil
+		}
 		b, err := read(context.WithoutCancel(ctx))
 		if err != nil {
 			return nil, err
@@ -78,8 +85,13 @@ func (c *resources[K]) get(ctx context.Context, id K, read func(context.Context)
 		}
 		return b, nil
 	})
-	if err != nil {
-		return nil, err
+	select {
+	case <-ctx.Done():
+		return nil, context.Cause(ctx)
+	case v := <-result:
+		if v.Err != nil {
+			return nil, v.Err
+		}
+		return v.Val.([]byte), nil
 	}
-	return v.([]byte), nil
 }
