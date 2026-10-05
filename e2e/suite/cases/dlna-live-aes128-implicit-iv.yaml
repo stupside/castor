@@ -1,4 +1,6 @@
 # A live AES-128 channel with a sliding window names no IV, leaving each segment's sequence number as its IV, and plays whole when joined deep into its window.
+# Keep eight of the ten initially published segments: the join is still at a nonzero sequence,
+# without expiring more source time than the suite's existing live-join duration allowance.
 stream:
   packaging: hls-ts-aes128
   video: {codec: h264, height: 360}
@@ -7,7 +9,7 @@ stream:
 origin:
   implicit-iv: {}
   event: {offset: 0}
-  live: {start: 10, every: 1s, end: endlist, window: 6}
+  live: {start: 10, every: 1s, end: endlist, window: 8}
 receiver:
   device:
     dlna:
