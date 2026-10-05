@@ -4,6 +4,7 @@ package scrapingserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -57,6 +58,12 @@ func (s *Server) Resolve(ctx context.Context, req *scrapingv1.ResolveRequest) (*
 		return nil, ctx.Err()
 	}
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, connect.NewError(connect.CodeCanceled, err)
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, connect.NewError(connect.CodeDeadlineExceeded, err)
+		}
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 	if len(streams) == 0 {

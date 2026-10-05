@@ -3,6 +3,7 @@ package scrapingserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -91,5 +92,21 @@ func TestScrapingShutdownCancelsAndWaitsForExtraction(t *testing.T) {
 	}
 	if _, err := c.Resolve(t.Context(), &scrapingv1.ResolveRequest{Urls: []string{"https://site.example/watch"}}); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Errorf("request after shutdown: %v", err)
+	}
+}
+
+func TestScrapingPreservesResolverCancellationCodes(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		code connect.Code
+	}{{context.Canceled, connect.CodeCanceled}, {context.DeadlineExceeded, connect.CodeDeadlineExceeded}} {
+		s := New(resolveFunc(func(context.Context, []string) ([]*castorv1.StreamCandidate, error) {
+			return nil, fmt.Errorf("browser: %w", tc.err)
+		}))
+		_, err := s.Resolve(t.Context(), &scrapingv1.ResolveRequest{Urls: []string{"https://site.example/watch"}})
+		s.Shutdown(t.Context())
+		if connect.CodeOf(err) != tc.code {
+			t.Errorf("resolver %v became %v", tc.err, err)
+		}
 	}
 }
