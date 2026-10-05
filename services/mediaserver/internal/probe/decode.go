@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json/v2"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -126,15 +127,20 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 	return info, nil
 }
 
-// pixFmtBitDepth: 8-bit pix_fmts (yuv420p, nv12) carry no depth marker; 10/12-bit ones do.
+// pixelDepth is a component depth followed by an endian marker; digits in nv12 or yuv420p describe layout instead.
+var pixelDepth = regexp.MustCompile(`(9|10|12|14|16|32)(?:le|be)$`)
+
+// pixFmtBitDepth reads component depth, rather than the number of bits in a packed RGB pixel.
 func pixFmtBitDepth(pixFmt string) int {
+	if depth := pixelDepth.FindStringSubmatch(pixFmt); depth != nil {
+		n, _ := strconv.Atoi(depth[1])
+		return n
+	}
 	switch {
 	case pixFmt == "":
 		return 0
-	case strings.Contains(pixFmt, "12"):
-		return 12
-	case strings.Contains(pixFmt, "10"):
-		return 10
+	case strings.HasPrefix(pixFmt, "rgb48"), strings.HasPrefix(pixFmt, "bgr48"), strings.HasPrefix(pixFmt, "rgba64"), strings.HasPrefix(pixFmt, "bgra64"):
+		return 16
 	default:
 		return 8
 	}

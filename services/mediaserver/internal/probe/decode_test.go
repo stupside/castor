@@ -125,3 +125,22 @@ func TestTheProbeReadsWhatDecidesWhetherAPictureCanBeCopied(t *testing.T) {
 		t.Errorf("level %d, rotation %d, sample rate %d; want 51, -90, 96000", info.VideoLevel, info.VideoRotation, info.AudioSampleRate)
 	}
 }
+
+func TestAHighBitDepthPictureCannotBeCopiedAsEightBit(t *testing.T) {
+	device := media.Capabilities{Video: []media.VideoSupport{{Codec: media.CodecH264}}}
+	for _, format := range []string{"yuv444p9le", "yuv444p14le", "yuv444p16le"} {
+		out := probeJSON(vodFormat, `{"codec_type":"video","codec_name":"h264","width":64,"height":64,"pix_fmt":"`+format+`"}`)
+		info, err := decode(out, 0, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if device.CanCopyVideo(info) {
+			t.Errorf("%s was accepted by an eight-bit device: %+v", format, info)
+		}
+	}
+	out := probeJSON(vodFormat, `{"codec_type":"video","codec_name":"h264","width":64,"height":64,"pix_fmt":"nv12"}`)
+	info, err := decode(out, 0, -1)
+	if err != nil || !device.CanCopyVideo(info) {
+		t.Errorf("eight-bit NV12 was refused: %+v (%v)", info, err)
+	}
+}
