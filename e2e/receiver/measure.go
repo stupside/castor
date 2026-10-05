@@ -109,7 +109,9 @@ func measure(ffmpeg, ffprobe, tape string) (Measured, error) {
 			take(&m, s)
 		}
 	}
-	m.Tallest = tallestKeyframe(ctx, ffprobe, tape)
+	if m.Tallest, err = tallestKeyframe(ctx, ffprobe, tape); err != nil {
+		return Measured{}, err
+	}
 	if m.LongestFreeze, err = longestFreeze(ctx, ffprobe, tape); err != nil {
 		return Measured{}, err
 	}
@@ -118,17 +120,17 @@ func measure(ffmpeg, ffprobe, tape string) (Measured, error) {
 }
 
 // tallestKeyframe decodes only keyframes, since a resolution change needs a new sequence header on an IDR.
-func tallestKeyframe(ctx context.Context, ffprobe, tape string) int {
+func tallestKeyframe(ctx context.Context, ffprobe, tape string) (int, error) {
 	out, err := exec.CommandContext(ctx, ffprobe, "-v", "error", "-select_streams", "v", "-skip_frame", "nokey",
 		"-show_entries", "frame=height", "-of", "csv=p=0", tape).Output()
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("reading the tape's keyframe heights: %w", err)
 	}
 	tallest := 0
 	for f := range strings.FieldsSeq(string(out)) {
 		tallest = max(tallest, atoi(strings.TrimSuffix(f, ",")))
 	}
-	return tallest
+	return tallest, nil
 }
 
 // longestFreeze walks the pictures in the order they were written, keeping the widest step forward past every one before it.
@@ -166,8 +168,11 @@ func decode(ctx context.Context, ffmpeg, tape string, video bool) ([]string, boo
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, ffmpeg, append(args, "-f", "null", "-")...)
 	cmd.Stderr = &stderr
-	_ = cmd.Run()
+	err := cmd.Run()
 	errs := strings.FieldsFunc(stderr.String(), func(r rune) bool { return r == '\n' })
+	if err != nil {
+		errs = append(errs, fmt.Sprintf("decoding the tape: %v", err))
+	}
 	printed, _ := os.ReadFile(idet)
 	fields := string(printed)
 	combed := strings.Count(fields, "=tff")+strings.Count(fields, "=bff") > strings.Count(fields, "=progressive")
