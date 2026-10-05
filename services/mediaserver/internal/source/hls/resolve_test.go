@@ -55,6 +55,33 @@ func TestResolveNarrowsAMasterToTheRungUnderTheCap(t *testing.T) {
 	}
 }
 
+func TestRecoveryKeepsTheHLSRungSettledEarlier(t *testing.T) {
+	client := &sourcetest.Documents{ByPath: map[string]string{
+		"/master.m3u8": "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=640x360\nlow.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=6000000,RESOLUTION=1920x1080\nhigh.m3u8\n",
+		"/low.m3u8":    mediaPlaylist, "/high.m3u8": mediaPlaylist,
+	}}
+	chosen := source.Rendition{URL: sourcetest.URL(t, "https://origin.example/low.m3u8")}
+	resolved, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), chosen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := sourcetest.PrimaryInput(t, resolved.Program).URL.Path; got != "/low.m3u8" {
+		t.Errorf("recovery reads %q, want the already settled low rung", got)
+	}
+}
+
+func TestCompanionAudioProtectionRefusesTheProgram(t *testing.T) {
+	client := &sourcetest.Documents{ByPath: map[string]string{
+		"/master.m3u8":    multivariantPlaylist,
+		"/v/1080.m3u8":    mediaPlaylist,
+		"/audio/eng.m3u8": "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"skd://key\",KEYFORMAT=\"com.apple.streamingkeydelivery\"\n#EXTINF:4,\na.m4s\n#EXT-X-ENDLIST\n",
+	}}
+	_, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), source.Rendition{})
+	if err == nil {
+		t.Fatal("a program with DRM-protected companion audio was accepted")
+	}
+}
+
 func TestResolveKeepsTheStreamWhenThePlaylistIsRefused(t *testing.T) {
 	const raw = "http://a.example/spent.m3u8"
 	resolved := resolve(t, &sourcetest.Document{Status: http.StatusForbidden}, hlsAt(t, raw))

@@ -48,7 +48,10 @@ type Env struct {
 func (e Env) Choose(ctx context.Context, origin Origin, settled Rendition, preferred func(a, b Rendition) int) Rendition {
 	chosen := origin.Choose(e.MaxHeight, preferred)
 	if i := slices.IndexFunc(origin.Renditions, func(r Rendition) bool {
-		return settled.Representation != "" && r.Representation == settled.Representation
+		if settled.Representation != "" {
+			return r.Representation == settled.Representation
+		}
+		return settled.URL != nil && r.URL != nil && r.URL.String() == settled.URL.String()
 	}); i >= 0 {
 		chosen = origin.Renditions[i]
 	}

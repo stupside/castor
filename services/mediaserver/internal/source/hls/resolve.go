@@ -40,7 +40,10 @@ func (Format) Resolve(ctx context.Context, env source.Env, s source.Subject) (so
 	if audioURL != nil {
 		end = media.EndAtShortest
 		audioHeaders := env.Client.Replay(audioURL, stream.Headers)
-		audioFetch, audioRelaxed := inspectCompanion(ctx, env.Client, audioURL, audioHeaders)
+		audioFetch, audioRelaxed, err := inspectCompanion(ctx, env.Client, audioURL, audioHeaders)
+		if err != nil {
+			return source.Resolution{Origin: origin, Rendition: chosen}, err
+		}
 		inputs = append(inputs, media.Input{
 			ID:                   media.AudioInputID,
 			URL:                  audioURL,
@@ -106,25 +109,28 @@ func inspect(ctx context.Context, env source.Env, stream source.Stream, origin s
 }
 
 // inspectCompanion reads the audio rendition's media playlist.
-func inspectCompanion(ctx context.Context, client source.Client, audioURL *url.URL, headers http.Header) (media.Fetch, bool) {
+func inspectCompanion(ctx context.Context, client source.Client, audioURL *url.URL, headers http.Header) (media.Fetch, bool, error) {
 	unknown := media.Fetch{Segmented: true}
 	doc, status, err := readPlaylist(ctx, client, audioURL, headers)
 	if err != nil {
 		slog.WarnContext(ctx, "the companion audio playlist could not be read; its fetch characteristics stay unknown",
 			"error", err, "status", status, "url", audioURL.String())
-		return unknown, false
+		return unknown, true, nil
 	}
 	if doc.multivariant {
 		slog.WarnContext(ctx, "the companion audio URL names a multivariant playlist; its segment characteristics stay unknown",
 			"url", audioURL.String())
-		return unknown, false
+		return unknown, true, nil
+	}
+	if doc.protection != "" {
+		return unknown, false, fmt.Errorf("the companion audio is protected by DRM (%s), which castor cannot decrypt", doc.protection)
 	}
 	return media.Fetch{
 		Segmented: true,
 		Framing:   doc.framing,
 		Live:      doc.live,
 		Spliced:   doc.spliced,
-	}, doc.requiresRelaxedInput
+	}, doc.requiresRelaxedInput, nil
 }
 
 // readPlaylist fetches one HLS document and reduces it to the facts it states.
