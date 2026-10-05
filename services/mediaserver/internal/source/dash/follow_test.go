@@ -186,6 +186,23 @@ func TestALiveTimelineListsOnlySegmentsThatExist(t *testing.T) {
 	})
 }
 
+func TestAFiniteLiveTimelineDoesNotPublishFutureSegments(t *testing.T) {
+	const body = mpdOpen + `type="dynamic" availabilityStartTime="2026-01-01T00:00:00Z" timeShiftBufferDepth="PT6S">
+  <Period><AdaptationSet contentType="video"><SegmentTemplate timescale="1" media="$Time$.m4s">
+    <SegmentTimeline><S t="0" d="2" r="20"/></SegmentTimeline></SegmentTemplate>
+    <Representation id="v" height="360"/></AdaptationSet></Period></MPD>`
+	w := window(t, map[string]string{"/live/manifest.mpd": body}, media.TrackVideo, "v", at(21))
+	same(t, uris(w), []string{"https://cdn.example/live/14.m4s", "https://cdn.example/live/16.m4s", "https://cdn.example/live/18.m4s"})
+}
+
+func TestATimelineStopsListingAtThePeriodEnd(t *testing.T) {
+	const body = mpdOpen + `type="static"><Period duration="PT3S"><AdaptationSet contentType="video">
+  <SegmentTemplate timescale="1" media="$Time$.m4s"><SegmentTimeline><S t="0" d="2" r="3"/></SegmentTimeline></SegmentTemplate>
+  <Representation id="v" height="360"/></AdaptationSet></Period></MPD>`
+	w := window(t, map[string]string{"/live/manifest.mpd": body}, media.TrackVideo, "v", time.Time{})
+	same(t, uris(w), []string{"https://cdn.example/live/0.m4s", "https://cdn.example/live/2.m4s"})
+}
+
 func TestALiveDurationTemplateForgetsWhatTheBufferNoLongerKeeps(t *testing.T) {
 	const body = mpdOpen + `type="dynamic" availabilityStartTime="2026-01-01T00:00:00Z" timeShiftBufferDepth="PT6S">
   <Period id="old" start="PT0S" duration="PT6S"><AdaptationSet contentType="video">

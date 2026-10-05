@@ -110,14 +110,27 @@ func (a addressed) templated(t *mpd.SegmentTemplateType, e edge) ([]timeline.Seg
 					return nil, fmt.Errorf("representation %q repeats a segment without end", a.rep.Id)
 				}
 			}
-			for range repeats + 1 {
-				if at+d > kept {
-					if out, err = add(out, number, at, d, a.place(at, at+d)); err != nil {
-						return nil, err
-					}
-				}
-				number, at = number+1, at+d
+			// Skip expired repeats arithmetically: a long-running timeline must not walk its entire history at every reload.
+			count := repeats + 1
+			skip := int64(0)
+			if kept >= at+d {
+				skip = min(count, (kept-at)/d)
 			}
+			until := count
+			if periodEnd != math.MaxInt64 {
+				until = min(until, max(0, (periodEnd-at+d-1)/d))
+			}
+			if e.live {
+				produced := offset + tick(a.elapsed(e)+early(t, ticks(d, timescale)))
+				until = min(until, max(0, (produced-at)/d))
+			}
+			for n := skip; n < until; n++ {
+				start := at + n*d
+				if out, err = add(out, number+n, start, d, a.place(start, start+d)); err != nil {
+					return nil, err
+				}
+			}
+			number, at = number+count, at+count*d
 		}
 		return out, nil
 	}
