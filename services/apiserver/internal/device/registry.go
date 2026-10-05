@@ -48,6 +48,8 @@ func (r Registry) Discover(ctx context.Context) []Info {
 
 // Connect opens the device at target's address, as its family locates it.
 func (r Registry) Connect(ctx context.Context, target Info) (Device, error) {
+	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
+	defer cancel()
 	f, err := r.family(target.Type)
 	if err != nil {
 		return nil, err

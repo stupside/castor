@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -52,4 +53,23 @@ func TestADeviceAnnouncedTwiceIsListedOnce(t *testing.T) {
 	if len(found) != 2 || found[0].ID != "uuid-1" || found[1].ID != "uuid-2" {
 		t.Errorf("Discover = %+v, want Bedroom then Kitchen, once each", found)
 	}
+}
+
+type unresponsive struct{ stub }
+
+func (unresponsive) Connect(ctx context.Context, _ Info) (Device, error) {
+	<-ctx.Done()
+	return nil, context.Cause(ctx)
+}
+
+func TestConnectingAnUnresponsiveDeviceUsesTheNetworkBudget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+		defer cancel()
+		start := time.Now()
+		_, err := (Registry{Families: []Family{unresponsive{}}, Timeout: time.Second}).Connect(ctx, Info{Type: "push", Address: "10.0.0.9"})
+		if !errors.Is(err, context.DeadlineExceeded) || time.Since(start) != time.Second {
+			t.Fatalf("Connect = %v after %s, want deadline exceeded within the one-second network budget", err, time.Since(start))
+		}
+	})
 }
