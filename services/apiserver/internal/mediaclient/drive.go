@@ -36,7 +36,9 @@ func (c *Client) Drive(parent context.Context, id string, lent Device, named *ca
 	}
 	defer func() { _ = stream.Close() }()
 	for stream.Receive() {
-		d.run(stream.Msg().GetCommand())
+		if err := d.run(stream.Msg().GetCommand()); err != nil {
+			return fmt.Errorf("driving cast: %w", err)
+		}
 	}
 	if cause := context.Cause(ctx); cause != nil && parent.Err() == nil {
 		return cause
@@ -60,17 +62,22 @@ type driver struct {
 	wg      sync.WaitGroup
 }
 
-func (d *driver) run(cmd *mediav1.DeviceCommand) {
+func (d *driver) run(cmd *mediav1.DeviceCommand) error {
 	if cancel := cmd.GetCancel(); cancel != nil {
 		d.mu.Lock()
 		if stop, ok := d.running[cancel.GetCommandId()]; ok {
 			stop()
 		}
 		d.mu.Unlock()
-		return
+		return nil
 	}
 	ctx, cancel := context.WithCancel(d.ctx)
 	d.mu.Lock()
+	if _, exists := d.running[cmd.GetId()]; exists {
+		d.mu.Unlock()
+		cancel()
+		return fmt.Errorf("media server reused running device command ID %q", cmd.GetId())
+	}
 	d.running[cmd.GetId()] = cancel
 	d.mu.Unlock()
 	d.wg.Go(func() {
@@ -88,6 +95,7 @@ func (d *driver) run(cmd *mediav1.DeviceCommand) {
 		answer.CastId, answer.CommandId = d.castID, cmd.GetId()
 		d.answer(ctx, answer)
 	})
+	return nil
 }
 
 func (d *driver) exec(ctx context.Context, cmd *mediav1.DeviceCommand) *mediav1.AnswerRequest {
