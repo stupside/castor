@@ -45,12 +45,9 @@ type Client struct {
 // New is a Client of the account cfg names.
 func New(cfg Config) *Client {
 	// Keep connections warm for TUI's many small calls (search, details, discover).
-	transport := &http.Transport{
-		MaxIdleConns:        32,
-		MaxIdleConnsPerHost: 8,
-		IdleConnTimeout:     60 * time.Second,
-		ForceAttemptHTTP2:   true,
-	}
+	// Cloned, so proxy settings and dial and TLS timeouts still apply.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = 8
 	return &Client{
 		apiKey: cfg.APIKey,
 		base:   apiBase,
