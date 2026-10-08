@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stupside/castor/services/mediaserver/internal/source"
 	"github.com/stupside/castor/services/mediaserver/internal/source/sourcetest"
 	"github.com/stupside/castor/services/mediaserver/internal/source/timeline"
 )
@@ -28,7 +29,7 @@ func TestFetchReportsWhatTheOriginSaid(t *testing.T) {
 		case "/spent.m3u8":
 			http.Error(w, "expired signature", http.StatusForbidden)
 		case "/film.m3u8":
-			_, _ = w.Write(make([]byte, documentLimit+1))
+			_, _ = w.Write(make([]byte, source.DocumentLimit+1))
 		}
 	}))
 	client := reaching(origin, 5*time.Second)

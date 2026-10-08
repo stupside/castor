@@ -1,5 +1,22 @@
 package source
 
+import (
+	"fmt"
+	"io"
+)
+
+// DocumentLimit is far above any real playlist, manifest, init section or key, and far below a film served in its place.
+const DocumentLimit = 16 << 20
+
+// ReadDocument reads r to its end, refusing more than DocumentLimit bytes.
+func ReadDocument(r io.Reader) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, DocumentLimit+1))
+	if err == nil && len(b) > DocumentLimit {
+		return nil, fmt.Errorf("larger than %d bytes", DocumentLimit)
+	}
+	return b, err
+}
+
 // Ladder is what a body says of the renditions it offers.
 type Ladder int
 

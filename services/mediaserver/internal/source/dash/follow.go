@@ -3,7 +3,6 @@ package dash
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/url"
 	"strings"
 	"time"
@@ -81,7 +80,7 @@ func (f *follower) Window(ctx context.Context) (timeline.Window, error) {
 			return nil, err
 		}
 		defer func() { _ = body.Close() }()
-		return io.ReadAll(body)
+		return source.ReadDocument(body)
 	}
 	var w timeline.Window
 	for _, p := range periods {

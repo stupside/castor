@@ -38,6 +38,10 @@ func watchProgress(r io.Reader, fn func(media.Progress)) {
 			fn(sample)
 		}
 	}
+	if scanner.Err() != nil {
+		// A feed that stops parsing must not stall ffmpeg on a full pipe.
+		_, _ = io.Copy(io.Discard, r)
+	}
 }
 
 // parseSpeed reads speed field (realtime multiple with x suffix or N/A); refusal over zero.

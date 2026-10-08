@@ -25,9 +25,6 @@ type client struct {
 	http *http.Client
 }
 
-// documentLimit is far above any real playlist or manifest, and far below a film served in its place.
-const documentLimit = 16 << 20
-
 // New reads origins with documents bounded by timeout, sharing one cookie session across every read.
 func New(timeout time.Duration) source.Client {
 	// A CDN that authorises a session on the master (Akamai's hdntl) refuses every later read without its cookie.
@@ -78,12 +75,9 @@ func (c *client) Fetch(ctx context.Context, u *url.URL, h http.Header) (string, 
 		return "", from, resp.StatusCode, fmt.Errorf("fetching document: HTTP %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, documentLimit+1))
+	body, err := source.ReadDocument(resp.Body)
 	if err != nil {
 		return "", from, resp.StatusCode, fmt.Errorf("reading document: %w", err)
-	}
-	if len(body) > documentLimit {
-		return "", from, resp.StatusCode, fmt.Errorf("reading document: larger than %d bytes", documentLimit)
 	}
 	return string(body), from, resp.StatusCode, nil
 }

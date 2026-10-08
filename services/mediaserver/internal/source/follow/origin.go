@@ -7,6 +7,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/stupside/castor/services/mediaserver/internal/source"
 	"github.com/stupside/castor/services/mediaserver/internal/source/timeline"
 )
 
@@ -28,7 +29,7 @@ func (f *feed) read(ctx context.Context, s timeline.Segment) (io.ReadCloser, err
 
 func (f *feed) initBytes(ctx context.Context, m timeline.Map) ([]byte, error) {
 	return f.initsHeld.get(ctx, m, func(ctx context.Context) ([]byte, error) {
-		b, err := f.whole(ctx, m.URI, m.Range)
+		b, err := f.document(ctx, m.URI, m.Range)
 		if err != nil || !decryptable(m.Key) {
 			return b, err
 		}
@@ -38,7 +39,7 @@ func (f *feed) initBytes(ctx context.Context, m timeline.Map) ([]byte, error) {
 
 // keyBytes relays a key that the downstream reader handles itself.
 func (f *feed) keyBytes(ctx context.Context, uri string) ([]byte, error) {
-	return f.keysHeld.get(ctx, uri, func(ctx context.Context) ([]byte, error) { return f.whole(ctx, uri, timeline.Range{}) })
+	return f.keysHeld.get(ctx, uri, func(ctx context.Context) ([]byte, error) { return f.document(ctx, uri, timeline.Range{}) })
 }
 
 // decrypt fetches the raw AES key through the segment's origin session.
@@ -65,6 +66,16 @@ func (f *feed) whole(ctx context.Context, uri string, r timeline.Range) ([]byte,
 	}
 	defer func() { _ = body.Close() }()
 	return io.ReadAll(body)
+}
+
+// document reads a resource the feed holds on to, refusing one larger than any init section or key.
+func (f *feed) document(ctx context.Context, uri string, r timeline.Range) ([]byte, error) {
+	body, err := f.open(ctx, uri, r)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = body.Close() }()
+	return source.ReadDocument(body)
 }
 
 // open reads from the origin with patience to answer, and patience again whenever it goes quiet.
