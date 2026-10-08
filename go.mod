@@ -15,10 +15,10 @@ require (
 	connectrpc.com/validate v0.7.0
 	github.com/Eyevinn/dash-mpd v0.18.1
 	github.com/Eyevinn/hls-m3u8 v0.6.5
-	github.com/Eyevinn/mp4ff v0.57.0
+	github.com/Eyevinn/mp4ff v0.59.0
 	github.com/at-wat/ebml-go v0.19.4
 	github.com/charmbracelet/colorprofile v0.4.3
-	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261001101533-953920dd3285
+	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261004011457-ad85c59fdf4e
 	github.com/chromedp/cdproto v0.0.0-20260922220944-a19bff23514f
 	github.com/chromedp/chromedp v0.16.0
 	github.com/eliukblau/pixterm v1.3.3
@@ -30,7 +30,7 @@ require (
 	github.com/knadh/koanf/parsers/yaml v1.1.1
 	github.com/knadh/koanf/providers/env v1.1.0
 	github.com/knadh/koanf/providers/file v1.2.1
-	github.com/knadh/koanf/v2 v2.3.7
+	github.com/knadh/koanf/v2 v2.3.8
 	github.com/looplab/fsm v1.0.4
 	github.com/urfave/cli/v3 v3.14.0
 	github.com/vishen/go-chromecast v0.3.4
@@ -101,3 +101,5 @@ tool (
 	connectrpc.com/connect/cmd/protoc-gen-connect-go
 	google.golang.org/protobuf/cmd/protoc-gen-go
 )
+
+ignore ./node_modules
