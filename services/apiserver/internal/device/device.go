@@ -3,7 +3,9 @@ package device
 
 import (
 	"context"
+	"net"
 	"net/url"
+	"strings"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
@@ -68,3 +70,11 @@ var publicTypes = map[Type]castorv1.DeviceType{
 }
 
 func (t Type) public() castorv1.DeviceType { return publicTypes[t] }
+
+// WithPort completes a bare host, bracketed or not, with a family's default port.
+func WithPort(address, port string) string {
+	if _, _, err := net.SplitHostPort(address); err == nil {
+		return address
+	}
+	return net.JoinHostPort(strings.Trim(address, "[]"), port)
+}

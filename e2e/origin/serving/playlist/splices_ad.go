@@ -118,14 +118,17 @@ func (s splice) spliced(playlist, cdn, ext string) []byte {
 			continue
 		}
 		if entry == s.After {
-			out.WriteString("#EXT-X-DISCONTINUITY\n" + adInit)
+			out.WriteString("#EXT-X-DISCONTINUITY\n")
+			out.WriteString(adInit)
 			for n := range s.Segments {
 				fmt.Fprintf(&out, "#EXTINF:1.000000,\n%s/ad/%03d%s?aid=e2e\n", cdn, n, ext)
 			}
-			out.WriteString("#EXT-X-DISCONTINUITY\n" + contentInit)
+			out.WriteString("#EXT-X-DISCONTINUITY\n")
+			out.WriteString(contentInit)
 		}
 		if entry < s.After || entry >= s.After+s.Segments {
-			out.WriteString(line.Text + line.URI)
+			out.WriteString(line.Text)
+			out.WriteString(line.URI)
 		}
 		entry++
 	}

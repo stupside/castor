@@ -1,6 +1,7 @@
 package apiserver
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -29,10 +30,7 @@ func Command() *cli.Command {
 			if cfg.Server.URL == "" {
 				return errors.New("server.url is required: the API server casts through a media server (`castor media-server`)")
 			}
-			scraping := transport.Endpoint{URL: cfg.Scraping.URL, Token: cfg.Scraping.Token}
-			if scraping.URL == "" {
-				scraping.URL = "http://localhost:8412"
-			}
+			scraping := transport.Endpoint{URL: cmp.Or(cfg.Scraping.URL, "http://localhost:8412"), Token: cfg.Scraping.Token}
 			srv, err := New(cfg.backend(transport.Endpoint{URL: cfg.Server.URL, Token: cfg.Server.Token}, scraping), cfg.Cast)
 			if err != nil {
 				return fmt.Errorf("validating config: %w", err)

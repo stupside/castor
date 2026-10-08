@@ -62,7 +62,7 @@ type channel struct {
 	waiting map[int]chan []byte
 
 	gone      chan struct{}
-	closeOnce sync.Once
+	closeConn func() error
 }
 
 // dial opens the channel; observe sees every message the receiver sends, from the reader's goroutine.
@@ -78,13 +78,14 @@ func dial(ctx context.Context, address string, observe func([]byte)) (*channel, 
 
 func newChannel(conn net.Conn, observe func([]byte)) *channel {
 	ch := &channel{conn: conn, observe: observe, writing: make(chan struct{}, 1), waiting: map[int]chan []byte{}, gone: make(chan struct{})}
+	ch.closeConn = sync.OnceValue(conn.Close)
 	go ch.read()
 	return ch
 }
 
 func (ch *channel) read() {
 	defer close(ch.gone)
-	defer ch.closeOnce.Do(func() { _ = ch.conn.Close() })
+	defer ch.closeConn()
 	for {
 		msg, err := ch.receive()
 		if err != nil {
@@ -211,7 +212,7 @@ func (ch *channel) send(ctx context.Context, destination, namespace string, payl
 	n, err := ch.conn.Write(packet)
 	if n > 0 && n < len(packet) {
 		// A partial frame cannot be retried on this connection.
-		ch.closeOnce.Do(func() { _ = ch.conn.Close() })
+		_ = ch.closeConn()
 	}
 	if ctx.Err() != nil {
 		return context.Cause(ctx)
@@ -221,8 +222,7 @@ func (ch *channel) send(ctx context.Context, destination, namespace string, payl
 
 // Close returns once the reader has stopped, so nothing is observed after it.
 func (ch *channel) Close() error {
-	var err error
-	ch.closeOnce.Do(func() { err = ch.conn.Close() })
+	err := ch.closeConn()
 	<-ch.gone
 	return err
 }

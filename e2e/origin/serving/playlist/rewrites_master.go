@@ -104,7 +104,9 @@ func (m rewritesMaster) rewrite(master string) string {
 				as[i].value = legacy(a.value)
 			}
 		}
-		out.WriteString(streamInf + joined(as) + "\n")
+		out.WriteString(streamInf)
+		out.WriteString(joined(as))
+		out.WriteString("\n")
 	}
 	return out.String()
 }

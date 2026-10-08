@@ -6,6 +6,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
 const (
@@ -17,10 +19,7 @@ const (
 
 // searchDescription: unicast M-SEARCH for description (no interface enumeration).
 func searchDescription(ctx context.Context, host string) (string, error) {
-	target := host
-	if _, _, err := net.SplitHostPort(host); err != nil {
-		target = net.JoinHostPort(host, ssdpPort)
-	}
+	target := device.WithPort(host, ssdpPort)
 
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "udp4", target)

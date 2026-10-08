@@ -2,7 +2,9 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -42,7 +44,7 @@ func Read[T any](path string, defaults T) (*T, error) {
 	local := strings.TrimSuffix(path, filepath.Ext(path)) + ".local" + filepath.Ext(path)
 	for _, layer := range []string{path, local} {
 		if _, err := os.Stat(layer); err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
 			return nil, fmt.Errorf("reading %s: %w", layer, err)

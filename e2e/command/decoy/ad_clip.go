@@ -63,7 +63,9 @@ func cut(playlist, base string) (string, bool) {
 			if err != nil {
 				return "", false
 			}
-			out.WriteString(line.Text + uri.String() + "\n")
+			out.WriteString(line.Text)
+			out.WriteString(uri.String())
+			out.WriteString("\n")
 			segments++
 		case strings.HasPrefix(line.Text, "#EXT-X-ENDLIST"), strings.HasPrefix(line.Text, "#EXT-X-STREAM-INF"):
 		default:

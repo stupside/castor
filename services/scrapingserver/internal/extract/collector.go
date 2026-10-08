@@ -78,12 +78,13 @@ type collector struct {
 	reads  sync.WaitGroup
 
 	// added is closed and replaced on every capture.
-	added    chan struct{}
-	mastered chan struct{}
+	added        chan struct{}
+	mastered     chan struct{}
+	markMastered func()
 }
 
 func newCollector(ctx context.Context, readBody bodyReader, grace, window, preRoll time.Duration) *collector {
-	return &collector{
+	c := &collector{
 		ctx:      ctx,
 		readBody: readBody,
 		grace:    grace,
@@ -94,6 +95,8 @@ func newCollector(ctx context.Context, readBody bodyReader, grace, window, preRo
 		added:    make(chan struct{}),
 		mastered: make(chan struct{}),
 	}
+	c.markMastered = sync.OnceFunc(func() { close(c.mastered) })
+	return c
 }
 
 // addByURL records a link whose name says it is a segmented manifest.
@@ -312,7 +315,7 @@ func (c *collector) noteDocument(reqID network.RequestID, body string) {
 		}
 	}
 	if doc.ladder == castorv1.Ladder_LADDER_MULTIVARIANT {
-		closeOnce(c.mastered)
+		c.markMastered()
 	}
 	slog.InfoContext(c.ctx, "read captured document", "url", c.captures[i].raw, "renditions", doc.ladder, "names", len(doc.references), "runtime", doc.runtime)
 }
@@ -390,13 +393,5 @@ func (c *collector) listen(ev any) {
 				c.addByURL(raw, "")
 			}
 		}
-	}
-}
-
-func closeOnce(ch chan struct{}) {
-	select {
-	case <-ch:
-	default:
-		close(ch)
 	}
 }

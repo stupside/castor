@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sync"
+	"sync/atomic"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 )
@@ -13,16 +13,18 @@ import (
 // reconnecting is the device a cast lends, so later attempts still reach it after its connection is gone.
 type reconnecting struct {
 	dir *Directory
+	cur atomic.Pointer[link]
+}
 
-	mu     sync.Mutex
-	target Info
+// link is a connected device and the address it was reached at.
+type link struct {
 	device Device
+	target Info
 }
 
 func (r *reconnecting) current() (Device, Info) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.device, r.target
+	l := r.cur.Load()
+	return l.device, l.target
 }
 
 func (r *reconnecting) Play(ctx context.Context, streamURL *url.URL, container mediav1.Container) error {
@@ -35,11 +37,8 @@ func (r *reconnecting) Play(ctx context.Context, streamURL *url.URL, container m
 	if cerr != nil {
 		return fmt.Errorf("%w; connecting again: %w", err, cerr)
 	}
-	r.mu.Lock()
-	stale := r.device
-	r.device, r.target = fresh, at
-	r.mu.Unlock()
-	_ = stale.Close()
+	stale := r.cur.Swap(&link{device: fresh, target: at})
+	_ = stale.device.Close()
 	return fresh.Play(ctx, streamURL, container)
 }
 

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -95,10 +94,7 @@ func (Family) Locate(_ context.Context, address string) (string, error) {
 	if u, err := url.Parse(address); err == nil && u.Host != "" {
 		host = u.Host
 	}
-	if _, _, err := net.SplitHostPort(host); err != nil {
-		host = net.JoinHostPort(strings.Trim(host, "[]"), ecpPort)
-	}
-	return (&url.URL{Scheme: "http", Host: host}).String(), nil
+	return (&url.URL{Scheme: "http", Host: device.WithPort(host, ecpPort)}).String(), nil
 }
 
 // deviceName reads the owner-set name from /query/device-info, falling back to the host on any failure.
@@ -145,7 +141,7 @@ func (f Family) Connect(ctx context.Context, info device.Info) (device.Device, e
 	if err != nil {
 		return nil, fmt.Errorf("querying roku apps: %w", err)
 	}
-	if !appInstalled(apps, dev.appID) {
+	if !slices.ContainsFunc(apps, func(a app) bool { return a.ID == dev.appID }) {
 		return nil, fmt.Errorf("roku channel %q is not installed on %q", dev.appID, dev.name)
 	}
 	return dev, nil

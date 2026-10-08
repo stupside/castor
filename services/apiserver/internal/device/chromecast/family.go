@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
-	"strings"
 
 	castmedia "github.com/vishen/go-chromecast/cast"
 	castdns "github.com/vishen/go-chromecast/dns"
@@ -36,7 +35,7 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 	dev := &session{name: cmp.Or(info.Name, info.Address), ending: newEnding()}
 	dialCtx, cancel := context.WithTimeout(ctx, answerWithin)
 	defer cancel()
-	ch, err := dial(dialCtx, dialAddress(info.Address), dev.watchMessage)
+	ch, err := dial(dialCtx, device.WithPort(info.Address, strconv.Itoa(castPort)), dev.watchMessage)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to chromecast: %w", err)
 	}
@@ -50,14 +49,6 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 		return nil, fmt.Errorf("connecting to chromecast: %w", err)
 	}
 	return dev, nil
-}
-
-// dialAddress completes a bare host with the Cast port.
-func dialAddress(address string) string {
-	if _, _, err := net.SplitHostPort(address); err == nil {
-		return address
-	}
-	return net.JoinHostPort(strings.Trim(address, "[]"), strconv.Itoa(castPort))
 }
 
 // Locate passes the address straight through, Connect already accepting both of its forms.

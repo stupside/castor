@@ -19,8 +19,8 @@ type Endpoint struct {
 // Client is a client of e, carrying its token.
 func (e Endpoint) Client() *http.Client { return Bearer(e.Token) }
 
-// Checked holds every message a handler takes and sends to the rules its contract states.
-func Checked() connect.HandlerOption {
+// Checked holds every message a handler or client takes and sends to the rules its contract states.
+func Checked() connect.Option {
 	return connect.WithInterceptors(validate.NewInterceptor(validate.WithValidateResponses()))
 }
 

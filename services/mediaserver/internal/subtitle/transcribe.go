@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 )
@@ -40,8 +41,8 @@ type Recognizer interface {
 // Transcription commits a PCM feed's words by LocalAgreement-2: a word is committed once two successive hypotheses agree on it.
 type Transcription struct {
 	mu        sync.Mutex
-	latestEnd float64 // end of the last committed word, in seconds
-	done      bool    // Run has returned; no more words are coming
+	done      atomic.Bool // Run has returned; no more words are coming
+	latestEnd float64     // end of the last committed word, in seconds
 }
 
 // LatestEnd is the end of the last committed word, in seconds.
@@ -52,11 +53,7 @@ func (t *Transcription) LatestEnd() float64 {
 }
 
 // Done reports whether Run has returned, so no further words will appear.
-func (t *Transcription) Done() bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.done
-}
+func (t *Transcription) Done() bool { return t.done.Load() }
 
 func (t *Transcription) setFrontier(sec float64) {
 	t.mu.Lock()
@@ -64,11 +61,7 @@ func (t *Transcription) setFrontier(sec float64) {
 	t.latestEnd = max(t.latestEnd, sec)
 }
 
-func (t *Transcription) markDone() {
-	t.mu.Lock()
-	t.done = true
-	t.mu.Unlock()
-}
+func (t *Transcription) markDone() { t.done.Store(true) }
 
 // Run commits pcm's words into sink until pcm ends; open readies the recognizer, and release frees it.
 func (t *Transcription) Run(ctx context.Context, pcm io.Reader, open func(context.Context) (r Recognizer, release func(), err error), sink *Cues) error {

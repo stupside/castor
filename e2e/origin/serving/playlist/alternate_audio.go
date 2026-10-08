@@ -58,7 +58,9 @@ func (a alternateAudio) rewrite(master string) string {
 			fmt.Fprintf(&out, `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",LANGUAGE="%s",NAME="%s",DEFAULT=NO,AUTOSELECT=YES,URI="%s"`+"\n", a.Language, a.Language, variant(lines[i+1:]))
 			declared = true
 		}
-		out.WriteString(strings.TrimRight(line, "\r\n") + `,AUDIO="aud"` + "\n")
+		out.WriteString(strings.TrimRight(line, "\r\n"))
+		out.WriteString(`,AUDIO="aud"`)
+		out.WriteString("\n")
 	}
 	return out.String()
 }

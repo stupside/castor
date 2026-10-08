@@ -14,20 +14,10 @@ import (
 
 // segmentBase is the SegmentBase the representation reads, each attribute from the nearest level that states it.
 func (a addressed) segmentBase() *mpd.SegmentBaseType {
-	var out *mpd.SegmentBaseType
-	for _, b := range []*mpd.SegmentBaseType{a.rep.SegmentBase, a.set.SegmentBase, a.period.SegmentBase} {
-		if b == nil {
-			continue
-		}
-		if out == nil {
-			merged := *b
-			out = &merged
-			continue
-		}
+	return inherit(func(out, b *mpd.SegmentBaseType) {
 		out.IndexRange = cmp.Or(out.IndexRange, b.IndexRange)
 		out.Initialization = cmp.Or(out.Initialization, b.Initialization)
-	}
-	return out
+	}, a.rep.SegmentBase, a.set.SegmentBase, a.period.SegmentBase)
 }
 
 func (a addressed) indexed(b *mpd.SegmentBaseType, fetch indexer) ([]timeline.Segment, error) {

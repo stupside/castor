@@ -14,16 +14,7 @@ import (
 
 // template is the SegmentTemplate the representation reads, each attribute from the nearest level that states it.
 func (a addressed) template() *mpd.SegmentTemplateType {
-	var out *mpd.SegmentTemplateType
-	for _, t := range []*mpd.SegmentTemplateType{a.rep.SegmentTemplate, a.set.SegmentTemplate, a.period.SegmentTemplate} {
-		if t == nil {
-			continue
-		}
-		if out == nil {
-			merged := *t
-			out = &merged
-			continue
-		}
+	return inherit(func(out, t *mpd.SegmentTemplateType) {
 		out.Media = cmp.Or(out.Media, t.Media)
 		out.Initialization = cmp.Or(out.Initialization, t.Initialization)
 		out.SegmentBaseType.Initialization = cmp.Or(out.SegmentBaseType.Initialization, t.SegmentBaseType.Initialization)
@@ -33,8 +24,7 @@ func (a addressed) template() *mpd.SegmentTemplateType {
 		out.PresentationTimeOffset = cmp.Or(out.PresentationTimeOffset, t.PresentationTimeOffset)
 		out.AvailabilityTimeOffset = cmp.Or(out.AvailabilityTimeOffset, t.AvailabilityTimeOffset)
 		out.SegmentTimeline = cmp.Or(out.SegmentTimeline, t.SegmentTimeline)
-	}
-	return out
+	}, a.rep.SegmentTemplate, a.set.SegmentTemplate, a.period.SegmentTemplate)
 }
 
 // early is how long before its last sample a segment may be asked for; INF, as soon as it starts.

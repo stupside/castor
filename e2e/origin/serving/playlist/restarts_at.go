@@ -86,9 +86,12 @@ func (s restart) restarted(playlist string) []byte {
 			out.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
 		case entry && index < s.Segment && s.Sequence == Reset:
 		case entry && index == s.Segment && s.Sequence == Continue:
-			out.WriteString("#EXT-X-DISCONTINUITY\n" + line.Text + line.URI)
+			out.WriteString("#EXT-X-DISCONTINUITY\n")
+			out.WriteString(line.Text)
+			out.WriteString(line.URI)
 		default:
-			out.WriteString(line.Text + line.URI)
+			out.WriteString(line.Text)
+			out.WriteString(line.URI)
 		}
 	}
 	return []byte(out.String())

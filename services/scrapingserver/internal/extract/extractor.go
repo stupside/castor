@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-
-	"golang.org/x/sync/errgroup"
+	"sync"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
@@ -64,26 +63,25 @@ func (e *Extractor) Resolve(ctx context.Context, urls []string) ([]*castorv1.Str
 
 	results := make([][]*castorv1.StreamCandidate, len(urls))
 	failures := make([]error, len(urls))
-	var g errgroup.Group
-	g.SetLimit(e.cfg.Capture.MaxConcurrency)
+	// extract holds each page to the browser budget itself.
+	var wg sync.WaitGroup
 	for i, targetURL := range urls {
 		if ctx.Err() != nil {
 			break
 		}
-		g.Go(func() error {
+		wg.Go(func() {
 			slog.DebugContext(ctx, "extracting", "url", targetURL, "index", i+1, "total", len(urls))
 			streams, err := e.extract(ctx, targetURL)
 			if err != nil {
 				slog.WarnContext(ctx, "extraction failed", "url", targetURL, "error", err)
 				failures[i] = fmt.Errorf("%s: %w", targetURL, err)
-				return nil
+				return
 			}
 			results[i] = streams
 			slog.DebugContext(ctx, "extracted", "url", targetURL, "count", len(streams))
-			return nil
 		})
 	}
-	_ = g.Wait()
+	wg.Wait()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

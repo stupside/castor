@@ -69,7 +69,9 @@ func (d *Directory) Connect(ctx context.Context, target Info) (Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &reconnecting{dir: d, target: at, device: dev}, nil
+	r := &reconnecting{dir: d}
+	r.cur.Store(&link{device: dev, target: at})
+	return r, nil
 }
 
 // dial connects target, discovering it again once when a seen device no longer answers where it was found.

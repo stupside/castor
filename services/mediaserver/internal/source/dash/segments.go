@@ -108,3 +108,18 @@ func (m presentation) addressed(from *url.URL, p placed, o offered) addressed {
 		named: slices.ContainsFunc(levels, func(l []*mpd.BaseURLType) bool { return len(l) > 0 }),
 	}
 }
+
+// inherit copies the nearest stated level, then fills what it leaves unstated from each level above.
+func inherit[T any](fill func(into, from *T), levels ...*T) *T {
+	var out *T
+	for _, l := range levels {
+		switch {
+		case l == nil:
+		case out == nil:
+			out = new(*l)
+		default:
+			fill(out, l)
+		}
+	}
+	return out
+}

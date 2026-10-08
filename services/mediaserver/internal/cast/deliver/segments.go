@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/container"
@@ -28,11 +29,11 @@ type Segments struct {
 	playlist string
 
 	drained chan struct{}
+	served  atomic.Int64 // Artifacts handed over (measure of device fetch, not bytes).
 	reader  sync.WaitGroup
 
 	mu          sync.Mutex
 	lastRequest time.Time // When device last requested anything (seeded at New).
-	served      int       // Artifacts handed over (measure of device fetch, not bytes).
 }
 
 // OpenSegments serves the live HLS directory dir producer writes; no byte pacing, the client self-paces.
@@ -64,7 +65,7 @@ func OpenSegments(ctx context.Context, o Opening, dir string, producer io.Reader
 
 	files := http.FileServerFS(root.FS())
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		s.touch()
 		if s.o.WriteDeadline > 0 {
 			control := http.NewResponseController(w)
@@ -99,11 +100,7 @@ func (s *Segments) URL() *url.URL {
 }
 
 // Served returns artifacts handed over (zero = URL accepted but no bytes fetched).
-func (s *Segments) Served() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.served
-}
+func (s *Segments) Served() int { return int(s.served.Load()) }
 
 // Drained is closed once encoder output reaches EOF.
 func (s *Segments) Drained() <-chan struct{} { return s.drained }
@@ -120,11 +117,7 @@ func (s *Segments) touch() {
 	s.mu.Unlock()
 }
 
-func (s *Segments) handedOver() {
-	s.mu.Lock()
-	s.served++
-	s.mu.Unlock()
-}
+func (s *Segments) handedOver() { s.served.Add(1) }
 
 // carriesMedia returns true for program (anything but playlist) to avoid silent count breakage.
 func (s *Segments) carriesMedia(p string) bool {

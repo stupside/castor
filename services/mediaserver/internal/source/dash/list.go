@@ -11,16 +11,7 @@ import (
 
 // list is the SegmentList the representation reads, each attribute from the nearest level that states it.
 func (a addressed) list() *mpd.SegmentListType {
-	var out *mpd.SegmentListType
-	for _, l := range []*mpd.SegmentListType{a.rep.SegmentList, a.set.SegmentList, a.period.SegmentList} {
-		if l == nil {
-			continue
-		}
-		if out == nil {
-			merged := *l
-			out = &merged
-			continue
-		}
+	return inherit(func(out, l *mpd.SegmentListType) {
 		out.Timescale = cmp.Or(out.Timescale, l.Timescale)
 		out.Duration = cmp.Or(out.Duration, l.Duration)
 		out.StartNumber = cmp.Or(out.StartNumber, l.StartNumber)
@@ -29,8 +20,7 @@ func (a addressed) list() *mpd.SegmentListType {
 		if len(out.SegmentURL) == 0 {
 			out.SegmentURL = l.SegmentURL
 		}
-	}
-	return out
+	}, a.rep.SegmentList, a.set.SegmentList, a.period.SegmentList)
 }
 
 func (a addressed) listed(l *mpd.SegmentListType) ([]timeline.Segment, error) {

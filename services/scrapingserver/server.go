@@ -26,7 +26,6 @@ type Server struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	mu       sync.Mutex
-	closing  bool
 	wg       sync.WaitGroup
 }
 
@@ -42,7 +41,7 @@ func New(resolver Resolver) *Server {
 
 func (s *Server) Resolve(ctx context.Context, req *scrapingv1.ResolveRequest) (*scrapingv1.ResolveResponse, error) {
 	s.mu.Lock()
-	if s.closing {
+	if s.ctx.Err() != nil {
 		s.mu.Unlock()
 		return nil, connect.NewError(connect.CodeUnavailable, context.Canceled)
 	}
@@ -74,7 +73,6 @@ func (s *Server) Resolve(ctx context.Context, req *scrapingv1.ResolveRequest) (*
 
 func (s *Server) Shutdown(ctx context.Context) {
 	s.mu.Lock()
-	s.closing = true
 	s.cancel()
 	s.mu.Unlock()
 	done := make(chan struct{})

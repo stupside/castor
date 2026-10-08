@@ -98,7 +98,7 @@ func listenStream(parent context.Context, o Opening, sp *Spool, done <-chan stru
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/stream"+o.Format.Extension, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /stream"+o.Format.Extension, func(w http.ResponseWriter, r *http.Request) {
 		s.handleStream(ctx, w, r)
 	})
 	s.server = serve(ctx, ln, mux)

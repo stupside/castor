@@ -2,6 +2,7 @@ package transcode
 
 import (
 	"fmt"
+	"iter"
 	"maps"
 	"net/http"
 	"net/url"
@@ -46,18 +47,20 @@ func NewProgramSource(program media.Program, plan fetch.Plan, binary ffmpeg.Bina
 	return ProgramSource{program: program.Clone(), plan: maps.Clone(plan), binary: binary, open: open}, nil
 }
 
-func (s ProgramSource) inputs() []sourceInput {
-	inputs := make([]sourceInput, 0, len(s.program.Inputs))
-	for _, input := range s.program.Inputs {
-		inputs = append(inputs, sourceInput{
-			url:         input.URL,
-			headers:     input.Headers,
-			contentType: input.ContentType,
-			fetch:       s.plan[input.ID],
-			offset:      s.program.Offsets[input.ID],
-		})
+func (s ProgramSource) inputs() iter.Seq2[media.InputID, sourceInput] {
+	return func(yield func(media.InputID, sourceInput) bool) {
+		for _, input := range s.program.Inputs {
+			if !yield(input.ID, sourceInput{
+				url:         input.URL,
+				headers:     input.Headers,
+				contentType: input.ContentType,
+				fetch:       s.plan[input.ID],
+				offset:      s.program.Offsets[input.ID],
+			}) {
+				return
+			}
+		}
 	}
-	return inputs
 }
 
 func (s ProgramSource) outputArgs() []string {
@@ -69,10 +72,9 @@ func (s ProgramSource) outputArgs() []string {
 
 // ProbeInputs is each input as ffprobe must open it to measure what this source's read will.
 func (s ProgramSource) ProbeInputs() []probe.Input {
-	inputs := s.inputs()
-	out := make([]probe.Input, 0, len(inputs))
-	for i, input := range inputs {
-		out = append(out, probe.Input{ID: s.program.Inputs[i].ID, URL: input.url.String(), Args: s.openArgs(input)})
+	out := make([]probe.Input, 0, len(s.program.Inputs))
+	for id, input := range s.inputs() {
+		out = append(out, probe.Input{ID: id, URL: input.url.String(), Args: s.openArgs(input)})
 	}
 	return out
 }

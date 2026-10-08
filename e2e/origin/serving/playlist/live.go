@@ -116,7 +116,8 @@ func (l live) edge(playlist string, revealed int) string {
 			fmt.Fprintf(&out, "#EXT-X-MEDIA-SEQUENCE:%d\n", first)
 		case line.Entry():
 			if seen >= first && seen < last {
-				out.WriteString(line.Text + line.URI)
+				out.WriteString(line.Text)
+				out.WriteString(line.URI)
 			}
 			seen++
 		default:

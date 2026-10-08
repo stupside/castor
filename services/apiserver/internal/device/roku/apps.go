@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 )
 
@@ -15,15 +16,12 @@ func (s *session) ensureChannel(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("querying roku apps: %w", err)
 	}
-	for _, a := range apps {
-		if a.ID == devAppID {
-			if strings.TrimSpace(a.Title) == channelTitle {
-				return nil
-			}
-			if cfg.Password == "" {
-				return errors.New("a different sideloaded channel occupies the Roku dev slot; set devices.roku.password so Castor can replace it")
-			}
-			break
+	if i := slices.IndexFunc(apps, func(a app) bool { return a.ID == devAppID }); i >= 0 {
+		if strings.TrimSpace(apps[i].Title) == channelTitle {
+			return nil
+		}
+		if cfg.Password == "" {
+			return errors.New("a different sideloaded channel occupies the Roku dev slot; set devices.roku.password so Castor can replace it")
 		}
 	}
 	if cfg.Password == "" {
@@ -51,13 +49,4 @@ func (s *session) queryApps(ctx context.Context) ([]app, error) {
 		return nil, fmt.Errorf("decoding roku apps: %w", err)
 	}
 	return list.Apps, nil
-}
-
-func appInstalled(apps []app, id string) bool {
-	for _, a := range apps {
-		if a.ID == id {
-			return true
-		}
-	}
-	return false
 }
