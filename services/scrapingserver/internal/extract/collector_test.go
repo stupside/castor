@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
@@ -184,25 +185,26 @@ func timedCollector(t *testing.T, preRoll time.Duration) *collector {
 // Collection stops at the window once anything but an ad is held, and at the pre-roll's end when nothing is.
 func TestCollectionStopsOnceItHoldsMoreThanAds(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		body    string
-		atLeast time.Duration
-		atMost  time.Duration
+		name string
+		body string
+		want time.Duration
 	}{
-		{"a feature ends it at the window", featureDocument(), 50 * time.Millisecond, 250 * time.Millisecond},
-		{"a playlist of unknown length ends it at the window", "#EXTM3U\n#EXTINF:6.000,\nlive.ts\n", 50 * time.Millisecond, 250 * time.Millisecond},
-		{"only ads end it at the pre-roll", adDocument, 400 * time.Millisecond, 700 * time.Millisecond},
+		{"a feature ends it at the window", featureDocument(), 50 * time.Millisecond},
+		{"a playlist of unknown length ends it at the window", "#EXTM3U\n#EXTINF:6.000,\nlive.ts\n", 50 * time.Millisecond},
+		{"only ads end it at the pre-roll", adDocument, 400 * time.Millisecond},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			c := timedCollector(t, 400*time.Millisecond)
-			captureWithBody(c, "https://cdn.example/index.m3u8", "req-1", tc.body)
-			start := time.Now()
-			if _, err := c.Wait(context.Background()); err != nil {
-				t.Fatal(err)
-			}
-			if took := time.Since(start); took < tc.atLeast || took > tc.atMost {
-				t.Errorf("collection took %v, want between %v and %v", took, tc.atLeast, tc.atMost)
-			}
+			synctest.Test(t, func(t *testing.T) {
+				c := timedCollector(t, 400*time.Millisecond)
+				captureWithBody(c, "https://cdn.example/index.m3u8", "req-1", tc.body)
+				start := time.Now()
+				if _, err := c.Wait(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if took := time.Since(start); took != tc.want {
+					t.Errorf("collection took %v, want %v", took, tc.want)
+				}
+			})
 		})
 	}
 }

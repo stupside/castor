@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/container"
@@ -17,22 +18,27 @@ import (
 
 // Handed is the most one client took: a HEAD takes nothing, and a later partial client does not add to it.
 func TestHandedIsTheMostAnyOneClientTook(t *testing.T) {
-	const size = 8 << 20
-	srv := spooled(t, Opening{}, payload(size))
+	synctest.Test(t, func(t *testing.T) {
+		const size = 8 << 20
+		srv := spooled(t, Opening{}, payload(size))
 
-	head(t, srv)
-	if handed, last := srv.Handed(); handed != 0 || !last.IsZero() {
-		t.Fatalf("a HEAD probe was credited with %d bytes at %v", handed, last)
-	}
+		head(t, srv)
+		if handed, last := srv.Handed(); handed != 0 || !last.IsZero() {
+			t.Fatalf("a HEAD probe was credited with %d bytes at %v", handed, last)
+		}
 
-	read(t, get(t, srv, ""), size)
-	partial := get(t, srv, "")
-	read(t, partial, 1)
-	_ = partial.Body.Close()
-	settled(t, srv)
-	if handed, last := srv.Handed(); handed != size || last.IsZero() {
-		t.Errorf("handed = %d at %v, want the %d bytes one client took", handed, last, size)
-	}
+		// Read to EOF: the in-memory pipe has no socket buffer to absorb the chunked trailer.
+		if whole, err := io.ReadAll(get(t, srv, "").Body); err != nil || len(whole) != size {
+			t.Fatalf("a whole client took %d bytes (%v), want %d", len(whole), err, size)
+		}
+		partial := get(t, srv, "")
+		read(t, partial, 1)
+		_ = partial.Body.Close()
+		settled(t, srv)
+		if handed, last := srv.Handed(); handed != size || last.IsZero() {
+			t.Errorf("handed = %d at %v, want the %d bytes one client took", handed, last, size)
+		}
+	})
 }
 
 // A resumed client is served its range and credited with the prefix it already had.
@@ -51,41 +57,45 @@ func TestARangeResumesFromTheByteAsked(t *testing.T) {
 		{"bounded short of the end", fmt.Sprintf("bytes=%d-%d", from, total-1024), total - 1024, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := spooled(t, Opening{}, want)
-			resp := get(t, srv, tt.asked)
-			if resp.StatusCode != http.StatusPartialContent {
-				t.Fatalf("status = %d, want 206", resp.StatusCode)
-			}
-			if got, stated := resp.Header.Get("Content-Range"), fmt.Sprintf("bytes %d-%d/%d", from, tt.to, total); got != stated {
-				t.Errorf("Content-Range = %q, want %q", got, stated)
-			}
-			got, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(got, want[from:tt.to+1]) {
-				t.Errorf("handed %d bytes, want exactly bytes %d-%d", len(got), from, tt.to)
-			}
-			if !tt.finishes {
-				return
-			}
-			settled(t, srv)
-			if handed, _ := srv.Handed(); handed != total {
-				t.Errorf("handed = %d, want the whole %d the resumed client holds", handed, total)
-			}
+			synctest.Test(t, func(t *testing.T) {
+				srv := spooled(t, Opening{}, want)
+				resp := get(t, srv, tt.asked)
+				if resp.StatusCode != http.StatusPartialContent {
+					t.Fatalf("status = %d, want 206", resp.StatusCode)
+				}
+				if got, stated := resp.Header.Get("Content-Range"), fmt.Sprintf("bytes %d-%d/%d", from, tt.to, total); got != stated {
+					t.Errorf("Content-Range = %q, want %q", got, stated)
+				}
+				got, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(got, want[from:tt.to+1]) {
+					t.Errorf("handed %d bytes, want exactly bytes %d-%d", len(got), from, tt.to)
+				}
+				if !tt.finishes {
+					return
+				}
+				settled(t, srv)
+				if handed, _ := srv.Handed(); handed != total {
+					t.Errorf("handed = %d, want the whole %d the resumed client holds", handed, total)
+				}
+			})
 		})
 	}
 }
 
 func TestAResumePastTheEndIs416(t *testing.T) {
-	want := payload(4096)
-	resp := get(t, spooled(t, Opening{}, want), fmt.Sprintf("bytes=%d-", len(want)))
-	if resp.StatusCode != http.StatusRequestedRangeNotSatisfiable {
-		t.Fatalf("status = %d, want 416", resp.StatusCode)
-	}
-	if got, stated := resp.Header.Get("Content-Range"), fmt.Sprintf("bytes */%d", len(want)); got != stated {
-		t.Errorf("Content-Range = %q, want %q", got, stated)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		want := payload(4096)
+		resp := get(t, spooled(t, Opening{}, want), fmt.Sprintf("bytes=%d-", len(want)))
+		if resp.StatusCode != http.StatusRequestedRangeNotSatisfiable {
+			t.Fatalf("status = %d, want 416", resp.StatusCode)
+		}
+		if got, stated := resp.Header.Get("Content-Range"), fmt.Sprintf("bytes */%d", len(want)); got != stated {
+			t.Errorf("Content-Range = %q, want %q", got, stated)
+		}
+	})
 }
 
 // A range nobody can honour is replayed from byte 0 rather than answered with an invented length.
@@ -101,91 +111,99 @@ func TestARefusedRangeReplaysFromByteZero(t *testing.T) {
 		{"a producer still running", func(t *testing.T) *Stream { return producing(t, body) }},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			resp := get(t, tt.srv(t), fmt.Sprintf("bytes=%d-", len(body)/2))
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("status = %d, want 200", resp.StatusCode)
-			}
-			if got := read(t, resp, len(body)); !bytes.Equal(got, body) {
-				t.Error("the refused client was not served from byte 0")
-			}
+			synctest.Test(t, func(t *testing.T) {
+				resp := get(t, tt.srv(t), fmt.Sprintf("bytes=%d-", len(body)/2))
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("status = %d, want 200", resp.StatusCode)
+				}
+				if got := read(t, resp, len(body)); !bytes.Equal(got, body) {
+					t.Error("the refused client was not served from byte 0")
+				}
+			})
 		})
 	}
 }
 
 // A client that stops reading is cut by the write deadline, and Wait ends after the idle grace.
 func TestAHungClientIsFreedAndTheCastEnds(t *testing.T) {
-	srv := spooled(t, Opening{WriteDeadline: 300 * time.Millisecond, IdleGrace: 50 * time.Millisecond}, payload(8<<20))
-	read(t, get(t, srv, ""), 1)
-	settled(t, srv)
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	if srv.completed {
-		t.Error("a client read to EOF, so the grace this test exists to reach was never consulted")
-	}
+	synctest.Test(t, func(t *testing.T) {
+		srv := spooled(t, Opening{WriteDeadline: 300 * time.Millisecond, IdleGrace: 50 * time.Millisecond}, payload(8<<20))
+		read(t, get(t, srv, ""), 1)
+		settled(t, srv)
+		srv.mu.Lock()
+		defer srv.mu.Unlock()
+		if srv.completed {
+			t.Error("a client read to EOF, so the grace this test exists to reach was never consulted")
+		}
+	})
 }
 
 // A spool another writes is replayed from byte 0, resumed once its writer is done, and let go of without waiting for that writer.
 func TestASpoolAnotherWritesIsServedWithoutBeingOwned(t *testing.T) {
-	body := payload(1 << 20)
-	sp, err := NewSpool(filepath.Join(t.TempDir(), "spool.ts"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	half := len(body) / 2
-	if _, err := sp.Write(body[:half]); err != nil {
-		t.Fatal(err)
-	}
-	drained := make(chan struct{})
-	srv, err := OpenSpooledStream(t.Context(), Opening{
-		Format:        container.Format{ContentType: media.MPEGTS, Extension: ".ts"},
-		Listeners:     loopback{},
-		WriteDeadline: time.Minute,
-	}, sp, drained)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = srv.Close() })
+	synctest.Test(t, func(t *testing.T) {
+		body := payload(1 << 20)
+		sp, err := NewSpool(filepath.Join(t.TempDir(), "spool.ts"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		half := len(body) / 2
+		if _, err := sp.Write(body[:half]); err != nil {
+			t.Fatal(err)
+		}
+		drained := make(chan struct{})
+		devices := newLAN(t)
+		srv, err := OpenSpooledStream(t.Context(), Opening{
+			Format:        container.Format{ContentType: media.MPEGTS, Extension: ".ts"},
+			Listeners:     devices,
+			WriteDeadline: time.Minute,
+		}, sp, drained)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = srv.Close() })
 
-	whole := get(t, srv, "")
-	if got := read(t, whole, half); !bytes.Equal(got, body[:half]) {
-		t.Error("a client of a spool still being written was not served it from byte 0")
-	}
-	if resp := get(t, srv, fmt.Sprintf("bytes=%d-", half)); resp.StatusCode != http.StatusOK {
-		t.Errorf("a range asked while the writer runs answered %d, want the 200 replay", resp.StatusCode)
-	}
+		whole := get(t, srv, "")
+		if got := read(t, whole, half); !bytes.Equal(got, body[:half]) {
+			t.Error("a client of a spool still being written was not served it from byte 0")
+		}
+		if resp := get(t, srv, fmt.Sprintf("bytes=%d-", half)); resp.StatusCode != http.StatusOK {
+			t.Errorf("a range asked while the writer runs answered %d, want the 200 replay", resp.StatusCode)
+		}
 
-	if _, err := sp.Write(body[half:]); err != nil {
-		t.Fatal(err)
-	}
-	sp.CloseWrite(nil)
-	close(drained)
-	if got, err := io.ReadAll(whole.Body); err != nil || !bytes.Equal(got, body[half:]) {
-		t.Errorf("the replaying client got %d more bytes (%v), want the rest the writer added", len(got), err)
-	}
-	resumed := get(t, srv, fmt.Sprintf("bytes=%d-", half))
-	if resumed.StatusCode != http.StatusPartialContent {
-		t.Fatalf("a range asked once the writer is done answered %d, want 206", resumed.StatusCode)
-	}
-	if got, _ := io.ReadAll(resumed.Body); !bytes.Equal(got, body[half:]) {
-		t.Errorf("the resumed client got %d bytes, want the %d from the byte it asked", len(got), len(body)-half)
-	}
+		if _, err := sp.Write(body[half:]); err != nil {
+			t.Fatal(err)
+		}
+		sp.CloseWrite(nil)
+		close(drained)
+		if got, err := io.ReadAll(whole.Body); err != nil || !bytes.Equal(got, body[half:]) {
+			t.Errorf("the replaying client got %d more bytes (%v), want the rest the writer added", len(got), err)
+		}
+		resumed := get(t, srv, fmt.Sprintf("bytes=%d-", half))
+		if resumed.StatusCode != http.StatusPartialContent {
+			t.Fatalf("a range asked once the writer is done answered %d, want 206", resumed.StatusCode)
+		}
+		if got, _ := io.ReadAll(resumed.Body); !bytes.Equal(got, body[half:]) {
+			t.Errorf("the resumed client got %d bytes, want the %d from the byte it asked", len(got), len(body)-half)
+		}
 
-	running, err := NewSpool(filepath.Join(t.TempDir(), "running.ts"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { running.CloseWrite(nil) })
-	unowned, err := OpenSpooledStream(t.Context(), Opening{Listeners: loopback{}}, running, make(chan struct{}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	closed := make(chan error, 1)
-	go func() { closed <- unowned.Close() }()
-	select {
-	case <-closed:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Close waited for a writer the server does not own")
-	}
+		running, err := NewSpool(filepath.Join(t.TempDir(), "running.ts"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { running.CloseWrite(nil) })
+		unowned, err := OpenSpooledStream(t.Context(), Opening{Listeners: devices}, running, make(chan struct{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		closed := make(chan error, 1)
+		go func() { closed <- unowned.Close() }()
+		synctest.Wait()
+		select {
+		case <-closed:
+		default:
+			t.Fatal("Close waited for a writer the server does not own")
+		}
+	})
 }
 
 func payload(size int) []byte {
@@ -199,7 +217,7 @@ func payload(size int) []byte {
 // spooled starts a server and returns once the whole body is in the spool.
 func spooled(t *testing.T, o Opening, body []byte) *Stream {
 	t.Helper()
-	o.Listeners = loopback{}
+	o.Listeners = newLAN(t)
 	o.Format = container.Format{ContentType: "video/mp4", Extension: ".mp4"}
 	o.WriteDeadline = cmp.Or(o.WriteDeadline, time.Minute)
 	o.IdleGrace = cmp.Or(o.IdleGrace, 30*time.Second)
@@ -208,11 +226,7 @@ func spooled(t *testing.T, o Opening, body []byte) *Stream {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = srv.Close() })
-	select {
-	case <-srv.Drained():
-	case <-time.After(5 * time.Second):
-		t.Fatal("the producer never finished spooling")
-	}
+	<-srv.Drained()
 	return srv
 }
 
@@ -222,7 +236,7 @@ func producing(t *testing.T, head []byte) *Stream {
 	pr, pw := io.Pipe()
 	srv, err := OpenStream(t.Context(), Opening{
 		Format:        container.Format{ContentType: "video/mp4", Extension: ".mp4"},
-		Listeners:     loopback{},
+		Listeners:     newLAN(t),
 		WriteDeadline: time.Minute,
 	}, t.TempDir(), pr)
 	if err != nil {
@@ -235,14 +249,11 @@ func producing(t *testing.T, head []byte) *Stream {
 	if _, err := pw.Write(head); err != nil {
 		t.Fatal(err)
 	}
-	for range 500 {
-		if landed, _ := srv.spooled(); landed >= int64(len(head)) {
-			return srv
-		}
-		time.Sleep(10 * time.Millisecond)
+	synctest.Wait()
+	if landed, _ := srv.spooled(); landed < int64(len(head)) {
+		t.Fatal("the head never reached the spool")
 	}
-	t.Fatal("the head never reached the spool")
-	return nil
+	return srv
 }
 
 // settled waits for every client to be accounted for.
@@ -264,7 +275,7 @@ func get(t *testing.T, srv *Stream, byteRange string) *http.Response {
 	if byteRange != "" {
 		req.Header.Set("Range", byteRange)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := device(srv.o).Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +298,7 @@ func head(t *testing.T, srv *Stream) int {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := device(srv.o).Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

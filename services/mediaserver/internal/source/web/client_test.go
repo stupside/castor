@@ -16,7 +16,7 @@ import (
 
 func TestFetchReportsWhatTheOriginSaid(t *testing.T) {
 	const body = "#EXTM3U\n#EXT-X-ENDLIST\n"
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/hls/master.m3u8":
 			http.Redirect(w, r, "/edge/a/b/master.m3u8", http.StatusFound)
@@ -31,8 +31,7 @@ func TestFetchReportsWhatTheOriginSaid(t *testing.T) {
 			_, _ = w.Write(make([]byte, documentLimit+1))
 		}
 	}))
-	t.Cleanup(origin.Close)
-	client := New(5 * time.Second)
+	client := reaching(origin, 5*time.Second)
 
 	// Relative URIs resolve against where the document was served from, not the URL asked for.
 	got, from, status, err := client.Fetch(t.Context(), sourcetest.URL(t, origin.URL+"/hls/master.m3u8"), http.Header{"Referer": {"https://player.example/"}})
@@ -52,13 +51,12 @@ func TestFetchReportsWhatTheOriginSaid(t *testing.T) {
 
 func TestAFreshSessionCookieReplacesTheCopyTakenEarlier(t *testing.T) {
 	var got []string
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = r.Header.Values("Cookie")
 		http.SetCookie(w, &http.Cookie{Name: "token", Value: "fresh", Path: "/"})
 		_, _ = w.Write([]byte("#EXTM3U\n"))
 	}))
-	t.Cleanup(origin.Close)
-	client := New(5 * time.Second)
+	client := reaching(origin, 5*time.Second)
 	u := sourcetest.URL(t, origin.URL+"/live.m3u8")
 	if _, _, _, err := client.Fetch(t.Context(), u, nil); err != nil {
 		t.Fatal(err)
@@ -73,12 +71,11 @@ func TestAFreshSessionCookieReplacesTheCopyTakenEarlier(t *testing.T) {
 }
 
 func TestAReplayCarriesTheSessionCookieOverThePagesCopy(t *testing.T) {
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "token", Value: "fresh", Path: "/"})
 		_, _ = w.Write([]byte("#EXTM3U\n"))
 	}))
-	t.Cleanup(origin.Close)
-	client := New(5 * time.Second)
+	client := reaching(origin, 5*time.Second)
 	u := sourcetest.URL(t, origin.URL+"/live.m3u8")
 	page := http.Header{"Cookie": {"consent=yes; token=stale"}, "Referer": {"https://player.example/"}}
 	if got := client.Replay(u, page); !maps.EqualFunc(got, page, slices.Equal) {
@@ -107,13 +104,12 @@ func TestReplayPreservesCookiesFromEveryCapturedHeader(t *testing.T) {
 }
 
 func TestMediaRangeRejectsBytesFromADifferentOffset(t *testing.T) {
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Range", "bytes 0-3/8")
 		w.WriteHeader(http.StatusPartialContent)
 		_, _ = w.Write([]byte("init"))
 	}))
-	t.Cleanup(origin.Close)
-	body, err := New(time.Second).Read(t.Context(), sourcetest.URL(t, origin.URL), nil, timeline.Range{Offset: 4, Length: 4})
+	body, err := reaching(origin, time.Second).Read(t.Context(), sourcetest.URL(t, origin.URL), nil, timeline.Range{Offset: 4, Length: 4})
 	if body != nil {
 		_ = body.Close()
 	}
@@ -123,11 +119,10 @@ func TestMediaRangeRejectsBytesFromADifferentOffset(t *testing.T) {
 }
 
 func TestAnOriginIgnoringRangeMustStillDeliverTheWholeRequestedFragment(t *testing.T) {
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("initshort"))
 	}))
-	t.Cleanup(origin.Close)
-	body, err := New(time.Second).Read(t.Context(), sourcetest.URL(t, origin.URL), nil, timeline.Range{Offset: 4, Length: 8})
+	body, err := reaching(origin, time.Second).Read(t.Context(), sourcetest.URL(t, origin.URL), nil, timeline.Range{Offset: 4, Length: 8})
 	if err == nil {
 		defer body.Close()
 		_, err = io.ReadAll(body)
@@ -135,4 +130,11 @@ func TestAnOriginIgnoringRangeMustStillDeliverTheWholeRequestedFragment(t *testi
 	if err == nil {
 		t.Fatal("a five-byte response succeeded as the requested eight-byte fragment")
 	}
+}
+
+// reaching is a client whose reads go over origin's in-memory network.
+func reaching(origin *httptest.Server, timeout time.Duration) *client {
+	c := New(timeout).(*client)
+	c.http.Transport = origin.Client().Transport
+	return c
 }

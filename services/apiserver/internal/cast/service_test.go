@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"connectrpc.com/connect"
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -56,25 +56,28 @@ func (d blockingTarget) Target(ctx context.Context, _ *castorv1.Target) (device.
 }
 
 func TestShutdownCancelsTargetDiscoveryBeforeACastIsRegistered(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	d := blockingTarget{started: make(chan struct{})}
-	s := New(&mediav1.PlaybackSettings{}, d, nil, nil)
-	defer s.Drain(t.Context())
-	result := make(chan error, 1)
-	go func() { _, err := s.Cast(ctx, &castorv1.CastRequest{}); result <- err }()
-	<-d.started
-	s.Drain(t.Context())
-	select {
-	case err := <-result:
-		if connect.CodeOf(err) != connect.CodeUnavailable {
-			t.Fatalf("Cast = %v, want unavailable when discovery was interrupted by shutdown", err)
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		d := blockingTarget{started: make(chan struct{})}
+		s := New(&mediav1.PlaybackSettings{}, d, nil, nil)
+		defer s.Drain(t.Context())
+		result := make(chan error, 1)
+		go func() { _, err := s.Cast(ctx, &castorv1.CastRequest{}); result <- err }()
+		<-d.started
+		s.Drain(t.Context())
+		synctest.Wait()
+		select {
+		case err := <-result:
+			if connect.CodeOf(err) != connect.CodeUnavailable {
+				t.Fatalf("Cast = %v, want unavailable when discovery was interrupted by shutdown", err)
+			}
+		default:
+			cancel()
+			<-result
+			t.Fatal("shutdown left target discovery running before cast registration")
 		}
-	case <-time.After(time.Second):
-		cancel()
-		<-result
-		t.Fatal("shutdown left target discovery running before cast registration")
-	}
+	})
 }
 
 func TestListedCastsAndDefaultsDoNotExposeTheServicesSnapshots(t *testing.T) {
@@ -91,11 +94,11 @@ func TestListedCastsAndDefaultsDoNotExposeTheServicesSnapshots(t *testing.T) {
 	done := make(chan struct{})
 	close(done)
 	s.casts.Add(c.id, c, done)
-	listed, _ := s.ListCasts(context.Background(), &castorv1.ListCastsRequest{})
+	listed, _ := s.ListCasts(t.Context(), &castorv1.ListCastsRequest{})
 	listed.Casts[0].Device.Name = "mutated"
 	listed.Casts[0].Status.State = &castorv1.CastStatus_Connecting{Connecting: &emptypb.Empty{}}
 	status.GetCasting().Attempt = 99
-	again, _ := s.ListCasts(context.Background(), &castorv1.ListCastsRequest{})
+	again, _ := s.ListCasts(t.Context(), &castorv1.ListCastsRequest{})
 	if got := again.Casts[0]; got.Device.Name != "Bedroom" || got.Status.GetCasting().GetAttempt() != 1 {
 		t.Fatalf("mutating a list or a published status changed the stored cast: %v", got)
 	}

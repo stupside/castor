@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	castmedia "github.com/vishen/go-chromecast/cast"
@@ -233,83 +234,89 @@ func (c *writingConn) Write(p []byte) (int, error) {
 }
 
 func TestCancellingABlockedCastWriteLeavesTheChannelUsable(t *testing.T) {
-	near, far := net.Pipe()
-	writing := &writingConn{Conn: near, started: make(chan struct{})}
-	ch := newChannel(writing, func([]byte) {})
-	t.Cleanup(func() { _ = ch.Close() })
-	t.Cleanup(func() { _ = far.Close() })
-	ctx, cancel := context.WithCancelCause(t.Context())
-	cause := errors.New("load abandoned")
-	result := make(chan error, 1)
-	go func() {
-		_, err := ch.request(ctx, receiverID, nsReceiver, &castmedia.PayloadHeader{Type: msgGetStatus})
-		result <- err
-	}()
-	// Nothing reads the peer, so sending cannot complete before cancellation.
-	<-writing.started
-	cancel(cause)
-	select {
-	case err := <-result:
-		if !errors.Is(err, cause) {
-			t.Fatalf("request = %v, want cancellation cause %v", err, cause)
+	synctest.Test(t, func(t *testing.T) {
+		near, far := net.Pipe()
+		writing := &writingConn{Conn: near, started: make(chan struct{})}
+		ch := newChannel(writing, func([]byte) {})
+		t.Cleanup(func() { _ = ch.Close() })
+		t.Cleanup(func() { _ = far.Close() })
+		ctx, cancel := context.WithCancelCause(t.Context())
+		cause := errors.New("load abandoned")
+		result := make(chan error, 1)
+		go func() {
+			_, err := ch.request(ctx, receiverID, nsReceiver, &castmedia.PayloadHeader{Type: msgGetStatus})
+			result <- err
+		}()
+		// Nothing reads the peer, so sending cannot complete before cancellation.
+		<-writing.started
+		cancel(cause)
+		select {
+		case err := <-result:
+			if !errors.Is(err, cause) {
+				t.Fatalf("request = %v, want cancellation cause %v", err, cause)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("cancellation did not interrupt the Cast write")
 		}
-	case <-time.After(time.Second):
-		t.Fatal("cancellation did not interrupt the Cast write")
-	}
-	// A cancelled sender must not leave a deadline on the next Play's write.
-	received := make(chan struct{})
-	peer := newChannel(far, func([]byte) { close(received) })
-	t.Cleanup(func() { _ = peer.Close() })
-	if err := ch.send(t.Context(), receiverID, nsConnection, &castmedia.PayloadHeader{Type: msgConnect}); err != nil {
-		t.Fatalf("send after cancellation = %v", err)
-	}
-	<-received
+		// A cancelled sender must not leave a deadline on the next Play's write.
+		received := make(chan struct{})
+		peer := newChannel(far, func([]byte) { close(received) })
+		t.Cleanup(func() { _ = peer.Close() })
+		if err := ch.send(t.Context(), receiverID, nsConnection, &castmedia.PayloadHeader{Type: msgConnect}); err != nil {
+			t.Fatalf("send after cancellation = %v", err)
+		}
+		<-received
+	})
 }
 
 func TestCancellingAPartialCastFrameClosesTheConnection(t *testing.T) {
-	near, far := net.Pipe()
-	ch := newChannel(near, func([]byte) {})
-	t.Cleanup(func() { _ = ch.Close() })
-	t.Cleanup(func() { _ = far.Close() })
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	result := make(chan error, 1)
-	go func() {
-		result <- ch.send(ctx, receiverID, nsConnection, &castmedia.PayloadHeader{Type: msgConnect})
-	}()
-	var prefix [4]byte
-	if _, err := io.ReadFull(far, prefix[:]); err != nil {
-		t.Fatal(err)
-	}
-	cancel()
-	select {
-	case err := <-result:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("partial send = %v, want cancelled", err)
+	synctest.Test(t, func(t *testing.T) {
+		near, far := net.Pipe()
+		ch := newChannel(near, func([]byte) {})
+		t.Cleanup(func() { _ = ch.Close() })
+		t.Cleanup(func() { _ = far.Close() })
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		result := make(chan error, 1)
+		go func() {
+			result <- ch.send(ctx, receiverID, nsConnection, &castmedia.PayloadHeader{Type: msgConnect})
+		}()
+		var prefix [4]byte
+		if _, err := io.ReadFull(far, prefix[:]); err != nil {
+			t.Fatal(err)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("partial send ignored cancellation")
-	}
-	select {
-	case <-ch.gone:
-	case <-time.After(time.Second):
-		t.Fatal("partial frame left an unusable connection open")
-	}
+		cancel()
+		select {
+		case err := <-result:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("partial send = %v, want cancelled", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("partial send ignored cancellation")
+		}
+		select {
+		case <-ch.gone:
+		case <-time.After(time.Second):
+			t.Fatal("partial frame left an unusable connection open")
+		}
+	})
 }
 
 func TestAnInvalidCastFrameClosesTheSocket(t *testing.T) {
-	near, far := net.Pipe()
-	ch := newChannel(near, func([]byte) {})
-	t.Cleanup(func() { _ = ch.Close() })
-	t.Cleanup(func() { _ = far.Close() })
-	// Install the deadline before the invalid header can close the socket.
-	if err := far.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	if err := binary.Write(far, binary.BigEndian, uint32(maxFrame+1)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := far.Read(make([]byte, 1)); !errors.Is(err, io.EOF) {
-		t.Fatalf("read after invalid frame = %v, want the socket closed", err)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		near, far := net.Pipe()
+		ch := newChannel(near, func([]byte) {})
+		t.Cleanup(func() { _ = ch.Close() })
+		t.Cleanup(func() { _ = far.Close() })
+		// Install the deadline before the invalid header can close the socket.
+		if err := far.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := binary.Write(far, binary.BigEndian, uint32(maxFrame+1)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := far.Read(make([]byte, 1)); !errors.Is(err, io.EOF) {
+			t.Fatalf("read after invalid frame = %v, want the socket closed", err)
+		}
+	})
 }

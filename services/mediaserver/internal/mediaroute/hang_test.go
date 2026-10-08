@@ -39,10 +39,9 @@ func TestAStreamWithNothingToServeIsHeldOpenThroughTheRoute(t *testing.T) {
 	_, port, _ := net.SplitHostPort(srv.URL().Host)
 	mux := http.NewServeMux()
 	mux.Handle(Pattern, Handler(func(cast, p string) bool { return p == port }))
-	front := httptest.NewServer(mux)
-	t.Cleanup(front.Close)
+	front := httptest.NewTestServer(t, mux)
 
-	resp, err := http.Get(front.URL + "/media/cast/" + port + "/stream.ts")
+	resp, err := front.Client().Get(front.URL + "/media/cast/" + port + "/stream.ts")
 	if err != nil {
 		t.Fatal(err)
 	}

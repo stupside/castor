@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"connectrpc.com/connect"
@@ -62,37 +63,39 @@ func TestScrapingReportsEmptyExtraction(t *testing.T) {
 }
 
 func TestScrapingShutdownCancelsAndWaitsForExtraction(t *testing.T) {
-	looking, cleaned := make(chan struct{}), make(chan struct{})
-	s := New(resolveFunc(func(ctx context.Context, _ []string) ([]*castorv1.StreamCandidate, error) {
-		close(looking)
-		<-ctx.Done()
-		close(cleaned)
-		return nil, ctx.Err()
-	}))
-	ts := httptest.NewTestServer(t, s)
-	c := scrapingv1connect.NewScrapingServiceClient(ts.Client(), ts.URL)
-	done := make(chan error, 1)
-	go func() {
-		_, err := c.Resolve(t.Context(), &scrapingv1.ResolveRequest{Urls: []string{"https://site.example/watch"}})
-		done <- err
-	}()
-	select {
-	case <-looking:
-	case <-time.After(5 * time.Second):
-		t.Fatal("resolver did not start")
-	}
-	s.Shutdown(t.Context())
-	select {
-	case <-cleaned:
-	default:
-		t.Fatal("shutdown did not wait for cleanup")
-	}
-	if err := <-done; !errors.Is(err, context.Canceled) && connect.CodeOf(err) != connect.CodeCanceled {
-		t.Errorf("shutdown returned %v, want canceled", err)
-	}
-	if _, err := c.Resolve(t.Context(), &scrapingv1.ResolveRequest{Urls: []string{"https://site.example/watch"}}); connect.CodeOf(err) != connect.CodeUnavailable {
-		t.Errorf("request after shutdown: %v", err)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		looking, cleaned := make(chan struct{}), make(chan struct{})
+		s := New(resolveFunc(func(ctx context.Context, _ []string) ([]*castorv1.StreamCandidate, error) {
+			close(looking)
+			<-ctx.Done()
+			close(cleaned)
+			return nil, ctx.Err()
+		}))
+		ts := httptest.NewTestServer(t, s)
+		c := scrapingv1connect.NewScrapingServiceClient(ts.Client(), ts.URL)
+		done := make(chan error, 1)
+		go func() {
+			_, err := c.Resolve(t.Context(), &scrapingv1.ResolveRequest{Urls: []string{"https://site.example/watch"}})
+			done <- err
+		}()
+		select {
+		case <-looking:
+		case <-time.After(5 * time.Second):
+			t.Fatal("resolver did not start")
+		}
+		s.Shutdown(t.Context())
+		select {
+		case <-cleaned:
+		default:
+			t.Fatal("shutdown did not wait for cleanup")
+		}
+		if err := <-done; !errors.Is(err, context.Canceled) && connect.CodeOf(err) != connect.CodeCanceled {
+			t.Errorf("shutdown returned %v, want canceled", err)
+		}
+		if _, err := c.Resolve(t.Context(), &scrapingv1.ResolveRequest{Urls: []string{"https://site.example/watch"}}); connect.CodeOf(err) != connect.CodeUnavailable {
+			t.Errorf("request after shutdown: %v", err)
+		}
+	})
 }
 
 func TestScrapingPreservesResolverCancellationCodes(t *testing.T) {

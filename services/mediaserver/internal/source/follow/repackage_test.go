@@ -74,7 +74,7 @@ func fragmented(entries ...string) *stored {
 	m := &stored{resources: map[string][]byte{"https://origin.example/init.mp4": initWith(entries...)}}
 	for n := range 3 {
 		uri := fmt.Sprintf("https://origin.example/%d.m4s", n)
-		m.resources[uri] = []byte(fmt.Sprintf("fragment %d", n))
+		m.resources[uri] = fmt.Appendf(nil, "fragment %d", n)
 		m.window.Segments = append(m.window.Segments, timeline.Segment{
 			URI: uri, Duration: time.Second, Map: &timeline.Map{URI: "https://origin.example/init.mp4"},
 			Place: timeline.Place{Start: int64(n), End: int64(n + 1)},

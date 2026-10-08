@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/deliver"
@@ -20,30 +21,34 @@ func (f fakeLead) LatestEnd() float64 { return f.latest }
 func (f fakeLead) Done() bool         { return f.done }
 
 func TestWaitForPlayableHoldsUntilTheTranscriptionLeads(t *testing.T) {
-	// Pace omitted: starving verdict would confuse the assertion.
-	buf := gateFixture(t, 0)
-	buf.burn = &fakeBurn{lead: &fakeLead{latest: 1}}
-	if _, err := buf.reader.spool.Write(make([]byte, 4<<20)); err != nil {
-		t.Fatal(err)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		// Pace omitted: starving verdict would confuse the assertion.
+		buf := gateFixture(t, 0)
+		buf.burn = &fakeBurn{lead: &fakeLead{latest: 1}}
+		if _, err := buf.reader.spool.Write(make([]byte, 4<<20)); err != nil {
+			t.Fatal(err)
+		}
 
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	opened := make(chan error, 1)
-	go func() {
-		opened <- gate(ctx, buf)
-	}()
+		const held = 10 * time.Second
+		ctx, cancel := context.WithTimeout(t.Context(), held)
+		defer cancel()
+		opened := make(chan error, 1)
+		go func() {
+			opened <- gate(ctx, buf)
+		}()
 
-	select {
-	case err := <-opened:
-		t.Fatalf("the gate opened ahead of the transcription's committed frontier (err %v)", err)
-	case <-time.After(500 * time.Millisecond):
-	}
+		synctest.Sleep(held - time.Nanosecond)
+		select {
+		case err := <-opened:
+			t.Fatalf("the gate opened ahead of the transcription's committed frontier (err %v)", err)
+		default:
+		}
 
-	cancel()
-	if err := <-opened; !errors.Is(err, context.Canceled) {
-		t.Errorf("gate error = %v, want context.Canceled", err)
-	}
+		cancel()
+		if err := <-opened; !errors.Is(err, context.Canceled) {
+			t.Errorf("gate error = %v, want context.Canceled", err)
+		}
+	})
 }
 
 // stoppedDevice took nothing, last asked at last.

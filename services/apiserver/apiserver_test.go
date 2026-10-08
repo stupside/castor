@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"connectrpc.com/connect"
@@ -785,25 +786,27 @@ func TestACastNoOneStartedIsNotFound(t *testing.T) {
 }
 
 func TestAStoppedCastReleasesItsDeviceAndIsNoLongerListed(t *testing.T) {
-	f := newFamily()
-	c := serve(t, setup{media: newMedia(true), family: f})
+	synctest.Test(t, func(t *testing.T) {
+		f := newFamily()
+		c := serve(t, setup{media: newMedia(true), family: f})
 
-	id := cast(t, c, streamOf("https://cdn.example/direct"))
-	<-f.played
-	if _, err := c.casts.Stop(t.Context(), &castorv1.StopRequest{CastId: id}); err != nil {
-		t.Fatal(err)
-	}
-	if w := watch(t, c, id, nil); w.ended.GetStopped() == nil {
-		t.Errorf("the cast ended %v, want stopped", w.ended)
-	}
-	select {
-	case <-f.closed:
-	case <-time.After(5 * time.Second):
-		t.Error("the device was left open after its cast stopped")
-	}
-	if listed, _ := c.casts.ListCasts(t.Context(), &castorv1.ListCastsRequest{}); len(listed.GetCasts()) != 0 {
-		t.Errorf("listed %v after the stop, want nothing playing", listed.GetCasts())
-	}
+		id := cast(t, c, streamOf("https://cdn.example/direct"))
+		<-f.played
+		if _, err := c.casts.Stop(t.Context(), &castorv1.StopRequest{CastId: id}); err != nil {
+			t.Fatal(err)
+		}
+		if w := watch(t, c, id, nil); w.ended.GetStopped() == nil {
+			t.Errorf("the cast ended %v, want stopped", w.ended)
+		}
+		select {
+		case <-f.closed:
+		case <-time.After(5 * time.Second):
+			t.Error("the device was left open after its cast stopped")
+		}
+		if listed, _ := c.casts.ListCasts(t.Context(), &castorv1.ListCastsRequest{}); len(listed.GetCasts()) != 0 {
+			t.Errorf("listed %v after the stop, want nothing playing", listed.GetCasts())
+		}
+	})
 }
 
 func TestCastsAreListedOldestFirstWithoutTheHeadersTheirStreamsWereFoundWith(t *testing.T) {
@@ -833,47 +836,49 @@ func TestCastsAreListedOldestFirstWithoutTheHeadersTheirStreamsWereFoundWith(t *
 }
 
 func TestACastStoppedWhileItsPagesAreSearchedEndsStoppedWithoutPlaying(t *testing.T) {
-	f := newFamily()
-	m := newMedia(false)
-	looking, canceled := make(chan struct{}), make(chan struct{})
-	c := serve(t, setup{media: m, family: f, resolver: resolveFunc(func(ctx context.Context, _ []string) ([]*castorv1.StreamCandidate, error) {
-		close(looking)
-		<-ctx.Done()
-		close(canceled)
-		return nil, ctx.Err()
-	})})
+	synctest.Test(t, func(t *testing.T) {
+		f := newFamily()
+		m := newMedia(false)
+		looking, canceled := make(chan struct{}), make(chan struct{})
+		c := serve(t, setup{media: m, family: f, resolver: resolveFunc(func(ctx context.Context, _ []string) ([]*castorv1.StreamCandidate, error) {
+			close(looking)
+			<-ctx.Done()
+			close(canceled)
+			return nil, ctx.Err()
+		})})
 
-	id := cast(t, c, pagesOf("https://site.example/watch"))
-	select {
-	case <-looking:
-	case <-time.After(5 * time.Second):
-		t.Fatal("extraction did not start")
-	}
-	listed, err := c.casts.ListCasts(t.Context(), &castorv1.ListCastsRequest{})
-	if err != nil || len(listed.GetCasts()) != 1 || listed.Casts[0].GetStatus().GetExtracting() == nil {
-		t.Fatalf("while resolving: %v %v, want extracting", listed, err)
-	}
-	if _, err := c.casts.Stop(t.Context(), &castorv1.StopRequest{CastId: id}); err != nil {
-		t.Fatal(err)
-	}
-	if w := watch(t, c, id, nil); w.ended.GetStopped() == nil {
-		t.Errorf("the cast ended %v, want stopped", w.ended)
-	}
-	select {
-	case <-canceled:
-	case <-time.After(5 * time.Second):
-		t.Fatal("stopping did not cancel scrapingserver's extraction")
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if len(m.casts) != 0 {
-		t.Error("media received a cast before extraction completed")
-	}
-	select {
-	case got := <-f.played:
-		t.Errorf("the device played %q for a cast stopped before it found anything", got)
-	default:
-	}
+		id := cast(t, c, pagesOf("https://site.example/watch"))
+		select {
+		case <-looking:
+		case <-time.After(5 * time.Second):
+			t.Fatal("extraction did not start")
+		}
+		listed, err := c.casts.ListCasts(t.Context(), &castorv1.ListCastsRequest{})
+		if err != nil || len(listed.GetCasts()) != 1 || listed.Casts[0].GetStatus().GetExtracting() == nil {
+			t.Fatalf("while resolving: %v %v, want extracting", listed, err)
+		}
+		if _, err := c.casts.Stop(t.Context(), &castorv1.StopRequest{CastId: id}); err != nil {
+			t.Fatal(err)
+		}
+		if w := watch(t, c, id, nil); w.ended.GetStopped() == nil {
+			t.Errorf("the cast ended %v, want stopped", w.ended)
+		}
+		select {
+		case <-canceled:
+		case <-time.After(5 * time.Second):
+			t.Fatal("stopping did not cancel scrapingserver's extraction")
+		}
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if len(m.casts) != 0 {
+			t.Error("media received a cast before extraction completed")
+		}
+		select {
+		case got := <-f.played:
+			t.Errorf("the device played %q for a cast stopped before it found anything", got)
+		default:
+		}
+	})
 }
 
 func TestAServerShuttingDownFailsItsCastsReleasingTheirDevicesAndTakesNoMore(t *testing.T) {
@@ -998,21 +1003,23 @@ func losingFirstStop(next http.Handler) http.Handler {
 }
 
 func TestAStopLostOnTheWayToTheMediaServerIsSentAgain(t *testing.T) {
-	f := newFamily()
-	m := newMedia(true)
-	c := serve(t, setup{media: m, family: f, guard: losingFirstStop})
+	synctest.Test(t, func(t *testing.T) {
+		f := newFamily()
+		m := newMedia(true)
+		c := serve(t, setup{media: m, family: f, guard: losingFirstStop})
 
-	id := cast(t, c, streamOf("https://cdn.example/direct"))
-	<-f.played
-	if _, err := c.casts.Stop(t.Context(), &castorv1.StopRequest{CastId: id}); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-m.stopped:
-	case <-time.After(3 * time.Second):
-		t.Fatal("the media server's cast played on after its stop was lost")
-	}
-	if w := watch(t, c, id, nil); w.ended.GetStopped() == nil {
-		t.Errorf("the cast ended %v, want stopped", w.ended)
-	}
+		id := cast(t, c, streamOf("https://cdn.example/direct"))
+		<-f.played
+		if _, err := c.casts.Stop(t.Context(), &castorv1.StopRequest{CastId: id}); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-m.stopped:
+		case <-time.After(3 * time.Second):
+			t.Fatal("the media server's cast played on after its stop was lost")
+		}
+		if w := watch(t, c, id, nil); w.ended.GetStopped() == nil {
+			t.Errorf("the cast ended %v, want stopped", w.ended)
+		}
+	})
 }
