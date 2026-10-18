@@ -99,9 +99,11 @@ Encoding uses a working GPU encoder, falling back to software.
 
 Castor reads `config.yaml` (or `--config <path>`), then overlays git-ignored `config.local.yaml`. Environment variables such as `CASTOR_CAST__MAX_HEIGHT=720` override both. CLI casting needs `device`; other keys have defaults. Keep secrets out of git; see [SECURITY.md](SECURITY.md).
 
-Service settings are grouped under `servers.api`, `servers.media`, and `servers.scraping`. For example, set `CASTOR_SERVERS__SCRAPING__BROWSER__CHROME_PATH` to choose Chrome. Move older top-level `api`, `server`, and `scraping` sections to those paths, renaming `server` to `media`; move top-level `browser` and `capture` to `servers.scraping`, and `whisper` to `servers.media`. Each command rejects unknown keys in the sections it owns when it loads them. Top-level `sources` holds the CLI's title-to-page templates; top-level `cast` holds playback defaults that an API request may override.
+Service settings are grouped under `servers.api`, `servers.media`, and `servers.scraping`. For example, set `CASTOR_SERVERS__SCRAPING__BROWSER__CHROME_PATH` to choose Chrome. Each command rejects unknown keys in the sections it owns when it loads them. Top-level `sources` holds the CLI's title-to-page templates; top-level `cast` holds playback defaults that an API request may override.
 
 Set `servers.media.ffmpeg.path` and `servers.media.ffmpeg.probe_path` when the media tools are installed outside `PATH`; they default to `ffmpeg` and `ffprobe`.
+
+Upgrading from 1.x? Follow the [1.x → 2.0 migration guide](migrations/1.x-to-2.0.md) before reusing your configuration or Docker setup.
 
 ### Logs
 

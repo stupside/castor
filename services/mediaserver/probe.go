@@ -34,8 +34,7 @@ func (p candidateProbe) Probe(ctx context.Context) (info media.ProbeInfo, reach 
 		return p.binary.Link(probe.Link{URL: stream.URL, Headers: stream.Headers, InputArgs: formats.InputArgs(stream.ContentType, 0)}, fetchTimeout).Probe(ctx)
 	}
 	defer func() {
-		var failure *timeline.Failure
-		if errors.As(err, &failure) {
+		if failure, ok := errors.AsType[*timeline.Failure](err); ok {
 			switch failure.Status {
 			case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusGone:
 				reach = media.ReachRefused

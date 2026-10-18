@@ -85,4 +85,5 @@ jobs:
           version: 1.73.0
           setup_only: true
       - run: buf lint && buf format -d --exit-code
+      - run: buf breaking --against '.git#branch=origin/main' --path proto/castor/v1
       - run: make generate && test -z "$(git status --porcelain -- gen)"
