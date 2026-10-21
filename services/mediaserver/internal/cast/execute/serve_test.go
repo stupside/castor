@@ -52,8 +52,8 @@ func TestOutputRetainsTracksDiscoveredByTheBufferedRead(t *testing.T) {
 			close(p.buf.reader.done)
 			d := delivery{sink: &artifactMechanism{path: path}, output: p.buf.reader}
 			opts := encodePlan{
-				EncodeOptions: encoding.EncodeOptions{Format: encoding.SpoolFormat},
-				delivery:      output.Selection{Capabilities: dlnaLike()},
+				Format:   encoding.SpoolFormat,
+				delivery: output.Selection{Capabilities: dlnaLike()},
 			}
 			// A sparse later probe and an unmeasured optional source cannot erase
 			// tracks already established by the read into the buffer.
