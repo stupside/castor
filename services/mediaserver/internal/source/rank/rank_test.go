@@ -93,6 +93,16 @@ func TestCancellationDoesNotAdmitAProbeFailureAsAFallback(t *testing.T) {
 	}
 }
 
+func TestFailedProbeKeepsTheInspectedFormat(t *testing.T) {
+	r := New(testConfig, 1080, func(context.Context, *source.Stream) (source.Inspection, error) {
+		return source.Inspection{ContentType: media.HLS}, errors.New("probe timed out")
+	})
+	got, err := r.Measure(t.Context(), candidateAt(t, "application/vnd.apple.mpegurl", "https://origin.example/live"))
+	if err != nil || got.ContentType != media.HLS {
+		t.Fatalf("Measure = %q, %v; want the HLS reader for a last resort", got.ContentType, err)
+	}
+}
+
 func TestWebMNameDisambiguatesMatroskaProbe(t *testing.T) {
 	const webm = "https://origin.example/movie.webm"
 	const mkv = "https://origin.example/movie.mkv"

@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	"net/url"
 	"path"
@@ -25,7 +26,7 @@ func (fs Formats) Claiming(contentType string) Reader {
 }
 
 // ContentTypeOf names what a link carries: its extension first, then a confirmed MIME type, else "".
-func (fs Formats) ContentTypeOf(u *url.URL, mime string) string {
+func (fs Formats) ContentTypeOf(u *url.URL, contentType string) string {
 	ids := fs.identities()
 	if u != nil {
 		ext := strings.ToLower(path.Ext(u.Path))
@@ -35,9 +36,13 @@ func (fs Formats) ContentTypeOf(u *url.URL, mime string) string {
 			}
 		}
 	}
-	mime = strings.ToLower(mime)
+	// Servers add parameters such as charset; only the media type names the format.
+	if parsed, _, err := mime.ParseMediaType(contentType); err == nil {
+		contentType = parsed
+	}
+	contentType = strings.ToLower(contentType)
 	for _, id := range ids {
-		if mime != "" && slices.Contains(id.MIMETypes, mime) {
+		if contentType != "" && slices.Contains(id.MIMETypes, contentType) {
 			return id.ContentType
 		}
 	}

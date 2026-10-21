@@ -32,8 +32,11 @@ func TestCancelledWriterRetainsOnlyIndependentFailures(t *testing.T) {
 		cancel()
 		_ = write.CloseWithError(errors.Join(os.ErrClosed, failure))
 		err = <-done
-		if failure == nil && (err != nil || stream.spool.Err() != nil) {
+		if failure == nil && (err != nil || errors.Is(stream.spool.Err(), os.ErrClosed)) {
 			t.Fatalf("canceled pipe became a producer failure: write=%v spool=%v", err, stream.spool.Err())
+		}
+		if failure == nil && !errors.Is(stream.spool.Err(), context.Canceled) {
+			t.Fatalf("truncated spool reported success: %v", stream.spool.Err())
 		}
 		if failure != nil && (!errors.Is(err, failure) || !errors.Is(stream.spool.Err(), failure)) {
 			t.Fatalf("lost independent failure: write=%v spool=%v", err, stream.spool.Err())

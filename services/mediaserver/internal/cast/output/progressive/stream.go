@@ -1,6 +1,7 @@
 package progressive
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -60,6 +61,10 @@ func (s *Stream) Write(ctx context.Context, producer io.Reader) error {
 	_, err := io.Copy(s.spool, producer)
 	if ctx.Err() != nil {
 		err = output.InterruptedIO(err)
+		// Interruption is not a producer failure, but a truncated spool must never
+		// report success to its tails, as an interrupted pull does.
+		s.spool.CloseWrite(cmp.Or(err, ctx.Err()))
+		return err
 	}
 	s.spool.CloseWrite(err)
 	return err
