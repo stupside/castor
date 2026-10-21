@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
 	"sync"
 
+	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -43,7 +43,7 @@ func startProduction(parent context.Context, proc *ffmpeg.Process, input io.Clos
 		releaseIO()
 		process := encoderResult(ctx, proc)
 		if ctx.Err() != nil {
-			packaging = interruptedPackaging(packaging)
+			packaging = output.InterruptedIO(packaging)
 		}
 		p.err = errors.Join(packaging, process)
 	}()
@@ -62,24 +62,3 @@ func (p *production) Err() error {
 func (p *production) Progress() media.Progress { return p.proc.Progress() }
 func (p *production) Evidence() []string       { return p.proc.Evidence().Lines }
 func (p *production) Close() error             { p.stop(); <-p.done; return p.err }
-
-// Keep unrelated failures even when a packager joins them to interrupted I/O.
-func interruptedPackaging(err error) error {
-	if joined, ok := err.(interface{ Unwrap() []error }); ok {
-		var kept []error
-		for _, child := range joined.Unwrap() {
-			kept = append(kept, interruptedPackaging(child))
-		}
-		return errors.Join(kept...)
-	}
-	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
-		if child := wrapped.Unwrap(); child != nil && interruptedPackaging(child) == nil {
-			return nil
-		}
-		return err
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, os.ErrClosed) {
-		return nil
-	}
-	return err
-}

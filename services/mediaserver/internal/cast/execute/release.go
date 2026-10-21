@@ -102,27 +102,33 @@ func (c *coordinator) finish() (ran, error) {
 	// not be stored in c.cause after join has already collected it.
 	err = errors.Join(err, fireAttempt(c.ctx, c.machine, cleanupFinished))
 	if c.interruption != nil {
-		err = &recovery.Interrupted{Cause: c.interruption, Failure: err}
+		err = &recovery.Interrupted{Cause: c.interruption, Failure: unlessCancellation(err, c.interruption)}
 	}
 	return p.reached, err
 }
 
 // Ignore cancellation caused by joining workers, but retain failures joined to it.
 func unlessTeardown(err error) error {
+	return unlessCancellation(err, context.Canceled)
+}
+
+// A canceled worker can return the parent's custom cause instead of ctx.Err().
+// Keep independent failures joined to it, while the interruption owns its cause.
+func unlessCancellation(err, cause error) error {
 	if joined, ok := err.(interface{ Unwrap() []error }); ok {
 		var kept []error
 		for _, child := range joined.Unwrap() {
-			kept = append(kept, unlessTeardown(child))
+			kept = append(kept, unlessCancellation(child, cause))
 		}
 		return errors.Join(kept...)
 	}
 	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
-		if child := wrapped.Unwrap(); child != nil && unlessTeardown(child) == nil {
+		if child := wrapped.Unwrap(); child != nil && unlessCancellation(child, cause) == nil {
 			return nil
 		}
 		return err
 	}
-	if errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) || (cause != nil && errors.Is(err, cause)) {
 		return nil
 	}
 	return err

@@ -11,6 +11,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -132,7 +133,7 @@ func (p *pull) run(ctx context.Context) {
 		processErr = nil
 	}
 	if ctx.Err() != nil {
-		err = interruptedPackaging(err)
+		err = output.InterruptedIO(err)
 	}
 	err = errors.Join(err, unlessTeardown(processErr), p.proc.SilentFailure())
 

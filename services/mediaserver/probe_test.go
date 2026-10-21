@@ -150,6 +150,25 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 			}
 		})
 	}
+	for _, mime := range []string{"application/vnd.apple.mpegurl", "application/x-mpegurl"} {
+		t.Run(mime, func(t *testing.T) {
+			u, _ := url.Parse(server.URL + "/opaque")
+			ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
+				return (candidateProbe{stream: s, client: client, resolver: resolver, timelines: timelines, binary: probe.FFprobe("ffprobe")}).Inspect(ctx)
+			})
+			measured, err := ranker.Measure(t.Context(), &source.Stream{URL: u, ContentType: mime, Headers: http.Header{"Authorization": {"Bearer fixture"}}})
+			if err != nil || measured.Probe == nil || measured.Probe.VideoHeight != 96 || measured.ContentType != media.HLS {
+				t.Fatalf("HLS MIME alias was not measured as video: %+v, %v", measured, err)
+			}
+			resolved, err := resolver.Resolve(t.Context(), measured, source.Rendition{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info, ok := resolved.Program.Measurement(); !ok || !info.SourceUnwrapped {
+				t.Fatalf("HLS observation lost after ranking: %+v, %t", info, ok)
+			}
+		})
+	}
 	t.Run("static image rejected", func(t *testing.T) {
 		u, _ := url.Parse(server.URL + "/image.png")
 		ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {

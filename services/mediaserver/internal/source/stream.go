@@ -33,6 +33,11 @@ type Stream struct {
 // format names. Ranking and observation binding must use the same identity.
 func (s *Stream) MeasuredContentType(info media.ProbeInfo) string {
 	identified := info.ContentType
+	// Segmented inspection identifies the origin format even when its payload
+	// was decoded locally. Carry that canonical identity past a MIME alias.
+	if media.IsSegmented(identified) {
+		return identified
+	}
 	// FFprobe reports WebM and Matroska under the same format name.
 	if identified == media.MKV && (Formats{}).ContentTypeOf(s.URL, "") == media.WebM {
 		identified = media.WebM
