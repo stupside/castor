@@ -51,6 +51,8 @@ type Inspection struct {
 	Info        media.ProbeInfo
 	Reach       media.Reach
 	Observation *media.Observation
+	// ContentType is the canonical format inspection named, kept even when measuring fails.
+	ContentType string
 }
 
 // Bitrate is the rate a measurement established for this stream, 0 when none did.
