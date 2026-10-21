@@ -27,6 +27,9 @@ func (p candidateProbe) Inspect(ctx context.Context) (result source.Inspection, 
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 	stream := *p.stream
+	if contentType := formats.ContentTypeOf(stream.URL, stream.ContentType); contentType != "" {
+		stream.ContentType = contentType
+	}
 	if stream.ContentType == "" {
 		stream.ContentType = formats.Identify(ctx, p.client, stream.URL, stream.Headers)
 	}

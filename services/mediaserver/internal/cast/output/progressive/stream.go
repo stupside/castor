@@ -58,6 +58,9 @@ func ServeSpool(o output.Opening, sp *storage.Spool) *Stream {
 // Write consumes producer synchronously. The caller owns and interrupts the reader.
 func (s *Stream) Write(ctx context.Context, producer io.Reader) error {
 	_, err := io.Copy(s.spool, producer)
+	if ctx.Err() != nil {
+		err = output.InterruptedIO(err)
+	}
 	s.spool.CloseWrite(err)
 	return err
 }
