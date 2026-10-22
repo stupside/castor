@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.3.0](https://github.com/stupside/castor/compare/v2.2.0...v2.3.0) (2026-10-22)
+
+
+### Features
+
+* **release:** give the npm launcher search keywords ([#77](https://github.com/stupside/castor/issues/77)) ([c0dc517](https://github.com/stupside/castor/commit/c0dc5177ff023cb60ddae90e73635dfcfd6aea18))
+
+
+### Documentation
+
+* **readme:** add an npm version badge ([1711a67](https://github.com/stupside/castor/commit/1711a67ce42008951d6e8b6224055809d66e4312))
+
 ## [2.2.0](https://github.com/stupside/castor/compare/v2.1.0...v2.2.0) (2026-10-22)
 
 
