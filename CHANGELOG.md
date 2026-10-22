@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.0](https://github.com/stupside/castor/compare/v2.1.0...v2.2.0) (2026-10-22)
+
+
+### Features
+
+* **release:** ship the project docs in every npm package ([34ff4d9](https://github.com/stupside/castor/commit/34ff4d9f1e250fdbf8985d9bc2b0cb719fb0039b))
+
+
+### Bug Fixes
+
+* **media:** read HLS MIME aliases and report Stop as stopped ([#74](https://github.com/stupside/castor/issues/74)) ([56ac869](https://github.com/stupside/castor/commit/56ac86927476f22ae8321fa285e8bc3dcf9f4313))
+
 ## [2.1.0](https://github.com/stupside/castor/compare/v2.0.0...v2.1.0) (2026-10-22)
 
 
