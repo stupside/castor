@@ -1,7 +1,4 @@
-// Package teardown tells the errors stopping work provokes from failures that coincide with the stop.
-//
-// Whoever stops work drops what the stop provoked once, before wrapping or
-// recording the result: a wrapper is kept whole unless all it wraps was provoked.
+// Package teardown drops the errors stopping work provokes, keeping failures joined to them.
 package teardown
 
 import (
@@ -11,43 +8,26 @@ import (
 	"os"
 )
 
-// Failures is err without what stopping ctx provoked: its cancellation, its
-// cause, and I/O closed under it. While ctx runs, nothing was provoked.
+// Failures is err without its cancellation, cause and I/O closed by stopping ctx; a running ctx provoked nothing.
 func Failures(ctx context.Context, err error) error {
-	if err == nil || ctx.Err() == nil {
+	if ctx.Err() == nil {
 		return err
 	}
-	kept, _ := without(err, func(leaf error) bool {
-		return errors.Is(leaf, ctx.Err()) || errors.Is(leaf, context.Cause(ctx)) ||
-			errors.Is(leaf, os.ErrClosed) || errors.Is(leaf, io.ErrClosedPipe)
-	})
-	return kept
-}
-
-// without drops the provoked leaves of err, and reports whether it dropped any.
-func without(err error, provoked func(error) bool) (error, bool) {
-	switch e := err.(type) {
-	case interface{ Unwrap() []error }:
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
 		var kept []error
-		dropped := false
-		for _, child := range e.Unwrap() {
-			k, d := without(child, provoked)
-			kept, dropped = append(kept, k), dropped || d
+		for _, child := range joined.Unwrap() {
+			kept = append(kept, Failures(ctx, child))
 		}
-		if !dropped {
-			return err, false
-		}
-		return errors.Join(kept...), true
-	case interface{ Unwrap() error }:
-		if child := e.Unwrap(); child != nil {
-			if k, d := without(child, provoked); d && k == nil {
-				return nil, true
-			}
-			return err, false
-		}
+		return errors.Join(kept...)
 	}
-	if provoked(err) {
-		return nil, true
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		if child := wrapped.Unwrap(); child != nil && Failures(ctx, child) == nil {
+			return nil
+		}
+		return err
 	}
-	return err, false
+	if errors.Is(err, ctx.Err()) || errors.Is(err, context.Cause(ctx)) || errors.Is(err, os.ErrClosed) || errors.Is(err, io.ErrClosedPipe) {
+		return nil
+	}
+	return err
 }

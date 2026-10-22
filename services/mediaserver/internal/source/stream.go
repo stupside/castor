@@ -47,8 +47,7 @@ type Inspection struct {
 	Info        media.ProbeInfo
 	Reach       media.Reach
 	Observation *media.Observation
-	// ContentType is what inspection read the link as: the identity its
-	// observation is bound under, or the format it named before measuring failed.
+	// ContentType is what inspection read the link as, whether or not measuring succeeded.
 	ContentType string
 }
 

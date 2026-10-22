@@ -126,8 +126,7 @@ func (r *Ranker) measureAll(ctx context.Context, streams []*source.Stream) []mea
 			// Carried, never re-derived: the ladder was read from a body only the browser held.
 			next := *s
 			next.Probe, next.Observation, next.LastResort = nil, nil, false
-			// Read as inspection read it: its observation is bound under that identity,
-			// and a last resort still reaches the reader of the format it named.
+			// Inspection's content type is the one its observation is bound under.
 			next.ContentType = cmp.Or(inspection.ContentType, s.ContentType)
 			if err != nil {
 				slog.WarnContext(ctx, "probe failed", "url", s.URL, "reach", reach, "error", err)

@@ -133,7 +133,7 @@ func (p *pull) run(ctx context.Context) {
 	if p.proc.Evidence().ExitStatus < 0 {
 		processErr = nil
 	}
-	err = errors.Join(teardown.Failures(ctx, errors.Join(err, processErr)), p.proc.SilentFailure())
+	err = teardown.Failures(ctx, errors.Join(err, processErr, p.proc.SilentFailure()))
 	if err != nil {
 		err = fmt.Errorf("upstream pull: %w", err)
 	}
