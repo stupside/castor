@@ -31,7 +31,7 @@ func TestReleasesRunLastAcquiredFirstAndReportEveryFailure(t *testing.T) {
 }
 
 func TestScopeJoinsAllUsersBeforeReleasingAnyStorage(t *testing.T) {
-	var r releases
+	r := releases{ctx: t.Context()}
 	workerFailure := errors.New("worker failed")
 	storageFailure := errors.New("storage close failed")
 	stopped, joined, released := 0, 0, 0

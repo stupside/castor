@@ -16,6 +16,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/teardown"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
@@ -243,7 +244,7 @@ func publishOutputFixture(t *testing.T, prepared output.Prepared, reader io.Read
 		cancel()
 		_ = reader.Close()
 		<-done
-		return errors.Join(unlessTeardown(result), pub.Close(), prepared.Output.Close())
+		return errors.Join(teardown.Failures(ctx, result), pub.Close(), prepared.Output.Close())
 	})
 	return fixture
 }

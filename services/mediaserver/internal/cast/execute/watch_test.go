@@ -112,13 +112,6 @@ func TestPlaybackJoinsTheHealthWorkerBeforeReturning(t *testing.T) {
 	})
 }
 
-func TestTeardownDoesNotDiscardFailuresJoinedToCancellation(t *testing.T) {
-	failure := errors.New("closing resource failed")
-	if got := unlessTeardown(errors.Join(context.Canceled, failure)); !errors.Is(got, failure) {
-		t.Fatalf("lost cleanup failure: %v", got)
-	}
-}
-
 // Exercise the coordinator's playback scope without acquiring real artifacts.
 func superviseFixture(ctx context.Context, dev Device, d delivery, f feed) (bool, error) {
 	c := newCoordinator(ctx, Cast{Device: dev}, recovery.Attempt{})

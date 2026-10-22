@@ -6,7 +6,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/teardown"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -42,10 +42,7 @@ func startProduction(parent context.Context, proc *ffmpeg.Process, input io.Clos
 		}
 		releaseIO()
 		process := encoderResult(ctx, proc)
-		if ctx.Err() != nil {
-			packaging = output.InterruptedIO(packaging)
-		}
-		p.err = errors.Join(packaging, process)
+		p.err = errors.Join(teardown.Failures(ctx, packaging), process)
 	}()
 	return p
 }

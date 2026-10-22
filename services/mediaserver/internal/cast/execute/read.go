@@ -83,7 +83,7 @@ func (s *preparation) read(work string, program media.Program) (*buffered, error
 	s.releases.worker(stop, func() error {
 		<-reader.Done()
 		transcribing.Wait()
-		return unlessTeardown(reader.Err())
+		return reader.Err()
 	})
 	var videoOffset *time.Duration
 	if track, ok := program.Track(media.TrackVideo); ok && facts.probe.VideoStartOffset != nil {

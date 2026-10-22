@@ -156,7 +156,7 @@ func (s *preparation) watchStorage(watch func(context.Context) error) {
 			}
 		}
 	}()
-	s.releases.worker(nil, func() error { <-done; return unlessTeardown(result) })
+	s.releases.worker(nil, func() error { <-done; return result })
 }
 
 // starved reports whether the device ended on an unfinished read after taking everything it had made, and what that was.

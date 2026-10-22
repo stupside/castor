@@ -19,8 +19,7 @@ func evidence(r ran, err error, cancelled bool) recovery.Evidence {
 	e.Buffered = r.reader != nil && r.reached >= health.Opening
 
 	if p := r.reader; p != nil {
-		// A read the cast's own release cancelled did not fail on its own account.
-		e.ReadErr = unlessTeardown(p.Err())
+		e.ReadErr = p.Err()
 		e.ReadExit = p.exitStatus()
 		e.ReadIncomplete = p.lostMedia()
 		e.Copied = p.copying()

@@ -237,7 +237,7 @@ func TestReadOwnsPCMInterruption(t *testing.T) {
 // testPreparation supplies the attempt-owned scope without a playback coordinator.
 func testPreparation(parent context.Context, c Cast, a recovery.Attempt) *preparation {
 	ctx, cancel := context.WithCancelCause(parent)
-	scope := &releases{}
+	scope := &releases{ctx: ctx}
 	scope.interrupt(func() { cancel(nil) })
 	return newPreparation(ctx, c, a, scope, make(chan error, 1))
 }

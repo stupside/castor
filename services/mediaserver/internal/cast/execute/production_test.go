@@ -77,6 +77,9 @@ func TestProductionCancellationInterruptsAndJoinsPackager(t *testing.T) {
 	if !errors.Is(p.Err(), failure) {
 		t.Fatalf("lost unrelated packaging failure: %v", p.Err())
 	}
+	if errors.Is(p.Err(), context.Canceled) {
+		t.Fatalf("the stop became a packaging failure: %v", p.Err())
+	}
 }
 
 func TestPackagerFailureStopsEncoder(t *testing.T) {

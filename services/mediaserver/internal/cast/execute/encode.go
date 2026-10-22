@@ -17,6 +17,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/fetch"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/teardown"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -169,9 +170,7 @@ func encoderResult(ctx context.Context, proc *ffmpeg.Process) error {
 	if ctx.Err() == nil && errors.Is(err, storage.ErrSpoolExpired) {
 		return fmt.Errorf("encoder input expired: %w", err)
 	}
-	if ctx.Err() != nil {
-		err = unlessTeardown(err)
-	}
+	err = teardown.Failures(ctx, err)
 	if err == nil || proc.Evidence().ExitStatus < 0 {
 		return nil
 	}

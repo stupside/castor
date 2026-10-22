@@ -1,6 +1,7 @@
 package execute
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -11,8 +12,8 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
-	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/teardown"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -132,21 +133,15 @@ func (p *pull) run(ctx context.Context) {
 	if p.proc.Evidence().ExitStatus < 0 {
 		processErr = nil
 	}
-	if ctx.Err() != nil {
-		err = output.InterruptedIO(err)
-	}
-	err = errors.Join(err, unlessTeardown(processErr), p.proc.SilentFailure())
-
-	switch {
-	case err != nil:
+	err = errors.Join(teardown.Failures(ctx, errors.Join(err, processErr)), p.proc.SilentFailure())
+	if err != nil {
 		err = fmt.Errorf("upstream pull: %w", err)
-	case ctx.Err() != nil:
-		err = ctx.Err()
 	}
 	p.err = err
-	p.spool.CloseWrite(err)
+	// A stopped read is truncated: a killed ffmpeg ends its copy as cleanly as a finished one.
+	p.spool.CloseWrite(cmp.Or(err, ctx.Err()))
 
-	if err == nil {
+	if err == nil && ctx.Err() == nil {
 		slog.InfoContext(ctx, "upstream pull complete", "spooled_bytes", p.spool.Size())
 	}
 }

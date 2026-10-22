@@ -1,6 +1,7 @@
 package execute
 
 import (
+	"context"
 	"errors"
 	"io"
 	"path/filepath"
@@ -74,6 +75,34 @@ func TestAFailedSpoolWriteKillsTheReader(t *testing.T) {
 	}
 	if p.Err() == nil {
 		t.Error("the read reported success after its spool refused a write")
+	}
+}
+
+func TestAStoppedReadIsTruncatedButNotFailed(t *testing.T) {
+	sp, err := storage.NewSpool(filepath.Join(t.TempDir(), "spool.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancelCause(t.Context())
+	stopped := errors.New("cast stopped")
+	proc, err := ffmpeg.Start(ctx, "yes", ffmpeg.Command{}, ffmpeg.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &pull{proc: proc, spool: sp, done: make(chan struct{})}
+	go p.run(ctx)
+	cancel(stopped)
+	select {
+	case <-p.Done():
+	case <-time.After(10 * time.Second):
+		proc.Kill()
+		t.Fatal("the read never ended after it was stopped")
+	}
+	if err := p.Err(); err != nil {
+		t.Errorf("a stopped read reported a failure: %v", err)
+	}
+	if !errors.Is(sp.Err(), context.Canceled) {
+		t.Errorf("a stopped read left its spool %v, want it truncated", sp.Err())
 	}
 }
 

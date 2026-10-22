@@ -18,6 +18,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/teardown"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
@@ -60,14 +61,9 @@ func ServeSpool(o output.Opening, sp *storage.Spool) *Stream {
 // Write consumes producer synchronously. The caller owns and interrupts the reader.
 func (s *Stream) Write(ctx context.Context, producer io.Reader) error {
 	_, err := io.Copy(s.spool, producer)
-	if ctx.Err() != nil {
-		err = output.InterruptedIO(err)
-		// Interruption is not a producer failure, but a truncated spool must never
-		// report success to its tails, as an interrupted pull does.
-		s.spool.CloseWrite(cmp.Or(err, ctx.Err()))
-		return err
-	}
-	s.spool.CloseWrite(err)
+	err = teardown.Failures(ctx, err)
+	// A stopped write is truncated: a killed producer ends its copy as cleanly as a finished one.
+	s.spool.CloseWrite(cmp.Or(err, ctx.Err()))
 	return err
 }
 

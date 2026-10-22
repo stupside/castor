@@ -173,7 +173,7 @@ type coordinator struct {
 
 func newCoordinator(parent context.Context, c Cast, a recovery.Attempt) *coordinator {
 	ctx, cancel := context.WithCancelCause(parent)
-	rel := &releases{}
+	rel := &releases{ctx: ctx}
 	// Signal every owner before joining or releasing any resource.
 	rel.interrupt(func() { cancel(nil) })
 	s := &coordinator{
