@@ -71,4 +71,5 @@ var containers = []Identity{
 	{ContentType: media.AVI, Extensions: []string{".avi"}, MIMETypes: []string{media.AVI}},
 	{ContentType: media.MOV, Extensions: []string{".mov"}, MIMETypes: []string{media.MOV}},
 	{ContentType: media.MPEGTS, MIMETypes: []string{media.MPEGTS}},
+	{ContentType: media.FLV, MIMETypes: []string{media.FLV}},
 }

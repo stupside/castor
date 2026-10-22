@@ -51,12 +51,15 @@ func TestALinkIsNamedByTheFormatThatDeclaresItsName(t *testing.T) {
 
 func TestAMIMETypeAnnouncesItsFormatUnderAnyAlias(t *testing.T) {
 	formats := source.Formats{hls.Format{}, dash.Format{}}
+	for _, read := range []string{media.HLS, media.DASH, media.MP4, media.MKV, media.WebM, media.AVI, media.MOV, media.MPEGTS, media.FLV} {
+		if got := formats.Announced(read); got != read {
+			t.Errorf("Announced(%q) = %q, want it unchanged", read, got)
+		}
+	}
 	for _, tc := range []struct{ mime, want string }{
 		{"Application/VND.Apple.MPEGURL", media.HLS},
 		{"application/x-mpegurl", media.HLS},
 		{"application/vnd.apple.mpegurl; charset=utf-8", media.HLS},
-		{media.HLS, media.HLS},
-		{"application/dash+xml", media.DASH},
 		{"video/mp4; codecs=avc1", media.MP4},
 		{"text/plain", ""},
 		{"", ""},
