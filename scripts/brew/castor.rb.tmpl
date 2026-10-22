@@ -12,8 +12,9 @@ cask "castor" do
 
   binary "castor"
 
-  # Unsigned, so Gatekeeper would quarantine it.
-  postflight do
-    system_command "/usr/bin/xattr", args: ["-cr", "#{staged_path}/castor"]
+  # Unsigned, so Gatekeeper would quarantine it. The block form of postflight is
+  # deprecated, and postflight_steps has neither system_command nor staged_path.
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-cr", "{{staged_path}}/castor"]
   end
 end
