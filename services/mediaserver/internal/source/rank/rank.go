@@ -2,7 +2,6 @@
 package rank
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -127,7 +126,7 @@ func (r *Ranker) measureAll(ctx context.Context, streams []*source.Stream) []mea
 			next := *s
 			next.Probe, next.Observation, next.LastResort = nil, nil, false
 			// Inspection's content type is the one its observation is bound under.
-			next.ContentType = cmp.Or(inspection.ContentType, s.ContentType)
+			next.ContentType = inspection.ContentType
 			if err != nil {
 				slog.WarnContext(ctx, "probe failed", "url", s.URL, "reach", reach, "error", err)
 			} else {

@@ -32,7 +32,7 @@ func (s *scripted) Probe(_ context.Context, c *source.Stream) (source.Inspection
 	if !ok {
 		return source.Inspection{}, fmt.Errorf("no scripted measurement for %s", c.URL)
 	}
-	return source.Inspection{Info: *info, Reach: media.ReachOpened}, nil
+	return source.Inspection{Info: *info, Reach: media.ReachOpened, ContentType: info.ContentType}, nil
 }
 
 // playable is a measurement of a real title: both tracks, a feature runtime.
@@ -125,7 +125,7 @@ func TestRankingCarriesSuccessfulBindingsAndClearsFailedInspection(t *testing.T)
 	observed := media.Observe(program, info)
 	var fail bool
 	r := New(testConfig, 1080, func(context.Context, *source.Stream) (source.Inspection, error) {
-		inspection := source.Inspection{Info: info, Reach: media.ReachOpened, Observation: &observed}
+		inspection := source.Inspection{Info: info, Reach: media.ReachOpened, Observation: &observed, ContentType: media.HLS}
 		if fail {
 			return inspection, errors.New("inspection failed after partial output")
 		}
