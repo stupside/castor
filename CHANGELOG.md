@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.1.0](https://github.com/stupside/castor/compare/v2.0.0...v2.1.0) (2026-10-22)
+
+
+### Features
+
+* **release:** publish the cli to npm through trusted publishing ([aa2510c](https://github.com/stupside/castor/commit/aa2510cbe60d1e67e25ee82fcf7003b7401e829e))
+* **telemetry:** namespace OTel names and make logs say why ([e993388](https://github.com/stupside/castor/commit/e99338836b278be2e5708265e8ebd35d1f753605))
+* **telemetry:** record state machines as one span per state ([7aaf50b](https://github.com/stupside/castor/commit/7aaf50beefbdda90a746a154eac86fd9e5c924e3))
+* **telemetry:** second-scale duration buckets, semconv 1.43 and service version ([217f29d](https://github.com/stupside/castor/commit/217f29d4d6674dd5de7aefbc81a50a1812c6768c))
+
+
+### Bug Fixes
+
+* **codec:** weigh a video encode above an audio one when picking a format ([d466da9](https://github.com/stupside/castor/commit/d466da905b02e161b51f726d0d8f28d1cee9985a))
+* **release:** restore postflight_steps in the brew cask ([#73](https://github.com/stupside/castor/issues/73)) ([3d022c0](https://github.com/stupside/castor/commit/3d022c03a62ffa732d60de498c4718a11bfcb3e9))
+
+
+### Refactors
+
+* **release:** give brew its own job and run both channels after publish ([0b8d943](https://github.com/stupside/castor/commit/0b8d943d4c62a768e26299561dcd74c2df07ddbb))
+
+
+### Documentation
+
+* **readme:** lead the quick start with brew, npm and a source build ([7869786](https://github.com/stupside/castor/commit/7869786ce73e3b66e2b2425c9a0bee7bc14796d6))
+* **telemetry:** add a provisioned Grafana dashboard and the local collector recipe ([0a24a99](https://github.com/stupside/castor/commit/0a24a99b221ea9fb29c4a64ef0ab307ea5a9fcc4))
+
 ## [2.0.0](https://github.com/stupside/castor/compare/v1.9.0...v2.0.0) (2026-10-21)
 
 
