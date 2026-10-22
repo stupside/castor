@@ -25,7 +25,8 @@ type Stream struct {
 	// LastResort is a link ranking admitted without a measurement to back it.
 	LastResort bool
 
-	Headers     http.Header
+	Headers http.Header
+	// ContentType is one of media's content types, never a server's raw MIME type; "" until something names it.
 	ContentType string
 }
 
@@ -33,13 +34,8 @@ type Stream struct {
 // format names. Ranking and observation binding must use the same identity.
 func (s *Stream) MeasuredContentType(info media.ProbeInfo) string {
 	identified := info.ContentType
-	// Segmented inspection identifies the origin format even when its payload
-	// was decoded locally. Carry that canonical identity past a MIME alias.
-	if media.IsSegmented(identified) {
-		return identified
-	}
 	// FFprobe reports WebM and Matroska under the same format name.
-	if identified == media.MKV && (Formats{}).ContentTypeOf(s.URL, "") == media.WebM {
+	if identified == media.MKV && (Formats{}).Named(s.URL) == media.WebM {
 		identified = media.WebM
 	}
 	return cmp.Or(s.ContentType, identified)
@@ -51,7 +47,8 @@ type Inspection struct {
 	Info        media.ProbeInfo
 	Reach       media.Reach
 	Observation *media.Observation
-	// ContentType is the canonical format inspection named, kept even when measuring fails.
+	// ContentType is what inspection read the link as: the identity its
+	// observation is bound under, or the format it named before measuring failed.
 	ContentType string
 }
 

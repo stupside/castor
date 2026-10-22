@@ -38,17 +38,31 @@ func TestIdentifyKeepsNamedFormatsAndSniffsIncompleteManifests(t *testing.T) {
 
 func TestALinkIsNamedByTheFormatThatDeclaresItsName(t *testing.T) {
 	formats := source.Formats{hls.Format{}, dash.Format{}}
-	for _, tc := range []struct {
-		raw, mime, want string
-	}{
-		{"https://cdn.example/MASTER.M3U8?token=x", "", media.HLS},
-		{"https://cdn.example/index", "Application/VND.Apple.MPEGURL", media.HLS},
-		// The name the link spells wins over the type the server claims.
-		{"https://cdn.example/master.m3u8", "video/mp4", media.HLS},
-		{"https://cdn.example/player/embed", "text/html", ""},
+	for _, tc := range []struct{ raw, want string }{
+		{"https://cdn.example/MASTER.M3U8?token=x", media.HLS},
+		{"https://cdn.example/movie.webm", media.WebM},
+		{"https://cdn.example/player/embed", ""},
 	} {
-		if got := formats.ContentTypeOf(sourcetest.URL(t, tc.raw), tc.mime); got != tc.want {
-			t.Errorf("ContentTypeOf(%s, %q) = %q, want %q", tc.raw, tc.mime, got, tc.want)
+		if got := formats.Named(sourcetest.URL(t, tc.raw)); got != tc.want {
+			t.Errorf("Named(%s) = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
+}
+
+func TestAMIMETypeAnnouncesItsFormatUnderAnyAlias(t *testing.T) {
+	formats := source.Formats{hls.Format{}, dash.Format{}}
+	for _, tc := range []struct{ mime, want string }{
+		{"Application/VND.Apple.MPEGURL", media.HLS},
+		{"application/x-mpegurl", media.HLS},
+		{"application/vnd.apple.mpegurl; charset=utf-8", media.HLS},
+		{media.HLS, media.HLS},
+		{"application/dash+xml", media.DASH},
+		{"video/mp4; codecs=avc1", media.MP4},
+		{"text/plain", ""},
+		{"", ""},
+	} {
+		if got := formats.Announced(tc.mime); got != tc.want {
+			t.Errorf("Announced(%q) = %q, want %q", tc.mime, got, tc.want)
 		}
 	}
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/source"
 )
 
-// Probes measures one candidate.
+// Probes measures one candidate and names the content type it is read as.
 type Probes func(context.Context, *source.Stream) (source.Inspection, error)
 
 type Ranker struct {
@@ -126,15 +126,14 @@ func (r *Ranker) measureAll(ctx context.Context, streams []*source.Stream) []mea
 			// Carried, never re-derived: the ladder was read from a body only the browser held.
 			next := *s
 			next.Probe, next.Observation, next.LastResort = nil, nil, false
+			// Read as inspection read it: its observation is bound under that identity,
+			// and a last resort still reaches the reader of the format it named.
+			next.ContentType = cmp.Or(inspection.ContentType, s.ContentType)
 			if err != nil {
 				slog.WarnContext(ctx, "probe failed", "url", s.URL, "reach", reach, "error", err)
-				// A last resort must still reach the reader of the format inspection named.
-				next.ContentType = cmp.Or(inspection.ContentType, s.ContentType)
 			} else {
 				next.Probe = &info
 				next.Observation = inspection.Observation
-				// A container the URL did not name is one the probe just established.
-				next.ContentType = s.MeasuredContentType(info)
 			}
 			out[i] = measured{Stream: &next, reach: reach}
 		})

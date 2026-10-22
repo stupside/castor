@@ -125,6 +125,27 @@ type caster struct {
 	asked         *mediav1.PlaybackSettings
 }
 
+// Rank ranks streams by the content types their MIME types announce.
+func (k caster) Rank(ctx context.Context, streams []*source.Stream) ([]*source.Stream, error) {
+	announced := make([]*source.Stream, len(streams))
+	for i, s := range streams {
+		announced[i] = announce(s)
+	}
+	return k.Ranker.Rank(ctx, announced)
+}
+
+// Measure measures stream by the content type its MIME type announces.
+func (k caster) Measure(ctx context.Context, stream *source.Stream) (*source.Stream, error) {
+	return k.Ranker.Measure(ctx, announce(stream))
+}
+
+// announce reads a MIME type castor does not recognize as no evidence: the link's name or body decides.
+func announce(s *source.Stream) *source.Stream {
+	announced := *s
+	announced.ContentType = formats.Announced(s.ContentType)
+	return &announced
+}
+
 func (k caster) Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, turns recovery.Turns) error {
 	run := execute.Cast{
 		Machinery:     k.machinery,

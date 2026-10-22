@@ -27,9 +27,6 @@ func (p candidateProbe) Inspect(ctx context.Context) (result source.Inspection, 
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 	stream := *p.stream
-	// A recognized MIME type stays authoritative, with its aliases sharing one identity.
-	// An unrecognized one is no evidence, so the link's name or body decides instead.
-	stream.ContentType = formats.ContentTypeOf(nil, stream.ContentType)
 	if stream.ContentType == "" {
 		stream.ContentType = formats.Identify(ctx, p.client, stream.URL, stream.Headers)
 	}
@@ -38,6 +35,7 @@ func (p candidateProbe) Inspect(ctx context.Context) (result source.Inspection, 
 		result.Info, result.Reach, err = p.binary.Link(probe.Link{URL: stream.URL, Headers: stream.Headers, InputArgs: formats.InputArgs(stream.ContentType, 0)}, fetchTimeout).Probe(ctx)
 		if err == nil {
 			stream.ContentType = p.stream.MeasuredContentType(result.Info)
+			result.ContentType = stream.ContentType
 			program, bindErr := source.ProgramFor(&stream)
 			if bindErr != nil {
 				return result, bindErr

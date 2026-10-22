@@ -164,7 +164,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 			ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
 				return (candidateProbe{stream: s, client: client, resolver: resolver, timelines: timelines, binary: probe.FFprobe("ffprobe")}).Inspect(ctx)
 			})
-			measured, err := ranker.Measure(t.Context(), &source.Stream{URL: u, ContentType: tc.mime, Headers: http.Header{"Authorization": {"Bearer fixture"}}})
+			measured, err := (caster{Ranker: ranker}).Measure(t.Context(), &source.Stream{URL: u, ContentType: tc.mime, Headers: http.Header{"Authorization": {"Bearer fixture"}}})
 			if err != nil || measured.Probe == nil || measured.Probe.VideoHeight != 96 || measured.ContentType != media.HLS {
 				t.Fatalf("HLS MIME alias was not measured as video: %+v, %v", measured, err)
 			}
@@ -177,6 +177,23 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 			}
 		})
 	}
+	t.Run("container MIME with parameters", func(t *testing.T) {
+		u, _ := url.Parse(server.URL + "/plain.ts")
+		ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
+			return (candidateProbe{stream: s, client: client, resolver: resolver, timelines: timelines, binary: probe.FFprobe("ffprobe")}).Inspect(ctx)
+		})
+		measured, err := (caster{Ranker: ranker}).Measure(t.Context(), &source.Stream{URL: u, ContentType: "Video/MP2T; charset=binary"})
+		if err != nil || measured.Probe == nil || measured.ContentType != media.MPEGTS {
+			t.Fatalf("container MIME was not measured as its content type: %+v, %v", measured, err)
+		}
+		resolved, err := resolver.Resolve(t.Context(), measured, source.Rendition{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := resolved.Program.Measurement(); !ok {
+			t.Fatal("observation bound under another identity than ranking kept")
+		}
+	})
 	t.Run("static image rejected", func(t *testing.T) {
 		u, _ := url.Parse(server.URL + "/image.png")
 		ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {

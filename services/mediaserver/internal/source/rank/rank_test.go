@@ -97,25 +97,20 @@ func TestFailedProbeKeepsTheInspectedFormat(t *testing.T) {
 	r := New(testConfig, 1080, func(context.Context, *source.Stream) (source.Inspection, error) {
 		return source.Inspection{ContentType: media.HLS}, errors.New("probe timed out")
 	})
-	got, err := r.Measure(t.Context(), candidateAt(t, "application/vnd.apple.mpegurl", "https://origin.example/live"))
+	got, err := r.Measure(t.Context(), candidateAt(t, "", "https://origin.example/live"))
 	if err != nil || got.ContentType != media.HLS {
 		t.Fatalf("Measure = %q, %v; want the HLS reader for a last resort", got.ContentType, err)
 	}
 }
 
-func TestWebMNameDisambiguatesMatroskaProbe(t *testing.T) {
-	const webm = "https://origin.example/movie.webm"
-	const mkv = "https://origin.example/movie.mkv"
-	measurer := &scripted{answers: map[string]*media.ProbeInfo{
-		webm: {ContentType: media.MKV, VideoCodec: media.CodecVP8, AudioCodec: media.CodecVorbis},
-		mkv:  {ContentType: media.MKV, VideoCodec: media.CodecVP8, AudioCodec: media.CodecVorbis},
-	}}
-	r := New(testConfig, 1080, measurer.Probe)
-	for _, tc := range []struct{ url, want string }{{webm, media.WebM}, {mkv, media.MKV}} {
-		got, err := r.Measure(t.Context(), candidateAt(t, "", tc.url))
-		if err != nil || got.ContentType != tc.want {
-			t.Errorf("Measure(%s) = %q, %v; want %q", tc.url, got.ContentType, err, tc.want)
-		}
+func TestRankingKeepsTheIdentityInspectionBoundItsObservationUnder(t *testing.T) {
+	// The local reading of a DASH origin is HLS; the candidate is still read as DASH.
+	r := New(testConfig, 1080, func(context.Context, *source.Stream) (source.Inspection, error) {
+		return source.Inspection{Info: *playable(1_000_000, 720, time.Hour), Reach: media.ReachOpened, ContentType: media.DASH}, nil
+	})
+	got, err := r.Measure(t.Context(), candidateAt(t, "", "https://origin.example/manifest"))
+	if err != nil || got.ContentType != media.DASH {
+		t.Fatalf("Measure = %q, %v; want the identity inspection bound", got.ContentType, err)
 	}
 }
 
