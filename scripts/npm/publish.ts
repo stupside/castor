@@ -10,6 +10,7 @@ const Manifest = z.object({
   name: z.string(),
   version: z.string(),
   description: z.string(),
+  keywords: z.array(z.string()).optional(),
   license: z.literal("MIT"),
   repository: z.object({ type: z.literal("git"), url: z.string() }),
   os: z.array(z.string()).optional(),
@@ -71,7 +72,9 @@ must(sh("bun", "build", "scripts/npm/launcher.ts", "--target=node", "--format=cj
 stage(
   launcher.dir,
   {
-    name: launcher.name, version, description: "Cast video streams to networked devices", license: "MIT", repository,
+    name: launcher.name, version, description: "Cast video from any web page to Chromecast, DLNA, Roku and Samsung TVs, with live transcoding and subtitles", license: "MIT", repository,
+    // The repo topics whose npm results are already about casting media; streaming, video and live there are Node streams and dev tooling.
+    keywords: ["castor", "chromecast", "google-cast", "dlna", "roku", "samsung", "iptv", "hls", "m3u8", "termux", "self-hosted"],
     bin: { castor: "bin/castor.js" }, engines: { node: ">=20" },
     optionalDependencies: Object.fromEntries(packages.map(({ name }) => [name, version])),
   },
