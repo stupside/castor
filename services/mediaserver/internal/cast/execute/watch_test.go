@@ -96,7 +96,7 @@ func TestPlaybackJoinsTheHealthWorkerBeforeReturning(t *testing.T) {
 		p.dev = observedDevice{wait: func(context.Context) error { <-a.entered; return nil }}
 		done := make(chan error, 1)
 		go func() {
-			_, err := superviseFixture(t.Context(), p.dev, p.delivery(), feed{})
+			err := superviseFixture(t.Context(), p.dev, p.delivery(), feed{})
 			done <- err
 		}()
 		synctest.Wait()
@@ -113,7 +113,7 @@ func TestPlaybackJoinsTheHealthWorkerBeforeReturning(t *testing.T) {
 }
 
 // Exercise the coordinator's playback scope without acquiring real artifacts.
-func superviseFixture(ctx context.Context, dev Device, d delivery, f feed) (bool, error) {
+func superviseFixture(ctx context.Context, dev Device, d delivery, f feed) error {
 	c := newCoordinator(ctx, Cast{Device: dev}, recovery.Attempt{})
 
 	c.move(inspectionStarted)
@@ -123,10 +123,11 @@ func superviseFixture(ctx context.Context, dev Device, d delivery, f feed) (bool
 	c.move(playbackRequested)
 	c.move(playbackStarted)
 	c.presentation = presentation{delivery: &d, feed: f}
+	c.observeProduction()
 	c.observePlayback()
 	c.loop()
 	_, err := c.finish()
-	return c.delivered, err
+	return err
 }
 
 // The execution worker borrows only pause/resume, and stays alive until an

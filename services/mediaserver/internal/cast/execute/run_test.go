@@ -136,7 +136,7 @@ func TestABufferCopiedWholeIsServedAsItIs(t *testing.T) {
 		err = hand(s.ctx, dev, p.target, p.contentType, p.captions, p.source)
 	}
 	if err == nil {
-		_, err = superviseFixture(s.ctx, dev, *p.delivery, p.feed)
+		err = superviseFixture(s.ctx, dev, *p.delivery, p.feed)
 	}
 	r := p.reached
 	if err != nil {
@@ -205,11 +205,14 @@ func reachAttemptState(t *testing.T, m *fsm.FSM, state string) {
 	} else if state != inspecting && state != planning && state != outputPlanned {
 		path = append(path, presentationReady)
 	}
-	if state == startingPlayback || state == playingBack {
+	if state == startingPlayback || state == playingBack || state == draining {
 		path = append(path, playbackRequested)
 	}
-	if state == playingBack {
+	if state == playingBack || state == draining {
 		path = append(path, playbackStarted)
+	}
+	if state == draining {
+		path = append(path, deliverySettled)
 	}
 	if state == stopping || state == attemptFinished {
 		path = append(path, attemptCancelled)
@@ -409,10 +412,10 @@ func TestProductionCompletionDoesNotEndPlayingAttempt(t *testing.T) {
 func TestLateWorkerFailureSurvivesSuccessfulDelivery(t *testing.T) {
 	c := newCoordinator(t.Context(), Cast{}, recovery.Attempt{})
 
-	reachAttemptState(t, c.machine, playingBack)
+	reachAttemptState(t, c.machine, draining)
 	failure := errors.New("device failed while stopping")
 	c.launch(playbackEnded, func() error { <-c.ctx.Done(); return failure })
-	c.launch(deliverySettled, func() error { return nil })
+	c.launch(drainElapsed, func() error { return nil })
 	c.loop()
 	_, err := c.finish()
 	if !errors.Is(err, failure) {

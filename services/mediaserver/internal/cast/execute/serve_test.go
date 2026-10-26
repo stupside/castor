@@ -126,7 +126,7 @@ func TestAPlayingRemuxIsWatchedOverItsEncoder(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	_, err := superviseFixture(ctx, p.dev, p.delivery(), feed{})
+	err := superviseFixture(ctx, p.dev, p.delivery(), feed{})
 	fault, ok := errors.AsType[*health.Fault](err)
 	if !ok {
 		t.Fatal("a remux whose device took nothing was never judged in flight")
@@ -141,7 +141,7 @@ func TestADeviceThatWentAwayIsReportedAsItselfNotAsTeardown(t *testing.T) {
 	p := took(t, blocking)
 	p.dev = observedDevice{wait: func(context.Context) error { return gone }}
 
-	_, err := superviseFixture(t.Context(), p.dev, p.delivery(), feed{buffered: p.buf})
+	err := superviseFixture(t.Context(), p.dev, p.delivery(), feed{buffered: p.buf})
 	if away, ok := errors.AsType[*media.Gone](err); !ok || away != gone {
 		t.Fatalf("playback = %v, want the device's own account of having gone away", err)
 	}
@@ -153,12 +153,14 @@ func TestADeviceThatWentAwayIsReportedAsItselfNotAsTeardown(t *testing.T) {
 func TestOnlyADeliveryThatRanItsCourseIsAskedWhetherTheDeviceTookIt(t *testing.T) {
 	short := errors.New("the device was handed a fraction of what this cast produced")
 	inFlight := func(ctx context.Context, p playing) error {
-		_, err := superviseFixture(ctx, p.dev, p.delivery(), feed{buffered: p.buf})
+		err := superviseFixture(ctx, p.dev, p.delivery(), feed{buffered: p.buf})
 		return err
 	}
 
 	t.Run("a delivery that ran its course is asked", func(t *testing.T) {
 		p := took(t, over)
+		// The device then plays out what it took and says so.
+		p.dev = observedDevice{wait: over}
 		p.mech.settled = short
 		if err := inFlight(t.Context(), p); !errors.Is(err, short) {
 			t.Fatalf("the cast = %v, want the delivery's own account of what the device took", err)

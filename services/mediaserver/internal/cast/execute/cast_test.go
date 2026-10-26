@@ -84,8 +84,9 @@ func (d *fakeDevice) Play(ctx context.Context, streamURL *url.URL, _ string, _ [
 	return err
 }
 
+// AwaitEnd ends at once for a device that drained the stream in Play: it played what it took.
 func (d *fakeDevice) AwaitEnd(ctx context.Context) error {
-	if d.ended {
+	if d.ended || d.drain {
 		return ctx.Err()
 	}
 	<-ctx.Done()

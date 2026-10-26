@@ -71,6 +71,8 @@ type device struct{ Settings }
 func (device) Type() string { return "dlna" }
 
 func (d device) Start(t *testing.T, s *receiver.Session) (receiver.Endpoint, error) {
+	// A renderer's end is polled from its transport state, so it plays for as long as its media lasts, as a real one does.
+	s.PlayInRealtime()
 	u := &upnp{session: s, sink: d.Sink, locked: d.LockedFor, fetch: fetchers[d.Fetches]}
 	s.Check(func(declared string, h http.Header) []string {
 		u.mu.Lock()
