@@ -7,8 +7,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/looplab/fsm"
-	"github.com/stupside/castor/internal/telemetry"
+	"github.com/stupside/castor/internal/machine"
 
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -42,11 +41,21 @@ const (
 )
 
 // A heavier rate is on trial until it holds or is given back; one that held shortens the wait for the next.
+type rateState uint8
+
 const (
-	rateSteady = "steady"
-	rateTrial  = "trial"
-	rateProven = "proven"
+	rateSteady rateState = iota
+	rateTrial
+	rateProven
 )
+
+func (s rateState) String() string {
+	return [...]string{
+		rateSteady: "steady",
+		rateTrial:  "trial",
+		rateProven: "proven",
+	}[s]
+}
 
 // rateEvent is a move of the rate: the verb a change of rate is told by.
 type rateEvent uint8
@@ -67,16 +76,13 @@ func (e rateEvent) String() string {
 	}[e]
 }
 
-func rateMachine() *fsm.FSM {
-	track := telemetry.Track("rate", rateSteady)
-	return fsm.NewFSM(rateSteady, fsm.Events{
-		{Name: rateLifted.String(), Src: []string{rateSteady, rateProven}, Dst: rateTrial},
-		{Name: rateLightened.String(), Src: []string{rateSteady, rateProven}, Dst: rateSteady},
-		{Name: rateGivenBack.String(), Src: []string{rateTrial}, Dst: rateSteady},
-		{Name: rateHeld.String(), Src: []string{rateTrial}, Dst: rateProven},
-	}, fsm.Callbacks{
-		"after_event": func(ctx context.Context, e *fsm.Event) { track(ctx, e.Event, e.Src, e.Dst) },
-	})
+func rateMachine() *machine.Machine[rateState, rateEvent] {
+	return machine.New("rate", rateSteady, nil, []machine.Edge[rateState, rateEvent]{
+		{On: rateLifted, From: []rateState{rateSteady, rateProven}, To: rateTrial},
+		{On: rateLightened, From: []rateState{rateSteady, rateProven}, To: rateSteady},
+		{On: rateGivenBack, From: []rateState{rateTrial}, To: rateSteady},
+		{On: rateHeld, From: []rateState{rateTrial}, To: rateProven},
+	}, nil)
 }
 
 // pacing is the rate a cast asks of a device.
@@ -96,7 +102,7 @@ type pacing struct {
 
 	// before is the rate a heavier one on trial is given back for.
 	before  media.Bitrate
-	machine *fsm.FSM
+	machine *machine.Machine[rateState, rateEvent]
 }
 
 // change is a rate pacing asks for: the move that reaches it, and what the cast weighed when it was asked.
@@ -186,7 +192,7 @@ func (p *pacing) lift(now time.Time) (c change, ok bool, why string) {
 
 // commit makes c the rate asked, once the rate machine allows its move.
 func (p *pacing) commit(ctx context.Context, c change, now time.Time) error {
-	if err := fire(ctx, p.machine, c.move.String()); err != nil {
+	if err := p.machine.Fire(ctx, c.move); err != nil {
 		return err
 	}
 	switch c.move {
@@ -218,7 +224,7 @@ func (p *pacing) settled(ctx context.Context, now time.Time) error {
 		return nil
 	}
 	p.backoff = 0
-	return fire(ctx, p.machine, rateHeld.String())
+	return p.machine.Fire(ctx, rateHeld)
 }
 
 // refused holds the rate where it is, and the watch off it for a while.

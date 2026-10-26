@@ -62,7 +62,7 @@ func TestRemoteCompletionDuringJoinSurvivesStopTimeout(t *testing.T) {
 		})
 		got, err := s.finish()
 		if err != nil || got != ended || !s.machine.Is(sessionFinished) {
-			t.Fatalf("lost remote completion during join: ended=%v err=%v state=%s", got, err, s.machine.Current())
+			t.Fatalf("lost remote completion during join: ended=%v err=%v state=%s", got, err, s.machine.State())
 		}
 	})
 }

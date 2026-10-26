@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/looplab/fsm"
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
-	"github.com/stupside/castor/internal/telemetry"
+	"github.com/stupside/castor/internal/machine"
 	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
@@ -45,26 +44,37 @@ const (
 	stopGrace = 5 * time.Second
 )
 
+type sessionState uint8
+
 const (
-	sessionStarting = "starting"
-	sessionActive   = "active"
-	sessionStopping = "stopping"
-	sessionJoining  = "joining"
-	sessionFinished = "finished"
+	sessionStarting sessionState = iota
+	sessionActive
+	sessionStopping
+	sessionJoining
+	sessionFinished
 )
+
+func (s sessionState) String() string {
+	return [...]string{
+		sessionStarting: "starting",
+		sessionActive:   "active",
+		sessionStopping: "stopping",
+		sessionJoining:  "joining",
+		sessionFinished: "finished",
+	}[s]
+}
 
 // As in the attempt coordinator, the owner consumes events and the library
 // validates transitions. Network operations and joins run outside FSM callbacks.
-func newSessionMachine() *fsm.FSM {
-	track := telemetry.Track("session", sessionStarting, sessionFinished)
-	return fsm.NewFSM(sessionStarting, fsm.Events{
-		{Name: remoteStarted.String(), Src: []string{sessionStarting}, Dst: sessionActive},
-		{Name: remoteEnded.String(), Src: []string{sessionActive}, Dst: sessionJoining},
-		{Name: sessionCancelled.String(), Src: []string{sessionStarting, sessionActive}, Dst: sessionStopping},
-		{Name: sessionFailed.String(), Src: []string{sessionStarting, sessionActive}, Dst: sessionStopping},
-		{Name: stopSettled.String(), Src: []string{sessionStopping}, Dst: sessionJoining},
-		{Name: sessionJoined.String(), Src: []string{sessionJoining}, Dst: sessionFinished},
-	}, fsm.Callbacks{"after_event": func(ctx context.Context, e *fsm.Event) { track(ctx, e.Event, e.Src, e.Dst) }})
+func newSessionMachine() *machine.Machine[sessionState, sessionEvent] {
+	return machine.New("session", sessionStarting, []sessionState{sessionFinished}, []machine.Edge[sessionState, sessionEvent]{
+		{On: remoteStarted, From: []sessionState{sessionStarting}, To: sessionActive},
+		{On: remoteEnded, From: []sessionState{sessionActive}, To: sessionJoining},
+		{On: sessionCancelled, From: []sessionState{sessionStarting, sessionActive}, To: sessionStopping},
+		{On: sessionFailed, From: []sessionState{sessionStarting, sessionActive}, To: sessionStopping},
+		{On: stopSettled, From: []sessionState{sessionStopping}, To: sessionJoining},
+		{On: sessionJoined, From: []sessionState{sessionJoining}, To: sessionFinished},
+	}, nil)
 }
 
 type watchResult struct {
@@ -79,7 +89,7 @@ type session struct {
 	id       string
 	ctx      context.Context
 	cancel   context.CancelFunc
-	machine  *fsm.FSM
+	machine  *machine.Machine[sessionState, sessionEvent]
 	workers  sync.WaitGroup
 	watching <-chan watchResult
 	driving  <-chan error
@@ -111,11 +121,10 @@ func (c *Client) Run(parent context.Context, id string, source *mediav1.Source, 
 }
 
 func (s *session) move(event sessionEvent) {
-	// Cancellation is an input, never a reason to abort bookkeeping.
-	if err := s.machine.Event(context.WithoutCancel(s.ctx), event.String()); err != nil {
+	if err := s.machine.Fire(s.ctx, event); err != nil {
 		s.failure = errors.Join(s.failure, err)
-		if s.machine.Can(sessionFailed.String()) {
-			s.failure = errors.Join(s.failure, s.machine.Event(context.WithoutCancel(s.ctx), sessionFailed.String()))
+		if s.machine.Can(sessionFailed) {
+			s.failure = errors.Join(s.failure, s.machine.Fire(s.ctx, sessionFailed))
 		}
 	}
 }

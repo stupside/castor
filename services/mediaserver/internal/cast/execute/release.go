@@ -119,7 +119,7 @@ func (c *coordinator) finish() (ran, error) {
 	err = errors.Join(err, c.releases.release())
 	// This is the final transition: its error must join the returned outcome,
 	// not be stored in c.cause after join has already collected it.
-	err = errors.Join(err, fireAttempt(c.ctx, c.machine, cleanupFinished))
+	err = errors.Join(err, c.machine.Fire(c.ctx, cleanupFinished))
 	if c.interruption != nil {
 		err = &recovery.Interrupted{Cause: c.interruption, Failure: err}
 	}

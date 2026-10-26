@@ -97,7 +97,7 @@ func TestAHeavierRateOnTrialStandsOnceItHeldAndIsGivenBackIfItDoesNot(t *testing
 	moved(t, &p, rateLifted, 3_000_000, later)
 	moved(t, &p, rateGivenBack, 2_500_000, later.Add(probeFor))
 	if p.bad != 3_000_000 || p.backoff != 2*avoid || !p.machine.Is(rateSteady) {
-		t.Errorf("a trial given back left bad=%s backoff=%v in %s, want 3.0 Mbit/s for %v", p.bad, p.backoff, p.machine.Current(), 2*avoid)
+		t.Errorf("a trial given back left bad=%s backoff=%v in %s, want 3.0 Mbit/s for %v", p.bad, p.backoff, p.machine.State(), 2*avoid)
 	}
 	moved(t, &p, rateLifted, 3_000_000, later.Add(2*probeFor))
 	moved(t, &p, rateGivenBack, 2_500_000, later.Add(3*probeFor))

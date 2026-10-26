@@ -4,14 +4,12 @@ package health
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
 	"time"
 
-	"github.com/looplab/fsm"
-	"github.com/stupside/castor/internal/telemetry"
+	"github.com/stupside/castor/internal/machine"
 
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -70,7 +68,14 @@ func Observe(m Monitor) *Observer {
 	return o
 }
 
-func (o *Observer) Next(ctx context.Context) (Decision, error) {
+func (o *Observer) Next(ctx context.Context) (d Decision, err error) {
+	defer func() {
+		if d == Complete {
+			// The watch is over, and its machines with it.
+			o.playback.End(ctx)
+			o.asked.machine.End(ctx)
+		}
+	}()
 	t := &o.tracker
 	for {
 		if err := context.Cause(ctx); err != nil {
@@ -167,8 +172,8 @@ func (o *Observer) Applied(ctx context.Context, decision Decision, commandErr er
 	default:
 		return fmt.Errorf("health: unexpected control result %d", decision)
 	}
-	previous := o.playback.Current()
-	if err := fire(ctx, o.playback, event.String()); err != nil {
+	previous := o.playback.State()
+	if err := o.playback.Fire(ctx, event); err != nil {
 		return err
 	}
 	if commandErr != nil {
@@ -204,15 +209,6 @@ func (o *Observer) Rated(ctx context.Context, cut int64, switchErr error) error 
 	}
 	slog.InfoContext(ctx, "the cast's rate changed for the device's link", "gate", o.m.Subject, "move", c.move.String(), "from", was.String(), "to", c.to.String())
 	return nil
-}
-
-// fire moves machine on event; cancellation must not erase the outcome of a command already sent.
-func fire(ctx context.Context, machine *fsm.FSM, event string) error {
-	err := machine.Event(context.WithoutCancel(ctx), event)
-	if stayed, ok := errors.AsType[fsm.NoTransitionError](err); ok {
-		return stayed.Err
-	}
-	return err
 }
 
 // Fault is a verdict that ended a watch; recovery keys on its Kind.
@@ -253,34 +249,43 @@ func (f *Fault) Error() string {
 
 func (f *Fault) Unwrap() error { return f.Err }
 
-// Playback control has its own state machine. It records command outcomes only;
+// playbackState is castor's control of the device's playback. It records command outcomes only;
 // it owns no goroutines, device connection, cancellation or resource cleanup.
+type playbackState uint8
+
 const (
-	playbackRunning  = "playing"
-	playbackPaused   = "paused"
-	resumeRefused    = "resume-refused"
-	pauseUnavailable = "pause-unavailable"
+	playbackRunning playbackState = iota
+	playbackPaused
+	resumeRefused
+	pauseUnavailable
 )
 
-func (o *Observer) playbackMachine() *fsm.FSM {
-	track := telemetry.Track("health", playbackRunning)
-	return fsm.NewFSM(playbackRunning, fsm.Events{
-		{Name: pauseAccepted.String(), Src: []string{playbackRunning}, Dst: playbackPaused},
-		{Name: pauseRejected.String(), Src: []string{playbackRunning}, Dst: pauseUnavailable},
-		{Name: resumeAccepted.String(), Src: []string{playbackPaused, resumeRefused}, Dst: playbackRunning},
-		{Name: resumeRejected.String(), Src: []string{playbackPaused, resumeRefused}, Dst: resumeRefused},
-	}, fsm.Callbacks{
-		"after_" + pauseAccepted.String(): func(ctx context.Context, _ *fsm.Event) {
+func (s playbackState) String() string {
+	return [...]string{
+		playbackRunning:  "playing",
+		playbackPaused:   "paused",
+		resumeRefused:    "resume-refused",
+		pauseUnavailable: "pause-unavailable",
+	}[s]
+}
+
+func (o *Observer) playbackMachine() *machine.Machine[playbackState, controlEvent] {
+	return machine.New("playback", playbackRunning, nil, []machine.Edge[playbackState, controlEvent]{
+		{On: pauseAccepted, From: []playbackState{playbackRunning}, To: playbackPaused},
+		{On: pauseRejected, From: []playbackState{playbackRunning}, To: pauseUnavailable},
+		{On: resumeAccepted, From: []playbackState{playbackPaused, resumeRefused}, To: playbackRunning},
+		{On: resumeRejected, From: []playbackState{playbackPaused, resumeRefused}, To: resumeRefused},
+	}, map[controlEvent]func(context.Context){
+		pauseAccepted: func(ctx context.Context) {
 			o.pausedAt = time.Now()
 			slog.InfoContext(ctx, "device held", "gate", o.m.Subject, "rule", o.rule.name)
 		},
-		"after_" + resumeAccepted.String(): func(ctx context.Context, _ *fsm.Event) {
+		resumeAccepted: func(ctx context.Context) {
 			held := time.Since(o.pausedAt)
 			o.held += held
 			o.pausedAt = time.Time{}
 			slog.InfoContext(ctx, "device released", "gate", o.m.Subject, "rule", o.rule.name, "held", held.Round(time.Millisecond))
 		},
-		"after_event": func(ctx context.Context, e *fsm.Event) { track(ctx, e.Event, e.Src, e.Dst) },
 	})
 }
 
@@ -320,7 +325,7 @@ type tracker struct {
 	held        time.Duration
 	viewerAt    time.Time
 	viewerHolds time.Duration
-	playback    *fsm.FSM
+	playback    *machine.Machine[playbackState, controlEvent]
 
 	reported time.Time
 }

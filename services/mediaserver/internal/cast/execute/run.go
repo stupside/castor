@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/looplab/fsm"
+	"github.com/stupside/castor/internal/machine"
 	"github.com/stupside/castor/internal/telemetry"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/compose"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
@@ -80,49 +80,65 @@ func (e attemptEvent) String() string {
 	}[e]
 }
 
+type attemptState uint8
+
 const (
-	preparing        = "preparing"
-	inspecting       = "inspecting"
-	planning         = "planning"
-	outputPlanned    = "planned"
-	producing        = "producing"
-	ready            = "ready"
-	startingPlayback = "starting-playback"
-	playingBack      = "playing"
+	preparing attemptState = iota
+	inspecting
+	planning
+	outputPlanned
+	producing
+	ready
+	startingPlayback
+	playingBack
 	// draining is a device that took the whole stream and plays out what it holds.
-	draining        = "draining"
-	stopping        = "stopping"
-	attemptFinished = "finished"
+	draining
+	stopping
+	attemptFinished
 )
+
+func (s attemptState) String() string {
+	return [...]string{
+		preparing:        "preparing",
+		inspecting:       "inspecting",
+		planning:         "planning",
+		outputPlanned:    "planned",
+		producing:        "producing",
+		ready:            "ready",
+		startingPlayback: "starting-playback",
+		playingBack:      "playing",
+		draining:         "draining",
+		stopping:         "stopping",
+		attemptFinished:  "finished",
+	}[s]
+}
 
 // Callbacks update state-local evidence. Operations and cleanup remain owned
 // by the coordinator outside FSM callbacks.
-func (c *coordinator) attemptMachine() *fsm.FSM {
-	active := []string{preparing, inspecting, planning, outputPlanned, producing, ready, startingPlayback, playingBack, draining}
-	events := fsm.Events{
-		{Name: inspectionStarted.String(), Src: []string{preparing}, Dst: inspecting},
-		{Name: inspectionFinished.String(), Src: []string{inspecting}, Dst: planning},
-		{Name: planFinished.String(), Src: []string{planning}, Dst: outputPlanned},
-		{Name: productionStarted.String(), Src: []string{outputPlanned}, Dst: producing},
-		{Name: presentationReady.String(), Src: []string{outputPlanned, producing}, Dst: ready},
-		{Name: playbackRequested.String(), Src: []string{ready}, Dst: startingPlayback},
-		{Name: playbackStarted.String(), Src: []string{startingPlayback}, Dst: playingBack},
-		{Name: productionFinished.String(), Src: []string{startingPlayback}, Dst: startingPlayback},
-		{Name: productionFinished.String(), Src: []string{playingBack}, Dst: playingBack},
-		{Name: productionFinished.String(), Src: []string{draining}, Dst: draining},
-		{Name: playbackEnded.String(), Src: []string{playingBack, draining}, Dst: stopping},
-		{Name: deliverySettled.String(), Src: []string{playingBack}, Dst: draining},
-		{Name: healthEnded.String(), Src: []string{playingBack}, Dst: stopping},
-		{Name: drainElapsed.String(), Src: []string{draining}, Dst: stopping},
-		{Name: deliverySought.String(), Src: []string{playingBack, draining}, Dst: playingBack},
-		{Name: attemptCancelled.String(), Src: active, Dst: stopping},
-		{Name: attemptFailed.String(), Src: active, Dst: stopping},
-		{Name: cleanupFinished.String(), Src: []string{stopping}, Dst: attemptFinished},
-	}
-	track := telemetry.Track("attempt", preparing, attemptFinished)
-	return fsm.NewFSM(preparing, events, fsm.Callbacks{
-		"after_" + attemptCancelled.String(): func(context.Context, *fsm.Event) { c.interruption = context.Cause(c.ctx) },
-		"after_" + playbackEnded.String(): func(context.Context, *fsm.Event) {
+func (c *coordinator) attemptMachine() *machine.Machine[attemptState, attemptEvent] {
+	active := []attemptState{preparing, inspecting, planning, outputPlanned, producing, ready, startingPlayback, playingBack, draining}
+	return machine.New("attempt", preparing, []attemptState{attemptFinished}, []machine.Edge[attemptState, attemptEvent]{
+		{On: inspectionStarted, From: []attemptState{preparing}, To: inspecting},
+		{On: inspectionFinished, From: []attemptState{inspecting}, To: planning},
+		{On: planFinished, From: []attemptState{planning}, To: outputPlanned},
+		{On: productionStarted, From: []attemptState{outputPlanned}, To: producing},
+		{On: presentationReady, From: []attemptState{outputPlanned, producing}, To: ready},
+		{On: playbackRequested, From: []attemptState{ready}, To: startingPlayback},
+		{On: playbackStarted, From: []attemptState{startingPlayback}, To: playingBack},
+		{On: productionFinished, From: []attemptState{startingPlayback}, To: startingPlayback},
+		{On: productionFinished, From: []attemptState{playingBack}, To: playingBack},
+		{On: productionFinished, From: []attemptState{draining}, To: draining},
+		{On: playbackEnded, From: []attemptState{playingBack, draining}, To: stopping},
+		{On: deliverySettled, From: []attemptState{playingBack}, To: draining},
+		{On: healthEnded, From: []attemptState{playingBack}, To: stopping},
+		{On: drainElapsed, From: []attemptState{draining}, To: stopping},
+		{On: deliverySought, From: []attemptState{playingBack, draining}, To: playingBack},
+		{On: attemptCancelled, From: active, To: stopping},
+		{On: attemptFailed, From: active, To: stopping},
+		{On: cleanupFinished, From: []attemptState{stopping}, To: attemptFinished},
+	}, map[attemptEvent]func(context.Context){
+		attemptCancelled: func(context.Context) { c.interruption = context.Cause(c.ctx) },
+		playbackEnded: func(context.Context) {
 			// Capture starvation before cleanup changes the producer's completion.
 			if c.presentation.delivery != nil {
 				if made, sent, ok := starved(c.presentation.feed, *c.presentation.delivery); ok {
@@ -130,19 +146,8 @@ func (c *coordinator) attemptMachine() *fsm.FSM {
 				}
 			}
 		},
-		"after_" + playbackStarted.String(): func(context.Context, *fsm.Event) { c.presentation.reached.reached = health.Playing },
-		"after_event":                       func(ctx context.Context, e *fsm.Event) { track(ctx, e.Event, e.Src, e.Dst) },
+		playbackStarted: func(context.Context) { c.presentation.reached.reached = health.Playing },
 	})
-}
-
-func fireAttempt(ctx context.Context, machine *fsm.FSM, event attemptEvent) error {
-	// Cancellation is an input to the machine. It must not abort the transition
-	// that records stopping or completed cleanup.
-	err := machine.Event(context.WithoutCancel(ctx), event.String())
-	if stayed, ok := errors.AsType[fsm.NoTransitionError](err); ok {
-		return stayed.Err
-	}
-	return err
 }
 
 type operation struct {
@@ -169,7 +174,7 @@ type coordinator struct {
 	// releases undoes everything the attempt acquired, once it ends.
 	releases *releases
 
-	machine      *fsm.FSM
+	machine      *machine.Machine[attemptState, attemptEvent]
 	presentation presentation
 	inspected    inspectedPresentation
 	planned      plannedPresentation
@@ -258,12 +263,12 @@ func (c *coordinator) run() (ran, error) {
 }
 
 func (c *coordinator) move(event attemptEvent) {
-	if err := fireAttempt(c.ctx, c.machine, event); err != nil {
+	if err := c.machine.Fire(c.ctx, event); err != nil {
 		c.cause = errors.Join(c.cause, err)
 		// A rejected transition is an orchestration failure; it still uses the
 		// machine's normal stopping path, never SetState.
-		if c.machine.Can(attemptFailed.String()) {
-			c.cause = errors.Join(c.cause, fireAttempt(c.ctx, c.machine, attemptFailed))
+		if c.machine.Can(attemptFailed) {
+			c.cause = errors.Join(c.cause, c.machine.Fire(c.ctx, attemptFailed))
 		}
 	}
 }

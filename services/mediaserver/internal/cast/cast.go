@@ -5,13 +5,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/looplab/fsm"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/castid"
 	"github.com/stupside/castor/internal/latest"
+	"github.com/stupside/castor/internal/machine"
 	"github.com/stupside/castor/services/mediaserver/internal/lend"
 )
 
@@ -33,7 +33,7 @@ type cast struct {
 	start  time.Duration
 
 	// machine moves only inside an update of now, so each move is taken and published as one.
-	machine *fsm.FSM
+	machine *machine.Machine[castState, castEvent]
 	now     *latest.Value[view]
 	done    chan struct{} // closes once the cast has ended
 
@@ -55,7 +55,7 @@ func newCast(parent context.Context, id string, publisher output.Publisher, cast
 		line:      lend.NewLine(),
 		publisher: publisher,
 	}
-	c.machine = c.lifecycle()
+	c.machine = lifecycle()
 	c.now = latest.New(view{status: &castorv1.CastStatus{State: &castorv1.CastStatus_Measuring{Measuring: &castorv1.MeasuringStatus{}}}})
 	abandon := time.AfterFunc(undriven, func() { c.end(eventAbandon, errUndriven) })
 	context.AfterFunc(ctx, func() {

@@ -40,7 +40,7 @@ func TestADeviceThatTookTheWholeStreamPlaysItOutBeforeTheCastEnds(t *testing.T) 
 		go func() {
 			synctest.Wait()
 			if !c.machine.Is(draining) {
-				t.Errorf("the attempt is %s once the device took the whole stream, want draining", c.machine.Current())
+				t.Errorf("the attempt is %s once the device took the whole stream, want draining", c.machine.State())
 			}
 			close(played)
 		}()
@@ -94,12 +94,12 @@ func TestASeekWhileTheDevicePlaysOutBringsTheCastBackToPlaying(t *testing.T) {
 		go func() {
 			synctest.Wait()
 			if !c.machine.Is(draining) {
-				t.Errorf("the attempt is %s once the device took the whole stream, want draining", c.machine.Current())
+				t.Errorf("the attempt is %s once the device took the whole stream, want draining", c.machine.State())
 			}
 			sought <- struct{}{}
 			synctest.Wait()
 			if !c.machine.Is(playingBack) {
-				t.Errorf("the attempt is %s after the device asked for the stream from elsewhere, want playing", c.machine.Current())
+				t.Errorf("the attempt is %s after the device asked for the stream from elsewhere, want playing", c.machine.State())
 			}
 			// Well past what the device held when it first took the whole stream.
 			time.Sleep(drainMost + drainGrace + time.Minute)

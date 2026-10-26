@@ -1,13 +1,11 @@
 package cast
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 
 	"connectrpc.com/connect"
-	"github.com/looplab/fsm"
-	"github.com/stupside/castor/internal/telemetry"
+	"github.com/stupside/castor/internal/machine"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -42,29 +40,37 @@ func (e castEvent) String() string {
 	}[e]
 }
 
+type castState uint8
+
 const (
-	stateAwaiting  = "awaiting"
-	stateMeasuring = "measuring"
-	stateCasting   = "casting"
-	stateEnded     = "ended"
+	stateAwaiting castState = iota
+	stateMeasuring
+	stateCasting
+	stateEnded
 )
+
+func (s castState) String() string {
+	return [...]string{
+		stateAwaiting:  "awaiting",
+		stateMeasuring: "measuring",
+		stateCasting:   "casting",
+		stateEnded:     "ended",
+	}[s]
+}
 
 // lifecycle validates cast progress. The owner publishes the terminal snapshot
 // after attempt cleanup, then signals completion to the device lender.
-func (c *cast) lifecycle() *fsm.FSM {
-	track := telemetry.Track("cast", stateAwaiting, stateEnded)
-	return fsm.NewFSM(stateAwaiting, fsm.Events{
-		{Name: eventLendStream.String(), Src: []string{stateAwaiting}, Dst: stateMeasuring},
-		{Name: eventMeasure.String(), Src: []string{stateMeasuring}, Dst: stateMeasuring},
-		{Name: eventRank.String(), Src: []string{stateMeasuring}, Dst: stateMeasuring},
-		{Name: eventAttempt.String(), Src: []string{stateMeasuring, stateCasting}, Dst: stateCasting},
-		{Name: eventRevise.String(), Src: []string{stateCasting}, Dst: stateCasting},
-		{Name: eventEnd.String(), Src: []string{stateMeasuring, stateCasting}, Dst: stateEnded},
+func lifecycle() *machine.Machine[castState, castEvent] {
+	return machine.New("cast", stateAwaiting, []castState{stateEnded}, []machine.Edge[castState, castEvent]{
+		{On: eventLendStream, From: []castState{stateAwaiting}, To: stateMeasuring},
+		{On: eventMeasure, From: []castState{stateMeasuring}, To: stateMeasuring},
+		{On: eventRank, From: []castState{stateMeasuring}, To: stateMeasuring},
+		{On: eventAttempt, From: []castState{stateMeasuring, stateCasting}, To: stateCasting},
+		{On: eventRevise, From: []castState{stateCasting}, To: stateCasting},
+		{On: eventEnd, From: []castState{stateMeasuring, stateCasting}, To: stateEnded},
 		// Only a cast still awaiting is abandoned, so a grace that runs out as a device is lent changes nothing.
-		{Name: eventAbandon.String(), Src: []string{stateAwaiting}, Dst: stateEnded},
-	}, fsm.Callbacks{
-		"after_event": func(ctx context.Context, e *fsm.Event) { track(ctx, e.Event, e.Src, e.Dst) },
-	})
+		{On: eventAbandon, From: []castState{stateAwaiting}, To: stateEnded},
+	}, nil)
 }
 
 // fire takes event if the cast's state allows it, then publishes what change makes of its snapshot; it reports whether it took it.
@@ -72,18 +78,12 @@ func (c *cast) fire(event castEvent, change func(*view)) bool {
 	taken := false
 	ended := false
 	c.now.Update(func(now view) (view, bool) {
-		// Never the cast's cancellation: a cancelled context would abort the transition that ends it.
 		next := view{status: proto.CloneOf(now.status), ended: now.ended}
-		err := c.machine.Event(context.WithoutCancel(c.ctx), event.String())
-		if stayed, ok := errors.AsType[fsm.NoTransitionError](err); ok {
-			err = stayed.Err
-		}
-		if err != nil {
+		if err := c.machine.Fire(c.ctx, event); err != nil {
 			// Duplicate lending, expired admission timers and updates after
 			// completion are expected races. Other rejections are owner bugs.
-			_, invalid := errors.AsType[fsm.InvalidEventError](err)
-			if !invalid || !(c.machine.Is(stateEnded) || event == eventLendStream || event == eventAbandon) {
-				slog.ErrorContext(c.ctx, "cast transition failed", "state", c.machine.Current(), "event", event, "error", err)
+			if !errors.Is(err, machine.ErrRefused) || !(c.machine.Is(stateEnded) || event == eventLendStream || event == eventAbandon) {
+				slog.ErrorContext(c.ctx, "cast transition failed", "event", event, "error", err)
 			}
 			return now, false
 		}
