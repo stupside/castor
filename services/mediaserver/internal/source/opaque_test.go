@@ -14,8 +14,8 @@ func TestDirectFileAudioPreferencesSelectTheTrackAndPreventHandoff(t *testing.T)
 		Probe: &media.ProbeInfo{
 			AudioCodec: media.CodecAAC,
 			AudioTracks: []media.AudioTrack{
-				{Language: "en", Codec: media.CodecAAC, Channels: 2, Default: true},
-				{Language: "fra", Codec: media.CodecAC3, Channels: 6},
+				{Language: "en", Codec: media.CodecAAC, Channels: 2, Bitrate: 128_000, Default: true},
+				{Language: "fra", Codec: media.CodecAC3, Channels: 6, Bitrate: 640_000},
 			},
 		},
 	}
@@ -44,7 +44,8 @@ func TestDirectFileAudioPreferencesSelectTheTrackAndPreventHandoff(t *testing.T)
 		}
 		track, ok := got.Program.Track(media.TrackAudio)
 		measured, hasMeasurement := got.Program.Measurement()
-		if !ok || !hasMeasurement || track.Index != tc.index || got.Rendition.AudioLanguage != tc.language || measured.AudioCodec != tc.codec || got.Program.SelfFetchable() != tc.handoff {
+		heard := stream.Probe.AudioTracks[tc.index]
+		if !ok || !hasMeasurement || track.Index != tc.index || got.Rendition.AudioLanguage != tc.language || measured.AudioCodec != tc.codec || measured.AudioBitrate != heard.Bitrate || got.Program.SelfFetchable() != tc.handoff {
 			t.Errorf("preferences %v: track=%+v rendition=%+v measurement=%+v handoff=%v", tc.preferences, track, got.Rendition, measured, got.Program.SelfFetchable())
 		}
 	}

@@ -100,8 +100,9 @@ func TestSourceProbeOpensEachInputAsTheReaderWill(t *testing.T) {
 	if info.VideoCodec != media.CodecH264 || info.VideoHeight != 720 || info.AudioCodec != media.CodecAC3 || info.AudioChannels != 6 {
 		t.Errorf("merged probe = %+v, want video from the video input and the selected audio from the audio input", info)
 	}
-	if info.ContentType != media.HLS || info.BitRate != 222 || info.Duration != 22*time.Second {
-		t.Errorf("program facts = %s/%d/%s, want the clock input's HLS/222/22s", info.ContentType, info.BitRate, info.Duration)
+	// A playlist's bit_rate is its own size over the runtime, so it states no rate.
+	if info.ContentType != media.HLS || info.BitRate != 0 || info.Duration != 22*time.Second {
+		t.Errorf("program facts = %s/%d/%s, want the clock input's HLS/0/22s", info.ContentType, info.BitRate, info.Duration)
 	}
 	argv := strings.Join(invocations(t, log), "\n")
 	for _, want := range []string{

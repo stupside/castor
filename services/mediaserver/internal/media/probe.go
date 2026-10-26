@@ -35,9 +35,10 @@ type ProbeInfo struct {
 	// Add the program input offset to locate the picture on the PCM clock.
 	VideoStartOffset *time.Duration
 
-	AudioCodec      Codec // e.g. CodecAAC, CodecAC3
-	AudioChannels   int   // channel count (2 = stereo, 6 = 5.1, 8 = 7.1), 0 if unknown
-	AudioSampleRate int   // Hz, 0 if unknown
+	AudioCodec      Codec   // e.g. CodecAAC, CodecAC3
+	AudioChannels   int     // channel count (2 = stereo, 6 = 5.1, 8 = 7.1), 0 if unknown
+	AudioSampleRate int     // Hz, 0 if unknown
+	AudioBitrate    Bitrate // what the track alone weighs, 0 if unknown
 	// AudioTracks are the input's audio tracks in ffmpeg's kind-relative order.
 	AudioTracks []AudioTrack
 
@@ -57,6 +58,7 @@ type AudioTrack struct {
 	Codec      Codec
 	Channels   int
 	SampleRate int
+	Bitrate    Bitrate // what the track alone weighs, 0 if unknown
 	Default    bool
 }
 
@@ -71,12 +73,22 @@ func (p ProbeInfo) TakeVideo(m ProbeInfo) ProbeInfo {
 	return p
 }
 
-// TakeAudio is p with every sound fact taken from m; a new audio field is carried here or nowhere.
+// TakeAudio is p with every sound fact taken from m.
 func (p ProbeInfo) TakeAudio(m ProbeInfo) ProbeInfo {
 	p.AudioPresent = m.AudioPresent
-	p.AudioCodec, p.AudioChannels, p.AudioSampleRate = m.AudioCodec, m.AudioChannels, m.AudioSampleRate
 	p.AudioTracks = slices.Clone(m.AudioTracks)
+	return p.Hearing(m.heard())
+}
+
+// Hearing is p with t as the sound it plays; a new track fact is carried here and in heard, or nowhere.
+func (p ProbeInfo) Hearing(t AudioTrack) ProbeInfo {
+	p.AudioCodec, p.AudioChannels, p.AudioSampleRate, p.AudioBitrate = t.Codec, t.Channels, t.SampleRate, t.Bitrate
 	return p
+}
+
+// heard is the sound p plays, as the track Hearing took it from.
+func (p ProbeInfo) heard() AudioTrack {
+	return AudioTrack{Codec: p.AudioCodec, Channels: p.AudioChannels, SampleRate: p.AudioSampleRate, Bitrate: p.AudioBitrate}
 }
 
 // HasVideo reports whether video is present. A known codec also establishes

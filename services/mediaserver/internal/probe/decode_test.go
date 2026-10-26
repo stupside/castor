@@ -123,6 +123,33 @@ func TestDecodeReadsTheContainersOwnFacts(t *testing.T) {
 	}
 }
 
+func TestDecodeWeighsASoundOnlyByARateItsContainerCouldCarry(t *testing.T) {
+	ts := `"format_name":"mpegts","bit_rate":"2182500"`
+	for _, tc := range []struct {
+		name, format, stated string
+		want                 media.Bitrate
+	}{
+		{"a transport stream's AC-3 states its own rate", ts, "640000", 640_000},
+		{"a rate ffprobe could not state is unknown", ts, "N/A", 0},
+		{"a zero rate is unknown", ts, "0", 0},
+		{"a track heavier than its whole container is unknown", ts, "5000000", 0},
+		// The manifest's own bit_rate is not the media's, but each representation's track rate is.
+		{"a DASH track's rate stands where its manifest's does not", `"format_name":"dash","bit_rate":"1280"`, "127919", 127_919},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			streams := h264Stream + `,{"codec_type":"audio","codec_name":"ac3","channels":6,"bit_rate":"` + tc.stated + `"}`
+			info, err := decode(probeJSON(tc.format, streams), 0, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			carried := (media.ProbeInfo{}).TakeAudio(info)
+			if info.AudioTracks[0].Bitrate != tc.want || carried.AudioBitrate != tc.want {
+				t.Errorf("track weighs %d, selected sound carried as %d; want %d", info.AudioTracks[0].Bitrate, carried.AudioBitrate, tc.want)
+			}
+		})
+	}
+}
+
 // Every 0:V:N slot is reported, since DASH representation choice indexes into it.
 func TestDecodeReportsEveryPictureItSaw(t *testing.T) {
 	streams := coverArt + `,{"codec_type":"video","codec_name":"h264","width":1280,"height":720},` +

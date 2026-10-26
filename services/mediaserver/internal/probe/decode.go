@@ -16,7 +16,7 @@ import (
 )
 
 const showEntries = "format=format_name,bit_rate,duration,start_time:" +
-	"stream=index,start_time,codec_type,codec_name,profile,level,width,height,pix_fmt,color_transfer,field_order,channels,sample_rate:" +
+	"stream=index,start_time,codec_type,codec_name,profile,level,width,height,pix_fmt,color_transfer,field_order,channels,sample_rate,bit_rate:" +
 	"stream_disposition=attached_pic,default:stream_side_data=rotation:" +
 	"stream_tags=language:" +
 	"program=program_id:program_stream_disposition=attached_pic:" +
@@ -38,6 +38,7 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 			FieldOrder    string `json:"field_order"`
 			Channels      int    `json:"channels"`
 			SampleRate    string `json:"sample_rate"`
+			BitRate       string `json:"bit_rate"`
 			Tags          struct {
 				Language string `json:"language"`
 			} `json:"tags"`
@@ -75,8 +76,10 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 	}
 
 	info := media.ProbeInfo{ContentType: formatToContentType(result.Format.FormatName)}
-	// Non-numeric rate left at zero; no decision turns on it alone.
-	info.BitRate, _ = strconv.ParseInt(result.Format.BitRate, 10, 64)
+	// A playlist's bit_rate is its own size over the runtime, not the media's.
+	if !media.IsSegmented(info.ContentType) {
+		info.BitRate, _ = strconv.ParseInt(result.Format.BitRate, 10, 64)
+	}
 	if secs, err := strconv.ParseFloat(result.Format.Duration, 64); err == nil && secs > 0 {
 		info.Duration = time.Duration(secs * float64(time.Second))
 	}
@@ -118,14 +121,14 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 			videoSeen++
 		case "audio":
 			sampleRate, _ := strconv.Atoi(s.SampleRate)
-			info.AudioTracks = append(info.AudioTracks, media.AudioTrack{
-				Language: s.Tags.Language, Codec: media.Codec(s.CodecName), Channels: s.Channels, SampleRate: sampleRate, Default: s.Disposition.Default != 0,
-			})
+			track := media.AudioTrack{
+				Language: s.Tags.Language, Codec: media.Codec(s.CodecName), Channels: s.Channels, SampleRate: sampleRate,
+				Bitrate: trackRate(s.BitRate, info.BitRate), Default: s.Disposition.Default != 0,
+			}
+			info.AudioTracks = append(info.AudioTracks, track)
 			if audioSeen == audioIndex {
 				info.AudioPresent = true
-				info.AudioCodec = media.Codec(s.CodecName)
-				info.AudioChannels = s.Channels
-				info.AudioSampleRate = sampleRate
+				info = info.Hearing(track)
 			}
 			audioSeen++
 		}
@@ -143,6 +146,15 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 		info.ProgramHeights[program.ProgramID] = tallest
 	}
 	return info, nil
+}
+
+// trackRate is a track's own bit_rate where ffprobe states one its container could carry; zero is unknown.
+func trackRate(stated string, container int64) media.Bitrate {
+	rate, err := strconv.ParseInt(stated, 10, 64)
+	if err != nil || rate <= 0 || container > 0 && rate > container {
+		return 0
+	}
+	return media.Bitrate(rate)
 }
 
 // pixelDepth is a component depth followed by an endian marker; digits in nv12 or yuv420p describe layout instead.
