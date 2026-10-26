@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.4.0](https://github.com/stupside/castor/compare/v2.3.0...v2.4.0) (2026-10-26)
+
+
+### Features
+
+* **cast:** begin a cast at a position ([c3fde9f](https://github.com/stupside/castor/commit/c3fde9f41ab9d87495388ab7ff438ccc1ef75d09))
+* **cast:** follow the device's link while it plays ([c7c3af8](https://github.com/stupside/castor/commit/c7c3af827c029adc7aa67efd7e0eba2c5a91c5ce))
+* **cast:** go back to a better ranked link once the cast plays well ([0162f91](https://github.com/stupside/castor/commit/0162f9186e8bc7504e46d07877e542cfeb6602fc))
+* **cast:** let the device play out what it took before stopping ([d0caa8d](https://github.com/stupside/castor/commit/d0caa8d335469ebd7292013656fa51d60527a495))
+* **device:** report the device's position and its viewer's pause ([0408dd5](https://github.com/stupside/castor/commit/0408dd5efe72c977d6f60fde01618cf3e14f6d58))
+* **dlna:** seek within the stream castor serves ([cc89147](https://github.com/stupside/castor/commit/cc891475be59151d7c71e9a9fbdc34a73c6d7b30))
+* **rank:** rank links by the language of their sound first ([b833922](https://github.com/stupside/castor/commit/b8339222c015668b5c79f1e686f0d0d175b5a757))
+
+
+### Bug Fixes
+
+* **cast:** count what the encoders made where they read the buffer ([30bc249](https://github.com/stupside/castor/commit/30bc249c225cede7f52079dc0b2a7bc2fe41acd7))
+* **dlna:** drop Samsung's sec:CaptionInfoEx ([3e8b521](https://github.com/stupside/castor/commit/3e8b521b5847a9ccff3416a88472edfb9e651f32))
+* **execute:** keep every failure an attempt reports ([8f7f9ee](https://github.com/stupside/castor/commit/8f7f9eedd505e793dc5fc51ce2ac753cb61b8f85))
+* **probe:** weigh each audio track on its own bitrate ([fd3a603](https://github.com/stupside/castor/commit/fd3a60372894bbb9cd3caa4bd606939c44019c13))
+* **stream:** keep a paused device's connection open ([931677f](https://github.com/stupside/castor/commit/931677f34010b4ef09542bad939159b5fd77ffb7))
+
+
+### Refactors
+
+* **device:** carry a located device through whole ([2adc65e](https://github.com/stupside/castor/commit/2adc65ed34b17e2876a25f5232351fc3012c6be7))
+* **output:** answer segment requests through the opening ([5af01c1](https://github.com/stupside/castor/commit/5af01c1b0d3adae3074a4b35be8bad2975f74ff3))
+* run every state machine through one typed machine ([047076b](https://github.com/stupside/castor/commit/047076b4647e5f3814eddc3068bd923940fa7cd9))
+
 ## [2.3.0](https://github.com/stupside/castor/compare/v2.2.0...v2.3.0) (2026-10-22)
 
 
