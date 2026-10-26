@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -16,7 +15,6 @@ import (
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/container"
-	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -56,28 +54,6 @@ func TestStreamFlushesThroughResponseWrappersAndStopsOnFlushFailure(t *testing.T
 				t.Fatalf("wrapped response: flushed=%t, handed=%d", recorder.Flushed, held)
 			}
 		})
-	}
-}
-
-type cancelOnWriteDeadline struct {
-	*httptest.ResponseRecorder
-	cancel context.CancelFunc
-}
-
-func (w cancelOnWriteDeadline) SetWriteDeadline(time.Time) error {
-	w.cancel()
-	return nil
-}
-
-func TestStreamDoesNotWriteAfterRefreshingACancelledRequestsDeadline(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	recorder := httptest.NewRecorder()
-	s := &Stream{o: output.Opening{WriteDeadline: time.Minute}}
-	complete := s.send(ctx, cancelOnWriteDeadline{recorder, cancel}, httptest.NewRequest(http.MethodGet, "/", nil),
-		served{code: http.StatusOK, end: -1, total: -1}, strings.NewReader("media"), 0)
-	if complete || recorder.Body.Len() != 0 {
-		t.Fatalf("canceled response: completed=%t, wrote=%d", complete, recorder.Body.Len())
 	}
 }
 
@@ -189,16 +165,17 @@ func TestARefusedRangeReplaysFromByteZero(t *testing.T) {
 	}
 }
 
-// A client that stops reading is cut by the write deadline, and Wait ends after the idle grace.
-func TestAHungClientIsFreedAndTheCastEnds(t *testing.T) {
+// A client that stops reading, as a device its viewer paused does, is held however long, and takes the rest once it reads again.
+func TestAClientThatStopsReadingIsHeldUntilItReadsAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		srv := spooled(t, testOpening{WriteDeadline: 300 * time.Millisecond, IdleGrace: 50 * time.Millisecond}, payload(8<<20))
-		read(t, get(t, srv, ""), 1)
-		settled(t, srv)
-		srv.audience.mu.Lock()
-		defer srv.audience.mu.Unlock()
-		if srv.audience.completed {
-			t.Error("a client read to EOF, so the grace this test exists to reach was never consulted")
+		body := payload(8 << 20)
+		srv := spooled(t, testOpening{}, body)
+		resp := get(t, srv, "")
+		first := read(t, resp, 1)
+		time.Sleep(2 * time.Hour)
+		rest, err := io.ReadAll(resp.Body)
+		if err != nil || !bytes.Equal(append(first, rest...), body) {
+			t.Fatalf("after two hours without reading the client took %d more bytes (%v), want the rest of the %d", len(rest), err, len(body))
 		}
 	})
 }
@@ -218,9 +195,8 @@ func TestASpoolAnotherWritesIsServedWithoutBeingOwned(t *testing.T) {
 		drained := make(chan struct{})
 		devices := newLAN(t)
 		srv, err := serveSpoolFixture(t.Context(), testOpening{
-			Format:        container.Format{ContentType: media.MPEGTS, Extension: ".ts"},
-			Publisher:     devices,
-			WriteDeadline: time.Minute,
+			Format:    container.Format{ContentType: media.MPEGTS, Extension: ".ts"},
+			Publisher: devices,
 		}, sp, drained)
 		if err != nil {
 			t.Fatal(err)
@@ -284,7 +260,6 @@ func spooled(t *testing.T, o testOpening, body []byte) *testStream {
 	t.Helper()
 	o.Publisher = newLAN(t)
 	o.Format = container.Format{ContentType: "video/mp4", Extension: ".mp4"}
-	o.WriteDeadline = cmp.Or(o.WriteDeadline, time.Minute)
 	o.IdleGrace = cmp.Or(o.IdleGrace, 30*time.Second)
 	srv, err := serveStreamFixture(t.Context(), o, t.TempDir(), bytes.NewReader(body))
 	if err != nil {
@@ -300,9 +275,8 @@ func producing(t *testing.T, head []byte) *testStream {
 	t.Helper()
 	pr, pw := io.Pipe()
 	srv, err := serveStreamFixture(t.Context(), testOpening{
-		Format:        container.Format{ContentType: "video/mp4", Extension: ".mp4"},
-		Publisher:     newLAN(t),
-		WriteDeadline: time.Minute,
+		Format:    container.Format{ContentType: "video/mp4", Extension: ".mp4"},
+		Publisher: newLAN(t),
 	}, t.TempDir(), pr)
 	if err != nil {
 		t.Fatal(err)
@@ -369,31 +343,4 @@ func head(t *testing.T, srv *testStream) int {
 	}
 	defer resp.Body.Close()
 	return resp.StatusCode
-}
-
-// A writer that cannot take a deadline is warned about once, not on every chunk.
-func TestAMissingWriteDeadlineIsWarnedOnce(t *testing.T) {
-	var logs bytes.Buffer
-	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
-	t.Cleanup(func() { slog.SetDefault(prev) })
-
-	sp := newTestSpool(t)
-	if _, err := sp.Write(payload(3 * sendChunkSize)); err != nil {
-		t.Fatal(err)
-	}
-	sp.CloseWrite(nil)
-	done := make(chan struct{})
-	close(done)
-	s := &Stream{spool: sp, o: output.Opening{WriteDeadline: time.Second}}
-	tail, err := sp.TailAt(t.Context(), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tail.Close()
-
-	s.send(t.Context(), httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), served{code: http.StatusOK, end: -1, total: -1}, tail, 0)
-	if got := strings.Count(logs.String(), "write deadline unavailable"); got != 1 {
-		t.Errorf("warned %d times over 3 chunks, want once", got)
-	}
 }

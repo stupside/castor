@@ -147,7 +147,7 @@ type Opening struct {
 	// IdleGrace is how long an idle device is waited for before the delivery counts as done.
 	IdleGrace time.Duration
 
-	// WriteDeadline bounds one socket write, so a hung client cannot hold its goroutine.
+	// WriteDeadline bounds an answer's writes, so a hung client cannot hold its goroutine; a stream has none.
 	WriteDeadline time.Duration
 }
 

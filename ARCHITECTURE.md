@@ -152,6 +152,8 @@ The health watch judges the link by how fast the device plays. Every family repo
 - **Too slow:** a device playing under 0.9 of real time is asked to weigh 0.75 of what it took, never under 1 Mbit/s. A device playing in real time is never lightened, however little it reads: a device that plays what it takes keeps a thin buffer and reads exactly the cast's rate.
 - **Room to spare:** after 3 minutes at a pace of 0.97 or more, a heavier rate is tried (90 seconds once one has held). If the device falls short of it, the old rate is given back at once and that rate is left alone for 10 minutes, then 20, then 40.
 
+A device its viewer pauses stops reading for as long as it likes: the stream has no write deadline, and DLNA renderers are told they may stall the connection rather than drop it, so only the health watch decides a quiet device is gone.
+
 Nothing is kept between casts: each starts at the operator's `max_bitrate` and finds the link while it plays. The ceiling bounds the picture and the sound together: a sound whose weight is unknown, or too heavy for its share, is encoded lighter.
 
 ### Seeking

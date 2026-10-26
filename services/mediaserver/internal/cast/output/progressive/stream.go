@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -312,28 +311,10 @@ func (s *Stream) rangesDeclined() bool {
 	return false
 }
 
-// severed says why one client stopped being written to.
-func (s *Stream) severed(ctx context.Context, r *http.Request, err error, held int64, stalled time.Duration) {
-	// A cancelled request zeroes the write deadline to wake the writer, so that error is the client leaving, not a stall.
-	leaving := ctx.Err() != nil || !errors.Is(err, os.ErrDeadlineExceeded)
-	outcome := telemetry.OutcomeStalled
-	if leaving {
-		outcome = telemetry.OutcomeDisconnected
-	}
-	telemetry.StreamClientEnded(ctx, outcome)
-	if leaving {
-		slog.InfoContext(ctx, "stream client disconnected", "from", r.RemoteAddr, "bytes_sent", held, "error", err)
-		return
-	}
-	_, final := s.snapshot()
-	slog.WarnContext(ctx, "severed a client that stopped draining the stream; unless it reconnects with a Range it restarts the program from the beginning",
-		"from", r.RemoteAddr,
-		"user_agent", r.UserAgent(),
-		"stalled_for", stalled.Round(time.Millisecond),
-		"write_deadline", s.o.WriteDeadline,
-		"bytes_sent", held,
-		"resumable", final && !s.rangesDeclined(),
-	)
+// disconnected records a client that stopped being written to: it left, or the cast ended.
+func disconnected(ctx context.Context, r *http.Request, err error, held int64) {
+	telemetry.StreamClientEnded(ctx, telemetry.OutcomeDisconnected)
+	slog.InfoContext(ctx, "stream client disconnected", "from", r.RemoteAddr, "bytes_sent", held, "error", err)
 }
 
 func (s *Stream) handleStream(w http.ResponseWriter, r *http.Request) {
@@ -377,7 +358,7 @@ func (s *Stream) handleStream(w http.ResponseWriter, r *http.Request) {
 	gen = tail.run.gen
 
 	if err := s.respond(w, sv); err != nil {
-		s.severed(ctx, r, err, sv.start, 0)
+		disconnected(ctx, r, err, sv.start)
 		return
 	}
 	reachedEOF = s.send(ctx, w, r, sv, tail, gen)
@@ -498,8 +479,7 @@ func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	buf := make([]byte, sendChunkSize)
 	var sent int64
 	defer func() { telemetry.StreamSent(ctx, sent) }()
-	lastWrite := time.Now()
-	deadlines := s.o.WriteDeadline > 0
+	// No write deadline: a device its viewer paused stops reading for as long as it likes, and only the cast's watch judges a quiet device.
 	for {
 		if ctx.Err() != nil {
 			return
@@ -510,32 +490,20 @@ func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		}
 		n, readErr := tail.Read(want)
 		if n > 0 {
-			if deadlines {
-				if err := control.SetWriteDeadline(time.Now().Add(s.o.WriteDeadline)); err != nil {
-					deadlines = false
-					slog.WarnContext(ctx, "stream write deadline unavailable, a client that stops reading will park this goroutine", "error", err)
-				}
-			}
-			// A cancellation deadline may have fired before the write deadline
-			// was refreshed. Never write after extending a canceled request's deadline.
-			if ctx.Err() != nil {
-				return
-			}
 			if _, err := w.Write(want[:n]); err != nil {
-				s.severed(ctx, r, err, sv.start+sent, time.Since(lastWrite))
+				disconnected(ctx, r, err, sv.start+sent)
 				return
 			}
 			if err := control.Flush(); err != nil {
-				s.severed(ctx, r, err, sv.start+sent, time.Since(lastWrite))
+				disconnected(ctx, r, err, sv.start+sent)
 				return
 			}
 			sent += int64(n)
-			lastWrite = time.Now()
 			if remaining >= 0 {
 				remaining -= int64(n)
 			}
 			// A resumed connection is credited with the prefix it already had.
-			s.audience.record(gen, sv.start+sent, lastWrite)
+			s.audience.record(gen, sv.start+sent, time.Now())
 		}
 		if remaining == 0 {
 			// The stretch asked for is delivered.

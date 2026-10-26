@@ -244,7 +244,7 @@ const (
 	// idleGrace is how long a device that stopped asking is waited for before the delivery is done.
 	idleGrace = 30 * time.Second
 
-	// writeDeadline outlasts a stall verdict, so the watch judges a quiet device before a write gives up.
+	// writeDeadline outlasts a stall verdict, so the watch judges a quiet device before an answer's write gives up.
 	writeDeadline = health.StallWindow + idleGrace
 )
 

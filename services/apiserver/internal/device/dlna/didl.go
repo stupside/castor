@@ -30,8 +30,8 @@ func streamed(caps *mediav1.Capabilities) {
 	}
 }
 
-// streamingFlags are the streaming and background transfer modes, under DLNA 1.5.
-const streamingFlags = "DLNA.ORG_FLAGS=01500000000000000000000000000000"
+// streamingFlags are DLNA 1.5's streaming and background modes, with connection stalling so a paused device keeps its connection.
+const streamingFlags = "DLNA.ORG_FLAGS=01700000000000000000000000000000"
 
 // stated is the protocolInfo fourth field castor gives a stream its sink entry describes, fetched as seek says.
 func stated(entry sinkEntry, play *mediav1.DeviceCommand_Play) string {

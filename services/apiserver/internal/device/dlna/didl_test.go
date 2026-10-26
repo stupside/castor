@@ -13,7 +13,7 @@ import (
 )
 
 // flags are what castor states of a stream it serves: streaming and background transfer under DLNA 1.5.
-const flags = ";DLNA.ORG_FLAGS=01500000000000000000000000000000"
+const flags = ";DLNA.ORG_FLAGS=01700000000000000000000000000000"
 
 func TestADeviceIsAnnouncedTheProfileItNamedAndHowCastorServesTheStream(t *testing.T) {
 	const sink = "http-get:*:video/mpeg:DLNA.ORG_PN=MPEG_PS_PAL," +

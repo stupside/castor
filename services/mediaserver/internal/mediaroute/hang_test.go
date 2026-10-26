@@ -29,8 +29,7 @@ func TestAStreamWithNothingToServeIsHeldOpenThroughTheRoute(t *testing.T) {
 	}
 	publications := NewPublisher(&url.URL{Scheme: "http", Host: "unused"})
 	srv := progressive.ServeSpool(output.Opening{
-		Format:        container.Format{ContentType: media.MPEGTS, Extension: ".ts"},
-		WriteDeadline: time.Minute,
+		Format: container.Format{ContentType: media.MPEGTS, Extension: ".ts"},
 	}, sp)
 	pub, err := publications.Publish(t.Context(), srv.Handler())
 	if err != nil {

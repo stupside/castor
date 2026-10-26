@@ -24,12 +24,3 @@ func TestCompletedDeliveryPreservesSpoolFailure(t *testing.T) {
 		t.Fatalf("delivery erased producer failure: %v", err)
 	}
 }
-
-func newTestSpool(t *testing.T) *storage.Spool {
-	t.Helper()
-	s, err := storage.NewSpool(filepath.Join(t.TempDir(), "spool.ts"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return s
-}
