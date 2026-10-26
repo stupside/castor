@@ -27,6 +27,9 @@ type Intent struct {
 	// Delivery seeds the first attempt; recovery may change it.
 	Delivery compose.DeliveryPreference
 
+	// Ceiling is the most the device may be asked to take, zero for none; it bounds the rung a link is read at.
+	Ceiling media.Bitrate
+
 	// Turns hears each attempt and revision.
 	Turns Turns
 }
@@ -42,8 +45,9 @@ type Attempt struct {
 	// Try counts from 1, so two tries of the same terms still read apart.
 	Try int
 
-	// candidate indexes Intent.Candidates; Program is what was resolved for it.
+	// candidate indexes Intent.Candidates, Stream is that link, and Program is what was resolved for it.
 	candidate int
+	Stream    *source.Stream
 	Program   media.Program
 
 	// Origin travels with candidate, since one link's facts do not hold for another.
@@ -126,15 +130,24 @@ func (a Attempt) reading(r source.Resolution, deadline time.Duration) Attempt {
 	return a
 }
 
+// SelfFetchRate is the heaviest stream a device fetching a's URL for itself could choose, as the source declared it; zero where it declared none.
+func (a Attempt) SelfFetchRate() media.Bitrate {
+	return selfFetched(a, func(r source.Rendition) media.Bitrate { return r.Bitrate })
+}
+
 // SelfFetchHeight is the tallest picture a device fetching a's URL for itself could choose.
 func (a Attempt) SelfFetchHeight() int {
-	// A rung with a URL of its own was narrowed at the URL, so the device is pinned to it.
+	return cmp.Or(selfFetched(a, func(r source.Rendition) int { return r.Height }), a.Program.MeasuredHeight())
+}
+
+// selfFetched is the most of a rung's measure a device fetching a's URL could choose; a rung with a URL of its own pins the device to it.
+func selfFetched[T cmp.Ordered](a Attempt, measure func(source.Rendition) T) T {
 	if a.Rendition.URL != nil {
-		return cmp.Or(a.Rendition.Height, a.Program.MeasuredHeight())
+		return measure(a.Rendition)
 	}
-	tallest := 0
+	var most T
 	for _, rung := range a.Origin.Renditions {
-		tallest = max(tallest, rung.Height)
+		most = max(most, measure(rung))
 	}
-	return cmp.Or(tallest, a.Rendition.Height, a.Program.MeasuredHeight())
+	return cmp.Or(most, measure(a.Rendition))
 }

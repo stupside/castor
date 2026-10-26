@@ -5,8 +5,9 @@ import "net/http"
 // resumeLive returns only immutable absolute offsets that are still retained.
 // A fresh byte-zero request cannot be silently restarted mid-container.
 func (s *Stream) resumeLive(header string) served {
-	first, end := s.spool.Retained()
-	total, closed := s.spool.Snapshot()
+	sp := s.run.Load().spool
+	first, end := sp.Retained()
+	total, closed := sp.Snapshot()
 	if !closed {
 		total = -1
 	}

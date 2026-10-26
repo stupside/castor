@@ -392,7 +392,7 @@ func TestProductionCompletionDoesNotEndPlayingAttempt(t *testing.T) {
 		d := p.delivery()
 		reachAttemptState(t, c.machine, playingBack)
 		c.presentation = presentation{delivery: &d, feed: feed{buffered: p.buf}}
-		c.observeProduction()
+		c.watchProduction()
 		c.observePlayback()
 		done := make(chan error, 1)
 		go func() { c.loop(); _, err := c.finish(); done <- err }()

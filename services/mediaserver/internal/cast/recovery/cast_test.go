@@ -47,7 +47,7 @@ type published struct {
 	err    error
 }
 
-func (p *fakeProgram) Resolve(_ context.Context, s *source.Stream, _ source.Rendition) (source.Resolution, error) {
+func (p *fakeProgram) Resolve(_ context.Context, s *source.Stream, _ source.Rendition, _ media.Bitrate) (source.Resolution, error) {
 	answer, ok := p.answers[s.URL.String()]
 	switch {
 	case !ok:
@@ -478,11 +478,11 @@ type cancellingResolver struct {
 	succeed bool
 }
 
-func (r *cancellingResolver) Resolve(ctx context.Context, s *source.Stream, chosen source.Rendition) (source.Resolution, error) {
+func (r *cancellingResolver) Resolve(ctx context.Context, s *source.Stream, chosen source.Rendition, ceiling media.Bitrate) (source.Resolution, error) {
 	r.calls++
 	r.cancel(r.cause)
 	if r.succeed {
-		return (&fakeProgram{}).Resolve(ctx, s, chosen)
+		return (&fakeProgram{}).Resolve(ctx, s, chosen, ceiling)
 	}
 	return source.Resolution{}, ctx.Err()
 }

@@ -73,10 +73,10 @@ type VideoEncode struct {
 	Level    string
 	MaxWidth int
 
-	// Bitrate is the average target (e.g. "4M"); Maxrate and Bufsize bound the instantaneous rate via VBV.
-	Bitrate string
-	Maxrate string
-	Bufsize string
+	// Bitrate is the average target; Maxrate and Bufsize bound the instantaneous rate via VBV.
+	Bitrate media.Bitrate
+	Maxrate media.Bitrate
+	Bufsize media.Bitrate
 
 	// Quality is a constant-quality target (-crf); only set with rate ceilings (see floorVideoQuality).
 	Quality int
@@ -104,8 +104,8 @@ func (e VideoEncode) name() string { return e.Encoder.Name }
 type AudioEncode struct {
 	// Codec is the encoder to run, e.g. aac, ac3, eac3 (the abstract codec, not the encoder name).
 	Codec media.Codec
-	// Bitrate is the target (e.g. "256k").
-	Bitrate string
+	// Bitrate is the target, which is what the sound adds to the cast.
+	Bitrate media.Bitrate
 	// SampleRate is the output rate in Hz; 0 keeps the source rate.
 	SampleRate int
 	// Channels is the output layout; 0 keeps the source layout.

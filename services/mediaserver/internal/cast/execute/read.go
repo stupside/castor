@@ -69,6 +69,9 @@ func (s *preparation) read(work string, program media.Program) (*buffered, error
 		spoolPath:  filepath.Join(work, "spool"+encoding.SpoolFormat.Extension),
 		floor:      floor,
 		pcmRate:    pcmRate,
+		// A read that can be carried on from another rung or another position keeps the source's clock, which all of them share.
+		keepTimeline: !live && transcript == nil,
+		begins:       program.Start,
 	})
 	if err != nil {
 		stop()
@@ -81,9 +84,9 @@ func (s *preparation) read(work string, program media.Program) (*buffered, error
 	}
 	s.releases.push(reader.spool.Close)
 	s.releases.worker(stop, func() error {
-		<-reader.Done()
+		err := reader.joined()
 		transcribing.Wait()
-		return reader.Err()
+		return err
 	})
 	var videoOffset *time.Duration
 	if track, ok := program.Track(media.TrackVideo); ok && facts.probe.VideoStartOffset != nil {

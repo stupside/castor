@@ -40,6 +40,10 @@ var videoRefusals = slices.Concat([]refusalRule{{
 	reason: reasonHeightLimit,
 	when:   func(in Inputs) bool { return !in.MaxHeight.Admits(in.Probe.VideoHeight) },
 }, {
+	// A copy not proven under the ceiling is encoded.
+	reason: reasonBitrateLimit,
+	when:   func(in Inputs) bool { return !in.MaxBitrate.Admits(in.Rate) },
+}, {
 	reason: reasonInterlaced,
 	when:   func(in Inputs) bool { return in.Probe.VideoInterlaced && !in.Caps.Deinterlaces },
 }, {
@@ -51,8 +55,16 @@ var videoRefusals = slices.Concat([]refusalRule{{
 	when:   func(in Inputs) bool { return in.BurnIn != "" },
 }})
 
-func decideVideo(ctx context.Context, in Inputs) (Track[VideoEncode], []Reason, error) {
-	if in.Measured && !in.Probe.HasVideo() {
+// hasPicture reports a picture the cast carries; an unmeasured source is not known to lack one.
+func hasPicture(in Inputs) bool { return !in.Measured || in.Probe.HasVideo() }
+
+func encodesVideo(in Inputs) bool {
+	return hasPicture(in) && len(refuse(videoRefusals, in)) > 0
+}
+
+// decideVideo plans the picture within what the ceiling leaves after sound.
+func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[VideoEncode], []Reason, error) {
+	if !hasPicture(in) {
 		return OmitVideo(), nil, nil
 	}
 	refused := refuse(videoRefusals, in)
@@ -62,20 +74,40 @@ func decideVideo(ctx context.Context, in Inputs) (Track[VideoEncode], []Reason, 
 	host := func(c media.Codec) (ffmpeg.Encoder, bool) { return in.Encoders(ctx, c) }
 	enc, t, ok := selectVideoEncoder(in.Caps, host)
 	if !ok {
+		if ceilingOnly(refused) {
+			return CopyVideo(), []Reason{reasonBitrateFloor}, nil
+		}
 		return Track[VideoEncode]{}, refused, noVideoEncoder(in.Caps)
+	}
+	bitrate, maxrate, bufsize := t.bitrate, t.maxrate, t.bufsize
+	maxHeight, maxWidth, frameRate := boundedHeight(in.MaxHeight, t.height), t.width, min(playbackFrameRate, t.frameRate)
+	if in.MaxBitrate > 0 {
+		budget := streamBudget(in.MaxBitrate) - sound
+		if budget < minVideoRate {
+			refused, budget = append(refused, reasonBitrateFloor), minVideoRate
+		}
+		bitrate = min(bitrate, budget)
+		maxrate = min(maxrate, bitrate)
+		bufsize = min(bufsize, 2*bitrate)
+		// A thin rate is spent on a smaller picture, not spread over all of it.
+		height, fps := pictureFor(bitrate)
+		if height > 0 {
+			maxHeight, maxWidth = min(maxHeight, media.HeightCap(height)), min(maxWidth, height*16/9)
+		}
+		frameRate = min(frameRate, fps)
 	}
 	return Encode(VideoEncode{
 		Encoder:             enc,
 		Profile:             t.profile,
 		Level:               t.level,
-		MaxWidth:            t.width,
+		MaxWidth:            maxWidth,
 		Deinterlace:         in.Probe.VideoInterlaced && !in.Caps.Deinterlaces,
 		ToneMap:             in.Probe.VideoHDR,
-		MaxFrameRate:        min(playbackFrameRate, t.frameRate),
-		Bitrate:             t.bitrate,
-		Maxrate:             t.maxrate,
-		Bufsize:             t.bufsize,
-		MaxHeight:           boundedHeight(in.MaxHeight, t.height),
+		MaxFrameRate:        frameRate,
+		Bitrate:             bitrate,
+		Maxrate:             maxrate,
+		Bufsize:             bufsize,
+		MaxHeight:           maxHeight,
 		KeyframeIntervalSec: keyframeSeconds,
 		SubtitleTextFile:    in.BurnIn,
 	}), refused, nil
@@ -124,19 +156,43 @@ type videoTarget struct {
 	profile, level            string
 	width, height             int
 	frameRate                 float64
-	bitrate, maxrate, bufsize string
+	bitrate, maxrate, bufsize media.Bitrate
 }
 
 // floorVideo is the codec every device decodes, and the one a read-once buffer is produced in.
-var floorVideo = videoTarget{codec: media.CodecH264, bitrate: "4M", maxrate: "4M", bufsize: "8M"}
+var floorVideo = videoTarget{codec: media.CodecH264, bitrate: 4_000_000, maxrate: 4_000_000, bufsize: 8_000_000}
 
 // videoTargets is every codec castor encodes video to, in preference order.
 var videoTargets = []videoTarget{
-	{codec: media.CodecHEVC, bitrate: "2M", maxrate: "2M", bufsize: "4M"},
+	{codec: media.CodecHEVC, bitrate: 2_000_000, maxrate: 2_000_000, bufsize: 4_000_000},
 	floorVideo,
 }
 
 const keyframeSeconds = 2
+
+// muxShare is the share of a ceiling the streams may fill; the container takes the rest.
+const muxShare = 0.95
+
+// streamBudget is what the picture and sound together may weigh under a ceiling on the whole cast.
+func streamBudget(ceiling media.Bitrate) media.Bitrate {
+	return media.Bitrate(float64(ceiling) * muxShare)
+}
+
+// pictureFor is the largest picture, in height (zero for any), and the most frames a second worth spending a video rate on.
+func pictureFor(rate media.Bitrate) (height int, frameRate float64) {
+	switch {
+	case rate >= 2_000_000:
+		return 0, playbackFrameRate
+	case rate >= 1_200_000:
+		return 720, 30
+	case rate >= 800_000:
+		return 540, 30
+	}
+	return 432, 30
+}
+
+// minVideoRate is the least a picture is encoded to.
+const minVideoRate media.Bitrate = 500_000
 
 const floorVideoQuality = 23
 

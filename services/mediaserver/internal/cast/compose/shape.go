@@ -18,6 +18,10 @@ type Shape struct {
 	// MaxHeight binds the composition, not just the encode.
 	MaxHeight media.HeightCap
 
+	// A hand-off cannot be lightened, so MaxBitrate binds it against Rate, the heaviest declared rung.
+	MaxBitrate media.Bitrate
+	Rate       media.Bitrate
+
 	Delivery DeliveryPreference
 }
 
@@ -40,5 +44,6 @@ func (s Shape) handoff() bool {
 	probe, measured := s.Program.Measurement()
 	return s.Device.SelfFetch && s.Program.SelfFetchable() && measured &&
 		s.Device.CanPlaySourceIn(primary.ContentType, probe) &&
-		(s.MaxHeight == 0 || !probe.HasVideo() || s.Height > 0 && s.MaxHeight.Admits(s.Height))
+		(s.MaxHeight == 0 || !probe.HasVideo() || s.Height > 0 && s.MaxHeight.Admits(s.Height)) &&
+		s.MaxBitrate.Admits(s.Rate)
 }

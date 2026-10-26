@@ -1,6 +1,7 @@
 package codec
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -8,7 +9,7 @@ import (
 
 func TestEncoderCarriesReceiverProfileAndLevel(t *testing.T) {
 	in := Inputs{Caps: media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264, Profiles: []media.Profile{media.ProfileBaseline}, MaxLevel: 31}}}}, Probe: media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: media.ProfileHigh, VideoBitDepth: 8, VideoHeight: 2160}, MaxHeight: 2160, Into: testFormat(t, media.MPEGTS), Encoders: hostEncoders}
-	track, _, err := decideVideo(t.Context(), in)
+	track, _, err := decideVideo(t.Context(), in, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -17,12 +18,12 @@ func TestEncoderCarriesReceiverProfileAndLevel(t *testing.T) {
 		t.Fatalf("encode=%+v", v)
 	}
 	in.Caps.Formats[0].Video.MaxLevel = 20
-	if _, _, err := decideVideo(t.Context(), in); err == nil {
+	if _, _, err := decideVideo(t.Context(), in, 0); err == nil {
 		t.Fatal("unsupported low envelope invented")
 	}
 	in.Caps.Formats[0].Video.MaxLevel = 42
 	in.Caps.Formats[0].Video.BitDepths = []int{10}
-	if _, _, err := decideVideo(t.Context(), in); err == nil {
+	if _, _, err := decideVideo(t.Context(), in, 0); err == nil {
 		t.Fatal("8-bit output chosen for 10-bit-only envelope")
 	}
 }
@@ -46,6 +47,14 @@ func TestPlanNeverCombinesDifferentReceiverTuples(t *testing.T) {
 	}
 	if !caps.CanPlayIn(media.MP4, in.Probe) {
 		t.Fatal("valid MP4/AAC tuple refused")
+	}
+}
+
+func TestADeviceWithNoFormatForTheContainerIsNotBlamedOnAKeptSound(t *testing.T) {
+	caps := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
+	_, err := Served(t.Context(), Inputs{Caps: caps, Probe: media.ProbeInfo{VideoCodec: media.CodecH264}, Into: testFormat(t, media.MPEGTS), Encoders: hostEncoders})
+	if err == nil || strings.Contains(err.Error(), "kept") {
+		t.Errorf("Served = %v, want a refusal naming the container, not a kept sound nobody kept", err)
 	}
 }
 

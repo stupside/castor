@@ -22,7 +22,7 @@ func TestAFailedKeyframeProbeCannotCertifyTheHeightCeiling(t *testing.T) {
 	if err != nil {
 		t.Skip("requires a silent failing executable")
 	}
-	if _, err := tallestKeyframe(t.Context(), failed, "tape"); err == nil {
+	if _, _, err := keyframeHeights(t.Context(), failed, "tape"); err == nil {
 		t.Fatal("an unsuccessful probe certified the picture height")
 	}
 }

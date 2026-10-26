@@ -8,24 +8,11 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/source"
 )
 
-// byBitrate prefers the richest rung, then the taller: BANDWIDTH is the one attribute every variant must state, while RESOLUTION is optional.
-func byBitrate(a, b source.Rendition) int {
-	return cmp.Or(cmp.Compare(a.Bitrate, b.Bitrate), cmp.Compare(a.Height, b.Height))
-}
-
 // byAudioPreference keeps language priority across the whole ladder, not just
 // within each variant's audio group. Quality breaks ties after language.
 func byAudioPreference(languages []string) func(a, b source.Rendition) int {
-	rank := func(language string) int {
-		for i, preferred := range languages {
-			if language != "" && source.SameLanguage(language, preferred) {
-				return len(languages) - i
-			}
-		}
-		return 0
-	}
 	return func(a, b source.Rendition) int {
-		return cmp.Or(cmp.Compare(rank(a.AudioLanguage), rank(b.AudioLanguage)), byBitrate(a, b))
+		return cmp.Or(cmp.Compare(source.LanguageRank(a.AudioLanguage, languages), source.LanguageRank(b.AudioLanguage, languages)), source.ByBitrate(a, b))
 	}
 }
 

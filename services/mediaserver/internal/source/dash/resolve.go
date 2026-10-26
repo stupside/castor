@@ -32,20 +32,22 @@ func (Format) Resolve(ctx context.Context, env source.Env, s source.Subject) (so
 		origin.Duration = total
 	}
 	origin.Protection = protection(periods)
-	origin.Renditions = ladder(film, stream.Probe)
+	var heard *offered
+	if audio := offers(film.Period, media.TrackAudio); len(audio) > 0 {
+		best := preferredAudio(audio, env.AudioLanguages)
+		heard = &best
+	}
+	origin.Renditions = ladder(film, stream.Probe, heard)
 
 	var picture, sound *offered
 	var chosen source.Rendition
 	if len(origin.Renditions) > 0 {
-		chosen = env.Choose(ctx, origin, s.Chosen, byHeight)
+		chosen = env.Choose(ctx, origin, s, byHeight)
 		video := offers(film.Period, media.TrackVideo)
 		picture = &video[slices.IndexFunc(video, func(o offered) bool { return o.rep.Id == chosen.Representation })]
 	}
 	if picture == nil || !picture.muxed() {
-		if audio := offers(film.Period, media.TrackAudio); len(audio) > 0 {
-			best := preferredAudio(audio, env.AudioLanguages)
-			sound = &best
-		}
+		sound = heard
 	}
 	if sound != nil {
 		chosen.AudioLanguage = sound.set.Lang

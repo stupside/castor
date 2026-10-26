@@ -2,6 +2,8 @@ package apiserver
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +31,8 @@ type ServersConfig struct {
 type CastConfig struct {
 	Delivery  Delivery `yaml:"delivery"`
 	MaxHeight uint32   `yaml:"max_height"`
+	// MaxBitrate is the most a cast asks of a device's link; absent asks nothing.
+	MaxBitrate Bitrate `yaml:"max_bitrate"`
 	// Subtitles selects the source's captions and optionally enables transcription as a fallback.
 	Subtitles SubtitleConfig `yaml:"subtitles"`
 	// Audio is the ordered list of languages to try before the source's default.
@@ -77,6 +81,25 @@ func (d *Delivery) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// Bitrate is a rate in configuration: bits per second, optionally with a k or M suffix such as 6M.
+type Bitrate uint64
+
+func (b *Bitrate) UnmarshalText(text []byte) error {
+	digits, unit := strings.TrimSpace(string(text)), uint64(1)
+	switch {
+	case strings.HasSuffix(digits, "k"):
+		digits, unit = strings.TrimSuffix(digits, "k"), 1_000
+	case strings.HasSuffix(digits, "M"):
+		digits, unit = strings.TrimSuffix(digits, "M"), 1_000_000
+	}
+	n, err := strconv.ParseUint(digits, 10, 64)
+	if err != nil || n > math.MaxInt64/unit {
+		return fmt.Errorf("unknown bitrate %q: want bits per second, such as 6000000, 6000k or 6M", text)
+	}
+	*b = Bitrate(n * unit)
+	return nil
+}
+
 // APIConfig is where `castor api-server` listens, and the token it asks every request to carry.
 type APIConfig struct {
 	settings.Endpoint `yaml:",inline"`
@@ -117,6 +140,9 @@ func (c CastConfig) settings() *mediav1.PlaybackSettings {
 		Delivery:  castorv1.Delivery(c.Delivery),
 		MaxHeight: c.MaxHeight,
 		Subtitles: subtitles,
+	}
+	if c.MaxBitrate > 0 {
+		settings.MaxBitrate = &mediav1.Bitrate{BitsPerSecond: uint64(c.MaxBitrate)}
 	}
 	if len(c.Audio.Languages) > 0 {
 		settings.Audio = &castorv1.AudioSelection{Languages: c.Audio.Languages}

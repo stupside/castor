@@ -1,6 +1,9 @@
 package health
 
 import (
+	"context"
+	"log/slog"
+	"sync"
 	"testing"
 	"time"
 )
@@ -45,6 +48,54 @@ func TestVerdicts(t *testing.T) {
 		{"a held device whose read is ahead again is replenished", Playing, Vitals{holdable: true, paused: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 10*time.Minute - highWater}, Replenished},
 		{"a held device whose read finished is replenished", Playing, Vitals{holdable: true, paused: true, ended: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 10 * time.Minute}, Replenished},
 		{"a held device still short of the cushion stays held", Playing, Vitals{holdable: true, paused: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 10*time.Minute - highWater + time.Second, sincePause: pauseBudget - time.Second}, healthy},
+		{"a device taking half of playback that took less than it has played, with the read far ahead, is choked", Playing, choking(400_000, 60*time.Second, 62*time.Second, 3*time.Minute), Choked},
+		{"a device taking half of playback with a thin but positive buffer is not choked, it plays what it takes", Playing, choking(400_000, 60*time.Second, 58*time.Second, 3*time.Minute), healthy},
+		{"a device whose playhead keeps real time is not choked, whatever the bytes say", Playing, func() Vitals {
+			v := choking(400_000, 60*time.Second, 62*time.Second, 3*time.Minute)
+			v.paceKnown, v.pace = true, 1.0
+			return v
+		}(), healthy},
+		{"a device whose playhead falls behind real time is choked", Playing, func() Vitals {
+			v := choking(800_000, 90*time.Second, 62*time.Second, 3*time.Minute)
+			v.paceKnown, v.pace = true, 0.5
+			return v
+		}(), Choked},
+		{"a device keeping real time is lifted whatever the bytes say", Playing, func() Vitals {
+			v := roomy()
+			v.took = v.played - time.Minute
+			v.paceKnown, v.pace = true, 1.0
+			return v
+		}(), Roomy},
+		{"a device taking exactly playback pace is not choked, whatever its buffer", Playing, choking(800_000, 60*time.Second, 58*time.Second, 3*time.Minute), healthy},
+		{"a device taking less than playback with a deep buffer is not choked yet", Playing, choking(400_000, 90*time.Second, 58*time.Second, 3*time.Minute), healthy},
+		{"a device taking less than playback of a read that has made little more is not choked, the read is the limit", Playing, choking(400_000, 60*time.Second, 58*time.Second, 70*time.Second), healthy},
+		{"a delivery that cannot change is left to play out over a link that falls short", Playing, func() Vitals {
+			v := choking(400_000, 60*time.Second, 58*time.Second, 3*time.Minute)
+			v.switchable = false
+			return v
+		}(), healthy},
+		{"a heavier rate on trial that the device takes less of than it weighs is choked, however deep its buffer", Playing, func() Vitals {
+			v := choking(400_000, 90*time.Second, 58*time.Second, 3*time.Minute)
+			v.trying = true
+			return v
+		}(), Choked},
+		{"a heavier rate on trial that the device keeps up with is left to run", Playing, func() Vitals {
+			v := choking(800_000, 60*time.Second, 58*time.Second, 3*time.Minute)
+			v.trying = true
+			return v
+		}(), healthy},
+		{"a cast just changed is left alone until the device is measured over the new rate", Playing, func() Vitals {
+			v := choking(400_000, 60*time.Second, 58*time.Second, 3*time.Minute)
+			v.sinceChange = settle - time.Second
+			return v
+		}(), healthy},
+		{"a cast that has run well with room above it is roomy", Playing, roomy(), Roomy},
+		{"a cast with no room above it is left as it is", Playing, func() Vitals { v := roomy(); v.room = false; return v }(), healthy},
+		{"a cast that has not run well long enough is not lifted", Playing, func() Vitals { v := roomy(); v.sinceChange = liftAfter - time.Second; return v }(), healthy},
+		{"a cast whose device took less than it played is not lifted", Playing, func() Vitals { v := roomy(); v.took = v.played - time.Second; return v }(), healthy},
+		{"a cast whose device keeps a thin buffer is lifted", Playing, func() Vitals { v := roomy(); v.took = v.played + time.Second; return v }(), Roomy},
+		{"a held device is released, not lifted", Playing, func() Vitals { v := roomy(); v.paused = true; v.sincePause = time.Second; return v }(), Replenished},
+		{"an intake the span does not cover yet is no verdict", Playing, Vitals{holdable: true, Landed: 8 << 20, handed: 48_000_000, weight: 800_000, Position: 3 * time.Minute, played: 58 * time.Second, intake: 1}, healthy},
 		{"a device held longer than it played, past the crawl mark, is starved", Playing, Vitals{holdable: true, paused: true, Landed: 8 << 20, handed: 4 << 20, Position: 3 * time.Minute, played: crawlAfter, held: crawlAfter + time.Second, sincePause: time.Second}, Starved},
 		{"a device held longer than it played before the crawl mark is one outage, not a crawl", Playing, Vitals{holdable: true, paused: true, Landed: 8 << 20, handed: 4 << 20, Position: time.Minute, played: time.Minute, held: 70 * time.Second, sincePause: time.Second}, healthy},
 		{"a device held past the pause budget is starved", Playing, Vitals{holdable: true, paused: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 10 * time.Minute, sincePause: pauseBudget + time.Second}, Starved},
@@ -58,6 +109,86 @@ func TestVerdicts(t *testing.T) {
 				t.Errorf("verdict = %s (rule %q), want %s", rule.kind, rule.name, tt.want)
 			}
 		})
+	}
+}
+
+// choking is a playing cast whose device took took of media at intake bytes a second, weighing 800 kB a second, having played played of it.
+func choking(intake float64, took, played, position time.Duration) Vitals {
+	return Vitals{
+		holdable: true, switchable: true, sinceChange: settle, Landed: 8 << 20, weight: 800_000, took: took,
+		intake: intake, intakeKnown: true, Position: position, played: played, handed: 1 << 20,
+	}
+}
+
+// roomy is a playing cast that has run well at a rate with room above it.
+func roomy() Vitals {
+	v := choking(800_000, 60*time.Second, 50*time.Second, 3*time.Minute)
+	v.room, v.sinceChange = true, liftAfter
+	return v
+}
+
+func TestACastNotLiftedSaysWhy(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		change       func(*Vitals)
+		want, detail string
+	}{
+		{"nothing in the way", func(*Vitals) {}, "", ""},
+		{"a delivery that cannot change", func(v *Vitals) { v.switchable = false }, "the delivery cannot change while the device plays it", ""},
+		{"a held device", func(v *Vitals) { v.paused = true }, "the device is held", ""},
+		{"an intake not covered yet", func(v *Vitals) { v.intakeKnown = false }, "what the device takes is not measured yet", ""},
+		{"a device taking less than the cast weighs", func(v *Vitals) { v.intake = 500_000 }, "the device takes less than the cast weighs", "4.0 Mbit/s of 6.4 Mbit/s"},
+		{"a device with little buffered still has room", func(v *Vitals) { v.took = v.played + time.Second }, "", ""},
+		{"a device that took less than it played", func(v *Vitals) { v.took = v.played - time.Second }, "the device has taken less than it has played", "-1s"},
+		{"a device that has stalled for minutes", func(v *Vitals) { v.took = v.played - 2*time.Minute }, "the device has taken less than it has played", "-2m0s"},
+		{"no room above", func(v *Vitals) { v.room = false }, noRoom, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v := roomy()
+			tt.change(&v)
+			if got, detail := v.unlifted(); got != tt.want || detail != tt.detail {
+				t.Errorf("unlifted = %q (%q), want %q (%q)", got, detail, tt.want, tt.detail)
+			}
+		})
+	}
+}
+
+type said struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (s *said) Enabled(context.Context, slog.Level) bool { return true }
+func (s *said) Handle(_ context.Context, r slog.Record) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.records = append(s.records, r)
+	return nil
+}
+func (s *said) WithAttrs([]slog.Attr) slog.Handler { return s }
+func (s *said) WithGroup(string) slog.Handler      { return s }
+
+func TestAReasonThatHoldsIsSaidOnceHoweverItsMeasurementMoves(t *testing.T) {
+	records := &said{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(records))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	o := &Observer{m: Monitor{Subject: "the playing cast"}, asked: newPacing(0)}
+	o.asked.at = 1_200_000
+
+	for _, behind := range []time.Duration{2 * time.Minute, 2*time.Minute + time.Second, 119 * time.Second} {
+		v := roomy()
+		v.sinceChange = liftAfter
+		v.took = v.played - behind
+		o.explain(t.Context(), v)
+	}
+	// Then another reason.
+	v := roomy()
+	v.sinceChange, v.paused = liftAfter, true
+	o.explain(t.Context(), v)
+
+	if len(records.records) != 2 {
+		t.Fatalf("said %d times, want once for the thin buffer however its measurement moved and once for the hold", len(records.records))
 	}
 }
 

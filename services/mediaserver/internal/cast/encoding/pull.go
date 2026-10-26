@@ -36,6 +36,9 @@ type PullOptions struct {
 
 	Verbose bool
 
+	// KeepTimeline keeps the source's timestamps, so reads from anywhere in a program, or of any rung, share one clock.
+	KeepTimeline bool
+
 	// PCMSampleRate is the audio sample rate of the PCM tee, zero for none.
 	PCMSampleRate int
 }
@@ -77,8 +80,11 @@ func PullArgs(opts PullOptions) (ffmpeg.Command, error) {
 	}
 
 	args := pullReportArgs(opts.Verbose)
+	if opts.KeepTimeline {
+		args = append(args, "-copyts")
+	}
 	args = append(args, hardwareInitArgs(opts.Video)...)
-	args = append(args, sourceInputArgs(opts.Source)...)
+	args = append(args, sourceInputArgs(opts.Source, opts.KeepTimeline)...)
 	args = append(args, sourceMapArgs(opts.Source, opts.Video.Action() != codec.OmitTrack, opts.Audio.Action() != codec.OmitTrack)...)
 	args = append(args, codecs...)
 	args = append(args, output...)

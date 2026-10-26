@@ -115,7 +115,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 			stream.Probe = &info
 			stream.Observation = inspection.Observation
 			stream.ContentType = info.ContentType
-			resolved, err := resolver.Resolve(t.Context(), stream, source.Rendition{})
+			resolved, err := resolver.Resolve(t.Context(), stream, source.Rendition{}, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -168,7 +168,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 			if err != nil || measured.Probe == nil || measured.Probe.VideoHeight != 96 || measured.ContentType != media.HLS {
 				t.Fatalf("HLS MIME alias was not measured as video: %+v, %v", measured, err)
 			}
-			resolved, err := resolver.Resolve(t.Context(), measured, source.Rendition{})
+			resolved, err := resolver.Resolve(t.Context(), measured, source.Rendition{}, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -186,7 +186,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 		if err != nil || measured.Probe == nil || measured.ContentType != media.MPEGTS {
 			t.Fatalf("container MIME was not measured as its content type: %+v, %v", measured, err)
 		}
-		resolved, err := resolver.Resolve(t.Context(), measured, source.Rendition{})
+		resolved, err := resolver.Resolve(t.Context(), measured, source.Rendition{}, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

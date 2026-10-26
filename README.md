@@ -106,6 +106,7 @@ Castor loads `config.yaml` (or `--config <path>`), overlays git-ignored `config.
 ```yaml
 cast:
   max_height: 1080          # select within this ceiling; scale taller video
+  max_bitrate: 6M           # ask no more of the device's link; a heavier picture, and sound, are re-encoded under it
   audio:
     languages: [fr, en]    # ordered preferences; otherwise source default
   subtitles:

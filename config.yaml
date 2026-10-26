@@ -24,6 +24,10 @@ cast:
   # The tallest picture sent to the device (default 1080). A taller source castor measured is
   # relayed and scaled down, re-encoding the whole title.
   # max_height: 1080
+  # The most a cast asks of the device's link, in bits per second (6000000, 6000k or 6M); absent asks
+  # nothing. A heavier source is re-encoded under it. A device whose link falls short of the cast is
+  # asked for less while it plays, without any setting.
+  # max_bitrate: 6M
   # Try audio languages in order; if none is offered, use the source's default.
   # The short form `audio: fr` also works.
   audio:

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
 
 	"golang.org/x/sync/semaphore"
@@ -34,7 +35,7 @@ func TestLiveHTTPRetainedRangesAndExpiredReconnect(t *testing.T) {
 	if _, err := s.Write([]byte("0123456789abcdef")); err != nil {
 		t.Fatal(err)
 	}
-	stream := &Stream{spool: s}
+	stream := ServeSpool(output.Opening{}, s)
 	for _, tt := range []struct {
 		rangeHeader  string
 		status       int
@@ -78,7 +79,7 @@ func (w *advancingResponse) Write(p []byte) (int, error) {
 func TestLiveHTTPAbortsWhenReaderFallsOutOfWindow(t *testing.T) {
 	s, _ := liveSpool(t, 8)
 	_, _ = s.Write([]byte("0123"))
-	stream := &Stream{spool: s}
+	stream := ServeSpool(output.Opening{}, s)
 	recorder := &advancingResponse{ResponseRecorder: httptest.NewRecorder(), advance: func() { _, _ = s.Write([]byte("456789abcdef")) }}
 	defer func() {
 		if got := recover(); got != http.ErrAbortHandler {
@@ -96,7 +97,7 @@ func TestLiveByteZeroRangeFollowsProduction(t *testing.T) {
 		t.Run("initial="+initial, func(t *testing.T) {
 			spool, _ := liveSpool(t, 64)
 			_, _ = spool.Write([]byte(initial))
-			stream := &Stream{spool: spool}
+			stream := ServeSpool(output.Opening{}, spool)
 			done := make(chan struct{})
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				defer close(done)
@@ -135,7 +136,7 @@ func TestLiveByteZeroRangeFollowsProduction(t *testing.T) {
 
 func TestLiveByteZeroRangeCancellation(t *testing.T) {
 	spool, _ := liveSpool(t, 64)
-	stream := &Stream{spool: spool}
+	stream := ServeSpool(output.Opening{}, spool)
 	done := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer close(done)
@@ -167,7 +168,7 @@ func TestCompletedLiveByteZeroRange(t *testing.T) {
 	spool, _ := liveSpool(t, 64)
 	_, _ = spool.Write([]byte("complete"))
 	spool.CloseWrite(nil)
-	stream := &Stream{spool: spool}
+	stream := ServeSpool(output.Opening{}, spool)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://example/stream", nil)
 	req.Header.Set("Range", "bytes=0-")
 	recorder := httptest.NewRecorder()

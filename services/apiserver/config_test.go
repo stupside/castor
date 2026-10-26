@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/settings"
 	"github.com/urfave/cli/v3"
 )
@@ -129,6 +130,42 @@ func TestSubtitleConfigurationRejectsConflictingOrIncompleteSelection(t *testing
 		}
 		if err := command.Run(context.Background(), []string{"castor", "--config", path}); err == nil {
 			t.Errorf("accepted invalid subtitle configuration %q", doc)
+		}
+	}
+}
+
+func TestABitrateIsWrittenInBitsWithAnOptionalUnit(t *testing.T) {
+	for text, want := range map[string]Bitrate{"6000000": 6_000_000, "4500k": 4_500_000, "6M": 6_000_000, " 8M ": 8_000_000} {
+		var got Bitrate
+		if err := got.UnmarshalText([]byte(text)); err != nil || got != want {
+			t.Errorf("%q = %d (%v), want %d", text, got, err, want)
+		}
+	}
+	for _, text := range []string{"fast", "6G", "-1", "1.5M", ""} {
+		var got Bitrate
+		if err := got.UnmarshalText([]byte(text)); err == nil {
+			t.Errorf("%q was read as %d, want a refusal naming the units", text, got)
+		}
+	}
+}
+
+func TestACeilingInConfigurationReachesTheCastsSettings(t *testing.T) {
+	if got := (CastConfig{MaxBitrate: 6_000_000}).settings().GetMaxBitrate().GetBitsPerSecond(); got != 6_000_000 {
+		t.Errorf("settings carry %v, want 6000000", got)
+	}
+	if got := (CastConfig{}).settings().MaxBitrate; got != nil {
+		t.Errorf("settings carry a ceiling of %v without one configured", got)
+	}
+}
+
+func TestACeilingUnderTheFloorIsRefusedByTheContractBeforeTheFirstCast(t *testing.T) {
+	for _, tt := range []struct {
+		ceiling Bitrate
+		ok      bool
+	}{{0, true}, {1_000_000, true}, {6_000_000, true}, {999_999, false}, {500_000, false}} {
+		_, err := New(Backend{}, CastConfig{Delivery: Delivery(castorv1.Delivery_DELIVERY_AUTO), MaxHeight: 1080, MaxBitrate: tt.ceiling})
+		if (err == nil) != tt.ok {
+			t.Errorf("a ceiling of %d: New = %v, want ok=%t", tt.ceiling, err, tt.ok)
 		}
 	}
 }

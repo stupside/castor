@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -363,6 +364,269 @@ func TestRefusedPauseDisablesFurtherHolds(t *testing.T) {
 	}
 }
 
+// takingDevice takes bytes at a fixed rate from the moment it is built.
+type takingDevice struct {
+	start time.Time
+	rate  float64
+}
+
+func (d *takingDevice) Handed() (int64, time.Time) {
+	return int64(time.Since(d.start).Seconds() * d.rate), time.Now()
+}
+
+// burstingDevice fills its buffer in a burst, then takes what its link carries.
+type burstingDevice struct {
+	start       time.Time
+	burst, rate float64
+}
+
+func (d *burstingDevice) Handed() (int64, time.Time) {
+	t := time.Since(d.start).Seconds()
+	const burstFor = 5.0
+	if t <= burstFor {
+		return int64(t * d.burst), time.Now()
+	}
+	return int64(burstFor*d.burst + (t-burstFor)*d.rate), time.Now()
+}
+
+// weighing is a delivery whose media weighs a rate that a switch changes, made a lead ahead of what its device took, as a paced delivery is.
+type weighing struct {
+	pacedProducer
+	dev     interface{ Handed() (int64, time.Time) }
+	mu      sync.Mutex
+	perSec  float64
+	atBytes int64
+	atMedia time.Duration
+	high    int64
+}
+
+const deliveryLead = 10 * time.Second
+
+func newWeighing(start time.Time, dev interface{ Handed() (int64, time.Time) }, bytesPerSecond float64) *weighing {
+	return &weighing{done: make(chan struct{}), start: start, made: func(d time.Duration) time.Duration { return d + 90*time.Second }, dev: dev, perSec: bytesPerSecond}
+}
+
+// took is the media the device has taken, at the rates it was made at.
+func (w *weighing) took() time.Duration {
+	handed, _ := w.dev.Handed()
+	return w.atMedia + time.Duration(float64(handed-w.atBytes)/w.perSec*float64(time.Second))
+}
+
+func (w *weighing) Progress() media.Progress {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	handed, _ := w.dev.Handed()
+	w.high = max(w.high, handed+int64(deliveryLead.Seconds()*w.perSec))
+	return media.Progress{Position: w.took() + deliveryLead, Bytes: w.high, Speed: 1}
+}
+
+// switchTo makes media from now on at bytesPerSecond.
+func (w *weighing) switchTo(bytesPerSecond float64) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	handed, _ := w.dev.Handed()
+	w.atMedia, w.atBytes, w.perSec = w.took(), handed, bytesPerSecond
+}
+
+// rated is one rate change the watch asked for, and when.
+type rated struct {
+	move   rateEvent
+	target media.Bitrate
+	after  time.Duration
+}
+
+// rateFixture applies every rate change the watch asks for, moving the delivery to the rate asked, until ctx ends.
+func rateFixture(ctx context.Context, m Monitor, w *weighing, refuse error) []rated {
+	observer := Observe(m)
+	start := time.Now()
+	var asked []rated
+	for {
+		decision, err := observer.Next(ctx)
+		if err != nil || decision == Complete {
+			return asked
+		}
+		if decision != ChangeRate {
+			_ = observer.Applied(ctx, decision, nil)
+			continue
+		}
+		asked = append(asked, rated{observer.pending.move, observer.Target(), time.Since(start)})
+		if refuse == nil {
+			w.switchTo(float64(observer.Target()) / 8)
+		}
+		_ = observer.Rated(ctx, 0, refuse)
+	}
+}
+
+const weight = 800_000
+
+// A device whose link takes half of playback, with the read far ahead of it, is asked for a lighter cast, at the rate its link carries.
+func TestADeviceTakingHalfOfPlaybackIsAskedForALighterCast(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &takingDevice{start: start, rate: weight / 2}
+		w := newWeighing(start, dev, weight)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Second)
+		defer cancel()
+		asked := rateFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: w, Telemetry: &w.pacedProducer, Served: w, Audience: dev, Switchable: true}, w, nil)
+		if len(asked) != 1 || asked[0].move != rateLightened {
+			t.Fatalf("asked %+v, want one lighter cast", asked)
+		}
+		// Half of 800 kB/s is 3.2 Mbit/s taken; a share of it, to the step.
+		if got, want := asked[0].target, media.Bitrate(2_400_000); got < want-step || got > want+step {
+			t.Errorf("asked for %s, want about %s", got, want)
+		}
+		if asked[0].after > 40*time.Second {
+			t.Errorf("asked after %v, want within a span or two of the device starting", asked[0].after)
+		}
+	})
+}
+
+// A burst at the start must not hide a link that settles under playback pace, nor set the rate the cast is lightened to.
+func TestADeviceThatBurstsThenSettlesUnderPlaybackIsAskedForWhatItSettledTo(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &burstingDevice{start: start, burst: 2 * weight, rate: 0.4 * weight}
+		w := newWeighing(start, dev, weight)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Second)
+		defer cancel()
+		asked := rateFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: w, Telemetry: &w.pacedProducer, Served: w, Audience: dev, Switchable: true}, w, nil)
+		if len(asked) == 0 || asked[0].move != rateLightened {
+			t.Fatalf("asked %+v, want a lighter cast", asked)
+		}
+		// 0.4 of 800 kB/s is 2.56 Mbit/s settled, 1.9 Mbit/s a share of it; the burst's average would have said far more.
+		if got, want := asked[0].target, media.Bitrate(1_920_000); got < want-2*step || got > want+3*step {
+			t.Errorf("asked for %s, want about the settled %s", got, want)
+		}
+	})
+}
+
+// A device that takes the cast at playback pace is left alone, however much the read has made beyond it.
+func TestADeviceTakingPlaybackPaceIsLeftAlone(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &takingDevice{start: start, rate: weight}
+		w := newWeighing(start, dev, weight)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Second)
+		defer cancel()
+		if asked := rateFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: w, Telemetry: &w.pacedProducer, Served: w, Audience: dev, Switchable: true}, w, nil); len(asked) != 0 {
+			t.Fatalf("asked %+v of a device keeping pace", asked)
+		}
+	})
+}
+
+// startingDevice takes the cast at playback pace but plays it only some seconds after it was asked to, as a device filling its own buffer does.
+type startingDevice struct {
+	takingDevice
+	after time.Duration
+}
+
+func (d *startingDevice) Position(context.Context) (time.Duration, bool, bool) {
+	return max(0, time.Since(d.start)-d.after), false, true
+}
+
+// The seconds a device takes to start playing say nothing of its link.
+func TestADeviceSlowToStartPlayingIsLeftAlone(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &startingDevice{start: start, rate: weight, after: 8 * time.Second}
+		w := newWeighing(start, dev, weight)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Second)
+		defer cancel()
+		if asked := rateFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: w, Telemetry: &w.pacedProducer, Served: w, Audience: dev, Playhead: dev, Switchable: true}, w, nil); len(asked) != 0 {
+			t.Fatalf("asked %+v of a device keeping pace once it started", asked)
+		}
+	})
+}
+
+// Only a delivery that can change while the device plays it is asked to.
+func TestADeliveryThatCannotChangeIsLeftToPlay(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &takingDevice{start: start, rate: weight / 2}
+		w := newWeighing(start, dev, weight)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Second)
+		defer cancel()
+		if asked := rateFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: w, Telemetry: &w.pacedProducer, Served: w, Audience: dev}, w, nil); len(asked) != 0 {
+			t.Fatalf("asked %+v of a delivery that cannot change", asked)
+		}
+	})
+}
+
+// A link with room for the lighter cast is asked for more once the cast has run well for a while, never past the rate it was first asked, and never the rate it was seen not to carry soon again.
+func TestACastThatRunsWellIsLiftedButNotBackToWhatTheLinkDroppedTooSoon(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		// A link carrying 2.4 Mbit/s of the 6.4 the cast weighs.
+		dev := &takingDevice{start: start, rate: 300_000}
+		w := newWeighing(start, dev, weight)
+		ctx, cancel := context.WithTimeout(t.Context(), 6*time.Minute)
+		defer cancel()
+		asked := rateFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: w, Telemetry: &w.pacedProducer, Served: w, Audience: dev, Switchable: true}, w, nil)
+		if len(asked) < 2 || asked[0].move != rateLightened {
+			t.Fatalf("asked %+v, want a lighter cast first", asked)
+		}
+		lifted := slices.IndexFunc(asked, func(r rated) bool { return r.move == rateLifted })
+		if lifted < 0 {
+			t.Fatalf("asked %+v, want the cast lifted after it ran well", asked)
+		}
+		if gap := asked[lifted].after - asked[lifted-1].after; gap < liftAfter {
+			t.Errorf("lifted %v after the last change, want at least %v", gap, liftAfter)
+		}
+		if asked[lifted].target <= asked[lifted-1].target {
+			t.Errorf("lifted to %s from %s, want more", asked[lifted].target, asked[lifted-1].target)
+		}
+	})
+}
+
+// A switch the delivery cannot make leaves the cast as it is, and is tried again only after the device has been left alone a while.
+func TestARefusedChangeIsNotTriedAgainAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &takingDevice{start: start, rate: weight / 2}
+		w := newWeighing(start, dev, weight)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Second)
+		defer cancel()
+		asked := rateFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: w, Telemetry: &w.pacedProducer, Served: w, Audience: dev, Switchable: true}, w, errors.New("no keyframe soon"))
+		if len(asked) < 2 {
+			t.Fatalf("asked %+v, want it asked again after a while", asked)
+		}
+		if gap := asked[1].after - asked[0].after; gap < settle {
+			t.Errorf("asked again after %v, want at least %v", gap, settle)
+		}
+	})
+}
+
+// A rate tried beyond what the link carries is given back as soon as the device falls short of it, and not tried again for a long while.
+func TestAHeavierRateTheLinkCannotCarryIsGivenBackAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		// A link carrying 2.4 Mbit/s of the 6.4 the cast weighs.
+		dev := &takingDevice{start: start, rate: 300_000}
+		w := newWeighing(start, dev, weight)
+		ctx, cancel := context.WithTimeout(t.Context(), 12*time.Minute)
+		defer cancel()
+		asked := rateFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: w, Telemetry: &w.pacedProducer, Served: w, Audience: dev, Switchable: true}, w, nil)
+		given := slices.IndexFunc(asked[1:], func(r rated) bool { return r.move == rateGivenBack }) + 1
+		if given < 2 {
+			t.Fatalf("asked %+v, want a lift that fell short and was given back", asked)
+		}
+		if asked[given].target != asked[given-2].target {
+			t.Errorf("given back to %s, want the %s it was lifted from", asked[given].target, asked[given-2].target)
+		}
+		if gap := asked[given].after - asked[given-1].after; gap > probeFor+2*pollInterval {
+			t.Errorf("a rate the link could not carry was given back after %v, want within %v", gap, probeFor)
+		}
+		if asked[given].target >= asked[given-1].target {
+			t.Errorf("given back to %s from %s, want less", asked[given].target, asked[given-1].target)
+		}
+		for _, r := range asked[given+1:] {
+			if r.move == rateLifted && r.target >= asked[given-1].target && r.after-asked[given].after < 2*avoid {
+				t.Errorf("the rate given back was tried again after %v: %+v", r.after-asked[given].after, r)
+			}
+		}
+	})
+}
+
 // pausingDevice plays from the start and says when its viewer holds it.
 type pausingDevice struct {
 	mu     sync.Mutex
@@ -420,7 +684,9 @@ func TestADevicesOwnPauseIsAHoldNotAStall(t *testing.T) {
 		dev.hold(true)
 		for range 60 {
 			time.Sleep(time.Second)
-			read()
+			if h := read(); h.paceKnown && h.pace < stallBelow {
+				t.Fatalf("a device its viewer holds is judged by its pace %.2f", h.pace)
+			}
 		}
 		held := read()
 		if !held.viewerHeld || held.played-before.played > 6*time.Second {
@@ -428,6 +694,9 @@ func TestADevicesOwnPauseIsAHoldNotAStall(t *testing.T) {
 		}
 		if held.held != 0 {
 			t.Errorf("the viewer's hold counts %v as castor's, which would starve a cast it later holds", held.held)
+		}
+		if _, act, _ := judge(Playing, held); act == lighten {
+			t.Error("a device its viewer holds is made lighter")
 		}
 	})
 }

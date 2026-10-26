@@ -27,8 +27,9 @@ type Measured struct {
 	FieldOrder string
 	// Combed is a decode seeing more interlaced frames than progressive ones.
 	Combed bool
-	// Tallest is the tallest keyframe on the tape, which catches a splice taller than the stream's header says.
+	// Tallest is the tallest keyframe on the tape, which catches a splice taller than the stream's header says; Last is the final one.
 	Tallest int
+	Last    int
 	// Transfer is ffprobe's color_transfer, empty when untagged.
 	Transfer     string
 	Audio        string
@@ -109,7 +110,7 @@ func measure(ffmpeg, ffprobe, tape string) (Measured, error) {
 			take(&m, s)
 		}
 	}
-	if m.Tallest, err = tallestKeyframe(ctx, ffprobe, tape); err != nil {
+	if m.Tallest, m.Last, err = keyframeHeights(ctx, ffprobe, tape); err != nil {
 		return Measured{}, err
 	}
 	if m.LongestFreeze, err = longestFreeze(ctx, ffprobe, tape); err != nil {
@@ -119,18 +120,18 @@ func measure(ffmpeg, ffprobe, tape string) (Measured, error) {
 	return m, nil
 }
 
-// tallestKeyframe decodes only keyframes, since a resolution change needs a new sequence header on an IDR.
-func tallestKeyframe(ctx context.Context, ffprobe, tape string) (int, error) {
+// keyframeHeights is the tallest and the last keyframe on the tape; only keyframes are decoded, since a resolution change needs a new sequence header on an IDR.
+func keyframeHeights(ctx context.Context, ffprobe, tape string) (tallest, last int, err error) {
 	out, err := exec.CommandContext(ctx, ffprobe, "-v", "error", "-select_streams", "v", "-skip_frame", "nokey",
 		"-show_entries", "frame=height", "-of", "csv=p=0", tape).Output()
 	if err != nil {
-		return 0, fmt.Errorf("reading the tape's keyframe heights: %w", err)
+		return 0, 0, fmt.Errorf("reading the tape's keyframe heights: %w", err)
 	}
-	tallest := 0
 	for f := range strings.FieldsSeq(string(out)) {
-		tallest = max(tallest, atoi(strings.TrimSuffix(f, ",")))
+		last = atoi(strings.TrimSuffix(f, ","))
+		tallest = max(tallest, last)
 	}
-	return tallest, nil
+	return tallest, last, nil
 }
 
 // longestFreeze walks the pictures in the order they were written, keeping the widest step forward past every one before it.

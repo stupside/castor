@@ -2,6 +2,7 @@
 package codec
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -24,6 +25,11 @@ type Inputs struct {
 	Into      container.Format
 	Decode    media.Axes
 	MaxHeight media.HeightCap
+	// MaxBitrate bounds what the device is asked to take; Rate is what a copy weighs, 0 where unmeasured.
+	MaxBitrate media.Bitrate
+	Rate       media.Bitrate
+	// KeepAudio is the audio codec a running delivery carries, which a device cannot switch away from mid-stream.
+	KeepAudio media.Codec
 	// Spliced is a source stitched from pieces encoded apart, or live and free to become so, which only a re-encode hands over as one stream.
 	Spliced bool
 	BurnIn  string
@@ -57,10 +63,11 @@ func (p Plan) Copied() media.Axes {
 func Served(ctx context.Context, in Inputs) (Plan, error) {
 	if len(in.Caps.Formats) > 0 {
 		var best Plan
-		score := 4
+		var bestStanding standing
+		found := false
 		var last error
 		for _, f := range in.Caps.Formats {
-			if f.Transport.ContentType() != in.Into.ContentType {
+			if f.Transport.ContentType() != in.Into.ContentType || (in.KeepAudio != "" && f.Audio.Codec != in.KeepAudio) {
 				continue
 			}
 			candidate := in
@@ -70,36 +77,85 @@ func Served(ctx context.Context, in Inputs) (Plan, error) {
 				last = err
 				continue
 			}
-			// A video encode outweighs an audio one, so a tie never re-encodes the picture to spare the sound.
-			cost := 0
-			axes := plan.Encoded()
-			if axes.Video {
-				cost += 2
-			}
-			if axes.Audio {
-				cost++
-			}
-			if cost < score {
-				best, score = plan, cost
+			if s := standingOf(in, plan); !found || s.before(bestStanding) {
+				best, bestStanding, found = plan, s, true
 			}
 		}
-		if score < 4 {
+		switch {
+		case found:
 			return best, nil
+		case last != nil:
+			return Plan{}, fmt.Errorf("no usable receiver combination for %s: %w", in.Into.ContentType, last)
+		case in.KeepAudio != "":
+			return Plan{}, fmt.Errorf("no receiver format for %s carries the kept %s audio", in.Into.ContentType, in.KeepAudio)
 		}
-		return Plan{}, fmt.Errorf("no usable receiver combination for %s: %v", in.Into.ContentType, last)
+		return Plan{}, fmt.Errorf("no receiver format for %s", in.Into.ContentType)
 	}
 
 	return Plan{}, fmt.Errorf("no playback envelopes advertised")
 }
 
+// servedTracks plans the sound first, so the picture is proven and given its budget against the cast that sound makes.
 func servedTracks(ctx context.Context, in Inputs) (Plan, error) {
-	video, videoRefusals, err := decideVideo(ctx, in)
+	audio, audioRefusals, audioErr := decideAudio(in)
+	// An encoded sound replaces the source's, of unknown weight where nobody weighed it.
+	if enc, ok := audio.Encode(); ok && in.Rate > 0 {
+		in.Rate += max(0, enc.Bitrate-in.Probe.AudioBitrate)
+	}
+	video, videoRefusals, err := decideVideo(ctx, in, weighs(in, audio))
 	if err != nil {
 		return Plan{}, fmt.Errorf("planning video: %w", err)
 	}
-	audio, audioRefusals, err := decideAudio(in)
-	if err != nil {
-		return Plan{}, fmt.Errorf("planning audio: %w", err)
+	if audioErr != nil {
+		return Plan{}, fmt.Errorf("planning audio: %w", audioErr)
 	}
 	return Plan{Video: video, Audio: audio, Refusals: append(videoRefusals, audioRefusals...)}, nil
+}
+
+// standing ranks one device format's plan against another's; lower comes first, field by field.
+type standing struct {
+	// floored is a plan with bitrate-floor, which loses to any that keeps under its ceiling.
+	floored int
+	// cost counts a video encode above an audio one, so a tie never re-encodes the picture to spare the sound.
+	cost int
+	// squeezed is a picture the sound takes budget from; only then does the ceiling weigh one sound against another.
+	squeezed int
+	// heavier is a sound encoded above both its source's known weight and the lightest target.
+	heavier int
+	// channels and sound prefer the richest sound, then the lightest.
+	channels int
+	sound    media.Bitrate
+}
+
+func standingOf(in Inputs, p Plan) standing {
+	var s standing
+	axes := p.Encoded()
+	if axes.Video {
+		s.cost += 2
+	}
+	if axes.Audio {
+		s.cost++
+	}
+	if in.MaxBitrate == 0 {
+		return s
+	}
+	if slices.Contains(p.Refusals, reasonBitrateFloor) {
+		s.floored = 1
+	}
+	sound := weighs(in, p.Audio)
+	if v, ok := p.Video.Encode(); !ok || v.Bitrate < streamBudget(in.MaxBitrate)-sound {
+		return s
+	}
+	s.squeezed = 1
+	if source := in.Probe.AudioBitrate; source > 0 && sound > max(source, floorAudio.bitrate) {
+		s.heavier = 1
+	}
+	a, _ := p.Audio.Encode()
+	s.channels, s.sound = a.Channels, sound
+	return s
+}
+
+func (s standing) before(o standing) bool {
+	return cmp.Or(cmp.Compare(s.floored, o.floored), cmp.Compare(s.cost, o.cost), cmp.Compare(s.squeezed, o.squeezed),
+		cmp.Compare(s.heavier, o.heavier), cmp.Compare(o.channels, s.channels), cmp.Compare(s.sound, o.sound)) < 0
 }

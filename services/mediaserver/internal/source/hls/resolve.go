@@ -14,7 +14,7 @@ import (
 // Resolve narrows the source to the rendition to read and builds the program around it.
 func (f Format) Resolve(ctx context.Context, env source.Env, s source.Subject) (source.Resolution, error) {
 	stream := s.Stream
-	origin, chosen, primaryRelaxed, err := inspect(ctx, env, stream, s.Origin, s.Chosen, f.ProbeRendition)
+	origin, chosen, primaryRelaxed, err := inspect(ctx, env, stream, s.Origin, s, f.ProbeRendition)
 	if err != nil {
 		return source.Resolution{Origin: origin}, err
 	}
@@ -67,7 +67,7 @@ func (f Format) Resolve(ctx context.Context, env source.Env, s source.Subject) (
 }
 
 // inspect narrows a source to the single rendition to read and returns what the source published; relaxed is also true whenever that stays unknown, which licenses no self-fetch.
-func inspect(ctx context.Context, env source.Env, stream source.Stream, origin source.Origin, settled source.Rendition, probeRendition func(context.Context, *url.URL, http.Header) (media.ProbeInfo, error)) (_ source.Origin, _ source.Rendition, relaxed bool, _ error) {
+func inspect(ctx context.Context, env source.Env, stream source.Stream, origin source.Origin, subject source.Subject, probeRendition func(context.Context, *url.URL, http.Header) (media.ProbeInfo, error)) (_ source.Origin, _ source.Rendition, relaxed bool, _ error) {
 	doc, status, err := readPlaylist(ctx, env.Client, stream.URL, stream.Headers)
 	if err != nil {
 		slog.WarnContext(ctx, "HLS playlist resolution failed, using original", "error", err, "status", status)
@@ -97,7 +97,7 @@ func inspect(ctx context.Context, env source.Env, stream source.Stream, origin s
 	if len(origin.Renditions) == 0 {
 		return origin, source.Rendition{}, false, fmt.Errorf("HLS playlist offers no video rendition")
 	}
-	chosen := env.Choose(ctx, origin, settled, byAudioPreference(languages))
+	chosen := env.Choose(ctx, origin, subject, byAudioPreference(languages))
 
 	// Segment facts are stated by the document that LISTS the segments (chosen variant's own playlist).
 	segments := doc

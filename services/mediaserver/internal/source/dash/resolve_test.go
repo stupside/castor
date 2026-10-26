@@ -32,7 +32,7 @@ func resolveWith(t *testing.T, body string, chosen source.Rendition, ceiling med
 	t.Helper()
 	resolver := source.NewResolver(&sourcetest.Document{Body: body, Status: http.StatusOK}, ceiling, nil, source.Formats{Format{}})
 	stream := &source.Stream{URL: sourcetest.URL(t, "https://origin.example/manifest.mpd"), ContentType: media.DASH}
-	resolved, err := resolver.Resolve(t.Context(), stream, chosen)
+	resolved, err := resolver.Resolve(t.Context(), stream, chosen, 0)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -43,6 +43,33 @@ func TestARungSettledEarlierIsReadAgain(t *testing.T) {
 	resolved := resolveWith(t, ffmpegPresentation, source.Rendition{Representation: "1"}, 1080)
 	if got := resolved.Rendition.Representation; got != "1" {
 		t.Errorf("a recovery asking for representation 1 read %q", got)
+	}
+}
+
+func TestARungWeighsTheSoundReadBesideIt(t *testing.T) {
+	const body = `<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT1H"><Period>
+  <AdaptationSet contentType="video">
+    <Representation id="1080" codecs="avc1.640028" bandwidth="6000000" height="1080"/>
+    <Representation id="720" codecs="avc1.64001f" bandwidth="2400000" height="720"/>
+    <Representation id="480" codecs="avc1.64001e" bandwidth="1200000" height="480"/>
+    <Representation id="muxed" codecs="avc1.64001e,mp4a.40.2" bandwidth="1000000" height="360"/>
+  </AdaptationSet>
+  <AdaptationSet contentType="audio"><Representation id="sound" codecs="mp4a.40.2" bandwidth="128000"/></AdaptationSet>
+</Period></MPD>`
+	resolver := source.NewResolver(&sourcetest.Document{Body: body, Status: http.StatusOK}, 1080, nil, source.Formats{Format{}})
+	stream := &source.Stream{URL: sourcetest.URL(t, "https://origin.example/manifest.mpd"), ContentType: media.DASH}
+	// 2.4 Mbit/s of picture fits under 2.45, but not with the sound it is read with.
+	resolved, err := resolver.Resolve(t.Context(), stream, source.Rendition{}, 2_450_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := resolved.Rendition; got.Representation != "480" || got.Bitrate != 1_328_000 {
+		t.Errorf("chosen %s at %d, want the 480 rung at its 1.2 Mbit/s and the sound's 128 kbit/s", got.Representation, got.Bitrate)
+	}
+	for _, r := range resolved.Origin.Renditions {
+		if r.Representation == "muxed" && r.Bitrate != 1_000_000 {
+			t.Errorf("a rung whose segments carry their sound weighs %d, want its own 1000000", r.Bitrate)
+		}
 	}
 }
 
@@ -131,7 +158,7 @@ func TestDASHAudioFollowsOrderedLanguagePreferences(t *testing.T) {
 	} {
 		resolver := source.NewResolver(&sourcetest.Document{Body: body, Status: http.StatusOK}, 1080, tc.preferences, source.Formats{Format{}})
 		stream := &source.Stream{URL: sourcetest.URL(t, "https://origin.example/manifest.mpd"), ContentType: media.DASH}
-		got, err := resolver.Resolve(t.Context(), stream, source.Rendition{})
+		got, err := resolver.Resolve(t.Context(), stream, source.Rendition{}, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -151,7 +178,7 @@ func TestAPresentationUnderDRMIsRefused(t *testing.T) {
   </AdaptationSet></Period></MPD>`
 	resolver := source.NewResolver(&sourcetest.Document{Body: body, Status: http.StatusOK}, 1080, nil, source.Formats{Format{}})
 	stream := &source.Stream{URL: sourcetest.URL(t, "https://origin.example/manifest.mpd"), ContentType: media.DASH}
-	if _, err := resolver.Resolve(t.Context(), stream, source.Rendition{}); err == nil || !strings.Contains(err.Error(), "cenc") {
+	if _, err := resolver.Resolve(t.Context(), stream, source.Rendition{}, 0); err == nil || !strings.Contains(err.Error(), "cenc") {
 		t.Errorf("Resolve = %v, want a refusal naming the protection", err)
 	}
 }

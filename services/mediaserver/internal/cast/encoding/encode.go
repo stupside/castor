@@ -32,6 +32,8 @@ type EncodeOptions struct {
 	Format container.Format               // Container to produce.
 	Video  codec.Track[codec.VideoEncode] // Video axis of the encode.
 	Audio  codec.Track[codec.AudioEncode] // Audio axis of the encode.
+	// KeepTimeline keeps the input's timestamps, so encodes of one buffer from different places join into one timeline.
+	KeepTimeline bool
 }
 
 // Verbatim reports whether this encode would only re-mux the spool it reads into the same stream.
@@ -43,9 +45,9 @@ func (o EncodeOptions) Verbatim() bool {
 		o.Format.Delivery == container.DeliverStream
 }
 
-func encodeInputArgs(in EncodeInput) []string {
+func encodeInputArgs(in EncodeInput, keepTimeline bool) []string {
 	if !in.piped {
-		return sourceInputArgs(in.source)
+		return sourceInputArgs(in.source, keepTimeline)
 	}
 	args := paceArgs(in.pace, false)
 	args = append(args, demuxFlags...)
@@ -101,8 +103,11 @@ func EncodeArgs(opts EncodeOptions) (ffmpeg.Command, error) {
 	}
 
 	args := []string{"-hide_banner", "-nostats", "-loglevel", "level+warning"}
+	if opts.KeepTimeline {
+		args = append(args, "-copyts")
+	}
 	args = append(args, hardwareInitArgs(opts.Video)...)
-	args = append(args, encodeInputArgs(opts.Input)...)
+	args = append(args, encodeInputArgs(opts.Input, opts.KeepTimeline)...)
 	args = append(args, encodeMapArgs(opts)...)
 	args = append(args, codecs...)
 	args = append(args, "-strict", "-2")

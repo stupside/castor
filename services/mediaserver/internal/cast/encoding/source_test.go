@@ -211,3 +211,22 @@ func TestAResumedProgramSeeksEveryInputBeforeOpeningIt(t *testing.T) {
 		}
 	}
 }
+
+func TestAKeptTimelineOpensEveryInputAtTheStartWithoutRealigningIt(t *testing.T) {
+	program := mustProgram(t, media.Program{Inputs: []media.Input{
+		{ID: "video", URL: mustURL(t, "https://media.test/video.mp4"), ContentType: media.MP4},
+		{ID: "audio", URL: mustURL(t, "https://media.test/audio.m4a"), ContentType: media.MP4},
+	}, Tracks: []media.TrackRef{{Input: "video", Kind: media.TrackVideo}, {Input: "audio", Kind: media.TrackAudio}}, ClockInput: "video",
+		Offsets: map[media.InputID]time.Duration{"audio": 1250 * time.Millisecond}, EndPolicy: media.EndAtShortest, Start: 10 * time.Second})
+	opts := copyingPull(mustProgramSource(t, program, nil))
+	opts.KeepTimeline = true
+	args := mustPullArgs(t, opts)
+	if slices.Contains(args, "-itsoffset") {
+		t.Errorf("a kept timeline already aligns its inputs, yet one is shifted: %q", args)
+	}
+	for _, input := range []string{"video.mp4", "audio.m4a"} {
+		if !containsSequence(args, []string{"-ss", "10", "-i", "https://media.test/" + input}) {
+			t.Errorf("%s is not opened at the program's start: %q", input, args)
+		}
+	}
+}

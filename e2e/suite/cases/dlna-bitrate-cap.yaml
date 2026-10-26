@@ -1,0 +1,18 @@
+# max_bitrate is the operator's ceiling on the device's link: a source measured under it is still copied.
+stream:
+  packaging: hls-ts
+  video: {codec: h264, height: 360}
+  audio: {codec: aac, channels: 2}
+receiver:
+  device:
+    dlna:
+      sink: "http-get:*:video/mp2t:DLNA.ORG_PN=AVC_TS_HD_AAC_ISO,http-get:*:audio/mp4:DLNA.ORG_PN=AAC_ISO"
+      decodes:
+        video: {h264: 8}
+        audio: {aac: 2}
+castor:
+  cast:
+    max_bitrate: 1M
+expect:
+  delivery: served
+  video: copied

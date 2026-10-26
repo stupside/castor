@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/stupside/castor/internal/telemetry"
@@ -37,6 +38,97 @@ type Stream struct {
 	spool    *storage.Spool
 	owned    bool
 	audience streamAudience
+	run      atomic.Pointer[run]
+}
+
+// run is the stream as served: its buffer, and the one it carries on with.
+type run struct {
+	spool *storage.Spool
+	next  *successor
+}
+
+// successor is the buffer the stream carries on with from byte at.
+type successor struct {
+	at    int64
+	spool *storage.Spool
+}
+
+// Continue serves next after byte at, false where a client was written too close to at.
+func (s *Stream) Continue(at int64, next *storage.Spool) bool {
+	r := s.run.Load()
+	if handed, _ := s.audience.handed(); r.next != nil || at < handed+cutMargin {
+		return false
+	}
+	carried := *r
+	carried.next = &successor{at: at, spool: next}
+	return s.run.CompareAndSwap(r, &carried)
+}
+
+// cutMargin is how far past what any client was written a cut must lie, so no client is mid-write across it.
+const cutMargin = 128 << 10
+
+// snapshot counts the buffer the stream carries on with.
+func (s *Stream) snapshot() (int64, bool) {
+	r := s.run.Load()
+	size, final := r.spool.Snapshot()
+	if r.next != nil {
+		tail, tailFinal := r.next.spool.Snapshot()
+		return r.next.at + tail, tailFinal
+	}
+	return size, final
+}
+
+// tailAt reads the current run from offset, across into its successor.
+func (s *Stream) tailAt(ctx context.Context, offset int64) (*joinedTail, error) {
+	r := s.run.Load()
+	t := &joinedTail{s: s, ctx: ctx, pos: offset}
+	if r.next != nil && offset >= r.next.at {
+		t.switched = true
+		cur, err := r.next.spool.TailAt(ctx, offset-r.next.at)
+		t.cur = cur
+		return t, err
+	}
+	cur, err := r.spool.TailAt(ctx, offset)
+	t.cur = cur
+	return t, err
+}
+
+// joinedTail reads the stream across into the buffer it carries on with.
+type joinedTail struct {
+	s        *Stream
+	ctx      context.Context
+	cur      io.ReadCloser
+	pos      int64
+	switched bool
+}
+
+func (t *joinedTail) Read(p []byte) (int, error) {
+	if next := t.s.run.Load().next; next != nil && !t.switched {
+		if t.pos >= next.at {
+			if err := t.carryOn(next); err != nil {
+				return 0, err
+			}
+		} else {
+			p = p[:min(int64(len(p)), next.at-t.pos)]
+		}
+	}
+	n, err := t.cur.Read(p)
+	t.pos += int64(n)
+	return n, err
+}
+
+func (t *joinedTail) carryOn(next *successor) error {
+	_ = t.cur.Close()
+	cur, err := next.spool.TailAt(t.ctx, t.pos-next.at)
+	t.cur, t.switched = cur, true
+	return err
+}
+
+func (t *joinedTail) Close() error {
+	if t.cur == nil {
+		return nil
+	}
+	return t.cur.Close()
 }
 
 func NewStream(o output.Opening, dir string) (*Stream, error) {
@@ -55,7 +147,9 @@ func NewStream(o output.Opening, dir string) (*Stream, error) {
 
 // ServeSpool borrows sp; the caller retains ownership of its writer and storage.
 func ServeSpool(o output.Opening, sp *storage.Spool) *Stream {
-	return &Stream{o: o, spool: sp, audience: streamAudience{lastDisconnect: time.Now()}}
+	s := &Stream{o: o, spool: sp, audience: streamAudience{lastDisconnect: time.Now()}}
+	s.run.Store(&run{spool: sp})
+	return s
 }
 
 // Write consumes producer synchronously. The caller owns and interrupts the reader.
@@ -83,7 +177,7 @@ func (s *Stream) Artifact() output.Artifact {
 	return output.Artifact{
 		Path:    s.spool.ProbePath(),
 		Subject: "the stream output",
-		Landed:  func() (int64, error) { n, _ := s.spool.Snapshot(); return n, nil },
+		Landed:  func() (int64, error) { n, _ := s.snapshot(); return n, nil },
 		Grace:   firstBytesTimeout,
 	}
 }
@@ -97,7 +191,7 @@ func (s *Stream) Close() error {
 
 func (s *Stream) Wait(ctx context.Context, produced <-chan struct{}) error {
 	err := output.Settle(ctx, produced, func() bool { return s.audience.settled(s.o.IdleGrace) })
-	return errors.Join(err, s.spool.Err())
+	return errors.Join(err, s.Err())
 }
 
 // served is the stretch of the stream one response carries, and the status that states it.
@@ -111,7 +205,7 @@ type served struct {
 }
 
 func (s *Stream) resume(rangeHeader string) (served, string) {
-	if s.spool.Live() {
+	if s.run.Load().spool.Live() {
 		return s.resumeLive(rangeHeader), ""
 	}
 	whole := served{code: http.StatusOK, start: 0, end: -1, total: -1}
@@ -135,7 +229,7 @@ func (s *Stream) resume(rangeHeader string) (served, string) {
 	if s.rangesDeclined() {
 		return refuse("this delivery's own response headers declare Accept-Ranges: none")
 	}
-	total, final := s.spool.Snapshot()
+	total, final := s.snapshot()
 	switch {
 	case !final:
 		return refuse("the producer is still running, so no response can state where this stream ends")
@@ -194,7 +288,7 @@ func (s *Stream) severed(ctx context.Context, r *http.Request, err error, held i
 		slog.InfoContext(ctx, "stream client disconnected", "from", r.RemoteAddr, "bytes_sent", held, "error", err)
 		return
 	}
-	_, final := s.spool.Snapshot()
+	_, final := s.snapshot()
 	slog.WarnContext(ctx, "severed a client that stopped draining the stream; unless it reconnects with a Range it restarts the program from the beginning",
 		"from", r.RemoteAddr,
 		"user_agent", r.UserAgent(),
@@ -220,7 +314,7 @@ func (s *Stream) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tail, err := s.spool.TailAt(ctx, sv.start)
+	tail, err := s.tailAt(ctx, sv.start)
 	if err != nil {
 		if errors.Is(err, storage.ErrSpoolExpired) {
 			http.Error(w, err.Error(), http.StatusGone)
@@ -264,7 +358,7 @@ func (s *Stream) admit(ctx context.Context, w http.ResponseWriter, r *http.Reque
 			"from", r.RemoteAddr, "user_agent", r.UserAgent(), "range", asked, "reason", refused)
 	}
 	if sv.code == http.StatusGone {
-		first, end := s.spool.Retained()
+		first, end := s.run.Load().spool.Retained()
 		w.Header().Set("X-Castor-Retained-Bytes", fmt.Sprintf("%d-%d", first, end))
 		http.Error(w, storage.ErrSpoolExpired.Error(), sv.code)
 		return sv, false
@@ -292,6 +386,7 @@ func (s *Stream) respond(w http.ResponseWriter, sv served) error {
 	return http.NewResponseController(w).Flush()
 }
 
+// send credits the audience only while gen is the current run.
 func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Request, sv served, tail io.Reader) (reachedEOF bool) {
 	// remaining is how many bytes this response still owes, and -1 when it owes the rest of the stream.
 	remaining := int64(-1)
@@ -365,7 +460,14 @@ func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Reques
 }
 
 // Err is the producer failure retained by this delivery.
-func (s *Stream) Err() error { return s.spool.Err() }
+func (s *Stream) Err() error {
+	r := s.run.Load()
+	err := r.spool.Err()
+	if r.next != nil {
+		err = errors.Join(err, r.next.spool.Err())
+	}
+	return err
+}
 
 func (s *Stream) Audience() health.Audience { return s }
 func (s *Stream) Settled(made media.Progress) error {

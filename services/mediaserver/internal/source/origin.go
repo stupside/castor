@@ -29,11 +29,15 @@ type Origin struct {
 	Duration time.Duration
 }
 
-// Choose is the rung a cast reads: the best the ceiling admits by preferred, else the shortest on offer.
-func (o Origin) Choose(ceiling media.HeightCap, preferred func(a, b Rendition) int) Rendition {
-	admitted := slices.DeleteFunc(slices.Clone(o.Renditions), func(r Rendition) bool { return !ceiling.Admits(r.Height) })
-	if len(admitted) > 0 {
-		return slices.MaxFunc(admitted, preferred)
+// Choose is the best rung within both ceilings, else the lightest within the height, else the shortest.
+func (o Origin) Choose(height media.HeightCap, ceiling media.Bitrate, preferred func(a, b Rendition) int) Rendition {
+	admitted := slices.DeleteFunc(slices.Clone(o.Renditions), func(r Rendition) bool { return !height.Admits(r.Height) })
+	if len(admitted) == 0 {
+		return slices.MinFunc(o.Renditions, func(a, b Rendition) int { return cmp.Compare(a.Height, b.Height) })
 	}
-	return slices.MinFunc(o.Renditions, func(a, b Rendition) int { return cmp.Compare(a.Height, b.Height) })
+	if light := slices.DeleteFunc(slices.Clone(admitted), func(r Rendition) bool { return !r.Within(ceiling) }); len(light) > 0 {
+		return slices.MaxFunc(light, preferred)
+	}
+	// Every rung outweighs the ceiling: the lightest, which the plan then encodes down.
+	return slices.MinFunc(admitted, ByBitrate)
 }

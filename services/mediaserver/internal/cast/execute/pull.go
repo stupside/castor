@@ -8,11 +8,15 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/splice"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/splice/mpegts"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/teardown"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -24,15 +28,35 @@ type pull struct {
 	pcmOut *io.PipeWriter
 
 	floor codec.Plan
+	// probe is what the source was measured to hold, reused by a read of it from elsewhere.
+	probe media.ProbeInfo
 	spool *storage.Spool
+	// timeline is a read keeping the source's clock, so its media is counted from its keyframes: ffmpeg's account starts at the first picture's time.
+	timeline bool
+	// index lists the spool's keyframes, which a delivery cuts at; nil for a live read, which keeps no past.
+	index *splice.Index
 	proc  *ffmpeg.Process
 
-	// done is closed once the read has ended, publishing err with it.
+	stop func()
+	// begins is where in the program the read started.
+	begins time.Duration
+	// continuedBy is the read that took this one's place, which is then what is said of the read.
+	continuedBy atomic.Pointer[continuation]
+
+	// done is closed once this read has ended, publishing err with it; Done follows the reads that carried it on.
 	done chan struct{}
 	err  error
 }
 
 var _ health.Producer = (*pull)(nil)
+
+// continuation is a read taking another's place where it got to, for another rung of the source.
+type continuation struct {
+	next *pull
+}
+
+// spoolFraming is how the read's buffer, always MPEG-TS, is cut.
+func spoolFraming() splice.Framing { return mpegts.Framing{} }
 
 // pullSpec is everything one upstream read starts with.
 type pullSpec struct {
@@ -44,15 +68,20 @@ type pullSpec struct {
 	floor      codec.Plan
 	// pcmRate is the rate of the PCM tee a transcription reads, zero for none.
 	pcmRate int
+	// keepTimeline keeps the source's clock, so the read can be carried on from another rung of the same program.
+	keepTimeline bool
+	begins       time.Duration
 }
 
-func startPull(ctx context.Context, spec pullSpec) (*pull, error) {
+func startPull(parent context.Context, spec pullSpec) (*pull, error) {
+	ctx, stop := context.WithCancel(parent)
 	openSpool := storage.NewSpool
 	if spec.live {
 		openSpool = storage.NewLiveSpool
 	}
 	sp, err := openSpool(spec.spoolPath)
 	if err != nil {
+		stop()
 		return nil, err
 	}
 	var (
@@ -65,6 +94,7 @@ func startPull(ctx context.Context, spec pullSpec) (*pull, error) {
 	}
 	proc, err := startPuller(ctx, spec, pcmOut)
 	if err != nil {
+		stop()
 		sp.CloseWrite(err)
 		_ = sp.Close()
 		if pcmOut != nil {
@@ -73,7 +103,10 @@ func startPull(ctx context.Context, spec pullSpec) (*pull, error) {
 		}
 		return nil, err
 	}
-	p := &pull{pcm: pcm, pcmOut: pcmOut, floor: spec.floor, spool: sp, proc: proc, done: make(chan struct{})}
+	p := &pull{pcm: pcm, pcmOut: pcmOut, floor: spec.floor, probe: spec.probe, spool: sp, proc: proc, stop: stop, begins: spec.begins, timeline: spec.keepTimeline && !spec.live, done: make(chan struct{})}
+	if !spec.live {
+		p.index = splice.NewIndex(spoolFraming())
+	}
 
 	go p.run(ctx)
 	return p, nil
@@ -88,6 +121,7 @@ func startPuller(ctx context.Context, spec pullSpec, pcmOut *io.PipeWriter) (*ff
 		Audio:         spec.floor.Audio,
 		Verbose:       slog.Default().Enabled(ctx, slog.LevelDebug),
 		PCMSampleRate: spec.pcmRate,
+		KeepTimeline:  spec.keepTimeline,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("building the puller command line: %w", err)
@@ -123,7 +157,13 @@ func (p *pull) run(ctx context.Context) {
 		}()
 	}
 
-	_, err := io.Copy(p.spool, p.proc.Stdout)
+	var spooled io.Writer = p.spool
+	if p.index != nil {
+		// The spool first: a cut is only listed once its bytes can be read.
+		spooled = io.MultiWriter(p.spool, p.index)
+		defer p.index.Close()
+	}
+	_, err := io.Copy(spooled, p.proc.Stdout)
 	if err != nil {
 		// A reader nobody drains blocks on its pipe, so Wait would never return.
 		p.proc.Kill()
@@ -132,6 +172,11 @@ func (p *pull) run(ctx context.Context) {
 	processErr := p.proc.Wait()
 	if p.proc.Evidence().ExitStatus < 0 {
 		processErr = nil
+	}
+	if p.continuedBy.Load() != nil {
+		// Stopped on purpose, its place taken: what carried it on speaks for the read from now on.
+		p.spool.CloseWrite(nil)
+		return
 	}
 	err = teardown.Failures(ctx, errors.Join(err, processErr, p.proc.SilentFailure()))
 	if err != nil {
@@ -146,27 +191,66 @@ func (p *pull) run(ctx context.Context) {
 	}
 }
 
-// Progress is the sample the process keeps of its own -progress feed (see ffmpeg.Process.Progress).
-func (p *pull) Progress() media.Progress { return p.proc.Progress() }
+// Progress is the process's -progress sample, counted from where this read began, whichever read carried it on.
+func (p *pull) Progress() media.Progress {
+	made := p.proc.Progress()
+	if p.timeline && p.index != nil {
+		made.Position = p.index.Extent()
+	}
+	c := p.continuedBy.Load()
+	if c == nil {
+		return made
+	}
+	later := c.next.Progress()
+	later.Position += c.next.begins - p.begins
+	if later.Position < made.Position {
+		// Another rung starts a little behind where this one got to, and what is said of the read does not go back for it.
+		later.Position = made.Position
+	}
+	return later
+}
 
-// Done is closed once the download has finished, cleanly or not, and the spool's write side with it.
-func (p *pull) Done() <-chan struct{} { return p.done }
+// continueWith ends this read for next, another rung carrying on where it got to.
+func (p *pull) continueWith(next *pull) { p.carryOn(&continuation{next: next}) }
+
+func (p *pull) carryOn(c *continuation) {
+	p.continuedBy.Store(c)
+	p.stop()
+}
+
+// tail is the read that carries on from this one, or this one.
+func (p *pull) tail() *pull {
+	for c := p.continuedBy.Load(); c != nil; c = p.continuedBy.Load() {
+		p = c.next
+	}
+	return p
+}
+
+// Done is closed once the read that speaks for this one has finished, cleanly or not, and its spool's write side with it.
+func (p *pull) Done() <-chan struct{} { return p.tail().done }
 
 func (p *pull) Err() error {
+	t := p.tail()
 	select {
-	case <-p.done:
-		return p.err
+	case <-t.done:
+		return t.err
 	default:
 		return nil
 	}
 }
 
-func (p *pull) Evidence() []string { return p.proc.Evidence().Lines }
+// joined waits for this read alone to end, whoever carried it on, and is how its owner releases it.
+func (p *pull) joined() error {
+	<-p.done
+	return p.err
+}
+
+func (p *pull) Evidence() []string { return p.tail().proc.Evidence().Lines }
 
 // lostMedia reports a read that ended short of what its source declared.
-func (p *pull) lostMedia() bool { return p.proc.LostMedia() }
+func (p *pull) lostMedia() bool { return p.tail().proc.LostMedia() }
 
-func (p *pull) exitStatus() int { return p.proc.Evidence().ExitStatus }
+func (p *pull) exitStatus() int { return p.tail().proc.Evidence().ExitStatus }
 
 // copying is the halves this read passed through untouched, which is what a recovery must stop asking for.
 func (p *pull) copying() media.Axes { return p.floor.Copied() }

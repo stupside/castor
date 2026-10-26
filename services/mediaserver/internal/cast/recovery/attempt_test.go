@@ -21,6 +21,21 @@ func TestSelfFetchHeightIsWhatADeviceCouldChoose(t *testing.T) {
 	}
 }
 
+// A rung the URL pins is what the device fetches; one the manifest addresses may be any of them.
+func TestSelfFetchRateIsTheHeaviestADeviceCouldChoose(t *testing.T) {
+	ladder := source.Origin{Renditions: []source.Rendition{{Representation: "4k", Bitrate: 12_000_000}, {Representation: "hd", Bitrate: 5_000_000}}}
+	if got := (Attempt{Origin: ladder, Rendition: source.Rendition{Representation: "hd", Bitrate: 5_000_000}}).SelfFetchRate(); got != 12_000_000 {
+		t.Errorf("index-addressed SelfFetchRate = %d, want the heaviest rung 12000000", got)
+	}
+	pinned := source.Rendition{URL: &url.URL{Path: "/hd.m3u8"}, Bitrate: 5_000_000}
+	if got := (Attempt{Origin: ladder, Rendition: pinned}).SelfFetchRate(); got != 5_000_000 {
+		t.Errorf("URL-addressed SelfFetchRate = %d, want the pinned 5000000", got)
+	}
+	if got := (Attempt{}).SelfFetchRate(); got != 0 {
+		t.Errorf("SelfFetchRate of a source declaring none = %d, want 0", got)
+	}
+}
+
 func TestAnAttemptBeginsWhereASourceHasAPlaceToBeginAt(t *testing.T) {
 	vod := Attempt{Program: media.Program{Inputs: []media.Input{{}}}, Origin: source.Origin{Duration: time.Hour}}
 	live := Attempt{Program: media.Program{Inputs: []media.Input{{Fetch: media.Fetch{Live: true}}}}}

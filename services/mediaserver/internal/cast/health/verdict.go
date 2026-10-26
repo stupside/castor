@@ -53,6 +53,10 @@ const (
 	Starved
 	// Dead is a producer that ended with nothing playable.
 	Dead
+	// Choked is a device whose link takes less than playback consumes.
+	Choked
+	// Roomy is a device that has run well at a rate lighter than the cast could weigh.
+	Roomy
 	// Unfetched is a device that accepted the URL and never fetched it.
 	Unfetched
 )
@@ -75,6 +79,10 @@ func (k Kind) String() string {
 		return "starved"
 	case Dead:
 		return "dead"
+	case Choked:
+		return "choked"
+	case Roomy:
+		return "roomy"
 	case Unfetched:
 		return "unfetched"
 	default:
@@ -96,6 +104,9 @@ const (
 	// hold pauses the device; release lets it play again.
 	hold
 	release
+	// lighten asks the cast to weigh less, lift to weigh more, while the device plays on.
+	lighten
+	lift
 )
 
 // verdict is the pair the action table is keyed on: what was judged, and in which phase.
@@ -123,5 +134,7 @@ var actions = map[verdict]action{
 
 	{kind: Stalled, phase: Playing}:   abandon,
 	{kind: Starved, phase: Playing}:   abandon,
+	{kind: Choked, phase: Playing}:    lighten,
+	{kind: Roomy, phase: Playing}:     lift,
 	{kind: Unfetched, phase: Playing}: abandon,
 }

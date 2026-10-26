@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package castor.media.v1;
+
+import "buf/validate/validate.proto";
+
+// Bitrate is a rate of media: what a stream weighs, or what a link carries.
+message Bitrate {
+  uint64 bits_per_second = 1 [(buf.validate.field).uint64.gt = 0];
+}

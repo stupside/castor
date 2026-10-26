@@ -25,6 +25,8 @@ type preparation struct {
 	Timelines    Timelines
 	Captions     *Captions
 	MaxHeight    media.HeightCap
+	MaxBitrate   media.Bitrate
+	Resolver     recovery.SourceResolver
 	capabilities media.Capabilities
 	ctx          context.Context
 	attempt      recovery.Attempt
@@ -37,7 +39,7 @@ type preparation struct {
 
 func newPreparation(ctx context.Context, c Cast, a recovery.Attempt, releases *releases, failures chan<- error) *preparation {
 	p := &preparation{Machinery: c.Machinery, Publisher: c.Publisher, Timelines: c.Timelines,
-		Captions: c.Captions, MaxHeight: c.MaxHeight, ctx: ctx, attempt: a, releases: releases, failures: failures}
+		Captions: c.Captions, MaxHeight: c.MaxHeight, MaxBitrate: c.MaxBitrate, Resolver: c.Resolver, ctx: ctx, attempt: a, releases: releases, failures: failures}
 	if c.Device != nil {
 		p.capabilities = c.Device.Capabilities()
 	}
@@ -173,11 +175,13 @@ func (s *preparation) prepare() (string, media.Program, error) {
 // compose is the kind of cast this attempt calls for.
 func (s *preparation) compose() compose.Kind {
 	shape := compose.Shape{
-		Device:    s.playbackCapabilities(),
-		Program:   s.attempt.Program,
-		Delivery:  s.attempt.Delivery,
-		Height:    s.attempt.SelfFetchHeight(),
-		MaxHeight: s.MaxHeight,
+		Device:     s.playbackCapabilities(),
+		Program:    s.attempt.Program,
+		Delivery:   s.attempt.Delivery,
+		Height:     s.attempt.SelfFetchHeight(),
+		MaxHeight:  s.MaxHeight,
+		MaxBitrate: s.MaxBitrate,
+		Rate:       s.attempt.SelfFetchRate(),
 	}
 	kind := compose.For(shape)
 	// Requested transcription needs a buffered PCM feed whenever no usable

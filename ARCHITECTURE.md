@@ -6,15 +6,36 @@ Castor ships three independent services in one binary. They can run embedded or 
 
 ```mermaid
 flowchart LR
-    client[CLI / other clients] --> api[API]
-    api -- page URLs --> scraping[Scraping]
+    client([Clients])
+    web([Webpage / player])
+    origin([Media origin / CDN])
+    device([Device])
+    subgraph apiS["API service, castor.v1"]
+        api["Sessions, device control,<br/>preferences, orchestration"]
+    end
+    subgraph scrapeS["Scraping service, castor.scraping.v1"]
+        scraping["Chrome, frames,<br/>stream discovery"]
+    end
+    subgraph mediaS["Media service, castor.media.v1"]
+        media["Probe, rank, encode,<br/>subtitles, deliver, recover"]
+    end
+    client --> api
+    api -- page URLs --> scraping
     scraping -- stream candidates --> api
-    scraping -- browser requests --> web[Webpage / player]
-    api -- streams + preferences --> media[Media]
-    api -- device commands --> device[Device]
-    media -- manifests + bytes --> origin[Media origin / CDN]
+    scraping -- browser requests --> web
+    api -- streams + preferences --> media
+    api -- device commands --> device
+    media -- manifests + bytes --> origin
     device -- fetch served media --> media
     device -. direct handoff .-> origin
+    classDef apiNode fill:#dbeafe,stroke:#2563eb,color:#111
+    classDef mediaNode fill:#dcfce7,stroke:#16a34a,color:#111
+    classDef scrapeNode fill:#ffedd5,stroke:#ea580c,color:#111
+    classDef outside fill:#f3f4f6,stroke:#6b7280,color:#111
+    class api apiNode
+    class media mediaNode
+    class scraping scrapeNode
+    class client,web,origin,device outside
 ```
 
 | Owner | Responsibility | Contract |
@@ -34,10 +55,14 @@ API creates a cast ID, connects the device, resolves pages and starts media. It 
 
 ```mermaid
 flowchart LR
-    session["API session<br/>Remote lifecycle + device ownership"]
-    cast["Media cast<br/>Measure, rank, recover, end"]
-    attempt["Attempt<br/>Prepare, play, stop, clean up"]
-    health["Playback health<br/>Observe progress + control state"]
+    subgraph apiS["API service"]
+        session["Session<br/>Remote lifecycle + device ownership"]
+    end
+    subgraph mediaS["Media service"]
+        cast["Cast<br/>Measure, rank, recover, end"]
+        attempt["Attempt<br/>Prepare, play, stop, clean up"]
+        health["Playback health<br/>Observe progress + control state"]
+    end
     session -- start / stop --> cast
     cast -- selected source + recovery policy --> attempt
     attempt -- monitor --> health
@@ -46,22 +71,112 @@ flowchart LR
     session -- result through Answer --> attempt
     attempt -- outcome after cleanup --> cast
     cast -- status / terminal result --> session
+    classDef apiNode fill:#dbeafe,stroke:#2563eb,color:#111
+    classDef mediaNode fill:#dcfce7,stroke:#16a34a,color:#111
+    classDef scrapeNode fill:#ffedd5,stroke:#ea580c,color:#111
+    classDef outside fill:#f3f4f6,stroke:#6b7280,color:#111
+    class session apiNode
+    class cast,attempt,health mediaNode
 ```
 
-Each machine owns its transitions and accepts typed events. The cast runs attempts sequentially: recovery can revise delivery or choose another candidate only after the previous attempt has finished cleanup. Health observes and proposes actions; the attempt applies them and reports command outcomes.
+Each machine owns its transitions and accepts typed events. The cast runs attempts sequentially: recovery can revise delivery or choose another candidate only after the previous attempt has finished cleanup. Health observes and proposes actions; the attempt applies them and reports command outcomes. Health judges what the read makes and what the device takes. A device whose link cannot carry the cast is neither held nor sent elsewhere: the delivery changes how it is made while the device plays it, cutting from one encoder to the next, or to a lighter rung of the source, at a keyframe so the device sees one stream, and goes heavier again once the link has room. Candidates are ranked by language first, then picture, then bitrate. See the next section for how.
 
 Within an attempt, operations return typed inputs for the next stage:
 
 ```mermaid
 flowchart LR
-    inspect[Inspect] --> plan[Plan]
-    plan -- served output --> produce[Produce + validate]
-    plan -- eligible source handoff --> ready[Ready]
-    produce --> ready
-    ready --> play[Request Play] --> playing[Playing] --> cleanup[Stop + join + release]
+    subgraph mediaS["Media service: each attempt at a link runs this chain"]
+        inspect[Inspect] --> plan[Plan]
+        plan -- served output --> produce[Produce + validate]
+        plan -- eligible source handoff --> ready[Ready]
+        produce --> ready
+        ready --> play[Request Play] --> playing[Playing] --> cleanup[Stop + join + release]
+    end
+    classDef mediaNode fill:#dcfce7,stroke:#16a34a,color:#111
+    class inspect,plan,produce,ready,play,playing,cleanup mediaNode
 ```
 
 Only a certified ready presentation can request Play. Cancellation or failure from any active stage enters cleanup. The attempt joins preparation, producers and active delivery requests before releasing storage. API joins its Watch and Drive workers before releasing the device. A cast belongs to API independently of UI connections; each service drains its own work on shutdown.
+
+## How a cast picks and changes what it plays
+
+Three decisions, each owned by one part, none knowing the others' rules:
+
+| Decision | Owner | When |
+| --- | --- | --- |
+| Which link to cast | Ranking | Before the cast, and again on recovery |
+| Which rate the device can take | Health watch | While the device plays |
+| How to change the stream without the device noticing | Delivery chain | When the watch asks |
+
+```mermaid
+flowchart LR
+    subgraph scrapeS["Scraping service"]
+        page[Page links]
+    end
+    subgraph mediaS["Media service"]
+        rank[Rank] --> play[Play the best]
+        watch[Health watch]
+    end
+    device([Device])
+    page --> rank
+    play --> device
+    device -- what it takes --> watch
+    watch -- lighter or heavier --> play
+    watch -- failure --> rank
+    classDef apiNode fill:#dbeafe,stroke:#2563eb,color:#111
+    classDef mediaNode fill:#dcfce7,stroke:#16a34a,color:#111
+    classDef scrapeNode fill:#ffedd5,stroke:#ea580c,color:#111
+    classDef outside fill:#f3f4f6,stroke:#6b7280,color:#111
+    class page scrapeNode
+    class rank,play,watch mediaNode
+    class device outside
+```
+
+### Ranking
+
+A page can offer many links, some of them decoys. Each is probed, then dropped, kept as a last resort, or admitted:
+
+- **Dropped:** a browser-internal handle, a link the origin refuses, a link with no moving picture.
+- **Last resort:** a link that could not be measured, one shorter than a feature, a bare MP4 header.
+
+Admitted links are ordered by the first difference in this list: measured before last resort, under the height cap, **sound language asked for (earlier languages win)**, carries a ladder of renditions, picture height, bitrate. Language comes before any quality: a worse picture in the right language beats a better one in another.
+
+A link that is a master playlist lists several renditions. The one read is the best the height cap and the rate ceiling allow, else the lightest.
+
+### Following the device's rate
+
+The source is read once into a buffer on disk. Encoders read that buffer and feed the device, running only about 10 seconds ahead of it, so a change reaches the device within seconds.
+
+The health watch judges the link by how fast the device plays. Every family reports the device's own position (DLNA from its transport, a Chromecast from its media status, a Roku from its media player); it is asked every 5 seconds, and its pace is the media it played per second of wall clock over the last 30 seconds. The pace is measured from when the device's position first moves, after it is asked to play or released from a pause, since the seconds a device takes to start say nothing of its link; a change of rate starts every measure over. A device that cannot say, such as a renderer that answers no position, is judged by the bytes it takes per second against what the cast weighs.
+
+- **Too slow:** a device playing under 0.9 of real time is asked to weigh 0.75 of what it took, never under 1 Mbit/s. A device playing in real time is never lightened, however little it reads: a device that plays what it takes keeps a thin buffer and reads exactly the cast's rate.
+- **Room to spare:** after 3 minutes at a pace of 0.97 or more, a heavier rate is tried (90 seconds once one has held). If the device falls short of it, the old rate is given back at once and that rate is left alone for 10 minutes, then 20, then 40.
+
+Nothing is kept between casts: each starts at the operator's `max_bitrate` and finds the link while it plays. The ceiling bounds the picture and the sound together: a sound whose weight is unknown, or too heavy for its share, is encoded lighter.
+
+### Changing the stream
+
+A change is a cut: the running encoder stops at a keyframe and a new one starts there, so the device sees one continuous stream.
+
+1. If the source has a rung that fits the new rate, it is read from a little before the cut. Otherwise the same rung is encoded lighter.
+2. The cut is a keyframe the running encoder has not reached yet, far enough ahead for the new one to warm up. If the encoder gets there first, the cut is retried further on.
+3. For a rung change the cut must be a keyframe both rungs have, at the same time within 20 ms. If none is found, or the rung carries other codecs or sound, the cast is made lighter on the rung it already reads.
+4. Sound frames the old stream already gave are dropped from the new one, so nothing is heard twice.
+
+Only deliveries served as one growing stream with in-band decoder configuration (MPEG-TS) can be cut this way. How a container is scanned for keyframes is a pluggable framing.
+
+### Falling down
+
+- **A link fails:** recovery tries the cheapest fix first (slower read, different decode, serve instead of hand off) and the next ranked link last. A restart resumes from where the viewer got to.
+
+### Limits
+
+- A cut can lose up to about 150 ms of sound.
+- A rung change resizes the picture; only tested on the e2e receiver, not on every device.
+- Only the video rate changes across a cut. Audio codec and container are fixed at the start.
+- A source with a single rendition is only made lighter by encoding.
+- The disk buffer grows with the film; it needs that much free space in the temporary directory.
+- A bigger buffer in castor does not raise what the device's link carries; it only smooths short dips.
 
 ## Media contracts
 

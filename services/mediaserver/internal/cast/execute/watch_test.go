@@ -123,7 +123,7 @@ func superviseFixture(ctx context.Context, dev Device, d delivery, f feed) error
 	c.move(playbackRequested)
 	c.move(playbackStarted)
 	c.presentation = presentation{delivery: &d, feed: f}
-	c.observeProduction()
+	c.watchProduction()
 	c.observePlayback()
 	c.loop()
 	_, err := c.finish()
@@ -165,7 +165,7 @@ func TestCancellationJoinsHealthControlBeforeReleasingResources(t *testing.T) {
 			return nil
 		})
 		c.launch(healthEnded, func() error {
-			return observeHealth(c.ctx, health.Monitor{Phase: health.Playing, Holdable: true, Audience: fetchingAudience{}}, control)
+			return observeHealth(c.ctx, health.Monitor{Phase: health.Playing, Holdable: true, Audience: fetchingAudience{}}, control, nil)
 		})
 		done := make(chan error, 1)
 		go func() { c.loop(); _, err := c.finish(); done <- err }()

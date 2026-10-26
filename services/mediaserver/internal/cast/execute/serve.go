@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/splice"
+	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
@@ -32,6 +34,16 @@ type delivery struct {
 	sink   output.Output
 	output producer
 	pub    output.Publication
+	// rate changes how the delivery is made while the device plays it, nil for a delivery that cannot.
+	rate switchable
+}
+
+// switchable is a delivery whose rate can change while the device plays it.
+type switchable interface {
+	// Switch makes the delivery as the plan for ceiling says from the returned byte on, zero where what was made stands.
+	Switch(ctx context.Context, ceiling media.Bitrate) (from int64, err error)
+	// Withheld says the delivery is holding itself back for the device.
+	Withheld() bool
 }
 
 // producer is what writes the served bytes, judged by the media it has made rather than bytes a muxer pads.
@@ -60,18 +72,23 @@ func (s *preparation) produce(work string, f feed, opts encodePlan, burn burnRen
 	o := output.Opening{
 		Live:          f.buffered != nil && f.buffered.live || slices.ContainsFunc(f.program.Inputs, func(in media.Input) bool { return in.Fetching().Live }),
 		Format:        opts.Format,
-		Headers:       s.capabilities.ServedHeaders,
+		Headers:       opts.delivery.Capabilities.ServedHeaders,
 		IdleGrace:     idleGrace,
 		WriteDeadline: writeDeadline,
 	}
+	splices := f.buffered != nil && f.buffered.reader.index != nil && burn == nil && opts.delivery.Plan.Splices()
+	var rungs *ladder
+	if splices && f.buffered.transcript == nil {
+		rungs = s.ladder(work)
+	}
+	dir := filepath.Join(work, "delivery")
 	// A burn-in follows the encoder's progress, so only a cast without one can do without an encoder.
 	if f.buffered != nil && burn == nil && opts.Verbatim() {
 		if relay, ok := opts.delivery.Plan.(output.Relayer); ok {
-			return s.relay(relay, o, f.buffered.reader)
+			return s.relay(relay, o, f, opts, dir, splices, rungs)
 		}
 	}
 
-	dir := filepath.Join(work, "delivery")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return delivery{}, fmt.Errorf("creating the delivery directory: %w", err)
 	}
@@ -85,58 +102,86 @@ func (s *preparation) produce(work string, f feed, opts encodePlan, burn burnRen
 	}
 	encoderOpts := opts.EncodeOptions
 	encoderOpts.Format = opts.delivery.Plan.EncoderFormat()
-	var step func(media.Progress)
-	if burn != nil {
-		step = burn.Writer(s.ctx)
-	}
 	prepared, err := opts.delivery.Plan.Prepare(o, dir)
 	if err != nil {
 		return delivery{}, err
 	}
 	s.releases.push(prepared.Output.Close)
-	pub, err := s.Publisher.Publish(s.ctx, prepared.Output.Handler())
+	var d delivery
+	if splices {
+		// Published once wired, since the stream answers seeks through it.
+		if d, err = s.produceChain(f, opts, encoderOpts, prepared, dir, rungs); err == nil {
+			err = s.publish(&d)
+		}
+	} else {
+		d = delivery{sink: prepared.Output}
+		if err = s.publish(&d); err == nil {
+			d.output, err = s.produceOnce(f, encoderOpts, prepared, dir, burn)
+		}
+	}
 	if err != nil {
 		return delivery{}, err
 	}
-	// Requests must stop before the storage they borrow is released.
-	s.releases.publication(pub.Close)
+	if prepared.WatchStorage != nil {
+		s.watchStorage(prepared.WatchStorage)
+	}
+	return d, nil
+}
+
+// produceOnce runs one encoder over what the cast reads, for as long as the cast lasts.
+func (s *preparation) produceOnce(f feed, encoderOpts encoding.EncodeOptions, prepared output.Prepared, dir string, burn burnRenderer) (producer, error) {
+	var step func(media.Progress)
+	if burn != nil {
+		step = burn.Writer(s.ctx)
+	}
 	var tail io.ReadCloser
 	if f.buffered != nil {
 		var err error
 		if tail, err = f.buffered.reader.spool.TailAt(s.ctx, 0); err != nil {
-			return delivery{}, err
+			return nil, err
 		}
 	}
-
 	proc, err := s.startEncoder(encoderOpts, tail, step, dir)
 	if err != nil {
 		if tail != nil {
 			_ = tail.Close()
 		}
-		return delivery{}, err
+		return nil, err
 	}
 	production := startProduction(s.ctx, proc, tail, prepared.Write)
 	s.releases.worker(production.stop, func() error {
 		<-production.Done()
 		return production.Err()
 	})
-	if prepared.WatchStorage != nil {
-		s.watchStorage(prepared.WatchStorage)
-	}
-	return delivery{sink: prepared.Output, output: production, pub: pub}, nil
+	return production, nil
 }
 
-// relay borrows the read's spool; its writer remains owned by that read.
-func (s *preparation) relay(relay output.Relayer, o output.Opening, reader *pull) (delivery, error) {
-	sink := relay.ServeSpool(o, reader.spool)
-	s.releases.push(sink.Close)
-	pub, err := s.Publisher.Publish(s.ctx, sink.Handler())
+// publish serves the delivery's output; requests must stop before the storage they borrow is released.
+func (s *preparation) publish(d *delivery) error {
+	pub, err := s.Publisher.Publish(s.ctx, d.sink.Handler())
 	if err != nil {
-		return delivery{}, err
+		return err
 	}
 	s.releases.publication(pub.Close)
+	d.pub = pub
+	return nil
+}
+
+// relay serves the read's spool, which the read keeps writing, as it is until the delivery must change.
+func (s *preparation) relay(relay output.Relayer, o output.Opening, f feed, opts encodePlan, dir string, splices bool, rungs *ladder) (delivery, error) {
+	reader := f.buffered.reader
+	sink := relay.ServeSpool(o, reader.spool)
+	s.releases.push(sink.Close)
+	d := delivery{sink: sink, output: reader}
+	if stream, ok := sink.(served); ok && splices {
+		a := newAdjustable(s, s.stageSpec(opts, dir, rungs), dir, stream, sink.Audience(), reader, nil)
+		d.output, d.rate = a, a
+	}
+	if err := s.publish(&d); err != nil {
+		return delivery{}, err
+	}
 	slog.InfoContext(s.ctx, "serving the read's buffer without another encoder")
-	return delivery{sink: sink, output: reader, pub: pub}, nil
+	return d, nil
 }
 
 func (d delivery) URL() *url.URL { return d.pub.URL(d.sink.Path()) }
@@ -173,6 +218,10 @@ func starved(f feed, d delivery) (made media.Progress, sent int64, ok bool) {
 	if audience == nil {
 		return made, 0, false
 	}
+	// A delivery that holds itself back for the device has made what the device took, and no more, by choice.
+	if d.rate != nil && d.rate.Withheld() {
+		return made, 0, false
+	}
 	sent, _ = audience.Handed()
 	made = d.output.Progress()
 	return made, sent, made.Bytes > 0 && sent >= made.Bytes
@@ -185,3 +234,59 @@ const (
 	// writeDeadline outlasts a stall verdict, so the watch judges a quiet device before a write gives up.
 	writeDeadline = health.StallWindow + idleGrace
 )
+
+func (s *preparation) stageSpec(opts encodePlan, dir string, rungs *ladder) stageSpec {
+	return stageSpec{
+		plan: func(src *pull, ceiling media.Bitrate) (encoding.EncodeOptions, error) {
+			facts := s.bufferedFacts(src)
+			decided, err := s.decide(opts.delivery.Capabilities, opts.delivery.Plan.Format(), facts, "", false, ceiling, carried(opts.EncodeOptions))
+			if err != nil {
+				return encoding.EncodeOptions{}, err
+			}
+			return encoding.EncodeOptions{Input: encoding.FromPipe(opts.delivery.Plan.Pace(false)), Format: opts.delivery.Plan.EncoderFormat(), Probe: facts.probe, Video: decided.Video, Audio: decided.Audio, KeepTimeline: true}, nil
+		},
+		probe: func(src *pull) media.ProbeInfo { return s.bufferedFacts(src).probe },
+		spawn: func(next encoding.EncodeOptions, from io.Reader) (*ffmpeg.Process, error) {
+			return s.startEncoder(next, from, nil, dir)
+		},
+		ladder: rungs,
+		warm:   &warmth{},
+	}
+}
+
+// produceChain makes a delivery by encoders in turn over the read's buffer, each cut in where the last stopped.
+func (s *preparation) produceChain(f feed, opts encodePlan, encoderOpts encoding.EncodeOptions, prepared output.Prepared, dir string, rungs *ladder) (delivery, error) {
+	stream, ok := prepared.Output.(served)
+	if !ok {
+		return delivery{}, fmt.Errorf("a delivery made by encoders in turn has an output that cannot be carried on")
+	}
+	reader := f.buffered.reader
+	encoderOpts.KeepTimeline = true
+	in, err := splice.Open(s.ctx, reader.spool, 0, nil, nil)
+	if err != nil {
+		return delivery{}, err
+	}
+	proc, err := s.startEncoder(encoderOpts, in, nil, dir)
+	if err != nil {
+		_ = in.Close()
+		return delivery{}, err
+	}
+	audience := prepared.Output.Audience()
+	handed := func() int64 { n, _ := audience.Handed(); return n }
+	spec := s.stageSpec(opts, dir, rungs)
+	chain := startStages(s.ctx, reader, newStage(proc, in, reader, encoderOpts), 0, handed, spec, prepared.Write)
+	s.releases.worker(chain.stop, func() error {
+		<-chain.Done()
+		return chain.Err()
+	})
+	a := newAdjustable(s, spec, dir, stream, audience, reader, chain)
+	return delivery{sink: prepared.Output, output: a, rate: a}, nil
+}
+
+// carried is the audio codec opts gives the device, which a change of rate keeps.
+func carried(opts encoding.EncodeOptions) media.Codec {
+	if audio, encoded := opts.Audio.Encode(); encoded {
+		return audio.Codec
+	}
+	return opts.Probe.AudioCodec
+}

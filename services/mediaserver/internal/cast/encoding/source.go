@@ -140,7 +140,7 @@ func readArgs(p fetch.Policy) []string {
 var demuxFlags = []string{"-fflags", "+genpts+discardcorrupt"}
 
 // sourceInputArgs renders each input with its fetch policy, headers, pace, and where it is read from.
-func sourceInputArgs(source ProgramSource) []string {
+func sourceInputArgs(source ProgramSource, keepTimeline bool) []string {
 	var args []string
 	// A seam's jump is a discontinuity, not a gap (the default 10s stretches it); ffmpeg holds it for the whole read.
 	if source.program.Seamed() {
@@ -150,19 +150,19 @@ func sourceInputArgs(source ProgramSource) []string {
 		args = append(args, demuxFlags...)
 		args = append(args, paceArgs(input.fetch.Pace, source.binary.Catchup)...)
 		args = append(args, source.openArgs(input)...)
-		args = append(args, seekArgs(source.program.Start, input.offset)...)
+		args = append(args, seekArgs(source.program.Start, input.offset, keepTimeline)...)
 		args = append(args, "-i", input.url.String())
 	}
 	return args
 }
 
-// seekArgs open an input at start; offset realigns an input ffmpeg rebased to zero.
-func seekArgs(start, offset time.Duration) []string {
+// seekArgs open an input at start; offset realigns an input ffmpeg rebased to zero, which a kept timeline's raw timestamps already align.
+func seekArgs(start, offset time.Duration, keepTimeline bool) []string {
 	var args []string
 	if start > 0 {
 		args = append(args, "-ss", formatSeconds(start))
 	}
-	if offset != 0 {
+	if offset != 0 && !keepTimeline {
 		args = append(args, "-itsoffset", formatSeconds(offset))
 	}
 	return args

@@ -12,17 +12,17 @@ import (
 // audioTarget is a re-encode target: the bitrate and channel ceiling the codec carries.
 type audioTarget struct {
 	codec       media.Codec
-	bitrate     string
+	bitrate     media.Bitrate
 	maxChannels int
 }
 
 // floorAudio is the stereo codec every device decodes.
-var floorAudio = audioTarget{codec: media.CodecAAC, bitrate: "256k", maxChannels: 2}
+var floorAudio = audioTarget{codec: media.CodecAAC, bitrate: 256_000, maxChannels: 2}
 
 // surroundTargets is every surround codec castor encodes to, in preference order.
 var surroundTargets = []audioTarget{
-	{codec: media.CodecEAC3, bitrate: "384k", maxChannels: 6},
-	{codec: media.CodecAC3, bitrate: "448k", maxChannels: 6},
+	{codec: media.CodecEAC3, bitrate: 384_000, maxChannels: 6},
+	{codec: media.CodecAC3, bitrate: 448_000, maxChannels: 6},
 }
 
 var audioRefusals = slices.Concat([]refusalRule{{
@@ -32,7 +32,20 @@ var audioRefusals = slices.Concat([]refusalRule{{
 }, {
 	reason: reasonSampleRate,
 	when:   func(in Inputs) bool { return in.Probe.AudioSampleRate > media.PlaybackSampleRate },
-}}, audioCarriageRefusals)
+}}, audioCarriageRefusals, []refusalRule{{
+	reason: reasonBitrateLimit,
+	when:   func(in Inputs) bool { return in.MaxBitrate > 0 && !copyFits(in) },
+}})
+
+// copyFits reports whether a copied sound is known to fit the ceiling: weighed alone, or within a whole copy proven under it.
+func copyFits(in Inputs) bool {
+	var picture media.Bitrate
+	if hasPicture(in) {
+		picture = minVideoRate
+	}
+	weighed := in.Probe.AudioBitrate > 0 && streamBudget(in.MaxBitrate)-in.Probe.AudioBitrate >= picture
+	return weighed || in.MaxBitrate.Admits(in.Rate) && !encodesVideo(in)
+}
 
 var audioCarriageRefusals = []refusalRule{{
 	reason: reasonSpliced,
@@ -86,5 +99,20 @@ func decideAudio(in Inputs) (Track[AudioEncode], []Reason, error) {
 			Resync:     in.Spliced,
 		}), refused, nil
 	}
+	if ceilingOnly(refused) {
+		return CopyAudio(), []Reason{reasonBitrateFloor}, nil
+	}
 	return Track[AudioEncode]{}, refused, fmt.Errorf("no supported audio codec for re-encoding %q", in.Probe.AudioCodec)
+}
+
+// weighs is what a planned sound adds to the cast; a copy nobody weighed is reserved the lightest target.
+func weighs(in Inputs, audio Track[AudioEncode]) media.Bitrate {
+	switch audio.Action() {
+	case EncodeTrack:
+		enc, _ := audio.Encode()
+		return enc.Bitrate
+	case CopyTrack:
+		return cmp.Or(in.Probe.AudioBitrate, floorAudio.bitrate)
+	}
+	return 0
 }

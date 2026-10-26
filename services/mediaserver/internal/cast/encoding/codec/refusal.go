@@ -1,6 +1,8 @@
 package codec
 
-// Reason is evidence that made stream-copying one axis unsafe.
+import "slices"
+
+// Reason is evidence that made stream-copying one axis unsafe or too heavy for the ceiling.
 type Reason string
 
 const (
@@ -11,13 +13,20 @@ const (
 	reasonVideoCopyFailed Reason = "video-copy-failed"
 	reasonAudioCopyFailed Reason = "audio-copy-failed"
 	reasonHeightLimit     Reason = "height-limit"
+	reasonBitrateLimit    Reason = "bitrate-limit"
 	reasonHDRPolicy       Reason = "hdr-policy"
 	reasonInterlaced      Reason = "interlaced"
 	reasonRotated         Reason = "rotated"
 	reasonSampleRate      Reason = "sample-rate"
 	reasonSpliced         Reason = "spliced"
 	reasonSubtitleBurnIn  Reason = "subtitle-burn-in"
+
+	// reasonBitrateFloor is a ceiling under the lightest cast castor makes, which is made anyway.
+	reasonBitrateFloor Reason = "bitrate-floor"
 )
+
+// ceilingOnly is a copy refused for the ceiling alone, which stays a copy castor cannot encode: a ceiling lightens a cast, it never stops one.
+func ceilingOnly(refused []Reason) bool { return slices.Equal(refused, []Reason{reasonBitrateLimit}) }
 
 // refusalRule is one row of an axis's copy-refusal table, with reason and when it applies.
 type refusalRule struct {

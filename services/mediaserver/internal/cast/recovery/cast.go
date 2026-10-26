@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/stupside/castor/internal/telemetry"
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/source"
 )
 
@@ -17,9 +18,9 @@ type Runner interface {
 	Run(ctx context.Context, a Attempt) Outcome
 }
 
-// SourceResolver resolves a link, narrowed to a rung once one was chosen.
+// SourceResolver resolves a link, narrowed to a rung once one was chosen and to rungs a rate ceiling leaves.
 type SourceResolver interface {
-	Resolve(ctx context.Context, s *source.Stream, chosen source.Rendition) (source.Resolution, error)
+	Resolve(ctx context.Context, s *source.Stream, chosen source.Rendition, ceiling media.Bitrate) (source.Resolution, error)
 }
 
 // Cast runs attempts until one works, revising while a fault has an answer and refusing once none does.

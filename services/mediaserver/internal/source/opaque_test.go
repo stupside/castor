@@ -38,7 +38,7 @@ func TestDirectFileAudioPreferencesSelectTheTrackAndPreventHandoff(t *testing.T)
 		{nil, 0, "en", media.CodecAAC, true},
 	} {
 		resolver := NewResolver(nil, 1080, tc.preferences, nil)
-		got, err := resolver.Resolve(t.Context(), stream, Rendition{})
+		got, err := resolver.Resolve(t.Context(), stream, Rendition{}, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

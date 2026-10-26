@@ -52,19 +52,19 @@ func videoEncodeArgs(venc codec.VideoEncode) []string {
 	if venc.ToneMap {
 		args = append(args, "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709")
 	}
-	if venc.Bitrate != "" {
-		args = append(args, "-b:v", venc.Bitrate)
+	if venc.Bitrate > 0 {
+		args = append(args, "-b:v", venc.Bitrate.FFmpeg())
 	}
 	// A quality target rather than an average rate, which only the recovery floor asks for.
 	if venc.Quality > 0 {
 		args = append(args, "-crf", strconv.Itoa(venc.Quality))
 	}
 	// VBV cap: bound the instantaneous bitrate so the pacer's fixed send rate is a real ceiling.
-	if venc.Maxrate != "" {
-		args = append(args, "-maxrate", venc.Maxrate)
+	if venc.Maxrate > 0 {
+		args = append(args, "-maxrate", venc.Maxrate.FFmpeg())
 	}
-	if venc.Bufsize != "" {
-		args = append(args, "-bufsize", venc.Bufsize)
+	if venc.Bufsize > 0 {
+		args = append(args, "-bufsize", venc.Bufsize.FFmpeg())
 	}
 	if venc.KeyframeIntervalSec > 0 {
 		args = append(args, "-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", venc.KeyframeIntervalSec))
@@ -121,8 +121,8 @@ func audioEncodeArgs(aenc codec.AudioEncode) []string {
 	if aenc.Channels > 0 {
 		args = append(args, "-ac", strconv.Itoa(aenc.Channels))
 	}
-	if aenc.Bitrate != "" {
-		args = append(args, "-b:a", aenc.Bitrate)
+	if aenc.Bitrate > 0 {
+		args = append(args, "-b:a", aenc.Bitrate.FFmpeg())
 	}
 	return args
 }

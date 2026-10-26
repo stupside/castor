@@ -50,15 +50,19 @@ func feature(periods []placed, live bool) placed {
 	})
 }
 
-// ladder is the video rungs the feature offers as the presentation declares them; a measurement only fills a height it omits, since ffprobe pairs with them by position alone.
-func ladder(p placed, probe *media.ProbeInfo) []source.Rendition {
+// ladder is the feature's video rungs, each weighing its sound too; a measurement only fills an omitted height, since ffprobe pairs them by position.
+func ladder(p placed, probe *media.ProbeInfo, sound *offered) []source.Rendition {
 	video := offers(p.Period, media.TrackVideo)
 	rungs := make([]source.Rendition, len(video))
 	for i, o := range video {
+		bitrate := media.Bitrate(o.rep.Bandwidth)
+		if sound != nil && !o.muxed() {
+			bitrate += media.Bitrate(sound.rep.Bandwidth)
+		}
 		rungs[i] = source.Rendition{
 			Representation: o.rep.Id,
 			Height:         o.height(),
-			Bitrate:        media.Bitrate(o.rep.Bandwidth),
+			Bitrate:        bitrate,
 			Declared:       source.DeclaredEnvelope(o.codecs(), o.height()),
 		}
 	}

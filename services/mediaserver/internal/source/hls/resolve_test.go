@@ -21,7 +21,7 @@ const mediaPlaylist = "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4.0,\nseg0.ts\n
 
 func resolve(t *testing.T, client source.Client, stream *source.Stream) source.Resolution {
 	t.Helper()
-	resolved, err := newTestResolver(client).Resolve(t.Context(), stream, source.Rendition{})
+	resolved, err := newTestResolver(client).Resolve(t.Context(), stream, source.Rendition{}, 0)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestRecoveryKeepsTheHLSRungSettledEarlier(t *testing.T) {
 		"/low.m3u8":    mediaPlaylist, "/high.m3u8": mediaPlaylist,
 	}}
 	chosen := source.Rendition{URL: sourcetest.URL(t, "https://origin.example/low.m3u8")}
-	resolved, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), chosen)
+	resolved, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), chosen, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestCompanionAudioProtectionRefusesTheProgram(t *testing.T) {
 		"/v/1080.m3u8":    mediaPlaylist,
 		"/audio/eng.m3u8": "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"skd://key\",KEYFORMAT=\"com.apple.streamingkeydelivery\"\n#EXTINF:4,\na.m4s\n#EXT-X-ENDLIST\n",
 	}}
-	_, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), source.Rendition{})
+	_, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), source.Rendition{}, 0)
 	if err == nil {
 		t.Fatal("a program with DRM-protected companion audio was accepted")
 	}
@@ -153,7 +153,7 @@ high.m3u8
 		"/master.m3u8": master, "/low.m3u8": mediaPlaylist, "/audio/fr.m3u8": mediaPlaylist,
 	}}
 	resolver := source.NewResolver(client, 1080, []string{"fr", "en"}, source.Formats{Format{}})
-	got, err := resolver.Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), source.Rendition{})
+	got, err := resolver.Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), source.Rendition{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ high.m3u8
 func TestAudioOnlyMasterIsNotAVideoRendition(t *testing.T) {
 	const master = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=128000,CODECS=\"mp4a.40.2\"\naudio.m3u8\n"
 	client := &sourcetest.Documents{ByPath: map[string]string{"/master.m3u8": master}}
-	_, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), source.Rendition{})
+	_, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), source.Rendition{}, 0)
 	if err == nil {
 		t.Fatal("audio-only master was accepted as a video rendition")
 	}
@@ -180,7 +180,7 @@ func TestFreshManifestDoesNotInheritOldCompanionTracks(t *testing.T) {
 		AudioLanguage: "fr",
 		Captions:      []source.Caption{{URL: sourcetest.URL(t, "https://origin.example/old-captions.vtt"), Language: "fr"}},
 	}
-	got, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), prior)
+	got, err := newTestResolver(client).Resolve(t.Context(), hlsAt(t, "https://origin.example/master.m3u8"), prior, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestAPlaylistUnderDRMIsRefusedAndAClearKeyIsNot(t *testing.T) {
 		{`#EXT-X-KEY:METHOD=AES-128,URI="key.bin"`, false},
 	} {
 		body := "#EXTM3U\n#EXT-X-TARGETDURATION:4\n" + tt.key + "\n#EXTINF:4.0,\nseg0.ts\n#EXT-X-ENDLIST\n"
-		_, err := newTestResolver(&sourcetest.Document{Body: body, Status: http.StatusOK}).Resolve(t.Context(), hlsAt(t, "http://a.example/media.m3u8"), source.Rendition{})
+		_, err := newTestResolver(&sourcetest.Document{Body: body, Status: http.StatusOK}).Resolve(t.Context(), hlsAt(t, "http://a.example/media.m3u8"), source.Rendition{}, 0)
 		if refused := err != nil; refused != tt.refused {
 			t.Errorf("%s: Resolve = %v, want refused %v", tt.key, err, tt.refused)
 		}

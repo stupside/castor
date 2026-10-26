@@ -9,6 +9,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/probe"
@@ -54,6 +55,12 @@ type Cast struct {
 
 	// MaxHeight is the tallest picture the cast may show.
 	MaxHeight media.HeightCap
+
+	// Resolver reads the other rungs of a source, which a cast moves between while it plays; nil keeps it on its first.
+	Resolver recovery.SourceResolver
+
+	// MaxBitrate is the most the cast may ask of the device's link, zero for none.
+	MaxBitrate media.Bitrate
 }
 
 // Device is what a cast plays on, connected for the whole cast by whoever lent it, who also closes it.

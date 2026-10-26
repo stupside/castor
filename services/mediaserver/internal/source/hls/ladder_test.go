@@ -10,7 +10,7 @@ import (
 
 // pick is the rung resolution chooses from a document under a cap.
 func pick(doc document, ceiling media.HeightCap) source.Rendition {
-	return source.Origin{Renditions: ladder(doc, nil, "")}.Choose(ceiling, byBitrate)
+	return source.Origin{Renditions: ladder(doc, nil, "")}.Choose(ceiling, 0, source.ByBitrate)
 }
 
 func TestTheRichestRungUnderTheCapIsPicked(t *testing.T) {

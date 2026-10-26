@@ -33,6 +33,9 @@ func (p streamPlan) Pace(burn bool) fetch.Pace {
 	}
 	return fetch.Pace{}
 }
+func (p streamPlan) Splices() bool {
+	return p.format.Framing == media.FramingInBand
+}
 func (streamPlan) Reserve(string) (func() error, error) { return nil, nil }
 func (p streamPlan) Prepare(o output.Opening, dir string) (output.Prepared, error) {
 	o.Format = p.format

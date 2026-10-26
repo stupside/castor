@@ -47,8 +47,9 @@ type Env struct {
 }
 
 // Choose is the rung a cast reads from origin, and says so: the one settled on earlier while the manifest still names it, else the best under the cast's ceiling by preferred.
-func (e Env) Choose(ctx context.Context, origin Origin, settled Rendition, preferred func(a, b Rendition) int) Rendition {
-	chosen := origin.Choose(e.MaxHeight, preferred)
+func (e Env) Choose(ctx context.Context, origin Origin, s Subject, preferred func(a, b Rendition) int) Rendition {
+	settled := s.Chosen
+	chosen := origin.Choose(e.MaxHeight, s.Ceiling, preferred)
 	if i := slices.IndexFunc(origin.Renditions, func(r Rendition) bool {
 		if settled.Representation != "" {
 			return r.Representation == settled.Representation
@@ -62,15 +63,16 @@ func (e Env) Choose(ctx context.Context, origin Origin, settled Rendition, prefe
 		level, msg = slog.LevelWarn, "no rendition under the height cap; reading the shortest on offer and scaling it down"
 	}
 	slog.Log(ctx, level, msg,
-		"height", chosen.Height, "cap", int(e.MaxHeight), "declared_bitrate", int64(chosen.Bitrate),
+		"height", chosen.Height, "cap", int(e.MaxHeight), "declared_bitrate", int64(chosen.Bitrate), "ceiling", int64(s.Ceiling),
 		"representation", chosen.Representation,
 		"renditions", len(origin.Renditions))
 	return chosen
 }
 
-// Subject is the link a format resolves, what is known of its origin so far, and the rung already settled on.
+// Subject is the link a format resolves, what is known of its origin so far, the rung already settled on, and the most the device may be asked to take.
 type Subject struct {
-	Stream Stream
-	Origin Origin
-	Chosen Rendition
+	Stream  Stream
+	Origin  Origin
+	Chosen  Rendition
+	Ceiling media.Bitrate
 }

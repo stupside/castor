@@ -53,7 +53,7 @@ func (p candidateProbe) Inspect(ctx context.Context) (result source.Inspection, 
 			}
 		}
 	}()
-	resolved, err := p.resolver.Resolve(ctx, &stream, source.Rendition{})
+	resolved, err := p.resolver.Resolve(ctx, &stream, source.Rendition{}, 0)
 	if err != nil {
 		return result, err
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // gate holds a buffered cast until its read has proven it can deliver, and its transcription leads.
@@ -33,21 +34,19 @@ func awaitArtifact(ctx context.Context, d delivery) error {
 func readMonitor(reader *pull, m health.Monitor) health.Monitor {
 	m.Producer = reader
 	m.Telemetry = reader
-	m.Landed = func() (int64, error) { return reader.spool.Size(), nil }
+	m.Landed = func() (int64, error) { return reader.tail().spool.Size(), nil }
 	return m
 }
 
 // playingMonitor judges a buffered cast by its read, and one reading its source by the encoder serving it.
-func playingMonitor(f feed, d delivery, aud health.Audience, dev Device) health.Monitor {
-	m := health.Monitor{Subject: "the playing cast", Phase: health.Playing, Audience: aud}
+func playingMonitor(f feed, d delivery, aud health.Audience, maxBitrate media.Bitrate, dev Device) health.Monitor {
+	m := health.Monitor{Subject: "the playing cast", Phase: health.Playing, Audience: aud, Served: d.output, Switchable: d.rate != nil, MaxBitrate: maxBitrate}
 	if p, ok := dev.(health.Playhead); ok {
 		m.Playhead = p
 	}
 	if f.buffered != nil {
 		// Only a read that can get ahead of the device is worth holding the device for.
-		if !f.buffered.live {
-			m.Holdable = true
-		}
+		m.Holdable = !f.buffered.live
 		return readMonitor(f.buffered.reader, m)
 	}
 	m.Producer, m.Telemetry = d.output, d.output
@@ -76,7 +75,7 @@ type playbackControl interface {
 
 // observeHealth applies each decision synchronously in the same worker that
 // reports it to the observer. The health FSM itself has no device dependency.
-func observeHealth(ctx context.Context, m health.Monitor, device playbackControl) error {
+func observeHealth(ctx context.Context, m health.Monitor, device playbackControl, rate switchable) error {
 	observer := health.Observe(m)
 	for {
 		decision, err := observer.Next(ctx)
@@ -88,13 +87,19 @@ func observeHealth(ctx context.Context, m health.Monitor, device playbackControl
 		}
 		switch decision {
 		case health.Pause:
-			err = device.Pause(ctx)
+			err = observer.Applied(ctx, decision, device.Pause(ctx))
 		case health.Resume:
-			err = device.Resume(ctx)
+			err = observer.Applied(ctx, decision, device.Resume(ctx))
+		case health.ChangeRate:
+			if rate == nil {
+				return fmt.Errorf("a delivery that cannot change was asked to")
+			}
+			cut, switchErr := rate.Switch(ctx, observer.Target())
+			err = observer.Rated(ctx, cut, switchErr)
 		default:
 			return fmt.Errorf("unknown playback control decision: %d", decision)
 		}
-		if err := observer.Applied(ctx, decision, err); err != nil {
+		if err != nil {
 			return err
 		}
 	}

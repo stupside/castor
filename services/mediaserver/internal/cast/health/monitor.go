@@ -23,10 +23,19 @@ type Monitor struct {
 	// Audience is the device side (nil until device holds URL).
 	Audience Audience
 
+	// Served maps the bytes the device took to media (nil where unmeasured).
+	Served Telemetry
+
 	Playhead Playhead
 
 	// Holdable says whether the attempt can pause this playback.
 	Holdable bool
+
+	// Switchable is a delivery whose rate can change mid-play.
+	Switchable bool
+
+	// MaxBitrate bounds the rate asked of the device, zero for none.
+	MaxBitrate media.Bitrate
 
 	// Lead is the transcription frontier (nil if no burn-in).
 	Lead Lead

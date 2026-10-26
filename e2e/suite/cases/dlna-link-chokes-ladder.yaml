@@ -1,0 +1,23 @@
+# A link that takes less than the tallest rung weighs: the cast moves to a lighter rung of the source while the device plays, and plays to the end as one stream.
+stream:
+  packaging: hls-ts
+  video: {codec: h264, ladder: [360, 720]}
+  audio: {codec: aac, channels: 2}
+  seconds: 120
+  quirks:
+    weighs: 3M
+receiver:
+  device:
+    dlna:
+      sink: "http-get:*:video/mp2t:DLNA.ORG_PN=AVC_TS_HD_AAC_ISO,http-get:*:audio/mp4:DLNA.ORG_PN=AAC_ISO"
+      decodes:
+        video: {h264: 8}
+        audio: {aac: 2}
+  viewer:
+    takes: {rate: 2M, burst: 32M, for: 25s}
+castor:
+  cast:
+    max_height: 720
+expect:
+  delivery: served
+  video: smallest

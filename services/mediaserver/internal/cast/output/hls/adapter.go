@@ -50,6 +50,9 @@ func (p hlsPlan) EncoderFormat() container.Format {
 	f.Tuning.Args = []string{"-frag_duration", micros, "-min_frag_duration", micros}
 	return f
 }
+
+func (hlsPlan) Splices() bool { return false }
+
 func (p hlsPlan) Pace(burn bool) fetch.Pace {
 	// Every rolling rendition stays at receiver speed, including burn-in.
 	if p.captions != nil || burn {

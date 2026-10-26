@@ -52,6 +52,8 @@ type Plan interface {
 	Format() container.Format
 	EncoderFormat() container.Format
 	Pace(burning bool) fetch.Pace
+	// Splices is whether encoders can take over one after another in what it serves.
+	Splices() bool
 	Reserve(dir string) (func() error, error)
 	Prepare(Opening, string) (Prepared, error)
 }
@@ -60,6 +62,11 @@ type Plan interface {
 // starting another encoder. Other protocols need only implement Plan.
 type Relayer interface {
 	ServeSpool(Opening, *storage.Spool) Output
+}
+
+// Continuer is an output that can carry on from another buffer after a byte of its own.
+type Continuer interface {
+	Continue(at int64, next *storage.Spool) bool
 }
 
 // Adapter accepts complete transport envelopes. An unsupported caption request

@@ -111,34 +111,47 @@ func TestTheArgvRendersTheDecision(t *testing.T) {
 		name:   "a copying pull passes both axes through",
 		args:   mustPullArgs(t, copyingPull(src)),
 		want:   []string{"-c:v", "copy", "-c:a", "copy", "-f", SpoolFormat.Muxer, ffmpeg.StdoutPipe},
-		absent: []string{"-vf", "-bsf:a"},
+		absent: []string{"-vf", "-bsf:a", "-copyts"},
+	}, {
+		name: "a pull that may move to another rung keeps the source's clock",
+		args: mustPullArgs(t, PullOptions{Source: src, Audio: codec.CopyAudio(), Video: codec.CopyVideo(), KeepTimeline: true}),
+		want: []string{"-copyts"},
 	}, {
 		name: "a software floor pull scales to the ceiling under a quality target",
 		args: mustPullArgs(t, PullOptions{Source: src, Audio: codec.CopyAudio(), Video: codec.Encode(codec.VideoEncode{
-			Encoder: libx264, Quality: 23, Maxrate: "4M", Bufsize: "8M", MaxHeight: 1080,
+			Encoder: libx264, Quality: 23, Maxrate: 4_000_000, Bufsize: 8_000_000, MaxHeight: 1080,
 		})}),
 		want: []string{
 			"-vf", scale, "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
-			"-crf", "23", "-maxrate", "4M", "-bufsize", "8M", "-c:a", "copy",
+			"-crf", "23", "-maxrate", "4000k", "-bufsize", "8000k", "-c:a", "copy",
 		},
 	}, {
 		name: "a hardware encode uploads after the scale and runs at a bitrate",
 		args: mustEncodeArgs(t, EncodeOptions{Input: piped, Format: mpegtsFormat, Audio: aacAudio, Video: codec.Encode(codec.VideoEncode{
-			Encoder: hardware, Bitrate: "4M", MaxHeight: 1080, KeyframeIntervalSec: 2,
+			Encoder: hardware, Bitrate: 4_000_000, MaxHeight: 1080, KeyframeIntervalSec: 2,
 		})}),
 		want: []string{
 			"-vf", scale + ",format=nv12,hwupload", "-c:v", "h264_test_hw", "-preset", "fast",
-			"-b:v", "4M", "-force_key_frames", "expr:gte(t,n_forced*2)",
+			"-b:v", "4000k", "-force_key_frames", "expr:gte(t,n_forced*2)",
 		},
 	}, {
 		name:   "a copied picture beside an encoded sound, codecs before -strict, reporting on pipe 3",
-		args:   mustEncodeArgs(t, EncodeOptions{Input: piped, Format: mpegtsFormat, Video: codec.CopyVideo(), Audio: codec.Encode(codec.AudioEncode{Codec: media.CodecAAC, Bitrate: "256k", Channels: 2})}),
+		args:   mustEncodeArgs(t, EncodeOptions{Input: piped, Format: mpegtsFormat, Video: codec.CopyVideo(), Audio: codec.Encode(codec.AudioEncode{Codec: media.CodecAAC, Bitrate: 256_000, Channels: 2})}),
 		want:   []string{"-c:v", "copy", "-c:a", "aac", "-ac", "2", "-b:a", "256k", "-strict", "-2", "-progress", "pipe:3"},
 		absent: []string{"-vf", "-preset", "-b:v", "-readrate", "-stats_period"},
 	}, {
 		name: "a piped encode renders its pace ahead of the pipe input",
 		args: mustEncodeArgs(t, EncodeOptions{Input: FromPipe(fetch.Pace{Realtime: 1, Burst: 32 * time.Second}), Format: mpegtsFormat, Video: codec.CopyVideo(), Audio: aacAudio}),
 		want: slices.Concat([]string{"-readrate", "1.0", "-readrate_initial_burst", "32"}, demuxFlags, []string{"-f", SpoolFormat.Muxer, "-i", "pipe:0"}),
+	}, {
+		name:   "an encode that joins others of one buffer keeps the buffer's timestamps",
+		args:   mustEncodeArgs(t, EncodeOptions{Input: piped, Format: mpegtsFormat, Video: codec.CopyVideo(), Audio: aacAudio, KeepTimeline: true}),
+		want:   []string{"-copyts"},
+		absent: []string{"-output_ts_offset"},
+	}, {
+		name:   "an encode on its own rebases them",
+		args:   mustEncodeArgs(t, EncodeOptions{Input: piped, Format: mpegtsFormat, Video: codec.CopyVideo(), Audio: aacAudio}),
+		absent: []string{"-copyts"},
 	}, {
 		name: "a burn-in draws text and reports every tenth of a second",
 		args: mustEncodeArgs(t, EncodeOptions{Input: piped, Format: mpegtsFormat, Audio: aacAudio, Video: codec.Encode(codec.VideoEncode{Encoder: libx264, SubtitleTextFile: "/tmp/cue.txt"})}),

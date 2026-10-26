@@ -74,7 +74,7 @@ func (r *recoveringCaster) Play(ctx context.Context, _ execute.Device, _ output.
 	return recovery.Cast(ctx, recovery.Intent{Candidates: []*source.Stream{streams[0], &backup}, Turns: turns}, r, r)
 }
 
-func (r *recoveringCaster) Resolve(ctx context.Context, s *source.Stream, _ source.Rendition) (source.Resolution, error) {
+func (r *recoveringCaster) Resolve(ctx context.Context, s *source.Stream, _ source.Rendition, _ media.Bitrate) (source.Resolution, error) {
 	r.resolutions++
 	if r.resolutions == 2 {
 		close(r.resolving)

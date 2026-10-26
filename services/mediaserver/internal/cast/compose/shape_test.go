@@ -21,6 +21,7 @@ func TestAHandoffOnlyWhenEverythingChecks(t *testing.T) {
 		declaredOnly  bool
 		height        int
 		maxHeight     media.HeightCap
+		ceiling, rate media.Bitrate
 		wrappedHLS    bool
 		sourceWrapped bool
 		want          bool
@@ -35,6 +36,9 @@ func TestAHandoffOnlyWhenEverythingChecks(t *testing.T) {
 		{name: "a header-gated source is served", contentType: media.MP4, headers: http.Header{"Referer": {"https://player.example/"}}},
 		{name: "a source above the ceiling is served, since a hand-off cannot be downscaled", contentType: media.MP4, height: 1600, maxHeight: 1080},
 		{name: "a source of unknown video height is served when capped", contentType: media.HLS, maxHeight: 480},
+		{name: "a source declared under the rate ceiling passes through", contentType: media.HLS, height: 1080, maxHeight: 1080, ceiling: 4_000_000, rate: 3_000_000, want: true},
+		{name: "a source declared over the rate ceiling is served, since a hand-off cannot be lightened", contentType: media.HLS, height: 1080, maxHeight: 1080, ceiling: 4_000_000, rate: 6_000_000},
+		{name: "a source declaring no rate is served under a rate ceiling", contentType: media.HLS, height: 1080, maxHeight: 1080, ceiling: 4_000_000},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			program, err := media.NewProgram(media.Program{
@@ -62,7 +66,7 @@ func TestAHandoffOnlyWhenEverythingChecks(t *testing.T) {
 			if tt.wrappedHLS {
 				device.Formats[1].ExtraSegments = []media.HLSExtraSegmentFormat{media.HLSExtraSegmentTIKTIKPX}
 			}
-			shape := Shape{Device: device, Program: program, Height: tt.height, MaxHeight: tt.maxHeight}
+			shape := Shape{Device: device, Program: program, Height: tt.height, MaxHeight: tt.maxHeight, MaxBitrate: tt.ceiling, Rate: tt.rate}
 			if got := shape.handoff(); got != tt.want {
 				t.Errorf("handoff() = %v, want %v", got, tt.want)
 			}

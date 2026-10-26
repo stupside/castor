@@ -36,8 +36,8 @@ func NewResolver(client Client, maxHeight media.HeightCap, audioLanguages []stri
 	}
 }
 
-// Resolve reads a link, narrowed to chosen when a rung was already picked (zero for none).
-func (r *Resolver) Resolve(ctx context.Context, stream *Stream, chosen Rendition) (Resolution, error) {
+// Resolve reads a link, narrowed to chosen and to rungs within ceiling, each zero for none.
+func (r *Resolver) Resolve(ctx context.Context, stream *Stream, chosen Rendition, ceiling media.Bitrate) (Resolution, error) {
 	if stream == nil || stream.URL == nil {
 		return Resolution{}, errors.New("source has no URL")
 	}
@@ -47,7 +47,7 @@ func (r *Resolver) Resolve(ctx context.Context, stream *Stream, chosen Rendition
 		origin.Live = probe.Duration == 0
 	}
 	origin.Segmented = media.IsSegmented(stream.ContentType)
-	resolved, err := r.formats.Claiming(stream.ContentType).Resolve(ctx, r.env, Subject{Stream: *stream, Origin: origin, Chosen: chosen})
+	resolved, err := r.formats.Claiming(stream.ContentType).Resolve(ctx, r.env, Subject{Stream: *stream, Origin: origin, Chosen: chosen, Ceiling: ceiling})
 	if err != nil {
 		return resolved, err
 	}

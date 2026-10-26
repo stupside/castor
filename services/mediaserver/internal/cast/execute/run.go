@@ -155,10 +155,11 @@ type operation struct {
 // cleanup. Only its event loop changes state; preparation registers resources
 // before handing them back. Operations retain results through cancellation.
 type coordinator struct {
-	device  Device
-	inspect func() (inspectedPresentation, error)
-	plan    func(inspectedPresentation) (plannedPresentation, error)
-	produce func(plannedPresentation) (presentation, error)
+	device     Device
+	maxBitrate media.Bitrate
+	inspect    func() (inspectedPresentation, error)
+	plan       func(inspectedPresentation) (plannedPresentation, error)
+	produce    func(plannedPresentation) (presentation, error)
 
 	ctx  context.Context
 	stop context.CancelCauseFunc
@@ -188,7 +189,7 @@ func newCoordinator(parent context.Context, c Cast, a recovery.Attempt) *coordin
 	// Signal every owner before joining or releasing any resource.
 	rel.interrupt(func() { cancel(nil) })
 	s := &coordinator{
-		device: c.Device, ctx: ctx, stop: cancel, releases: rel,
+		device: c.Device, maxBitrate: c.MaxBitrate, ctx: ctx, stop: cancel, releases: rel,
 		events: make(chan *operation), failures: make(chan error),
 	}
 
@@ -341,7 +342,7 @@ func (c *coordinator) startPlayback() {
 	if !c.machine.Is(ready) {
 		return
 	}
-	c.observeProduction()
+	c.watchProduction()
 	c.move(playbackRequested)
 	if !c.machine.Is(startingPlayback) {
 		return
@@ -365,25 +366,36 @@ func (c *coordinator) startPlayback() {
 	})
 }
 
-func (c *coordinator) observeProduction() {
-	if d := c.presentation.delivery; d != nil {
-		c.launch(productionFinished, func() error {
-			select {
-			case <-d.output.Done():
-				return d.output.Err()
-			case <-c.ctx.Done():
-				return nil
+// watchProduction watches what makes the delivery, until it ends.
+func (c *coordinator) watchProduction() {
+	d := c.presentation.delivery
+	if d == nil {
+		return
+	}
+	c.launch(productionFinished, func() error { return ended(c.ctx, d.output) })
+	if f := c.presentation.feed; f.buffered != nil && d.output != f.buffered.reader {
+		c.launch(productionFinished, func() error { return ended(c.ctx, f.buffered.reader) })
+	}
+}
+
+// ended says how what makes p ended, nothing where made ended first.
+func ended(made context.Context, p producer) error {
+	if madeDone(made, p) == nil {
+		return nil
+	}
+	return p.Err()
+}
+
+// madeDone is p's Done once what makes p ended, followed through changes of rate or rung; nil once made ends first.
+func madeDone(made context.Context, p producer) <-chan struct{} {
+	for done := p.Done(); ; done = p.Done() {
+		select {
+		case <-done:
+			if p.Done() == done {
+				return done
 			}
-		})
-		if f := c.presentation.feed; f.buffered != nil && d.output != f.buffered.reader {
-			c.launch(productionFinished, func() error {
-				select {
-				case <-f.buffered.reader.Done():
-					return f.buffered.reader.Err()
-				case <-c.ctx.Done():
-					return nil
-				}
-			})
+		case <-made.Done():
+			return nil
 		}
 	}
 }
@@ -398,7 +410,13 @@ func (c *coordinator) observePlayback() {
 
 // settle waits for the device to take the whole of what is made, once it is made.
 func (c *coordinator) settle(d *delivery) {
-	c.launch(deliverySettled, func() error { return d.sink.Wait(c.ctx, d.output.Done()) })
+	produced := make(chan struct{})
+	go func() {
+		if madeDone(c.ctx, d.output) != nil {
+			close(produced)
+		}
+	}()
+	c.launch(deliverySettled, func() error { return d.sink.Wait(c.ctx, produced) })
 }
 
 // watchHealth judges the playing cast until nothing is left to judge.
@@ -407,10 +425,10 @@ func (c *coordinator) watchHealth(d *delivery) {
 	if aud == nil {
 		return
 	}
-	monitor := playingMonitor(c.presentation.feed, *d, aud, c.device)
+	monitor := playingMonitor(c.presentation.feed, *d, aud, c.maxBitrate, c.device)
 	watching, stop := context.WithCancel(c.ctx)
 	c.stopHealth = stop
-	c.launchUntil(watching, healthEnded, func() error { return observeHealth(watching, monitor, c.device) })
+	c.launchUntil(watching, healthEnded, func() error { return observeHealth(watching, monitor, c.device, d.rate) })
 }
 
 const (

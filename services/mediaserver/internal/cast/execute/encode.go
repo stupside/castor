@@ -56,7 +56,7 @@ func (s *preparation) encode(f feed, burn burnRenderer) (encodePlan, error) {
 		if err != nil {
 			return encodePlan{}, err
 		}
-		decided, err := s.decide(selected.Capabilities, into, facts, burnIn, f.spliced())
+		decided, err := s.decide(selected.Capabilities, into, facts, burnIn, f.spliced(), s.MaxBitrate, "")
 		if err != nil {
 			planningErr = errors.Join(planningErr, fmt.Errorf("%s: %w", into.ContentType, err))
 			continue
@@ -71,8 +71,7 @@ func (s *preparation) encode(f feed, burn burnRenderer) (encodePlan, error) {
 // input is what the encoder reads from f, measured where it reads it: the spool as it grows, or the source itself.
 func (s *preparation) input(f feed, ceiling fetch.Pace) (facts, encoding.EncodeInput, error) {
 	if f.buffered != nil {
-		measured := measure(s.ctx, "the local buffer this encode reads", s.Probes.File(f.buffered.reader.spool.ProbePath()))
-		return measured, encoding.FromPipe(ceiling), nil
+		return s.bufferedFacts(f.buffered.reader), encoding.FromPipe(ceiling), nil
 	}
 	policies := s.attempt.Fetch.Encoding(f.program, ceiling)
 	source, err := encoding.NewProgramSource(f.program, policies, s.Binary, s.InputArgs)
@@ -86,10 +85,16 @@ func (s *preparation) input(f feed, ceiling fetch.Pace) (facts, encoding.EncodeI
 	return measured, encoding.FromSource(source), nil
 }
 
-func (s *preparation) decide(caps media.Capabilities, into container.Format, facts facts, burnIn string, spliced bool) (codec.Plan, error) {
+func (s *preparation) bufferedFacts(src *pull) facts {
+	return measure(s.ctx, "the local buffer this encode reads", s.Probes.File(src.spool.ProbePath()))
+}
+
+func (s *preparation) decide(caps media.Capabilities, into container.Format, facts facts, burnIn string, spliced bool, ceiling media.Bitrate, keepAudio media.Codec) (codec.Plan, error) {
 	decided, err := codec.Served(s.ctx, codec.Inputs{
 		Caps: caps, Probe: facts.probe, Measured: facts.measured, Into: into, MaxHeight: s.MaxHeight,
-		Spliced: spliced,
+		// A playlist's own bit_rate is not the media's, so the rate its rung declares stands in.
+		MaxBitrate: ceiling, Rate: cmp.Or(media.Bitrate(facts.probe.BitRate), s.attempt.Rendition.Bitrate),
+		Spliced: spliced, KeepAudio: keepAudio,
 		// Attempt's evidence: axis a reader already died copying not handed to second process to copy again.
 		Decode:   s.attempt.Decode,
 		BurnIn:   burnIn,
