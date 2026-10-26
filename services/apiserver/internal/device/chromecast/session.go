@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
+	"time"
 
 	castmedia "github.com/vishen/go-chromecast/cast"
 
@@ -125,23 +126,59 @@ func (s *session) Resume(ctx context.Context) error { return s.transportCommand(
 // Stop ends the media session the last Play opened, if the receiver reported one.
 func (s *session) Stop(ctx context.Context) error { return s.transportCommand(ctx, msgStop) }
 
-// transportCommand sends PAUSE, PLAY or STOP to the media session the last Play opened.
 func (s *session) transportCommand(ctx context.Context, msg string) error {
+	if _, _, err := s.mediaRequest(ctx, msg); err != nil {
+		return fmt.Errorf("%s: %w", msg, err)
+	}
+	return nil
+}
+
+// Position asks, since a receiver pushes its status only when its state changes.
+func (s *session) Position(ctx context.Context) (device.Playhead, error) {
+	mediaSession, reply, err := s.mediaRequest(ctx, msgGetStatus)
+	if errors.Is(err, errNoMediaSession) {
+		return device.Playhead{}, device.ErrNoPosition
+	}
+	if err != nil {
+		return device.Playhead{}, fmt.Errorf("reading the playback position: %w", err)
+	}
+	var response struct {
+		Status []struct {
+			MediaSessionID int      `json:"mediaSessionId"`
+			CurrentTime    *float64 `json:"currentTime"`
+			PlayerState    string   `json:"playerState"`
+		} `json:"status"`
+	}
+	if json.Unmarshal(reply, &response) != nil {
+		return device.Playhead{}, device.ErrNoPosition
+	}
+	for _, status := range response.Status {
+		if status.MediaSessionID == mediaSession && status.CurrentTime != nil {
+			return device.Playhead{At: time.Duration(*status.CurrentTime * float64(time.Second)), Paused: status.PlayerState == "PAUSED"}, nil
+		}
+	}
+	return device.Playhead{}, device.ErrNoPosition
+}
+
+var errNoMediaSession = errors.New("the chromecast has reported no media session yet")
+
+// mediaRequest sends msg to the media session the last Play opened, returning that session and the receiver's MEDIA_STATUS.
+func (s *session) mediaRequest(ctx context.Context, msg string) (int, []byte, error) {
 	s.watchMu.Lock()
 	transport, mediaSession := s.transport, s.watch.mediaSession
 	s.watchMu.Unlock()
 	if mediaSession == 0 {
-		return fmt.Errorf("%s: the chromecast has reported no media session yet", msg)
+		return 0, nil, errNoMediaSession
 	}
 	reply, err := s.ch.request(ctx, transport, nsMedia, &castmedia.MediaHeader{Type: msg, MediaSessionId: mediaSession})
 	if err != nil {
-		return fmt.Errorf("%s: %w", msg, err)
+		return 0, nil, err
 	}
-	var response castmedia.MediaStatusResponse
-	if err := json.Unmarshal(reply, &response); err != nil || response.Type != msgMediaStatus {
-		return fmt.Errorf("%s: the chromecast answered %s", msg, response.Type)
+	var header castmedia.PayloadHeader
+	if err := json.Unmarshal(reply, &header); err != nil || header.Type != msgMediaStatus {
+		return 0, nil, fmt.Errorf("the chromecast answered %s", header.Type)
 	}
-	return nil
+	return mediaSession, reply, nil
 }
 
 // loadVerdict accepts the requested stream only when the receiver's answer does not identify a different one.

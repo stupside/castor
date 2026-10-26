@@ -28,6 +28,15 @@ type clock struct {
 	holds int
 }
 
+// playing is the wall time spent playing since the first presentation time landed.
+func (c *clock) playing(now time.Time) time.Duration {
+	held := c.held
+	if !c.heldSince.IsZero() {
+		held += now.Sub(c.heldSince)
+	}
+	return now.Sub(c.started) - held
+}
+
 // hold pauses or resumes the clock.
 func (c *clock) hold(on bool) {
 	c.mu.Lock()
@@ -53,6 +62,16 @@ func (c *clock) paused() (int, time.Duration) {
 	return c.holds, held
 }
 
+// played is the position the device has played to by now: wall time playing, never past what it was given.
+func (c *clock) played(now time.Time) time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.started.IsZero() {
+		return 0
+	}
+	return max(0, min(c.playing(now), c.latest-c.first))
+}
+
 func (c *clock) holding() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -66,11 +85,7 @@ func (c *clock) buffered(now time.Time) (time.Duration, bool) {
 	if c.started.IsZero() {
 		return 0, false
 	}
-	held := c.held
-	if !c.heldSince.IsZero() {
-		held += now.Sub(c.heldSince)
-	}
-	return (c.latest - c.first) - (now.Sub(c.started) - held), true
+	return (c.latest - c.first) - c.playing(now), true
 }
 
 func (c *clock) observe(pts time.Duration) {

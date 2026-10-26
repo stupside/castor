@@ -3,10 +3,13 @@ package roku
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -87,10 +90,11 @@ func (s *session) Pause(ctx context.Context) error { return s.hold(ctx, true) }
 func (s *session) Resume(ctx context.Context) error { return s.hold(ctx, false) }
 
 func (s *session) hold(ctx context.Context, paused bool) error {
-	state, err := s.playerState(ctx)
+	player, err := s.player(ctx)
 	if err != nil {
 		return err
 	}
+	state := player.State
 	switch {
 	case paused && state == statePause, !paused && playing(state):
 		return nil
@@ -123,25 +127,52 @@ const startupTimeout = 30 * time.Second
 
 const mediaPlayerQuery = "/query/media-player"
 
-// playerState is the state /query/media-player reports.
-func (s *session) playerState(ctx context.Context) (string, error) {
+type mediaPlayer struct {
+	State        string `xml:"state,attr"`
+	Error        bool   `xml:"error,attr"`
+	ErrorMessage string `xml:"error-message"`
+	ErrorCode    string `xml:"error-code"`
+	Position     string `xml:"position"`
+	Plugin       struct {
+		ID string `xml:"id,attr"`
+	} `xml:"plugin"`
+}
+
+// player is castor's media player as reported, a playback error once it reports one.
+func (s *session) player(ctx context.Context) (mediaPlayer, error) {
+	var player mediaPlayer
 	body, err := get(ctx, s.hc, s.ecp.JoinPath(mediaPlayerQuery), 1<<16)
 	if err != nil {
-		return "", err
-	}
-	var player struct {
-		State        string `xml:"state,attr"`
-		Error        bool   `xml:"error,attr"`
-		ErrorMessage string `xml:"error-message"`
-		ErrorCode    string `xml:"error-code"`
+		return player, err
 	}
 	if err := xml.Unmarshal(body, &player); err != nil {
-		return "", fmt.Errorf("decoding roku player state: %w", err)
+		return player, fmt.Errorf("decoding roku player state: %w", err)
+	}
+	// Another channel holding the player means castor's closed, whatever that channel's own playback reports.
+	if player.Plugin.ID != "" && player.Plugin.ID != s.appID {
+		return mediaPlayer{State: "close"}, nil
 	}
 	if player.Error {
-		return "", &device.PlaybackError{Err: fmt.Errorf("roku playback failed (code %s): %s", player.ErrorCode, player.ErrorMessage)}
+		return player, &device.PlaybackError{Err: fmt.Errorf("roku playback failed (code %s): %s", player.ErrorCode, player.ErrorMessage)}
 	}
-	return player.State, nil
+	return player, nil
+}
+
+// Position is the player's, stated in milliseconds, while it holds castor's media.
+func (s *session) Position(ctx context.Context) (device.Playhead, error) {
+	player, err := s.player(ctx)
+	if _, failed := errors.AsType[*device.PlaybackError](err); failed {
+		return device.Playhead{}, device.ErrNoPosition
+	}
+	if err != nil {
+		return device.Playhead{}, fmt.Errorf("reading the playback position: %w", err)
+	}
+	ms, unit := strings.CutSuffix(strings.TrimSpace(player.Position), " ms")
+	at, err := strconv.ParseUint(ms, 10, 63)
+	if !unit || err != nil || over(player.State) {
+		return device.Playhead{}, device.ErrNoPosition
+	}
+	return device.Playhead{At: time.Duration(at) * time.Millisecond, Paused: player.State == statePause}, nil
 }
 
 // AwaitEnd polls the player until it closes or stops after having played.
@@ -149,10 +180,11 @@ func (s *session) AwaitEnd(ctx context.Context) error {
 	var active bool
 	started := time.Now()
 	return device.AwaitPolledEnd(ctx, s.name, mediaPlayerQuery, func(ctx context.Context) (bool, error) {
-		state, err := s.playerState(ctx)
+		player, err := s.player(ctx)
 		if err != nil {
 			return false, err
 		}
+		state := player.State
 		active = active || state == "play" || state == statePause
 		if !active && time.Since(started) >= startupTimeout {
 			return false, &device.PlaybackError{Err: fmt.Errorf("roku did not start playback within %s (state %q)", startupTimeout, state)}

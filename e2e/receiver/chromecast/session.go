@@ -57,16 +57,19 @@ func (c *castSession) handlers() map[string]func(msg *pb.CastMessage, req reques
 		},
 		nsMedia + "#STOP": func(*pb.CastMessage, request) map[string]any {
 			c.session.Stop()
-			return mediaStatus(c.content, "IDLE", "CANCELLED")
+			return c.mediaStatus(c.content, "IDLE", "CANCELLED")
 		},
 		nsMedia + "#GET_STATUS": func(*pb.CastMessage, request) map[string]any {
-			return map[string]any{"type": "MEDIA_STATUS", "status": []any{}}
+			if c.content == "" {
+				return map[string]any{"type": "MEDIA_STATUS", "status": []any{}}
+			}
+			return c.status()
 		},
 		nsMedia + "#LOAD": func(msg *pb.CastMessage, req request) map[string]any {
 			content, sender := req.Media.ContentID, msg.GetSourceId()
 			// The receiver plays one hand-off, so it refuses another as it refuses a stream it cannot fetch.
 			if c.cors.refuses(c.session.Context(), content, req.Media.ContentType) || !c.session.Hand(content, req.Media.ContentType) {
-				c.send(mediaTransportID, sender, nsMedia, mediaStatus(content, "IDLE", "ERROR"))
+				c.send(mediaTransportID, sender, nsMedia, c.mediaStatus(content, "IDLE", "ERROR"))
 				return map[string]any{"type": "LOAD_FAILED"}
 			}
 			c.content = content
@@ -74,7 +77,7 @@ func (c *castSession) handlers() map[string]func(msg *pb.CastMessage, req reques
 				c.fetchCaption(track.ContentID)
 			}
 			c.session.Go(func() { c.report(sender, content) })
-			return mediaStatus(content, "BUFFERING", "")
+			return c.mediaStatus(content, "BUFFERING", "")
 		},
 		nsMedia + "#PAUSE": func(_ *pb.CastMessage, req request) map[string]any { return c.transport(req, true) },
 		nsMedia + "#PLAY":  func(_ *pb.CastMessage, req request) map[string]any { return c.transport(req, false) },
@@ -88,13 +91,20 @@ func (c *castSession) transport(req request, hold bool) map[string]any {
 	}
 	if c.session.State() != receiver.Playing {
 		c.session.Problem("%s while not playing", req.Type)
-		return mediaStatus(c.content, "IDLE", idleReasons[c.session.State()])
+		return c.mediaStatus(c.content, "IDLE", idleReasons[c.session.State()])
 	}
 	c.session.Hold(hold)
-	if hold {
-		return mediaStatus(c.content, "PAUSED", "")
+	return c.status()
+}
+
+func (c *castSession) status() map[string]any {
+	switch state := c.session.State(); {
+	case state.Over():
+		return c.mediaStatus(c.content, "IDLE", idleReasons[state])
+	case c.session.Held():
+		return c.mediaStatus(c.content, "PAUSED", "")
 	}
-	return mediaStatus(c.content, "PLAYING", "")
+	return c.mediaStatus(c.content, "PLAYING", "")
 }
 
 func (c *castSession) serve() {
@@ -131,13 +141,13 @@ func (c *castSession) serve() {
 
 // report pushes PLAYING, then IDLE with the reason playback ended, the way a receiver tells a sender it is over.
 func (c *castSession) report(sender, content string) {
-	c.send(mediaTransportID, sender, nsMedia, mediaStatus(content, "PLAYING", ""))
+	c.send(mediaTransportID, sender, nsMedia, c.mediaStatus(content, "PLAYING", ""))
 	select {
 	case <-c.session.Done():
 	case <-c.session.Context().Done():
 		return
 	}
-	c.send(mediaTransportID, sender, nsMedia, mediaStatus(content, "IDLE", idleReasons[c.session.State()]))
+	c.send(mediaTransportID, sender, nsMedia, c.mediaStatus(content, "IDLE", idleReasons[c.session.State()]))
 }
 
 func (c *castSession) receiverStatus() map[string]any {
@@ -153,10 +163,11 @@ func (c *castSession) receiverStatus() map[string]any {
 	}}
 }
 
-func mediaStatus(content, state, idleReason string) map[string]any {
+// mediaStatus carries currentTime as a receiver does: the media played so far.
+func (c *castSession) mediaStatus(content, state, idleReason string) map[string]any {
 	status := map[string]any{
 		"mediaSessionId": mediaSessionID, "playerState": state, "idleReason": idleReason,
-		"media": map[string]any{"contentId": content},
+		"currentTime": c.session.Played().Seconds(), "media": map[string]any{"contentId": content},
 	}
 	return map[string]any{"type": "MEDIA_STATUS", "status": []any{status}}
 }

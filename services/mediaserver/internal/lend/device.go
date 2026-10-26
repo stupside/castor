@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"time"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/execute"
@@ -54,6 +55,15 @@ func (d Device) Pause(ctx context.Context) error {
 
 func (d Device) Resume(ctx context.Context) error {
 	return d.done(ctx, &mediav1.DeviceCommand_Call{Operation: &mediav1.DeviceCommand_Call_Resume{Resume: &mediav1.DeviceCommand_Resume{}}})
+}
+
+func (d Device) Position(ctx context.Context) (at time.Duration, paused, ok bool) {
+	a, err := d.line.Call(ctx, &mediav1.DeviceCommand_Call{Operation: &mediav1.DeviceCommand_Call_Position{Position: &mediav1.DeviceCommand_Position{}}})
+	p := a.GetPosition()
+	if err != nil || p == nil {
+		return 0, false, false
+	}
+	return p.GetAt().AsDuration(), p.GetPaused(), true
 }
 
 func (d Device) Capabilities() media.Capabilities { return d.caps }

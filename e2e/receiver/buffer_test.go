@@ -38,3 +38,19 @@ func TestTheClockFollowsThePresentationTimesItReads(t *testing.T) {
 		t.Errorf("buffered fell to %v while held, want the clock stopped", held)
 	}
 }
+
+func TestClockPlaysWhatItWasGivenAtMostAndStopsWhileHeld(t *testing.T) {
+	var c clock
+	now := time.Now()
+	c.started, c.first, c.latest = now, 0, 10*time.Second
+	if got := c.played(now.Add(4 * time.Second)); got != 4*time.Second {
+		t.Errorf("played = %v, want 4s", got)
+	}
+	if got := c.played(now.Add(30 * time.Second)); got != 10*time.Second {
+		t.Errorf("played = %v, want what it was given, 10s", got)
+	}
+	c.held, c.heldSince = 0, now.Add(2*time.Second)
+	if got := c.played(now.Add(8 * time.Second)); got != 2*time.Second {
+		t.Errorf("played while held = %v, want it stopped at 2s", got)
+	}
+}

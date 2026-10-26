@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/stupside/castor/e2e/receiver"
 )
@@ -105,6 +106,10 @@ func (u *upnp) actions() map[string]func(envelope) (string, int) {
 			return "", 0
 		},
 		"Stop": func(envelope) (string, int) { u.session.Stop(); return "", 0 },
+		"GetPositionInfo": func(envelope) (string, int) {
+			played := u.session.Played().Round(time.Second)
+			return fmt.Sprintf("<Track>1</Track><RelTime>%d:%02d:%02d</RelTime>", int(played.Hours()), int(played.Minutes())%60, int(played.Seconds())%60), 0
+		},
 		"GetTransportInfo": func(envelope) (string, int) {
 			return "<CurrentTransportState>" + u.transportState() + "</CurrentTransportState><CurrentTransportStatus>OK</CurrentTransportStatus><CurrentSpeed>1</CurrentSpeed>", 0
 		},

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -26,6 +27,8 @@ type session struct {
 	caps      *mediav1.Capabilities
 	// sinks is how the device names each container it accepts.
 	sinks map[mediav1.Container]sinkEntry
+	// ticked is a playhead seen to move, before which a 0:00:00 says nothing.
+	ticked atomic.Bool
 }
 
 func (s *session) Capabilities() *mediav1.Capabilities { return s.caps }
@@ -95,8 +98,8 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 func (s *session) playingStream(ctx context.Context, streamURL *url.URL) bool {
 	ctx, cancel := context.WithTimeout(ctx, actionTimeout)
 	defer cancel()
-	state, err := s.transportState(ctx)
-	if err != nil || state != "PLAYING" {
+	info, err := s.transportInfo(ctx)
+	if err != nil || info.CurrentTransportState != "PLAYING" {
 		return false
 	}
 	var response struct{ CurrentURI string }
@@ -197,19 +200,24 @@ func (w *transportWatch) refused() bool { return !w.active && w.idle >= idlePoll
 
 // AwaitEnd polls AVTransport because UPnP families share no dependable event subscription.
 func (s *session) AwaitEnd(ctx context.Context) error {
-	return awaitTransportEnd(ctx, s.name(), s.transportState)
+	return awaitTransportEnd(ctx, s.name(), s.transportInfo)
 }
 
 // awaitTransportEnd folds the AVTransport state machine over the shared poll loop.
-func awaitTransportEnd(ctx context.Context, name string, poll func(context.Context) (string, error)) error {
+func awaitTransportEnd(ctx context.Context, name string, poll func(context.Context) (transportInfo, error)) error {
 	var watch transportWatch
 	err := device.AwaitPolledEnd(ctx, name, transportQuery,
 		func(ctx context.Context) (bool, error) {
-			state, err := poll(ctx)
+			info, err := poll(ctx)
 			if err != nil {
 				return false, err
 			}
-			return watch.observe(state), nil
+			over := watch.observe(info.CurrentTransportState)
+			// A status read before the end may be left from an earlier playback.
+			if over && info.CurrentTransportStatus == "ERROR_OCCURRED" {
+				return false, &device.PlaybackError{Err: fmt.Errorf("the device went %s with transport status %s", info.CurrentTransportState, info.CurrentTransportStatus)}
+			}
+			return over, nil
 		})
 	if err == nil && watch.refused() {
 		return fmt.Errorf("the device refused the stream: it stayed stopped for %d polls without playing", idlePolls)
@@ -217,16 +225,16 @@ func awaitTransportEnd(ctx context.Context, name string, poll func(context.Conte
 	return err
 }
 
-func (s *session) transportState(ctx context.Context) (string, error) {
-	var response struct {
-		CurrentTransportState string
-	}
+type transportInfo struct {
+	CurrentTransportState  string
+	CurrentTransportStatus string
+}
+
+func (s *session) transportInfo(ctx context.Context) (transportInfo, error) {
+	var response transportInfo
 	err := s.transport.SOAPClient.PerformActionCtx(ctx, s.transport.Service.ServiceType,
 		transportQuery, &struct{ InstanceID string }{"0"}, &response)
-	if err != nil {
-		return "", err
-	}
-	return response.CurrentTransportState, nil
+	return response, err
 }
 
 // Stop ends whatever the device is playing.

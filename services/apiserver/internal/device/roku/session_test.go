@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -98,7 +99,7 @@ func TestRokuAnswersWhenTheCastEnds(t *testing.T) {
 	}
 }
 
-// scriptedECP answers each media-player query with the next state, the last one repeating, and records the keys pressed.
+// scriptedECP answers each media-player query with the next state, "state@channel" naming the channel holding the player and a leading "!" a failed one, the last one repeating, and records the keys pressed.
 type scriptedECP struct {
 	states []string
 	polls  int
@@ -110,13 +111,18 @@ func (e *scriptedECP) RoundTrip(r *http.Request) (*http.Response, error) {
 		e.keys = append(e.keys, key)
 		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	}
-	state := e.states[min(e.polls, len(e.states)-1)]
+	state, channel, held := strings.Cut(e.states[min(e.polls, len(e.states)-1)], "@")
+	state, failed := strings.CutPrefix(state, "!")
 	e.polls++
-	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`<player error="false" state="` + state + `"/>`))}, nil
+	plugin := ""
+	if held {
+		plugin = `<plugin id="` + channel + `"/>`
+	}
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`<player error="` + strconv.FormatBool(failed) + `" state="` + state + `">` + plugin + `</player>`))}, nil
 }
 
 func scriptedSession(ecp *scriptedECP) *session {
-	return &session{ecp: &url.URL{Scheme: "http", Host: "192.0.2.10:8060"}, name: "Bedroom Roku", hc: &http.Client{Transport: ecp}}
+	return &session{ecp: &url.URL{Scheme: "http", Host: "192.0.2.10:8060"}, appID: "dev", name: "Bedroom Roku", hc: &http.Client{Transport: ecp}}
 }
 
 func TestRokuEndsWhenThePlayerClosesAfterPlaying(t *testing.T) {
@@ -129,6 +135,29 @@ func TestRokuEndsWhenThePlayerClosesAfterPlaying(t *testing.T) {
 			t.Errorf("polled %d times, want %d: a player that has not played yet is not over", ecp.polls, len(ecp.states))
 		}
 	})
+}
+
+func TestRokuEndsCleanlyWhenAnotherChannelTakesThePlayer(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		states []string
+	}{
+		{"playing", []string{"play@dev", "play@dev", "play@12"}},
+		{"failing", []string{"play@dev", "!stop@12"}},
+		{"still held by the previous channel at startup", []string{"play@12", "startup@dev", "play@dev", "close@dev"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ecp := &scriptedECP{states: tt.states}
+				if err := scriptedSession(ecp).AwaitEnd(t.Context()); err != nil {
+					t.Fatalf("AwaitEnd = %v, want a clean end", err)
+				}
+				if ecp.polls != len(ecp.states) {
+					t.Errorf("polled %d times, want %d: castor's cast is over once another channel holds the player after castor's played", ecp.polls, len(ecp.states))
+				}
+			})
+		})
+	}
 }
 
 func TestRokuPauseAndResumePressPlayOnlyWhenTheStateCallsForIt(t *testing.T) {
@@ -144,6 +173,7 @@ func TestRokuPauseAndResumePressPlayOnlyWhenTheStateCallsForIt(t *testing.T) {
 		{"resuming a paused player", "pause", func(s *session) error { return s.Resume(context.Background()) }, 1, false},
 		{"resuming a playing player", "play", func(s *session) error { return s.Resume(context.Background()) }, 0, false},
 		{"pausing a closed player", "close", func(s *session) error { return s.Pause(context.Background()) }, 0, true},
+		{"resuming another channel's paused player", "pause@12", func(s *session) error { return s.Resume(context.Background()) }, 0, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ecp := &scriptedECP{states: []string{tt.state}}
@@ -197,6 +227,35 @@ func TestRokuDecoderErrorIsTerminal(t *testing.T) {
 			t.Fatal("decoder refusal retried as network failure")
 		}
 	})
+}
+
+type answeringECP string
+
+func (body answeringECP) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(body)))}, nil
+}
+
+func TestRokuPositionIsThePlayersWhileItHoldsTheMedia(t *testing.T) {
+	for _, tt := range []struct {
+		name, player string
+		want         device.Playhead
+		err          error
+	}{
+		{"playing", `<player error="false" state="play"><plugin id="dev"/><position>12345 ms</position><duration>600000 ms</duration></player>`, device.Playhead{At: 12345 * time.Millisecond}, nil},
+		{"paused", `<player error="false" state="pause"><position>5000 ms</position></player>`, device.Playhead{At: 5 * time.Second, Paused: true}, nil},
+		{"no position", `<player error="false" state="play"/>`, device.Playhead{}, device.ErrNoPosition},
+		{"an unreadable position", `<player error="false" state="play"><position>soon</position></player>`, device.Playhead{}, device.ErrNoPosition},
+		{"closed", `<player error="false" state="close"><position>5000 ms</position></player>`, device.Playhead{}, device.ErrNoPosition},
+		{"failed", `<player error="true" state="stop"><position>5000 ms</position></player>`, device.Playhead{}, device.ErrNoPosition},
+		{"another channel's", `<player error="false" state="play"><plugin id="12"/><position>5000 ms</position></player>`, device.Playhead{}, device.ErrNoPosition},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dev := &session{ecp: &url.URL{Scheme: "http", Host: "roku.test"}, appID: "dev", hc: &http.Client{Transport: answeringECP(tt.player)}}
+			if got, err := dev.Position(t.Context()); got != tt.want || !errors.Is(err, tt.err) {
+				t.Errorf("Position = %v, %v; want %v, %v", got, err, tt.want, tt.err)
+			}
+		})
+	}
 }
 
 func TestHLSDoesNotImplyProgressiveWebVTT(t *testing.T) {

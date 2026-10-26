@@ -96,6 +96,10 @@ func (c *connection) Play(_ context.Context, playback device.Playback) error {
 	return nil
 }
 
+func (*connection) Position(context.Context) (device.Playhead, error) {
+	return device.Playhead{}, device.ErrNoPosition
+}
+
 func (*connection) AwaitEnd(ctx context.Context) error {
 	<-ctx.Done()
 	return ctx.Err()

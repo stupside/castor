@@ -153,8 +153,8 @@ func TestTheTransportStateEndsTheCastOnlyOncePlaybackBegan(t *testing.T) {
 
 func TestAnUnbrokenRunOfFailedPollsIsNeededToEndTheCast(t *testing.T) {
 	type answer = struct {
-		state string
-		err   error
+		info transportInfo
+		err  error
 	}
 	gone := errors.New("connect: connection refused")
 	var script []answer
@@ -162,16 +162,16 @@ func TestAnUnbrokenRunOfFailedPollsIsNeededToEndTheCast(t *testing.T) {
 		for range int(device.UnreachableWindow/device.PollInterval) - 1 {
 			script = append(script, answer{err: gone})
 		}
-		script = append(script, answer{state: "PLAYING"})
+		script = append(script, answer{info: transportInfo{CurrentTransportState: "PLAYING"}})
 	}
-	script[len(script)-1].state = "STOPPED"
+	script[len(script)-1].info.CurrentTransportState = "STOPPED"
 
 	synctest.Test(t, func(t *testing.T) {
 		calls := 0
-		poll := func(context.Context) (string, error) {
+		poll := func(context.Context) (transportInfo, error) {
 			a := script[min(calls, len(script)-1)]
 			calls++
-			return a.state, a.err
+			return a.info, a.err
 		}
 		if err := awaitTransportEnd(t.Context(), "Living Room", poll); err != nil {
 			t.Fatalf("awaitTransportEnd() = %v, want nil: the device answered between the failures", err)
@@ -212,9 +212,9 @@ func TestDLNAAnswersWhenTheCastEnds(t *testing.T) {
 func TestADeviceThatStaysStoppedNeverPlayedTheStream(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		polls := 0
-		poll := func(context.Context) (string, error) {
+		poll := func(context.Context) (transportInfo, error) {
 			polls++
-			return "STOPPED", nil
+			return transportInfo{CurrentTransportState: "STOPPED"}, nil
 		}
 		err := awaitTransportEnd(t.Context(), "Living Room", poll)
 		if err == nil || !strings.Contains(err.Error(), "refused the stream") {
@@ -230,13 +230,75 @@ func TestADeviceBufferingBeforeItPlaysIsNotRefusing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		script := []string{"STOPPED", "STOPPED", "TRANSITIONING", "STOPPED", "PLAYING", "STOPPED"}
 		i := 0
-		poll := func(context.Context) (string, error) {
+		poll := func(context.Context) (transportInfo, error) {
 			state := script[i]
 			i++
-			return state, nil
+			return transportInfo{CurrentTransportState: state}, nil
 		}
 		if err := awaitTransportEnd(t.Context(), "Living Room", poll); err != nil || i != len(script) {
 			t.Fatalf("awaitTransportEnd() = %v after %d polls, want a clean end once it played and stopped", err, i)
 		}
 	})
+}
+
+// renderer is a device answering each AVTransport action with the elements answer gives it.
+func renderer(answer func(action string) string) *session {
+	client := soap.NewSOAPClient(url.URL{Scheme: "http", Host: "192.0.2.10:2870", Path: "/control"})
+	client.HTTPClient.Transport = actionTransport(func(r *http.Request) (*http.Response, error) {
+		var action string
+		for name, values := range r.Header {
+			if strings.EqualFold(name, "SOAPAction") && len(values) > 0 {
+				action = strings.Split(strings.Trim(values[0], `"`), "#")[1]
+			}
+		}
+		body := `<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:` + action + `Response xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">` +
+			answer(action) + `</u:` + action + `Response></s:Body></s:Envelope>`
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body))}, nil
+	})
+	return &session{transport: goupnp.ServiceClient{SOAPClient: client, Service: &goupnp.Service{ServiceType: "urn:schemas-upnp-org:service:AVTransport:1"}}}
+}
+
+func TestADeviceThatStopsWithAnErrorFailsTheCast(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		script []string
+		fails  bool
+	}{
+		{"stopped after playing", []string{"PLAYING OK", "STOPPED OK"}, false},
+		{"stopped with an error after playing", []string{"PLAYING OK", "STOPPED ERROR_OCCURRED"}, true},
+		{"an error left from an earlier playback", []string{"STOPPED ERROR_OCCURRED", "PLAYING OK", "STOPPED OK"}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				polls := 0
+				dev := renderer(func(string) string {
+					state, status, _ := strings.Cut(tt.script[min(polls, len(tt.script)-1)], " ")
+					polls++
+					return "<CurrentTransportState>" + state + "</CurrentTransportState><CurrentTransportStatus>" + status + "</CurrentTransportStatus>"
+				})
+				err := dev.AwaitEnd(t.Context())
+				if _, failed := errors.AsType[*device.PlaybackError](err); failed != tt.fails || !failed && err != nil {
+					t.Fatalf("AwaitEnd = %v, want a playback error %v", err, tt.fails)
+				}
+				if polls != len(tt.script) {
+					t.Errorf("polled %d times, want %d", polls, len(tt.script))
+				}
+			})
+		})
+	}
+}
+
+func TestADevicePositionSaysWhetherItsViewerHoldsIt(t *testing.T) {
+	for state, paused := range map[string]bool{"PLAYING": false, "PAUSED_PLAYBACK": true} {
+		dev := renderer(func(action string) string {
+			if action == "GetPositionInfo" {
+				return "<RelTime>0:01:30</RelTime>"
+			}
+			return "<CurrentTransportState>" + state + "</CurrentTransportState><CurrentTransportStatus>OK</CurrentTransportStatus>"
+		})
+		want := device.Playhead{At: 90 * time.Second, Paused: paused}
+		if got, err := dev.Position(t.Context()); err != nil || got != want {
+			t.Errorf("Position while %s = %v, %v; want %v", state, got, err, want)
+		}
+	}
 }

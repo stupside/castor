@@ -281,6 +281,8 @@ type observedDevice struct {
 	closed   chan struct{}
 }
 
+func (*observedDevice) Position(context.Context) (Playhead, error) { return Playhead{}, ErrNoPosition }
+
 func (d *observedDevice) AwaitEnd(ctx context.Context) error {
 	close(d.started)
 	<-ctx.Done()

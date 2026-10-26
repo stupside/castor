@@ -177,6 +177,8 @@ func (s *Session) Hold(on bool) { s.clock.hold(on) }
 // Held reports whether the handed playback is paused.
 func (s *Session) Held() bool { return s.clock.holding() }
 
+func (s *Session) Played() time.Duration { return s.clock.played(time.Now()) }
+
 // State is where playback is now.
 func (s *Session) State() Playback {
 	select {

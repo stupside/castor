@@ -4,6 +4,7 @@ package castor.media.v1;
 
 import "buf/validate/validate.proto";
 import "google/protobuf/descriptor.proto";
+import "google/protobuf/duration.proto";
 
 // DeviceService lends a device to a cast: its lender holds it for the whole cast, playing what the cast asks through Drive and answering through Answer.
 service DeviceService {
@@ -29,9 +30,20 @@ message AnswerRequest {
     option (buf.validate.oneof).required = true;
     Done done = 3;
     DeviceError error = 4;
+    Position position = 5;
   }
 
   message Done {}
+
+  // Position answers a Position call; a device that cannot say where it has played to answers done.
+  message Position {
+    google.protobuf.Duration at = 1 [
+      (buf.validate.field).required = true,
+      (buf.validate.field).duration.gte = {}
+    ];
+    // paused is the device's viewer holding playback at.
+    bool paused = 2;
+  }
 }
 
 message AnswerResponse {}
@@ -245,6 +257,7 @@ message DeviceCommand {
       AwaitEnd await_end = 3;
       Pause pause = 4;
       Resume resume = 5;
+      Position position = 6;
     }
   }
 
@@ -291,6 +304,8 @@ message DeviceCommand {
   message Pause {}
 
   message Resume {}
+
+  message Position {}
 
   message Cancel {
     string command_id = 1 [(buf.validate.field).string.min_len = 1];

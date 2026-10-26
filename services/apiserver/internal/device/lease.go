@@ -165,11 +165,19 @@ func (l *lease) Pause(ctx context.Context) error {
 func (l *lease) Resume(ctx context.Context) error {
 	return l.command(ctx, func(ctx context.Context, d Device) error { return d.Resume(ctx) })
 }
+func (l *lease) Position(ctx context.Context) (head Playhead, err error) {
+	err = l.observe(ctx, func(ctx context.Context) (err error) {
+		head, err = l.device.Position(ctx)
+		return err
+	})
+	return head, err
+}
 func (l *lease) Capabilities() *mediav1.Capabilities { return l.device.Capabilities() }
 
-// AwaitEnd observes without occupying the command slot. Close cancels and joins
-// observers before releasing the device, just as it does executing commands.
-func (l *lease) AwaitEnd(ctx context.Context) error {
+func (l *lease) AwaitEnd(ctx context.Context) error { return l.observe(ctx, l.device.AwaitEnd) }
+
+// observe runs fn outside the command slot while the lease lives; Close cancels and waits for it.
+func (l *lease) observe(ctx context.Context, fn func(context.Context) error) error {
 	l.mu.Lock()
 	if err := context.Cause(l.lifetime); err != nil {
 		l.mu.Unlock()
@@ -182,6 +190,6 @@ func (l *lease) AwaitEnd(ctx context.Context) error {
 	defer cancel(nil)
 	stop := context.AfterFunc(l.lifetime, func() { cancel(context.Cause(l.lifetime)) })
 	defer stop()
-	return l.device.AwaitEnd(ctx)
+	return fn(ctx)
 }
 func (l *lease) Close() error { return l.shutdown() }

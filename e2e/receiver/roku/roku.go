@@ -96,12 +96,15 @@ func (d *device) Start(t *testing.T, s *receiver.Session) (receiver.Endpoint, er
 		s.Hand(req.URL.Query().Get("url"), declared)
 	})
 	mux.HandleFunc("GET /query/media-player", func(w http.ResponseWriter, _ *http.Request) {
-		state := playerStates[s.State()]
-		if s.State() == receiver.Playing && s.Held() {
-			state = "pause"
+		state, position := playerStates[s.State()], ""
+		if s.State() == receiver.Playing {
+			position = fmt.Sprintf("<position>%d ms</position>", s.Played().Milliseconds())
+			if s.Held() {
+				state = "pause"
+			}
 		}
 		w.Header().Set("Content-Type", "text/xml")
-		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><player error="false" state="` + state + `"/>`))
+		_, _ = fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><player error="false" state="%s">%s</player>`, state, position)
 	})
 	// ECP has one Play key, which the channel toggles on.
 	mux.HandleFunc("POST /keypress/{key}", func(w http.ResponseWriter, req *http.Request) {

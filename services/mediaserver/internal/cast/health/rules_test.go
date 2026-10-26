@@ -61,8 +61,11 @@ func TestVerdicts(t *testing.T) {
 	}
 }
 
-func TestWhereTheViewerGotToIsTheClock(t *testing.T) {
+func TestWhereTheViewerGotToIsTheDevicesWordElseTheClock(t *testing.T) {
 	if got := (Vitals{played: time.Minute}).Reached(); got != time.Minute {
 		t.Errorf("by the clock, reached %v, want the minute played", got)
+	}
+	if got := (Vitals{played: time.Minute, head: 40 * time.Second, headKnown: true}).Reached(); got != 40*time.Second {
+		t.Errorf("reached %v, want where the device says it is, since it buffered part of that minute", got)
 	}
 }

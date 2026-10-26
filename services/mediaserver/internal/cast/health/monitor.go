@@ -23,6 +23,8 @@ type Monitor struct {
 	// Audience is the device side (nil until device holds URL).
 	Audience Audience
 
+	Playhead Playhead
+
 	// Holdable says whether the attempt can pause this playback.
 	Holdable bool
 

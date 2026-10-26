@@ -45,24 +45,37 @@ type Vitals struct {
 	handed     int64
 	sinceFetch time.Duration
 
-	// played is the media the device has played since it was handed the URL, less the time it was held.
+	// played is how long the device has played since it first fetched, less the time it was held.
 	played time.Duration
+	// head is where the device says it has played to, when it says.
+	head      time.Duration
+	headKnown bool
 
 	// holdable is a device the watch may pause; paused is one it holds, for sincePause, and held is every hold so far.
 	holdable   bool
 	paused     bool
 	sincePause time.Duration
 	held       time.Duration
+	// viewerHeld is a device its viewer holds, which castor neither judges nor commands.
+	viewerHeld bool
 }
 
-// Reached is where the viewer got to in the attempt's program, by the clock.
-func (h Vitals) Reached() time.Duration { return h.played }
+// at is where the device has played to by the clock.
+func (h Vitals) at() time.Duration { return h.played }
+
+// Reached is where the viewer got to in the attempt's program: the device's own word where it says, else the clock.
+func (h Vitals) Reached() time.Duration {
+	if h.headKnown {
+		return h.head
+	}
+	return h.at()
+}
 
 // playable reports that there is something to hand a device.
 func (h Vitals) playable() bool { return h.Landed > 0 }
 
 // ahead is the least media the device provably still has to play: what was made, less what it has played.
-func (h Vitals) ahead() time.Duration { return h.Position - h.played }
+func (h Vitals) ahead() time.Duration { return h.Position - h.at() }
 
 // paced is a producer delivering at least as fast as playback consumes.
 func (h Vitals) paced() bool { return h.rate >= playbackRate }

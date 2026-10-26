@@ -26,11 +26,14 @@ import (
 // receiverAnswering is a Cast receiver on the other end of a pipe; loadAnswers says what it sends once LOAD arrives.
 func receiverAnswering(t *testing.T, loadAnswers func(requestID int, load castmedia.MediaItem) []any) *session {
 	t.Helper()
-	return receiverSaying(t, func(requestID int) any {
-		status := castmedia.ReceiverStatusResponse{Type: "RECEIVER_STATUS", RequestId: requestID}
-		status.Status.Applications = []castmedia.Application{{AppId: defaultMediaReceiver, TransportId: "transport-1"}}
-		return status
-	}, loadAnswers)
+	return receiverSaying(t, running, loadAnswers)
+}
+
+// running is the receiver status of a device with the Default Media Receiver up.
+func running(requestID int) any {
+	status := castmedia.ReceiverStatusResponse{Type: "RECEIVER_STATUS", RequestId: requestID}
+	status.Status.Applications = []castmedia.Application{{AppId: defaultMediaReceiver, TransportId: "transport-1"}}
+	return status
 }
 
 // receiverSaying is receiverAnswering answering GET_STATUS with status.
@@ -94,6 +97,43 @@ func TestADevicesAnswersAreReadAsItSendsThem(t *testing.T) {
 	}
 	if err := dev.AwaitEnd(t.Context()); err != nil {
 		t.Errorf("AwaitEnd = %v, want the device's finish read as a clean end", err)
+	}
+}
+
+func TestChromecastPositionIsTheCurrentTimeOfTheMediaItLoaded(t *testing.T) {
+	stream := &url.URL{Scheme: "http", Host: "media.test", Path: "/stream.mp4"}
+	for _, tt := range []struct {
+		name, status string
+		want         device.Playhead
+		err          error
+	}{
+		{"its own session among others", `[{"mediaSessionId":2,"currentTime":99},{"mediaSessionId":1,"playerState":"PLAYING","currentTime":12.5}]`, device.Playhead{At: 12500 * time.Millisecond}, nil},
+		{"paused by its viewer", `[{"mediaSessionId":1,"playerState":"PAUSED","currentTime":30}]`, device.Playhead{At: 30 * time.Second, Paused: true}, nil},
+		{"a status without a current time", `[{"mediaSessionId":1,"playerState":"PLAYING"}]`, device.Playhead{}, device.ErrNoPosition},
+		{"only another session", `[{"mediaSessionId":2,"currentTime":99}]`, device.Playhead{}, device.ErrNoPosition},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			asked := false
+			dev := receiverSaying(t, func(id int) any {
+				// Play asks the receiver once; every later GET_STATUS is Position's.
+				if asked {
+					return jsontext.Value(fmt.Sprintf(`{"type":"MEDIA_STATUS","requestId":%d,"status":%s}`, id, tt.status))
+				}
+				asked = true
+				return running(id)
+			}, func(id int, load castmedia.MediaItem) []any {
+				return []any{mediaStatus(id, load.ContentId, "BUFFERING", "")}
+			})
+			if _, err := dev.Position(t.Context()); !errors.Is(err, device.ErrNoPosition) {
+				t.Fatalf("Position before any Play = %v, want ErrNoPosition", err)
+			}
+			if err := dev.Play(t.Context(), device.Playback{URL: stream, Container: mediav1.Container_CONTAINER_MP4}); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := dev.Position(t.Context()); got != tt.want || !errors.Is(err, tt.err) {
+				t.Errorf("Position = %v, %v; want %v, %v", got, err, tt.want, tt.err)
+			}
+		})
 	}
 }
 

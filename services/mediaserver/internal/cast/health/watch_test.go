@@ -331,7 +331,7 @@ func TestResumeRetriesPreserveTheWholePause(t *testing.T) {
 			if err := o.Applied(t.Context(), Resume, errors.New("device busy")); err != nil {
 				t.Fatal(err)
 			}
-			h, err := o.read()
+			h, err := o.read(t.Context())
 			if err != nil || !h.paused {
 				t.Fatalf("refused resume released playback: %+v, %v", h, err)
 			}
@@ -342,7 +342,7 @@ func TestResumeRetriesPreserveTheWholePause(t *testing.T) {
 		if err := o.Applied(ctx, Resume, nil); err != nil {
 			t.Fatal(err)
 		}
-		h, err := o.read()
+		h, err := o.read(t.Context())
 		if err != nil || h.paused || h.held != 3*time.Second || h.played != 0 {
 			t.Fatalf("pause accounting after retries: %+v, %v", h, err)
 		}
@@ -354,11 +354,80 @@ func TestRefusedPauseDisablesFurtherHolds(t *testing.T) {
 	if err := o.Applied(t.Context(), Pause, errors.New("unsupported")); err != nil {
 		t.Fatal(err)
 	}
-	h, err := o.read()
+	h, err := o.read(t.Context())
 	if err != nil || h.paused || h.holdable {
 		t.Fatalf("refused pause: %+v, %v", h, err)
 	}
 	if err := o.Applied(t.Context(), Pause, nil); err == nil {
 		t.Fatal("accepted another pause after refusal")
 	}
+}
+
+// pausingDevice plays from the start and says when its viewer holds it.
+type pausingDevice struct {
+	mu     sync.Mutex
+	at     time.Duration
+	since  time.Time
+	held   bool
+	handed int64
+}
+
+func (d *pausingDevice) Handed() (int64, time.Time) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.handed, time.Now()
+}
+
+func (d *pausingDevice) Position(context.Context) (time.Duration, bool, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.held {
+		return d.at, true, true
+	}
+	return d.at + time.Since(d.since), false, true
+}
+
+func (d *pausingDevice) hold(on bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if on {
+		d.at += time.Since(d.since)
+	} else {
+		d.since = time.Now()
+	}
+	d.held = on
+}
+
+// A device its viewer pauses is neither judged by its stopped playhead nor counted as playing while held.
+func TestADevicesOwnPauseIsAHoldNotAStall(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &pausingDevice{since: start, handed: 1 << 20}
+		producer := &pacedProducer{done: make(chan struct{}), start: start, made: func(d time.Duration) time.Duration { return d + time.Minute }}
+		o := Observe(Monitor{Subject: "the playing cast", Phase: Playing, Producer: producer, Telemetry: producer, Audience: dev, Playhead: dev})
+		read := func() Vitals {
+			h, err := o.read(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			return h
+		}
+		for range 40 {
+			time.Sleep(time.Second)
+			read()
+		}
+		before := read()
+		dev.hold(true)
+		for range 60 {
+			time.Sleep(time.Second)
+			read()
+		}
+		held := read()
+		if !held.viewerHeld || held.played-before.played > 6*time.Second {
+			t.Errorf("after a minute's hold by its viewer: held %t, played %v more; want held, the hold not counted as playing", held.viewerHeld, held.played-before.played)
+		}
+		if held.held != 0 {
+			t.Errorf("the viewer's hold counts %v as castor's, which would starve a cast it later holds", held.held)
+		}
+	})
 }

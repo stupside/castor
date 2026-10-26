@@ -54,6 +54,7 @@ type Observer struct {
 func Observe(m Monitor) *Observer {
 	now := time.Now()
 	o := &Observer{m: m, start: now, grew: now, kept: now}
+	o.playhead = newPlayTrail(m.Playhead)
 	o.playback = o.playbackMachine()
 	return o
 }
@@ -72,7 +73,7 @@ func (o *Observer) Next(ctx context.Context) (Decision, error) {
 			}
 		}
 		o.polled = true
-		h, err := t.read()
+		h, err := t.read(ctx)
 		if err != nil {
 			return Complete, err
 		}
@@ -224,16 +225,23 @@ type tracker struct {
 	sample  media.Progress
 	samples int
 
-	// pausedAt is when the device was last held, zero while it plays; held is every hold before it.
-	pausedAt time.Time
-	held     time.Duration
-	playback *fsm.FSM
+	// fetchedAt is when the device first took a byte.
+	fetchedAt time.Time
+
+	playhead playTrail
+
+	// pausedAt and held are castor's holds, viewerAt and viewerHolds its viewer's, which count against played but never as castor's.
+	pausedAt    time.Time
+	held        time.Duration
+	viewerAt    time.Time
+	viewerHolds time.Duration
+	playback    *fsm.FSM
 
 	reported time.Time
 }
 
 // read takes one reading of every port.
-func (t *tracker) read() (Vitals, error) {
+func (t *tracker) read(ctx context.Context) (Vitals, error) {
 	now := time.Now()
 	h := Vitals{subtitles: t.m.Lead != nil, holdable: t.m.Holdable && !t.playback.Is(pauseUnavailable)}
 
@@ -291,18 +299,40 @@ func (t *tracker) read() (Vitals, error) {
 	if a := t.m.Audience; a != nil {
 		handed, last := a.Handed()
 		h.handed = handed
+		if handed > 0 && t.fetchedAt.IsZero() {
+			t.fetchedAt = now
+		}
 		// A device that fetched nothing yet is measured from the watch's start, not from the epoch.
 		h.sinceFetch = now.Sub(cmp.Or(last, t.start))
 	}
-	// Only a device plays; the watch starts as Play returns, which understates the media on hand.
+	// Only a device plays, and not before it first fetches: the watch starts as Play returns, which understates the media on hand.
 	if t.m.Phase == Playing {
 		h.paused = t.playback.Is(playbackPaused) || t.playback.Is(resumeRefused)
-		held := t.held
+		t.playhead.poll(ctx, now)
+		h.head, h.headKnown, h.viewerHeld = t.playhead.last, t.playhead.lastKnown, t.playhead.held
+		switch {
+		case h.viewerHeld && t.viewerAt.IsZero():
+			t.viewerAt = now
+		case !h.viewerHeld && !t.viewerAt.IsZero():
+			t.viewerHolds += now.Sub(t.viewerAt)
+			t.viewerAt = time.Time{}
+		}
+		h.held = t.held
 		if h.paused {
 			h.sincePause = now.Sub(t.pausedAt)
-			held += h.sincePause
+			h.held += h.sincePause
 		}
-		h.played, h.held = now.Sub(t.start)-held, held
+		stopped := h.held + t.viewerHolds
+		if !t.viewerAt.IsZero() {
+			stopped += now.Sub(t.viewerAt)
+		}
+		// With no audience to say when it began, the device is taken to play from the start.
+		if t.m.Audience == nil {
+			t.fetchedAt = t.start
+		}
+		if !t.fetchedAt.IsZero() {
+			h.played = now.Sub(t.fetchedAt) - stopped
+		}
 	}
 
 	if t.m.Grace > 0 {

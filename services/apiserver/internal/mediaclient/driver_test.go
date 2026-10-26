@@ -20,6 +20,10 @@ func (*waitingDevice) Play(context.Context, device.Playback) error {
 func (*waitingDevice) Capabilities() *mediav1.Capabilities {
 	return &mediav1.Capabilities{Formats: []*mediav1.FormatSupport{{Transport: &mediav1.FormatSupport_Progressive{Progressive: &mediav1.ProgressiveSupport{Container: mediav1.ProgressiveSupport_CONTAINER_MP4}}, Tracks: &mediav1.FormatSupport_Av{Av: &mediav1.AVSupport{Video: &mediav1.VideoSupport{Codec: &mediav1.VideoSupport_H264{H264: &mediav1.H264Support{}}}, Audio: &mediav1.AudioSupport{Codec: mediav1.AudioCodec_AUDIO_CODEC_AAC}}}}}}
 }
+func (*waitingDevice) Position(context.Context) (device.Playhead, error) {
+	return device.Playhead{}, device.ErrNoPosition
+}
+
 func (d *waitingDevice) AwaitEnd(ctx context.Context) error {
 	d.started <- struct{}{}
 	<-ctx.Done()

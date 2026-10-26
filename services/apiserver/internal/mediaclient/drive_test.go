@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
@@ -93,12 +94,13 @@ func serve(t *testing.T, commands ...*mediav1.DeviceCommand) (*mediaclient.Clien
 	return mediaclient.New(api.Client(), api.URL), m
 }
 
-// lentDevice plays what it is handed, or refuses it with refusal.
+// lentDevice plays what it is handed, or refuses it with refusal, and says it stands at playhead when it has one.
 type lentDevice struct {
-	played  chan *url.URL
-	as      chan mediav1.Container
-	info    chan *castorv1.MediaInfo
-	refusal error
+	played   chan *url.URL
+	as       chan mediav1.Container
+	info     chan *castorv1.MediaInfo
+	refusal  error
+	playhead *device.Playhead
 }
 
 func newLentDevice() *lentDevice {
@@ -113,6 +115,13 @@ func (s *lentDevice) Play(_ context.Context, playback device.Playback) error {
 	s.as <- playback.Container
 	s.info <- playback.Info
 	return nil
+}
+
+func (s *lentDevice) Position(context.Context) (device.Playhead, error) {
+	if s.playhead == nil {
+		return device.Playhead{}, device.ErrNoPosition
+	}
+	return *s.playhead, nil
 }
 
 func (*lentDevice) AwaitEnd(ctx context.Context) error {
@@ -224,6 +233,20 @@ func TestADeviceGoneIsAnsweredGoneSoTheCastsRecoveryReadsIt(t *testing.T) {
 	want := &mediav1.DeviceError_Gone{Device: "Bedroom", Observed: "stopped answering", Cause: "connection refused"}
 	if got := taken(t, m.answered).GetError().GetGone(); !proto.Equal(got, want) {
 		t.Errorf("the play was answered gone as %v, want %v", got, want)
+	}
+}
+
+func TestAPositionIsAnsweredWithWhetherTheViewerHoldsTheDevice(t *testing.T) {
+	position := &mediav1.DeviceCommand{Command: &mediav1.DeviceCommand_Call_{Call: &mediav1.DeviceCommand_Call{Id: "position", Operation: &mediav1.DeviceCommand_Call_Position{Position: &mediav1.DeviceCommand_Position{}}}}}
+	c, m := serve(t, position)
+	lent := newLentDevice()
+	lent.playhead = &device.Playhead{At: 42 * time.Second, Paused: true}
+
+	if _, driven := cast(t, c, lent); driven != nil {
+		t.Errorf("the drive ended with %v", driven)
+	}
+	if got := taken(t, m.answered).GetPosition(); got.GetAt().AsDuration() != 42*time.Second || !got.GetPaused() {
+		t.Errorf("the position was answered %v, want 42s held by the viewer", got)
 	}
 }
 

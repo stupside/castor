@@ -365,7 +365,7 @@ func (c *coordinator) observePlayback() {
 	if d := c.presentation.delivery; d != nil {
 		c.launch(deliverySettled, func() error { return d.sink.Wait(c.ctx, d.output.Done()) })
 		if aud := d.sink.Audience(); aud != nil {
-			monitor := playingMonitor(c.presentation.feed, *d, aud)
+			monitor := playingMonitor(c.presentation.feed, *d, aud, c.device)
 			c.launch(healthEnded, func() error { return observeHealth(c.ctx, monitor, c.device) })
 		}
 	}

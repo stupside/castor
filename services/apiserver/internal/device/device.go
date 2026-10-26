@@ -3,9 +3,11 @@ package device
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
@@ -36,9 +38,19 @@ type Device interface {
 	// Stop ends what the device plays, so a cast that ends while the device still fetches from elsewhere does not leave it playing.
 	Stop(ctx context.Context) error
 
+	// Position is where the device says it has played to, ErrNoPosition where it cannot say.
+	Position(ctx context.Context) (Playhead, error)
+
 	Capabilities() *mediav1.Capabilities
 
 	Close() error
+}
+
+var ErrNoPosition = errors.New("the device does not report its position")
+
+type Playhead struct {
+	At     time.Duration
+	Paused bool
 }
 
 // Info names one device, where it answers.

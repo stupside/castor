@@ -79,6 +79,8 @@ type idle struct{}
 func (idle) Play(context.Context, Playback) error {
 	return nil
 }
+func (idle) Position(context.Context) (Playhead, error) { return Playhead{}, ErrNoPosition }
+
 func (idle) AwaitEnd(ctx context.Context) error  { return context.Cause(ctx) }
 func (idle) Capabilities() *mediav1.Capabilities { return &mediav1.Capabilities{} }
 func (idle) Close() error                        { return nil }

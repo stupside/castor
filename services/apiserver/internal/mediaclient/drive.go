@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
@@ -119,8 +120,22 @@ func (d *driver) exec(ctx context.Context, cmd *mediav1.DeviceCommand_Call) *med
 		return outcome(d.device.Pause(ctx))
 	case *mediav1.DeviceCommand_Call_Resume:
 		return outcome(d.device.Resume(ctx))
+	case *mediav1.DeviceCommand_Call_Position:
+		return d.position(ctx)
 	}
 	return failure(fmt.Errorf("device command %q is one this drive does not know", cmd.GetId()))
+}
+
+// position answers where the device has played to, or plainly done where it cannot say.
+func (d *driver) position(ctx context.Context) *mediav1.AnswerRequest {
+	head, err := d.device.Position(ctx)
+	switch {
+	case errors.Is(err, device.ErrNoPosition):
+		return outcome(nil)
+	case err != nil:
+		return failure(err)
+	}
+	return &mediav1.AnswerRequest{Answer: &mediav1.AnswerRequest_Position_{Position: &mediav1.AnswerRequest_Position{At: durationpb.New(head.At), Paused: head.Paused}}}
 }
 
 // release abandons every call still running: nothing drives the device past this drive.

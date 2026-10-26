@@ -73,6 +73,11 @@ func (r *reconnecting) Stop(ctx context.Context) error {
 	return dev.Stop(ctx)
 }
 
+func (r *reconnecting) Position(ctx context.Context) (Playhead, error) {
+	dev, _ := r.current()
+	return dev.Position(ctx)
+}
+
 func (r *reconnecting) Capabilities() *mediav1.Capabilities {
 	dev, _ := r.current()
 	return dev.Capabilities()
