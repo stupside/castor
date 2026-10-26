@@ -30,6 +30,9 @@ var playbook = map[kind][]strategy{
 
 	// The delivery lost the artifact, not the reader, so decoding would answer nothing.
 	producedNothing: {switchCandidate},
+
+	// A cast that played well is moved back toward the link that outranks it, and resumes where it was when none can be read.
+	outranked: {climb, stay},
 }
 
 // revision is the attempt a strategy offers; offering nothing is ordinary.
@@ -76,11 +79,21 @@ func (f *fault) resumeAt() time.Duration {
 	return f.attempt.Program.Start
 }
 
+// fallBack returns a climb whose better link failed before playing to the attempt it left.
+func fallBack(left *Attempt, f *fault, led *ledger) revision {
+	if left == nil || f.evidence.Reached >= health.Playing || f.kind == deviceGone {
+		return revision{}
+	}
+	back := *left
+	back.Try = f.attempt.Try + 1
+	return revision{attempt: back, action: SwitchCandidate, offered: led.admit(back)}
+}
+
 // revisable is an attempt that failed before playing and can change; once playing, only one that can resume where it got to.
 func revisable(o Outcome) bool {
 	if o.Evidence.Reached >= health.Playing {
 		switch o.Evidence.Verdict {
-		case health.Starved, health.Stalled:
+		case health.Starved, health.Stalled, health.Outranked:
 			return true
 		}
 		return false

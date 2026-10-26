@@ -32,6 +32,8 @@ const (
 	deviceRefused
 	// producedNothing is a delivery that ended without an artifact to fetch.
 	producedNothing
+	// outranked is a cast that played well on a link another outranks.
+	outranked
 )
 
 func (k kind) String() string {
@@ -56,6 +58,8 @@ func (k kind) String() string {
 		return "device-refused"
 	case producedNothing:
 		return "produced-nothing"
+	case outranked:
+		return "outranked"
 	default:
 		return "unclassified"
 	}
@@ -130,6 +134,10 @@ var verdictClasses = map[health.Kind]classRule{
 	health.Starved: {
 		why:  "the source delivers less than playback consumes",
 		kind: starved,
+	},
+	health.Outranked: {
+		why:  "a better link is worth trying",
+		kind: outranked,
 	},
 	health.Undeliverable: {
 		why:  "the source is too slow to play",

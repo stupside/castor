@@ -79,7 +79,7 @@ flowchart LR
     class cast,attempt,health mediaNode
 ```
 
-Each machine owns its transitions and accepts typed events. The cast runs attempts sequentially: recovery can revise delivery or choose another candidate only after the previous attempt has finished cleanup. Health observes and proposes actions; the attempt applies them and reports command outcomes. Health judges what the read makes and what the device takes. A device whose link cannot carry the cast is neither held nor sent elsewhere: the delivery changes how it is made while the device plays it, cutting from one encoder to the next, or to a lighter rung of the source, at a keyframe so the device sees one stream, and goes heavier again once the link has room. Candidates are ranked by language first, then picture, then bitrate. See the next section for how.
+Each machine owns its transitions and accepts typed events. The cast runs attempts sequentially: recovery can revise delivery or choose another candidate only after the previous attempt has finished cleanup. Health observes and proposes actions; the attempt applies them and reports command outcomes. Health judges what the read makes and what the device takes. A device whose link cannot carry the cast is neither held nor sent elsewhere: the delivery changes how it is made while the device plays it, cutting from one encoder to the next, or to a lighter rung of the source, at a keyframe so the device sees one stream, and goes heavier again once the link has room. Candidates are ranked by language first, then picture, then bitrate, and a cast that fell to a lower ranked link goes back to a better one once it has played well. See the next section for how.
 
 Within an attempt, operations return typed inputs for the next stage:
 
@@ -122,7 +122,7 @@ flowchart LR
     play --> device
     device -- what it takes --> watch
     watch -- lighter or heavier --> play
-    watch -- failure --> rank
+    watch -- failure, or a better link exists --> rank
     classDef apiNode fill:#dbeafe,stroke:#2563eb,color:#111
     classDef mediaNode fill:#dcfce7,stroke:#16a34a,color:#111
     classDef scrapeNode fill:#ffedd5,stroke:#ea580c,color:#111
@@ -165,9 +165,10 @@ A change is a cut: the running encoder stops at a keyframe and a new one starts 
 
 Only deliveries served as one growing stream with in-band decoder configuration (MPEG-TS) can be cut this way. How a container is scanned for keyframes is a pluggable framing.
 
-### Falling down
+### Falling down and climbing back
 
 - **A link fails:** recovery tries the cheapest fix first (slower read, different decode, serve instead of hand off) and the next ranked link last. A restart resumes from where the viewer got to.
+- **A better link exists:** a cast that fell to a lower ranked link retries the best one after 10 minutes of good playback, with a short gap. If it fails, the cast goes back down and waits twice as long (20, then 40 minutes). If none can be read, it plays on.
 
 ### Limits
 

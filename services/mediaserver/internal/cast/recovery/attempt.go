@@ -64,6 +64,9 @@ type Attempt struct {
 
 	// Delivery is carried per attempt because recovery may change it.
 	Delivery compose.DeliveryPreference
+
+	// Climb is how long the attempt plays well before a better link is tried, zero for never.
+	Climb time.Duration
 }
 
 // identity is exactly the fields a strategy can change, which is the ledger's key; Try is left out.

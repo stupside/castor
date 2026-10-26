@@ -218,7 +218,7 @@ func fire(ctx context.Context, machine *fsm.FSM, event string) error {
 // Fault is a verdict that ended a watch; recovery keys on its Kind.
 type Fault struct {
 	Kind Kind
-	// Revise is a verdict reached before the device held the URL, so the attempt may change.
+	// Revise is a verdict the attempt may change for: one reached before the device held the URL, or a better link.
 	Revise bool
 
 	// Subject is what was watched (gate, output, or cast).
@@ -423,6 +423,7 @@ func (t *tracker) read(ctx context.Context) (Vitals, error) {
 	h.sinceChange = t.asked.sinceChange(now)
 	_, h.room, _ = t.asked.lift(now)
 	h.liftWait, h.trying = t.asked.wait(), t.asked.onTrial()
+	h.climbAfter = t.m.Climb
 	// Only a device plays, and not before it first fetches: the watch starts as Play returns, which understates the media on hand.
 	if t.m.Phase == Playing {
 		h.paused = t.playback.Is(playbackPaused) || t.playback.Is(resumeRefused)

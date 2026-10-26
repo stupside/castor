@@ -6,10 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/stupside/castor/internal/telemetry"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/source"
+)
+
+// climbAfter is how long a cast plays well on an outranked link before the better one is tried; it doubles at each try, up to climbMost.
+const (
+	climbAfter = 10 * time.Minute
+	climbMost  = 40 * time.Minute
 )
 
 // Runner runs one attempt and returns only after joining its work and releasing
@@ -41,6 +48,9 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 
 	led := &ledger{}
 	led.admit(a)
+	wait := climbAfter
+	// left is the attempt a climb left, kept for the very next attempt only.
+	var left *Attempt
 
 	// tried names every strategy already run, for the refusal to state.
 	var tried []string
@@ -49,6 +59,7 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 		if cause := context.Cause(ctx); cause != nil {
 			return cause
 		}
+		a.Climb = climbWait(a, wait)
 		slog.InfoContext(ctx, "attempt", "try", a.Try, "candidate", a.candidate+1, "candidates", len(in.Candidates))
 		in.Turns.Attempting(a.Try)
 
@@ -71,18 +82,40 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 		}
 
 		revisionCtx, finish := telemetry.Start(ctx, telemetry.Recovery)
-		rev := revise(revisionCtx, in, out, f, led, resolver)
+		rev := fallBack(left, f, led)
+		left = nil
+		if !rev.offered {
+			rev = revise(revisionCtx, in, out, f, led, resolver)
+		}
 		if !rev.offered {
 			finish(f)
 			return f
 		}
 		finish(nil)
+		switch {
+		case rev.action == Stay:
+			// No better link could be read, so the cast is not torn down for one again.
+			wait = 0
+		case f.kind == outranked:
+			wait = min(2*wait, climbMost)
+			if back, ok := f.attempt.at(f.resumeAt()); ok {
+				left = &back
+			}
+		}
 
 		revising(ctx, f, rev)
 		in.Turns.Revising(rev.action, f.why)
 		tried = append(tried, string(rev.action))
 		a = rev.attempt
 	}
+}
+
+// climbWait is none for the best ranked link, for a live one, which has no place to resume at on another, and once a climb found none to read.
+func climbWait(a Attempt, wait time.Duration) time.Duration {
+	if a.candidate == 0 || a.live() {
+		return 0
+	}
+	return wait
 }
 
 func validate(in Intent) error {

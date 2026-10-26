@@ -67,6 +67,9 @@ type Vitals struct {
 	head      time.Duration
 	headKnown bool
 
+	// climbAfter is how long a cast plays well before a better link is tried, zero for never.
+	climbAfter time.Duration
+
 	// holdable is a device the watch may pause; paused is one it holds, for sincePause, and held is every hold so far.
 	holdable   bool
 	paused     bool
@@ -83,6 +86,11 @@ type Vitals struct {
 	trying bool
 	// liftWait is how long a rate must have stood before a heavier one is tried; zero takes the usual.
 	liftWait time.Duration
+}
+
+// outranked is a cast that has played well for as long as a better link is left alone.
+func (h Vitals) outranked() bool {
+	return h.climbAfter > 0 && h.played >= h.climbAfter && !h.paused && !h.viewerHeld && !h.trying && !h.ended
 }
 
 // at is where the device has played to by the clock.

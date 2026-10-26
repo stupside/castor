@@ -157,6 +157,7 @@ type operation struct {
 type coordinator struct {
 	device     Device
 	maxBitrate media.Bitrate
+	climb      time.Duration
 	inspect    func() (inspectedPresentation, error)
 	plan       func(inspectedPresentation) (plannedPresentation, error)
 	produce    func(plannedPresentation) (presentation, error)
@@ -189,7 +190,7 @@ func newCoordinator(parent context.Context, c Cast, a recovery.Attempt) *coordin
 	// Signal every owner before joining or releasing any resource.
 	rel.interrupt(func() { cancel(nil) })
 	s := &coordinator{
-		device: c.Device, maxBitrate: c.MaxBitrate, ctx: ctx, stop: cancel, releases: rel,
+		device: c.Device, maxBitrate: c.MaxBitrate, climb: a.Climb, ctx: ctx, stop: cancel, releases: rel,
 		events: make(chan *operation), failures: make(chan error),
 	}
 
@@ -425,7 +426,7 @@ func (c *coordinator) watchHealth(d *delivery) {
 	if aud == nil {
 		return
 	}
-	monitor := playingMonitor(c.presentation.feed, *d, aud, c.maxBitrate, c.device)
+	monitor := playingMonitor(c.presentation.feed, *d, aud, c.maxBitrate, c.climb, c.device)
 	watching, stop := context.WithCancel(c.ctx)
 	c.stopHealth = stop
 	c.launchUntil(watching, healthEnded, func() error { return observeHealth(watching, monitor, c.device, d.rate) })

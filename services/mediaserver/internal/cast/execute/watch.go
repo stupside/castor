@@ -3,6 +3,7 @@ package execute
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -39,8 +40,8 @@ func readMonitor(reader *pull, m health.Monitor) health.Monitor {
 }
 
 // playingMonitor judges a buffered cast by its read, and one reading its source by the encoder serving it.
-func playingMonitor(f feed, d delivery, aud health.Audience, maxBitrate media.Bitrate, dev Device) health.Monitor {
-	m := health.Monitor{Subject: "the playing cast", Phase: health.Playing, Audience: aud, Served: d.output, Switchable: d.rate != nil, MaxBitrate: maxBitrate}
+func playingMonitor(f feed, d delivery, aud health.Audience, maxBitrate media.Bitrate, climb time.Duration, dev Device) health.Monitor {
+	m := health.Monitor{Subject: "the playing cast", Phase: health.Playing, Audience: aud, Served: d.output, Switchable: d.rate != nil, MaxBitrate: maxBitrate, Climb: climb}
 	if p, ok := dev.(health.Playhead); ok {
 		m.Playhead = p
 	}

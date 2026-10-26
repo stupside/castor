@@ -87,6 +87,13 @@ var rules = []rule{{
 	},
 	kind: Lean,
 }, {
+	// Before the cast lifts itself: a better link is worth more than a heavier rate of this one.
+	name:   "outranked",
+	phases: []Phase{Playing},
+	when:   func(h Vitals) bool { return h.outranked() },
+	kind:   Outranked,
+	blames: theDevice,
+}, {
 	name:   "roomy",
 	phases: []Phase{Playing},
 	when:   func(h Vitals) bool { return h.roomy() },

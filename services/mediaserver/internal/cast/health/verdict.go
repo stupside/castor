@@ -59,6 +59,8 @@ const (
 	Roomy
 	// Unfetched is a device that accepted the URL and never fetched it.
 	Unfetched
+	// Outranked is a cast that played well on a link another outranks.
+	Outranked
 )
 
 func (k Kind) String() string {
@@ -85,6 +87,8 @@ func (k Kind) String() string {
 		return "roomy"
 	case Unfetched:
 		return "unfetched"
+	case Outranked:
+		return "outranked"
 	default:
 		return "starting"
 	}
@@ -115,7 +119,7 @@ type verdict struct {
 	phase Phase
 }
 
-// actions is what each verdict asks for in each phase; while playing, only a source that gave out ends the attempt.
+// actions is what each verdict asks for in each phase; while playing, only a source that gave out or a better link ends the attempt.
 var actions = map[verdict]action{
 	{kind: starting, phase: Reading}: keepWatching,
 	{kind: starting, phase: Opening}: keepWatching,
@@ -137,4 +141,5 @@ var actions = map[verdict]action{
 	{kind: Choked, phase: Playing}:    lighten,
 	{kind: Roomy, phase: Playing}:     lift,
 	{kind: Unfetched, phase: Playing}: abandon,
+	{kind: Outranked, phase: Playing}: revise,
 }

@@ -153,6 +153,29 @@ func TestACastNotLiftedSaysWhy(t *testing.T) {
 	}
 }
 
+func TestACastThatPlayedWellOnALinkAnotherOutranksIsMovedBack(t *testing.T) {
+	playing := Vitals{Landed: 8 << 20, handed: 4 << 20, Position: 30 * time.Minute, played: 20 * time.Minute, climbAfter: 10 * time.Minute}
+	for _, tt := range []struct {
+		name   string
+		vitals func(*Vitals)
+		want   Kind
+	}{
+		{"it has played long enough", func(*Vitals) {}, Outranked},
+		{"it has not played long enough", func(v *Vitals) { v.played = 5 * time.Minute }, healthy},
+		{"nothing outranks its link", func(v *Vitals) { v.climbAfter = 0 }, healthy},
+		{"a heavier rate is on trial", func(v *Vitals) { v.trying = true }, healthy},
+		{"its read has finished", func(v *Vitals) { v.ended = true }, healthy},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v := playing
+			tt.vitals(&v)
+			if r, _, err := judge(Playing, v); err != nil || r.kind != tt.want {
+				t.Errorf("judged %s (%v), want %s", r.kind, err, tt.want)
+			}
+		})
+	}
+}
+
 type said struct {
 	mu      sync.Mutex
 	records []slog.Record
