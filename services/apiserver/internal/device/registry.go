@@ -51,7 +51,8 @@ func locate(ctx context.Context, f Family, target Info) (Info, error) {
 	if err != nil {
 		return Info{}, fmt.Errorf("locating device: %w", err)
 	}
-	return Info{ID: target.ID, Name: cmp.Or(target.Name, hostLabel(target.Address)), Type: target.Type, Address: address}, nil
+	target.Name, target.Address = cmp.Or(target.Name, hostLabel(target.Address)), address
+	return target, nil
 }
 
 // hostLabel names a device pinned at address with no name of its own.

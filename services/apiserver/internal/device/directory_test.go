@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -42,7 +43,8 @@ func TestADeviceAnnouncedTwiceIsListedOnce(t *testing.T) {
 // moving is a family whose one device answers only at its current address, which changes as a DHCP lease would.
 type moving struct {
 	stub
-	at string
+	at        string
+	connected atomic.Pointer[Info]
 }
 
 type typedStub struct {
@@ -65,6 +67,7 @@ func (m *moving) Discover(context.Context) []Info {
 }
 
 func (m *moving) Connect(_ context.Context, info Info) (Device, error) {
+	m.connected.Store(&info)
 	if info.Address != m.at {
 		return nil, errors.New("no answer")
 	}
@@ -93,7 +96,10 @@ func TestADeviceThatMovedSinceItWasListedIsFoundAgainToConnect(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := d.Connect(t.Context(), target); err != nil {
-		t.Errorf("Connect = %v, want the device reached at its new address", err)
+		t.Fatalf("Connect = %v, want the device reached at its new address", err)
+	}
+	if got := family.connected.Load(); got.Address != "10.0.0.7" {
+		t.Errorf("family connected %+v, want the device at its new address", got)
 	}
 }
 
