@@ -70,6 +70,10 @@ func (p candidateProbe) Inspect(ctx context.Context) (result source.Inspection, 
 	result.Info.ContentType = stream.ContentType
 	// This measurement describes the selected rendition, not the master's program IDs.
 	result.Info.ProgramHeights = nil
+	// The master names the language a packager seldom writes into the segments.
+	if tracks := result.Info.AudioTracks; len(tracks) == 1 && (tracks[0].Language == "" || tracks[0].Language == "und") {
+		tracks[0].Language = resolved.Rendition.AudioLanguage
+	}
 	if err == nil {
 		observed := media.Observe(resolved.Program, result.Info)
 		result.Observation = &observed

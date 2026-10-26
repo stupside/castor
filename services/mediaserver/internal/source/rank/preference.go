@@ -61,11 +61,24 @@ func exceedsCap(c *source.Stream, ceiling media.HeightCap) bool {
 	return !ceiling.Admits(height(c, ceiling))
 }
 
-func preference(a, b *source.Stream, ceiling media.HeightCap) int {
+// spoken ranks a candidate's sound by the languages asked for; zero for none, so the picture decides between those.
+func spoken(c *source.Stream, languages []string) int {
+	best := 0
+	if c.Probe != nil {
+		for _, track := range c.Probe.AudioTracks {
+			best = max(best, source.LanguageRank(track.Language, languages))
+		}
+	}
+	return best
+}
+
+func preference(a, b *source.Stream, ceiling media.HeightCap, languages []string) int {
 	return cmp.Or(
 		// A measured link beats one admitted unmeasured.
 		source.CompareBool(!a.LastResort, !b.LastResort),
 		source.CompareBool(!exceedsCap(a, ceiling), !exceedsCap(b, ceiling)),
+		// The language comes before any quality: a worse picture in the language asked for beats a better one in another.
+		cmp.Compare(spoken(a, languages), spoken(b, languages)),
 		// The only signal here about RECOVERY rather than the picture: a master carries rungs to fall back to.
 		source.CompareBool(carriesLadder(a), carriesLadder(b)),
 		// A height is evidence that the selected track is a picture; zero is unknown, not short.
@@ -78,8 +91,8 @@ func preference(a, b *source.Stream, ceiling media.HeightCap) int {
 }
 
 // ranked is the ordering a cast walks: best first, every admitted candidate present.
-func ranked(pool []*source.Stream, ceiling media.HeightCap) []*source.Stream {
+func ranked(pool []*source.Stream, ceiling media.HeightCap, languages []string) []*source.Stream {
 	order := slices.Clone(pool)
-	slices.SortStableFunc(order, func(a, b *source.Stream) int { return preference(b, a, ceiling) })
+	slices.SortStableFunc(order, func(a, b *source.Stream) int { return preference(b, a, ceiling, languages) })
 	return order
 }

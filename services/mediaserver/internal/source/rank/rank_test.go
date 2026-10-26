@@ -66,7 +66,7 @@ func TestRankMeasuresTheLadderBeforeTheCapDropsIt(t *testing.T) {
 	captured = append(captured, ladder)
 
 	measurer := &scripted{answers: answers}
-	order, err := New(testConfig, 1080, measurer.Probe).Rank(t.Context(), captured)
+	order, err := New(testConfig, 1080, nil, measurer.Probe).Rank(t.Context(), captured)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestRankMeasuresTheLadderBeforeTheCapDropsIt(t *testing.T) {
 func TestCancellationDoesNotAdmitAProbeFailureAsAFallback(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	r := New(testConfig, 1080, func(ctx context.Context, _ *source.Stream) (source.Inspection, error) {
+	r := New(testConfig, 1080, nil, func(ctx context.Context, _ *source.Stream) (source.Inspection, error) {
 		return source.Inspection{}, ctx.Err()
 	})
 	s := candidateAt(t, media.HLS, "https://origin.example/movie.m3u8")
@@ -94,7 +94,7 @@ func TestCancellationDoesNotAdmitAProbeFailureAsAFallback(t *testing.T) {
 }
 
 func TestFailedProbeKeepsTheInspectedFormat(t *testing.T) {
-	r := New(testConfig, 1080, func(context.Context, *source.Stream) (source.Inspection, error) {
+	r := New(testConfig, 1080, nil, func(context.Context, *source.Stream) (source.Inspection, error) {
 		return source.Inspection{ContentType: media.HLS}, errors.New("probe timed out")
 	})
 	got, err := r.Measure(t.Context(), candidateAt(t, "", "https://origin.example/live"))
@@ -105,7 +105,7 @@ func TestFailedProbeKeepsTheInspectedFormat(t *testing.T) {
 
 func TestRankingKeepsTheIdentityInspectionBoundItsObservationUnder(t *testing.T) {
 	// The local reading of a DASH origin is HLS; the candidate is still read as DASH.
-	r := New(testConfig, 1080, func(context.Context, *source.Stream) (source.Inspection, error) {
+	r := New(testConfig, 1080, nil, func(context.Context, *source.Stream) (source.Inspection, error) {
 		return source.Inspection{Info: *playable(1_000_000, 720, time.Hour), Reach: media.ReachOpened, ContentType: media.DASH}, nil
 	})
 	got, err := r.Measure(t.Context(), candidateAt(t, "", "https://origin.example/manifest"))
@@ -124,7 +124,7 @@ func TestRankingCarriesSuccessfulBindingsAndClearsFailedInspection(t *testing.T)
 	info := *playable(1_000_000, 720, time.Hour)
 	observed := media.Observe(program, info)
 	var fail bool
-	r := New(testConfig, 1080, func(context.Context, *source.Stream) (source.Inspection, error) {
+	r := New(testConfig, 1080, nil, func(context.Context, *source.Stream) (source.Inspection, error) {
 		inspection := source.Inspection{Info: info, Reach: media.ReachOpened, Observation: &observed, ContentType: media.HLS}
 		if fail {
 			return inspection, errors.New("inspection failed after partial output")

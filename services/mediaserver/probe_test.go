@@ -161,7 +161,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 	} {
 		t.Run(tc.path+" "+tc.mime, func(t *testing.T) {
 			u, _ := url.Parse(server.URL + tc.path)
-			ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
+			ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, nil, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
 				return (candidateProbe{stream: s, client: client, resolver: resolver, timelines: timelines, binary: probe.FFprobe("ffprobe")}).Inspect(ctx)
 			})
 			measured, err := (caster{Ranker: ranker}).Measure(t.Context(), &source.Stream{URL: u, ContentType: tc.mime, Headers: http.Header{"Authorization": {"Bearer fixture"}}})
@@ -179,7 +179,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 	}
 	t.Run("container MIME with parameters", func(t *testing.T) {
 		u, _ := url.Parse(server.URL + "/plain.ts")
-		ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
+		ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, nil, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
 			return (candidateProbe{stream: s, client: client, resolver: resolver, timelines: timelines, binary: probe.FFprobe("ffprobe")}).Inspect(ctx)
 		})
 		measured, err := (caster{Ranker: ranker}).Measure(t.Context(), &source.Stream{URL: u, ContentType: "Video/MP2T; charset=binary"})
@@ -196,11 +196,53 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 	})
 	t.Run("static image rejected", func(t *testing.T) {
 		u, _ := url.Parse(server.URL + "/image.png")
-		ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
+		ranker := rank.New(rank.Config{ProbeMaxConcurrency: 1}, 0, nil, func(ctx context.Context, s *source.Stream) (source.Inspection, error) {
 			return (candidateProbe{stream: s, client: client, resolver: resolver, timelines: timelines, binary: probe.FFprobe("ffprobe")}).Inspect(ctx)
 		})
 		if _, err := ranker.Rank(t.Context(), []*source.Stream{{URL: u, ContentType: "image/png"}}); err == nil {
 			t.Fatal("static image admitted")
 		}
 	})
+}
+
+func TestTheLanguageAMasterDeclaresIsTheProbedSounds(t *testing.T) {
+	for _, bin := range []string{"ffmpeg", "ffprobe"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skip(err)
+		}
+	}
+	video, err := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=160x96:r=25", "-t", "1", "-c:v", "mpeg2video", "-f", "mpegts", "pipe:1").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sound, err := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=d=1", "-c:a", "aac", "-f", "mpegts", "pipe:1").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/master.m3u8":
+			_, _ = w.Write([]byte("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"Français\",LANGUAGE=\"fr\",DEFAULT=YES,URI=\"sound.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,RESOLUTION=160x96,AUDIO=\"a\"\nvideo.m3u8\n"))
+		case "/video.m3u8", "/sound.m3u8":
+			name := map[string]string{"/video.m3u8": "video.ts", "/sound.m3u8": "sound.ts"}[r.URL.Path]
+			_, _ = w.Write([]byte("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\n" + name + "\n#EXT-X-ENDLIST\n"))
+		case "/video.ts":
+			_, _ = w.Write(video)
+		case "/sound.ts":
+			_, _ = w.Write(sound)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	client := web.New(fetchTimeout)
+	u, _ := url.Parse(server.URL + "/master.m3u8")
+	p := candidateProbe{stream: &source.Stream{URL: u}, client: client, resolver: source.NewResolver(client, 0, []string{"fr"}, formats), timelines: follow.New(client, formats, follow.Repackager("ffmpeg")), binary: probe.FFprobe("ffprobe")}
+	inspection, err := p.Inspect(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tracks := inspection.Info.AudioTracks; len(tracks) != 1 || tracks[0].Language != "fr" {
+		t.Errorf("audio tracks = %+v, want the one sound tagged fr as the master declares", tracks)
+	}
 }

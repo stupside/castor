@@ -35,7 +35,7 @@ func TestRankedPicksTheBestCandidate(t *testing.T) {
 		{"a confirmed ladder outranks a document with none", []*source.Stream{withLadder(hls("/master", 0, 0), source.LadderMultivariant), hls("/variant", 1080, 6_000_000)}, 1080, "/master"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ranked(tt.pool, tt.maxHeight)[0].URL.Path; got != tt.want {
+			if got := ranked(tt.pool, tt.maxHeight, nil)[0].URL.Path; got != tt.want {
 				t.Errorf("ranked head = %q, want %q", got, tt.want)
 			}
 		})
@@ -50,9 +50,38 @@ func TestRankedIsIndependentOfArrivalOrder(t *testing.T) {
 	items := []*source.Stream{candidate("/1080", 1080, 0), candidate("/unknown", 0, 500_000), candidate("/720", 720, 800_000)}
 	want := []string{"/1080", "/720", "/unknown"}
 	for _, p := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
-		order := ranked([]*source.Stream{items[p[0]], items[p[1]], items[p[2]]}, 1080)
+		order := ranked([]*source.Stream{items[p[0]], items[p[1]], items[p[2]]}, 1080, nil)
 		if got := []string{order[0].URL.Path, order[1].URL.Path, order[2].URL.Path}; !slices.Equal(got, want) {
 			t.Errorf("arrival %v ranked as %v, want %v", p, got, want)
 		}
+	}
+}
+
+func TestTheLanguageAskedForOutranksTheQuality(t *testing.T) {
+	speaking := func(path string, height int, languages ...string) *source.Stream {
+		info := &media.ProbeInfo{VideoHeight: height}
+		for _, l := range languages {
+			info.AudioTracks = append(info.AudioTracks, media.AudioTrack{Language: l})
+		}
+		return &source.Stream{URL: &url.URL{Path: path}, ContentType: media.MP4, Probe: info}
+	}
+	for _, tt := range []struct {
+		name      string
+		pool      []*source.Stream
+		languages []string
+		want      string
+	}{
+		{"a worse picture in the language beats a better one in another", []*source.Stream{speaking("/en1080", 1080, "en"), speaking("/fr720", 720, "fr")}, []string{"fr"}, "/fr720"},
+		{"the earlier language wins", []*source.Stream{speaking("/en", 1080, "en"), speaking("/fr", 480, "fr")}, []string{"fr", "en"}, "/fr"},
+		{"an undeclared language does not beat a declared other one on the picture", []*source.Stream{speaking("/en", 1080, "en"), speaking("/unknown", 480)}, []string{"fr"}, "/en"},
+		{"a declared match beats an undeclared one", []*source.Stream{speaking("/unknown", 1080), speaking("/fr", 480, "fr")}, []string{"fr"}, "/fr"},
+		{"the same language falls to the picture", []*source.Stream{speaking("/fr480", 480, "fr"), speaking("/fr1080", 1080, "fr")}, []string{"fr"}, "/fr1080"},
+		{"no language asked leaves the picture to decide", []*source.Stream{speaking("/en1080", 1080, "en"), speaking("/fr720", 720, "fr")}, nil, "/en1080"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ranked(tt.pool, 1080, tt.languages)[0].URL.Path; got != tt.want {
+				t.Errorf("ranked first %s, want %s", got, tt.want)
+			}
+		})
 	}
 }

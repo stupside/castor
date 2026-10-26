@@ -21,12 +21,14 @@ type Ranker struct {
 	cfg Config
 	// maxHeight is the tallest picture the cast asked for.
 	maxHeight media.HeightCap
+	// languages are the sound languages the cast asked for, best first.
+	languages []string
 	probes    Probes
 }
 
-// New binds ranking for one cast, capped at maxHeight, to the measurement it pays in.
-func New(cfg Config, maxHeight media.HeightCap, probes Probes) *Ranker {
-	return &Ranker{cfg: cfg, maxHeight: maxHeight, probes: probes}
+// New binds ranking for one cast, capped at maxHeight and asking for sound in languages, to the measurement it pays in.
+func New(cfg Config, maxHeight media.HeightCap, languages []string, probes Probes) *Ranker {
+	return &Ranker{cfg: cfg, maxHeight: maxHeight, languages: languages, probes: probes}
 }
 
 // Rank measures every candidate and returns the order a cast walks them in, best first.
@@ -56,7 +58,10 @@ func (r *Ranker) Rank(ctx context.Context, streams []*source.Stream) (rankedStre
 		return nil, fmt.Errorf("no castable stream: none of %d candidates was admitted", len(streams))
 	}
 
-	order := ranked(pool, r.maxHeight)
+	order := ranked(pool, r.maxHeight, r.languages)
+	for i, c := range order[1:] {
+		slog.DebugContext(ctx, "candidate ranked", "rank", i+2, "url", c.URL.String(), "height", height(c, r.maxHeight), "bitrate_bps", int64(c.Bitrate()), "spoken", spoken(c, r.languages), "last_resort", c.LastResort)
+	}
 	best := order[0]
 	slog.InfoContext(ctx, "best stream selected", "url", best.URL.String(),
 		"bitrate_bps", int64(best.Bitrate()), "height", height(best, r.maxHeight), "last_resort", best.LastResort,
