@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"slices"
 	"time"
@@ -132,6 +133,61 @@ type Opening struct {
 	// WriteDeadline bounds one socket write, so a hung client cannot hold its goroutine.
 	WriteDeadline time.Duration
 }
+
+// Answering serves each request with the device's headers under a write deadline, counting what it sent.
+func (o Opening) Answering(serve func(*Answer, *http.Request)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Not lifted here: net/http lifts it after flushing the buffered answer, which it must still cover.
+		if o.WriteDeadline > 0 {
+			if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(o.WriteDeadline)); err != nil {
+				slog.WarnContext(r.Context(), "write deadline unavailable", "error", err)
+			}
+		}
+		for k, v := range o.Headers {
+			w.Header().Set(k, v)
+		}
+		serve(&Answer{ResponseWriter: w}, r)
+	}
+}
+
+// Answer records the status and bytes a ResponseWriter does not report.
+type Answer struct {
+	http.ResponseWriter
+	Status int
+	Bytes  int64
+}
+
+func (a *Answer) WriteHeader(code int) {
+	if a.Status == 0 {
+		a.Status = code
+	}
+	a.ResponseWriter.WriteHeader(code)
+}
+
+func (a *Answer) Write(b []byte) (int, error) {
+	if a.Status == 0 {
+		a.Status = http.StatusOK
+	}
+	n, err := a.ResponseWriter.Write(b)
+	a.Bytes += int64(n)
+	return n, err
+}
+
+// ReadFrom keeps the connection's own ReaderFrom, so a file server sends without a userspace copy.
+func (a *Answer) ReadFrom(r io.Reader) (int64, error) {
+	if a.Status == 0 {
+		a.Status = http.StatusOK
+	}
+	n, err := io.Copy(a.ResponseWriter, r)
+	a.Bytes += n
+	return n, err
+}
+
+// Unwrap lets http.ResponseController reach the connection's own flush and deadlines.
+func (a *Answer) Unwrap() http.ResponseWriter { return a.ResponseWriter }
+
+// Carried is an answer that succeeded and handed over bytes.
+func (a *Answer) Carried() bool { return a.Status >= 200 && a.Status < 300 && a.Bytes > 0 }
 
 const settleInterval = 500 * time.Millisecond
 
