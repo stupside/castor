@@ -92,6 +92,21 @@ func (x *Index) Extent() time.Duration {
 	return max(0, x.latest-x.cuts[0].PTS)
 }
 
+// At is the time of the last frame that opens before offset, which a reader that far in has passed.
+func (x *Index) At(offset int64) (time.Duration, bool) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	var at time.Duration
+	known := false
+	if i, _ := slices.BinarySearchFunc(x.sounds, offset, func(m mark, o int64) int { return cmp.Compare(m.offset, o) }); i > 0 {
+		at, known = x.sounds[i-1].pts, true
+	}
+	if i, _ := slices.BinarySearchFunc(x.cuts, offset, func(c Cut, o int64) int { return cmp.Compare(c.Offset, o) }); i > 0 {
+		at, known = max(at, x.cuts[i-1].PTS), true
+	}
+	return at, known
+}
+
 // First is the time of the first cut, which is where the stream's picture begins.
 func (x *Index) First() (time.Duration, bool) {
 	x.mu.Lock()

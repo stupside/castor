@@ -45,6 +45,19 @@ func TestAnIndexListsWhatAnyFramingReports(t *testing.T) {
 	}
 }
 
+func TestAReaderIsAtTheLastFrameThatOpensBeforeWhereItRead(t *testing.T) {
+	x := NewIndex(bytesFraming{})
+	_, _ = x.Write([]byte("KppsKp"))
+	if _, ok := x.At(0); ok {
+		t.Error("a reader that read nothing is at a frame")
+	}
+	for offset, want := range map[int64]time.Duration{1: 0, 4: 3 * time.Second, 6: 4 * time.Second} {
+		if got, ok := x.At(offset); !ok || got != want {
+			t.Errorf("at %d = %v (%t), want %v", offset, got, ok, want)
+		}
+	}
+}
+
 func TestAnIndexOfAStreamThatEndsWithoutACutSaysSo(t *testing.T) {
 	x := NewIndex(bytesFraming{})
 	_, _ = x.Write([]byte("pp"))

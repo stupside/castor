@@ -299,7 +299,9 @@ func (f *stages) Progress() media.Progress {
 	cur, base := f.cur, f.base
 	f.mu.Unlock()
 	made := cur.proc.Progress()
-	return media.Progress{Position: max(0, made.Position-f.setOrigin()), Bytes: base + made.Bytes, Speed: made.Speed}
+	// ffmpeg's out_time does not follow the media under -copyts, so the media is where the encoder has read the buffer to.
+	at, _ := cur.src.index.At(cur.in.Offset())
+	return media.Progress{Position: max(0, at-f.setOrigin()), Bytes: base + made.Bytes, Speed: made.Speed}
 }
 
 func (f *stages) Done() <-chan struct{} { return f.done }
