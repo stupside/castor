@@ -2,6 +2,7 @@ package recovery
 
 import (
 	"errors"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -50,6 +51,8 @@ func attribute(err, readErr error) error {
 type Evidence struct {
 	// Reached is how far the attempt got, which decides whether the loop may still change its mind.
 	Reached health.Phase
+	// Began is where in the program the attempt's playback began, a little before its start for a device handed whole segments.
+	Began time.Duration
 
 	Cancelled bool
 

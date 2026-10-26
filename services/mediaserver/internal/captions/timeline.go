@@ -37,11 +37,10 @@ func merge(pieces []string, origin time.Duration) string {
 			offset = 0
 		}
 		for _, c := range parsed {
-			c.start, c.end = c.start+offset, c.end+offset
-			if c.end <= 0 {
+			c, ok := c.moved(offset)
+			if !ok {
 				continue
 			}
-			c.start = max(c.start, 0)
 			if _, duplicate := seen[c]; duplicate {
 				continue
 			}
@@ -52,6 +51,28 @@ func merge(pieces []string, origin time.Duration) string {
 	slices.SortStableFunc(cues, func(a, b cue) int {
 		return cmp.Compare(a.start, b.start)
 	})
+	return render(cues)
+}
+
+// Shifted moves a WebVTT document earlier by by, for media that begins that far into the source.
+func Shifted(vtt string, by time.Duration) string {
+	cues, _, _ := parse(vtt)
+	var kept []cue
+	for _, c := range cues {
+		if c, ok := c.moved(-by); ok {
+			kept = append(kept, c)
+		}
+	}
+	return render(kept)
+}
+
+// moved is c shifted by d, false once it ends before the media begins.
+func (c cue) moved(d time.Duration) (cue, bool) {
+	c.start, c.end = max(c.start+d, 0), c.end+d
+	return c, c.end > 0
+}
+
+func render(cues []cue) string {
 	var out strings.Builder
 	out.WriteString("WEBVTT\n\n")
 	for _, c := range cues {

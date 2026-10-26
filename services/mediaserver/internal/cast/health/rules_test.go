@@ -60,3 +60,9 @@ func TestVerdicts(t *testing.T) {
 		})
 	}
 }
+
+func TestWhereTheViewerGotToIsTheClock(t *testing.T) {
+	if got := (Vitals{played: time.Minute}).Reached(); got != time.Minute {
+		t.Errorf("by the clock, reached %v, want the minute played", got)
+	}
+}

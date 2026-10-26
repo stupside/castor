@@ -197,3 +197,17 @@ func TestAProgramWithASeamDeclaresItsDiscontinuityThresholdOnce(t *testing.T) {
 		})
 	}
 }
+
+func TestAResumedProgramSeeksEveryInputBeforeOpeningIt(t *testing.T) {
+	program := mustProgram(t, media.Program{Inputs: []media.Input{
+		{ID: "video", URL: mustURL(t, "https://media.test/video.mp4"), ContentType: media.MP4},
+		{ID: "audio", URL: mustURL(t, "https://media.test/audio.m4a"), ContentType: media.MP4},
+	}, Tracks: []media.TrackRef{{Input: "video", Kind: media.TrackVideo}, {Input: "audio", Kind: media.TrackAudio}}, ClockInput: "video",
+		EndPolicy: media.EndAtShortest, Start: 816500 * time.Millisecond})
+	args := mustPullArgs(t, copyingPull(mustProgramSource(t, program, nil)))
+	for _, input := range []string{"video.mp4", "audio.m4a"} {
+		if !containsSequence(args, []string{"-ss", "816.5", "-i", "https://media.test/" + input}) {
+			t.Errorf("%s is not seeked as it opens: %q", input, args)
+		}
+	}
+}

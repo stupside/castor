@@ -42,6 +42,7 @@ func captionedAttempt(t *testing.T, caps media.Capabilities, languages []string)
 func TestTheSourcesCaptionIsServedToADeviceThatShowsThem(t *testing.T) {
 	s := captionedAttempt(t, media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Captions: []media.CaptionFormat{media.CaptionSRT}}}}, []string{"en"})
 	t.Cleanup(func() { _ = s.releases.release() })
+	s.caption = s.fetchCaption()
 	shown := s.shownCaptions()
 	if len(shown) != 1 || shown[0].Format != media.CaptionSRT || !shown[0].Default {
 		t.Fatalf("shown = %+v, want one SubRip caption", shown)
@@ -62,6 +63,9 @@ func TestNoCaptionIsShownWhenTheDeviceTakesNoneOrTheLanguageIsAbsent(t *testing.
 		"a device with no caption format": captionedAttempt(t, media.Capabilities{}, []string{"en"}),
 		"a language the source lacks":     captionedAttempt(t, media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Captions: []media.CaptionFormat{media.CaptionVTT}}}}, []string{"fr"}),
 	} {
+		if s.caption = s.fetchCaption(); s.caption != nil {
+			t.Errorf("%s: fetched %+v, want none", name, s.caption)
+		}
 		if shown := s.shownCaptions(); len(shown) != 0 {
 			t.Errorf("%s: shown = %+v, want none", name, shown)
 		}
@@ -75,7 +79,7 @@ func TestTheSourcesCaptionsReplaceTheTranscription(t *testing.T) {
 		t.Error("transcription started beside the source's own captions")
 		return nil
 	}
-	s.shown = s.shownCaptions()
+	s.caption = s.fetchCaption()
 	if burn := s.transcription(t.Context(), facts{}, media.Program{}); burn != nil {
 		t.Errorf("burn = %v, want none", burn)
 	}
@@ -91,6 +95,7 @@ func TestBrokenPreferredCaptionTriesTheNextLanguage(t *testing.T) {
 		"/subs/fr.vtt": "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nbonjour\n",
 	}
 	t.Cleanup(func() { _ = s.releases.release() })
+	s.caption = s.fetchCaption()
 	shown := s.shownCaptions()
 	if len(shown) != 1 || shown[0].Language != "fr" {
 		t.Fatalf("shown = %+v, want the working French track", shown)
@@ -105,7 +110,7 @@ func TestUnusableSourceCaptionsSelectTheTranscriptionPipeline(t *testing.T) {
 		t.Fatalf("missing source captions selected %s", got)
 	}
 	s.capabilities.Formats[0].Captions = []media.CaptionFormat{media.CaptionVTT}
-	s.shown = []media.Caption{{Language: "en", Format: media.CaptionVTT}}
+	s.caption = &fetchedCaption{language: "en", format: media.CaptionVTT}
 	if got := s.compose(); got != compose.Handoff {
 		t.Fatalf("usable source captions selected %s", got)
 	}
@@ -141,8 +146,7 @@ func TestSourceSidecarPinsCompatiblePlaybackEnvelopes(t *testing.T) {
 	if got := s.compose(); got != compose.Handoff {
 		t.Fatalf("uncaptioned control = %s, want handoff", got)
 	}
-	s.shown = s.shownCaptions()
-	if len(s.shown) != 1 {
+	if s.caption = s.fetchCaption(); s.caption == nil {
 		t.Fatal("source caption not selected")
 	}
 	selected := s.playbackCapabilities()

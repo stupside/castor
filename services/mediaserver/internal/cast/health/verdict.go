@@ -1,6 +1,6 @@
 package health
 
-// Phase is how far a cast's attempt has got; its order is the safety property, since nothing in castor seeks.
+// Phase is how far an attempt got; past Playing a cast restarts only by resuming where the viewer was.
 type Phase int
 
 const (
@@ -104,7 +104,7 @@ type verdict struct {
 	phase Phase
 }
 
-// actions is what each verdict asks for in each phase; no verdict while playing revises, which would restart the cast under a viewer, so a device is held instead.
+// actions is what each verdict asks for in each phase; while playing, only a source that gave out ends the attempt.
 var actions = map[verdict]action{
 	{kind: starting, phase: Reading}: keepWatching,
 	{kind: starting, phase: Opening}: keepWatching,

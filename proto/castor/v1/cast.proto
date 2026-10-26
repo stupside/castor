@@ -6,6 +6,7 @@ import "buf/validate/validate.proto";
 import "castor/v1/device.proto";
 import "castor/v1/revision.proto";
 import "castor/v1/stream.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 
 // CastService plays video on devices.
@@ -29,6 +30,8 @@ message CastRequest {
   Source source = 2 [(buf.validate.field).required = true];
   Preferences preferences = 3;
   MediaInfo media_info = 4;
+  // start is the position in the media to begin at, the beginning when unset.
+  google.protobuf.Duration start = 5 [(buf.validate.field).duration.gt = {}];
 }
 
 // MediaInfo describes the selected movie or episode on the receiver's playback screen.

@@ -21,6 +21,9 @@ type Intent struct {
 	// Deadline is the mid-read stall bound every fetch plan is derived with.
 	Deadline time.Duration
 
+	// Start is where the viewer asked the cast to begin.
+	Start time.Duration
+
 	// Delivery seeds the first attempt; recovery may change it.
 	Delivery compose.DeliveryPreference
 
@@ -63,6 +66,7 @@ type Attempt struct {
 type identity struct {
 	candidate int
 	program   string
+	start     time.Duration
 	bitrate   media.Bitrate
 	height    int
 	fetch     string
@@ -75,6 +79,7 @@ func (a Attempt) identify() identity {
 	return identity{
 		candidate: a.candidate,
 		program:   programIdentity(a.Program),
+		start:     a.Program.Start,
 		bitrate:   a.Rendition.Bitrate,
 		height:    a.Rendition.Height,
 		fetch:     fmt.Sprint(a.Fetch),
@@ -102,6 +107,16 @@ func programIdentity(program media.Program) string {
 	parts = append(parts, fmt.Sprintf("sync:%s:%s:%s",
 		program.ClockInput, program.EndPolicy, strings.Join(offsets, ",")))
 	return strings.Join(parts, "|")
+}
+
+// at begins a at pos; a live source, or a position past its end, has no such place.
+func (a Attempt) at(pos time.Duration) (Attempt, bool) {
+	a.Program.Start = pos
+	return a, pos <= 0 || !a.live() && (a.Origin.Duration == 0 || pos < a.Origin.Duration)
+}
+
+func (a Attempt) live() bool {
+	return slices.ContainsFunc(a.Program.Inputs, func(input media.Input) bool { return input.Fetching().Live })
 }
 
 // reading binds a resolution to the attempt with a fetch plan derived for its program.

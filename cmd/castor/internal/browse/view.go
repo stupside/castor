@@ -28,6 +28,8 @@ func (m model) View() tea.View {
 
 func (m model) content() string {
 	switch {
+	case m.start.pending != nil:
+		return m.viewStart()
 	case m.genres.draft != nil:
 		return m.genres.view(m.spin, m.help, m.keys, m.w, m.h)
 	case m.scr == screenDrilldown:

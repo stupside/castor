@@ -30,7 +30,7 @@ func TestAPinnedDeviceIsCastToWithoutPicking(t *testing.T) {
 func TestADryRunBrowsesTitlesWithoutPickingADevice(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	to, _, chosen, err := Run(ctx, nil, shelf{}, cast.Device{}, true)
+	to, _, chosen, err := Run(ctx, nil, shelf{}, cast.Device{}, true, false)
 	if to != nil || chosen {
 		t.Fatalf("a dry run chose %v %v", to, chosen)
 	}

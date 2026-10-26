@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -31,7 +32,7 @@ type Catalog interface {
 }
 
 // Run asks which device to cast to, unless d pins one or dryRun casts to none, then which title; chosen is false when the operator leaves without both.
-func Run(ctx context.Context, devices castorv1connect.DeviceServiceClient, catalog Catalog, d cast.Device, dryRun bool) (to *castorv1.Target, sel Selection, chosen bool, err error) {
+func Run(ctx context.Context, devices castorv1connect.DeviceServiceClient, catalog Catalog, d cast.Device, dryRun, ask bool) (to *castorv1.Target, sel Selection, chosen bool, err error) {
 	err = held(func() error {
 		badge := "DRY RUN"
 		if !dryRun {
@@ -43,7 +44,7 @@ func Run(ctx context.Context, devices castorv1connect.DeviceServiceClient, catal
 			badge = strings.ToUpper(typ) + "  " + name
 		}
 		var err error
-		if sel, chosen, err = pickTitle(ctx, catalog, badge); err != nil {
+		if sel, chosen, err = pickTitle(ctx, catalog, badge, ask); err != nil {
 			return fmt.Errorf("browse: %w", err)
 		}
 		return nil
@@ -96,11 +97,14 @@ type Selection struct {
 	ReleaseDate string
 	Season      uint
 	Episode     uint
+	Start       time.Duration
 }
 
 // pickTitle runs the browser until a title is chosen, or the operator leaves without one.
-func pickTitle(ctx context.Context, client Catalog, badge string) (Selection, bool, error) {
-	final, err := tea.NewProgram(newModel(ctx, client, badge), tea.WithContext(ctx)).Run()
+func pickTitle(ctx context.Context, client Catalog, badge string, ask bool) (Selection, bool, error) {
+	m := newModel(ctx, client, badge)
+	m.ask = ask
+	final, err := tea.NewProgram(m, tea.WithContext(ctx)).Run()
 	if err != nil {
 		return Selection{}, false, err
 	}

@@ -389,3 +389,19 @@ func TestGenreDraftChangesDoNotMutateEarlierSnapshots(t *testing.T) {
 		t.Fatal("editing changed the applied filter")
 	}
 }
+
+func TestChoosingATitleAsksWhereToStartInTheBrowser(t *testing.T) {
+	m := newModel(t.Context(), shelf{}, "TV")
+	m.ask = true
+	next, _ := m.choose(&Selection{Title: "Film"})
+	m = next.(model)
+	if m.start.pending == nil || m.sel != nil {
+		t.Fatalf("pending = %v, sel = %v; want the title held until a position is given", m.start.pending, m.sel)
+	}
+	m.start.input.SetValue("1:12")
+	next, _ = m.updateStart(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = next.(model)
+	if m.sel == nil || m.sel.Start != time.Hour+12*time.Minute {
+		t.Fatalf("sel = %+v; want it to start at 1:12", m.sel)
+	}
+}

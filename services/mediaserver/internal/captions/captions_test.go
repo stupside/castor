@@ -83,3 +83,11 @@ func TestFetchJoinsAPlaylistsSegments(t *testing.T) {
 		t.Errorf("Fetch = %q, %v", got, err)
 	}
 }
+
+func TestShiftedMovesCuesToTheResumedClockAndDropsThoseBefore(t *testing.T) {
+	vtt := "WEBVTT\n\n00:00:05.000 --> 00:00:08.000\nbefore\n\n00:01:00.000 --> 00:01:02.000\nafter\n\n"
+	got := Shifted(vtt, 30*time.Second)
+	if strings.Contains(got, "before") || !strings.Contains(got, "00:00:30.000 --> 00:00:32.000\nafter") {
+		t.Errorf("Shifted = %q", got)
+	}
+}

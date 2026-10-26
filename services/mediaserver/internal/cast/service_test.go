@@ -58,7 +58,7 @@ func (retrying) Measure(_ context.Context, stream *source.Stream) (*source.Strea
 	return stream, nil
 }
 
-func (retrying) Play(ctx context.Context, _ execute.Device, _ output.Publisher, _ []*source.Stream, turns recovery.Turns) error {
+func (retrying) Play(ctx context.Context, _ execute.Device, _ output.Publisher, _ []*source.Stream, _ time.Duration, turns recovery.Turns) error {
 	turns.Attempting(1)
 	turns.Attempting(2)
 	turns.Revising(recovery.RelaxRead, "stalled")
@@ -69,7 +69,7 @@ func (retrying) Play(ctx context.Context, _ execute.Device, _ output.Publisher, 
 func TestALentCastOutlivesItsGraceAndShowsNothingAfterItsEnd(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		stream := &mediav1.Source{Source: &mediav1.Source_Stream{Stream: &castorv1.Stream{Url: "https://cdn.example/direct"}}}
-		s := newCast(t.Context(), "cast", nil, retrying{}, stream)
+		s := newCast(t.Context(), "cast", nil, retrying{}, stream, 0)
 		if err := s.lend(media.Capabilities{}); err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +96,7 @@ func TestALentCastOutlivesItsGraceAndShowsNothingAfterItsEnd(t *testing.T) {
 }
 
 func TestMeasurementCountsSurviveAttemptsAndRevisions(t *testing.T) {
-	s := newCast(t.Context(), "cast", nil, nil, nil)
+	s := newCast(t.Context(), "cast", nil, nil, nil, 0)
 	now, _ := s.now.Load()
 	if measuring := now.status.GetMeasuring(); measuring == nil || measuring.Castable != nil {
 		t.Fatalf("initial status %v, want measuring before ranking", now.status)
@@ -129,7 +129,7 @@ func TestMeasurementCountsSurviveAttemptsAndRevisions(t *testing.T) {
 
 func TestStoppedCastReportsFailuresFoundDuringCleanup(t *testing.T) {
 	for _, cleanup := range []error{nil, errors.New("storage cleanup failed")} {
-		c := newCast(t.Context(), "cleanup-result", nil, nil, nil)
+		c := newCast(t.Context(), "cleanup-result", nil, nil, nil, 0)
 		c.fire(eventLendStream, func(*view) {})
 		c.cancel(errStopped)
 		result := outcome(c.ctx, &recovery.Interrupted{Cause: errStopped, Failure: cleanup})
@@ -146,7 +146,7 @@ func TestStoppedCastReportsFailuresFoundDuringCleanup(t *testing.T) {
 }
 
 func TestTerminalSnapshotIsPublishedBeforeCompletionSignal(t *testing.T) {
-	c := newCast(t.Context(), "publication-order", nil, nil, nil)
+	c := newCast(t.Context(), "publication-order", nil, nil, nil, 0)
 	c.fire(eventLendStream, func(*view) {})
 	if !c.fire(eventEnd, func(next *view) {
 		select {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -14,7 +15,10 @@ import (
 	"github.com/stupside/castor/internal/settings"
 )
 
-const dryRunFlag = "dry-run"
+const (
+	dryRunFlag = "dry-run"
+	atFlag     = "at"
+)
 
 // Commands are the command line's commands, reaching the API config names or the one local runs.
 func Commands(local Local) []*cli.Command {
@@ -27,6 +31,10 @@ func castCommand(local Local) *cli.Command {
 		Usage: "Browse and cast to a device",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: dryRunFlag, Aliases: []string{"d"}, Usage: "Print found streaming URLs instead of casting"},
+			&cli.StringFlag{Name: atFlag, Usage: "Begin at this position, such as 1h12m or 1:12", Validator: func(s string) error {
+				_, err := cast.ParseStart(s)
+				return err
+			}},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			dry := cmd.Bool(dryRunFlag)
@@ -52,7 +60,7 @@ func castCommand(local Local) *cli.Command {
 				return err
 			}
 			defer release()
-			to, sel, chosen, err := browse.Run(ctx, api.devices, tmdb.New(cfg.TMDB), cfg.Device, dry)
+			to, sel, chosen, err := browse.Run(ctx, api.devices, tmdb.New(cfg.TMDB), cfg.Device, dry, !dry && !cmd.IsSet(atFlag))
 			if err != nil || !chosen {
 				return err
 			}
@@ -63,8 +71,12 @@ func castCommand(local Local) *cli.Command {
 			if dry {
 				return cast.DryRun(ctx, api.casts, pages(urls))
 			}
+			start, err := startAt(cmd, sel.Start)
+			if err != nil {
+				return err
+			}
 			fmt.Printf("Casting: %s\n", sel.Title)
-			return cast.Run(ctx, api.casts, to, pages(urls), &castorv1.MediaInfo{Title: sel.Title, Synopsis: sel.Synopsis, ImageUrl: sel.ImageURL, ReleaseDate: sel.ReleaseDate})
+			return cast.Run(ctx, api.casts, to, pages(urls), &castorv1.MediaInfo{Title: sel.Title, Synopsis: sel.Synopsis, ImageUrl: sel.ImageURL, ReleaseDate: sel.ReleaseDate}, start)
 		},
 		Commands: []*cli.Command{
 			urlCommand(local),
@@ -172,7 +184,18 @@ func castSource(ctx context.Context, cmd *cli.Command, local Local, endpoint set
 	if err != nil {
 		return err
 	}
-	return cast.Run(ctx, api.casts, to, source, nil)
+	start, err := startAt(cmd, 0)
+	if err != nil {
+		return err
+	}
+	return cast.Run(ctx, api.casts, to, source, nil, start)
+}
+
+func startAt(cmd *cli.Command, chosen time.Duration) (time.Duration, error) {
+	if cmd.IsSet(atFlag) {
+		return cast.ParseStart(cmd.String(atFlag))
+	}
+	return chosen, nil
 }
 
 func scanCommand(local Local) *cli.Command {

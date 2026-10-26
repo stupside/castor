@@ -55,6 +55,9 @@ type Vitals struct {
 	held       time.Duration
 }
 
+// Reached is where the viewer got to in the attempt's program, by the clock.
+func (h Vitals) Reached() time.Duration { return h.played }
+
 // playable reports that there is something to hand a device.
 func (h Vitals) playable() bool { return h.Landed > 0 }
 

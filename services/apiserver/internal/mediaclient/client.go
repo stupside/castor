@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
+
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/gen/castor/media/v1/mediav1connect"
@@ -30,8 +33,12 @@ func New(client *http.Client, baseURL string) *Client {
 }
 
 // Start begins cast id of source as asked.
-func (c *Client) Start(ctx context.Context, id string, source *mediav1.Source, asked *mediav1.PlaybackSettings) error {
-	_, err := c.casts.Start(ctx, &mediav1.StartRequest{CastId: id, Source: source, Settings: asked})
+func (c *Client) Start(ctx context.Context, id string, source *mediav1.Source, asked *mediav1.PlaybackSettings, start time.Duration) error {
+	req := &mediav1.StartRequest{CastId: id, Source: source, Settings: asked}
+	if start > 0 {
+		req.Start = durationpb.New(start)
+	}
+	_, err := c.casts.Start(ctx, req)
 	return err
 }
 

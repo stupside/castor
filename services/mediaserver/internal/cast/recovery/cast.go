@@ -34,6 +34,9 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 		}
 		return fmt.Errorf("none of the %d links could be resolved", len(in.Candidates))
 	}
+	if a, ok = a.at(in.Start); !ok {
+		return fmt.Errorf("the source has no position %s to begin at", in.Start)
+	}
 
 	led := &ledger{}
 	led.admit(a)
@@ -75,8 +78,8 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 		finish(nil)
 
 		revising(ctx, f, rev)
-		in.Turns.Revising(rev.strategy.action, f.why)
-		tried = append(tried, string(rev.strategy.action))
+		in.Turns.Revising(rev.action, f.why)
+		tried = append(tried, string(rev.action))
 		a = rev.attempt
 	}
 }
@@ -95,11 +98,11 @@ func validate(in Intent) error {
 }
 
 func revising(ctx context.Context, f *fault, rev revision) {
-	telemetry.RecoveryRevised(ctx, string(rev.strategy.action))
+	telemetry.RecoveryRevised(ctx, string(rev.action))
 	slog.WarnContext(ctx, "revising the cast",
 		"verdict", f.kind.String(),
 		"error", f.err,
-		"strategy", rev.strategy.action,
+		"strategy", rev.action,
 	)
 }
 

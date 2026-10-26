@@ -30,6 +30,7 @@ type cast struct {
 	cancel context.CancelCauseFunc
 	caster Caster
 	source origin
+	start  time.Duration
 
 	// machine moves only inside an update of now, so each move is taken and published as one.
 	machine *fsm.FSM
@@ -41,13 +42,14 @@ type cast struct {
 }
 
 // newCast awaits its device for undriven, and no longer than parent lasts; lending it one starts the cast.
-func newCast(parent context.Context, id string, publisher output.Publisher, caster Caster, src *mediav1.Source) *cast {
+func newCast(parent context.Context, id string, publisher output.Publisher, caster Caster, src *mediav1.Source, start time.Duration) *cast {
 	ctx, cancel := context.WithCancelCause(castid.With(parent, id))
 	c := &cast{
 		id:        id,
 		ctx:       ctx,
 		cancel:    cancel,
 		caster:    caster,
+		start:     start,
 		source:    originOf(src),
 		done:      make(chan struct{}),
 		line:      lend.NewLine(),

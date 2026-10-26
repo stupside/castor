@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"time"
 
 	"github.com/looplab/fsm"
 	"github.com/stupside/castor/internal/telemetry"
@@ -30,9 +31,10 @@ func (c Cast) Run(parent context.Context, a recovery.Attempt) (result recovery.O
 	return recovery.Outcome{Err: err, Evidence: evidence(r, err, parent.Err() != nil)}
 }
 
-// ran is how far an attempt got, and the read it started on the way (nil where it read nothing).
+// ran is how far an attempt got, where its playback began, and the read it started on the way (nil where it read nothing).
 type ran struct {
 	reached health.Phase
+	began   time.Duration
 	reader  *pull
 }
 

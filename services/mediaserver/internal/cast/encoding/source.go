@@ -139,7 +139,7 @@ func readArgs(p fetch.Policy) []string {
 // demuxFlags are terms all inputs use (generate timestamps, drop corrupt packets).
 var demuxFlags = []string{"-fflags", "+genpts+discardcorrupt"}
 
-// sourceInputArgs renders each input with its fetch policy, headers, and pace.
+// sourceInputArgs renders each input with its fetch policy, headers, pace, and where it is read from.
 func sourceInputArgs(source ProgramSource) []string {
 	var args []string
 	// A seam's jump is a discontinuity, not a gap (the default 10s stretches it); ffmpeg holds it for the whole read.
@@ -150,10 +150,20 @@ func sourceInputArgs(source ProgramSource) []string {
 		args = append(args, demuxFlags...)
 		args = append(args, paceArgs(input.fetch.Pace, source.binary.Catchup)...)
 		args = append(args, source.openArgs(input)...)
-		if input.offset != 0 {
-			args = append(args, "-itsoffset", formatSeconds(input.offset))
-		}
+		args = append(args, seekArgs(source.program.Start, input.offset)...)
 		args = append(args, "-i", input.url.String())
+	}
+	return args
+}
+
+// seekArgs open an input at start; offset realigns an input ffmpeg rebased to zero.
+func seekArgs(start, offset time.Duration) []string {
+	var args []string
+	if start > 0 {
+		args = append(args, "-ss", formatSeconds(start))
+	}
+	if offset != 0 {
+		args = append(args, "-itsoffset", formatSeconds(offset))
 	}
 	return args
 }

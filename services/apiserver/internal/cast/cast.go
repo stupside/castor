@@ -17,6 +17,7 @@ type cast struct {
 	device    *castorv1.Device
 	source    *castorv1.Source
 	mediaInfo *castorv1.MediaInfo
+	start     time.Duration
 	started   time.Time
 	// stop ends the cast; its cause is why, errStopped when asked.
 	stop context.CancelCauseFunc
@@ -32,7 +33,7 @@ type view struct {
 func newCast(id string, device *castorv1.Device, req *castorv1.CastRequest, stop context.CancelCauseFunc) *cast {
 	return &cast{
 		id: id, device: device,
-		source: proto.CloneOf(req.GetSource()), mediaInfo: proto.CloneOf(req.GetMediaInfo()),
+		source: proto.CloneOf(req.GetSource()), mediaInfo: proto.CloneOf(req.GetMediaInfo()), start: req.GetStart().AsDuration(),
 		started: time.Now(), stop: stop,
 		now: latest.New(view{status: &castorv1.CastStatus{State: &castorv1.CastStatus_Connecting{Connecting: &emptypb.Empty{}}}}),
 	}

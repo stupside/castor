@@ -89,7 +89,7 @@ type session struct {
 
 // Run owns one remote cast's control protocol, including reconciliation when
 // Start's response is lost. It returns only after releasing every device borrower.
-func (c *Client) Run(parent context.Context, id string, source *mediav1.Source, asked *mediav1.PlaybackSettings, lent device.Device, info *castorv1.MediaInfo, status func(*castorv1.CastStatus)) (*castorv1.Ended, error) {
+func (c *Client) Run(parent context.Context, id string, source *mediav1.Source, asked *mediav1.PlaybackSettings, lent device.Device, info *castorv1.MediaInfo, start time.Duration, status func(*castorv1.CastStatus)) (*castorv1.Ended, error) {
 	if cause := context.Cause(parent); cause != nil {
 		return nil, cause
 	}
@@ -98,7 +98,7 @@ func (c *Client) Run(parent context.Context, id string, source *mediav1.Source, 
 	// Start has a bounded lifetime independent of caller cancellation: once
 	// sent, its ID must be reconciled even if its response never arrives.
 	starting, stop := context.WithTimeout(ctx, controlTimeout)
-	s.failure = c.Start(starting, id, source, asked)
+	s.failure = c.Start(starting, id, source, asked, start)
 	stop()
 	if s.failure != nil {
 		s.move(sessionFailed)

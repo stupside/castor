@@ -30,8 +30,9 @@ type preparation struct {
 	attempt      recovery.Attempt
 	releases     *releases
 	failures     chan<- error
-	shown        []media.Caption
 	subtitles    Subtitles
+	// caption is the source caption fetched once, nil where none can be shown.
+	caption *fetchedCaption
 }
 
 func newPreparation(ctx context.Context, c Cast, a recovery.Attempt, releases *releases, failures chan<- error) *preparation {
@@ -78,12 +79,13 @@ func (s *preparation) inspectPresentation() (p inspectedPresentation, err error)
 	if err := s.ctx.Err(); err != nil {
 		return p, err
 	}
-	s.shown = s.shownCaptions()
-	p.captions = s.shown
+	s.caption = s.fetchCaption()
 	if err := s.ctx.Err(); err != nil {
 		return p, err
 	}
 	p.kind = s.compose()
+	p.reached.began = s.attempt.Program.Start
+	p.captions = s.shownCaptions()
 	if p.kind == compose.Handoff {
 		primary, _ := s.attempt.Program.PrimaryInput()
 		p.target, p.contentType, p.source = primary.URL, primary.ContentType, true
@@ -100,7 +102,7 @@ func (s *preparation) inspectPresentation() (p inspectedPresentation, err error)
 		if err != nil {
 			return p, err
 		}
-		p.reached = ran{reached: health.Reading, reader: buf.reader}
+		p.reached.reached, p.reached.reader = health.Reading, buf.reader
 		if err := gate(s.ctx, buf); err != nil {
 			return p, err
 		}
@@ -168,6 +170,7 @@ func (s *preparation) prepare() (string, media.Program, error) {
 	return work, program, err
 }
 
+// compose is the kind of cast this attempt calls for.
 func (s *preparation) compose() compose.Kind {
 	shape := compose.Shape{
 		Device:    s.playbackCapabilities(),
@@ -179,12 +182,15 @@ func (s *preparation) compose() compose.Kind {
 	kind := compose.For(shape)
 	// Requested transcription needs a buffered PCM feed whenever no usable
 	// native captions are shown, including sources that publish no caption track.
-	if s.subtitles != nil && len(s.shown) == 0 {
+	if s.transcribing() {
 		kind = compose.ReadOnce
 	}
 	slog.InfoContext(s.ctx, "cast composition", "composition", string(kind))
 	return kind
 }
+
+// transcribing is a cast whose subtitles castor makes from the sound, since the source shows none.
+func (s *preparation) transcribing() bool { return s.subtitles != nil && s.caption == nil }
 
 // follow points the inputs whose timelines castor keeps at castor's republished playlists.
 func (s *preparation) follow(program media.Program) (media.Program, error) {

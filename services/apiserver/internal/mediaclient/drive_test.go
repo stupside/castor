@@ -139,7 +139,7 @@ func cast(t *testing.T, c *mediaclient.Client, lent device.Device) (watching, er
 
 func castWithInfo(t *testing.T, c *mediaclient.Client, lent device.Device, info *castorv1.MediaInfo) (watching, error) {
 	t.Helper()
-	err := c.Start(t.Context(), castID, &mediav1.Source{Source: &mediav1.Source_Stream{Stream: &castorv1.Stream{Url: "https://cdn.example/direct"}}}, asked)
+	err := c.Start(t.Context(), castID, &mediav1.Source{Source: &mediav1.Source_Stream{Stream: &castorv1.Stream{Url: "https://cdn.example/direct"}}}, asked, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

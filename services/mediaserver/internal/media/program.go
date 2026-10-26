@@ -44,6 +44,9 @@ type Program struct {
 	Offsets    map[InputID]time.Duration
 	EndPolicy  EndPolicy
 
+	// Start is where in the source the read begins.
+	Start time.Duration
+
 	observation *Observation
 	declaration *programDeclaration
 }
@@ -222,9 +225,9 @@ func (p Program) PrimaryInput() (Input, bool) {
 	return p.LookupInput(p.ClockInput)
 }
 
-// SelfFetchable reports whether one URL is sufficient for a device to fetch the complete program.
+// SelfFetchable reports whether one URL is sufficient for a device to fetch the complete program; a device handed one would play it from the start.
 func (p Program) SelfFetchable() bool {
-	if len(p.Inputs) != 1 {
+	if len(p.Inputs) != 1 || p.Start != 0 {
 		return false
 	}
 	if p.NeedsTrackSelection {
@@ -246,6 +249,7 @@ func (p Program) Clone() Program {
 		ClockInput:          p.ClockInput,
 		Offsets:             maps.Clone(p.Offsets),
 		EndPolicy:           p.EndPolicy,
+		Start:               p.Start,
 	}
 	for i := range clone.Inputs {
 		clone.Inputs[i].URL = p.Inputs[i].URL.Clone()

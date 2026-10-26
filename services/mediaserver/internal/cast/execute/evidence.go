@@ -11,7 +11,7 @@ import (
 
 // evidence is what an attempt left behind, read from how far it ran and how it ended.
 func evidence(r ran, err error, cancelled bool) recovery.Evidence {
-	e := recovery.Evidence{Reached: r.reached, Cancelled: cancelled}
+	e := recovery.Evidence{Reached: r.reached, Began: r.began, Cancelled: cancelled}
 	if err == nil {
 		e.Reached = health.Delivered
 	}

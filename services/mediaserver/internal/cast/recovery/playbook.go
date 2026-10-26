@@ -3,6 +3,7 @@ package recovery
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 )
@@ -18,10 +19,13 @@ var playbook = map[kind][]strategy{
 	// A slower pace would not make this link faster; the next one may be.
 	tooSlow: {switchCandidate},
 
+	// A device that outran the read mid-cast is asked again from where it got to: the same link at playback pace, then the next.
+	starved: {relaxRead, switchCandidate},
+
 	// Decoding comes first; a bitstream this one cannot copy may still copy from another link.
 	copyBrokeUpstream: {decodeAxis, switchCandidate},
 
-	// A device refusing the URL is served instead; the next link, in case the source is the problem.
+	// A device refusing the URL, or never coming for it, is served instead; the next link, in case the source is the problem.
 	deviceRefused: {serveInstead, switchCandidate},
 
 	// The delivery lost the artifact, not the reader, so decoding would answer nothing.
@@ -30,9 +34,9 @@ var playbook = map[kind][]strategy{
 
 // revision is the attempt a strategy offers; offering nothing is ordinary.
 type revision struct {
-	attempt  Attempt
-	strategy strategy
-	offered  bool
+	attempt Attempt
+	action  Action
+	offered bool
 }
 
 // revise is the first strategy in the playbook that offers an attempt not run yet.
@@ -41,24 +45,44 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 		return revision{}
 	}
 
+	pos := f.resumeAt()
 	facts := change{intent: in, attempt: f.attempt, outcome: o, resolver: resolver}
 	for _, s := range playbook[f.kind] {
 		next, ok := s.apply(ctx, facts)
 		if !ok {
 			continue
 		}
+		if next, ok = next.at(pos); !ok {
+			continue
+		}
 		next.Try = f.attempt.Try + 1
 		if !led.admit(next) {
 			continue
 		}
-		return revision{attempt: next, strategy: s, offered: true}
+		return revision{attempt: next, action: s.action, offered: true}
 	}
 	return revision{}
 }
 
-// revisable is an attempt that failed before playing, judged revisable, refused by the device, or on an unreadable timeline.
+// resumeAt is where the viewer got to: a cast that played is taken up there.
+func (f *fault) resumeAt() time.Duration {
+	switch {
+	case f.attempt.live():
+		// A live program has no position to go back to, only its edge.
+		return 0
+	case f.evidence.Reached >= health.Playing:
+		return f.evidence.Began + f.evidence.Vitals.Reached()
+	}
+	return f.attempt.Program.Start
+}
+
+// revisable is an attempt that failed before playing and can change; once playing, only one that can resume where it got to.
 func revisable(o Outcome) bool {
 	if o.Evidence.Reached >= health.Playing {
+		switch o.Evidence.Verdict {
+		case health.Starved, health.Stalled:
+			return true
+		}
 		return false
 	}
 	if judged, ok := errors.AsType[*health.Fault](o.Err); ok {

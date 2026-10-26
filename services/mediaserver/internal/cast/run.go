@@ -28,7 +28,7 @@ func (c *cast) play(caps media.Capabilities) error {
 	}
 	c.fire(eventRank, func(next *view) { next.status.GetMeasuring().Castable = new(uint32(len(ready))) })
 	device := lend.NewDevice(c.line, caps, func() { c.cancel(lend.ErrLenderLeft) })
-	return c.caster.Play(c.ctx, device, c.publisher, ready, c)
+	return c.caster.Play(c.ctx, device, c.publisher, ready, c.start, c)
 }
 
 // outcome preserves failures discovered while joining a canceled cast.

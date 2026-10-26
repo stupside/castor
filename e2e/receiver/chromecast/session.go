@@ -64,7 +64,8 @@ func (c *castSession) handlers() map[string]func(msg *pb.CastMessage, req reques
 		},
 		nsMedia + "#LOAD": func(msg *pb.CastMessage, req request) map[string]any {
 			content, sender := req.Media.ContentID, msg.GetSourceId()
-			if c.cors.refuses(c.session.Context(), content, req.Media.ContentType) {
+			// The receiver plays one hand-off, so it refuses another as it refuses a stream it cannot fetch.
+			if c.cors.refuses(c.session.Context(), content, req.Media.ContentType) || !c.session.Hand(content, req.Media.ContentType) {
 				c.send(mediaTransportID, sender, nsMedia, mediaStatus(content, "IDLE", "ERROR"))
 				return map[string]any{"type": "LOAD_FAILED"}
 			}
@@ -72,7 +73,6 @@ func (c *castSession) handlers() map[string]func(msg *pb.CastMessage, req reques
 			for _, track := range req.Media.Tracks {
 				c.fetchCaption(track.ContentID)
 			}
-			c.session.Hand(content, req.Media.ContentType)
 			c.session.Go(func() { c.report(sender, content) })
 			return mediaStatus(content, "BUFFERING", "")
 		},

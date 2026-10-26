@@ -17,9 +17,40 @@ type Captions struct {
 	Client    source.Client
 }
 
-// shownCaptions fetches the caption the cast wants from what the source published and serves it for the device.
+// fetchedCaption is the source caption a cast shows, as the source wrote it.
+type fetchedCaption struct {
+	language, name string
+	format         media.CaptionFormat
+	vtt            string
+}
+
+// shownCaptions serves the fetched caption for the device, its cues moved to where the attempt's program starts.
 // A caption is a courtesy: whatever stops it is logged and the cast plays without.
 func (s *preparation) shownCaptions() []media.Caption {
+	c := s.caption
+	if c == nil {
+		return nil
+	}
+	vtt := c.vtt
+	if start := s.attempt.Program.Start; start > 0 {
+		vtt = captions.Shifted(vtt, start)
+	}
+	name, contentType, body := "captions.vtt", "text/vtt", vtt
+	if c.format == media.CaptionSRT {
+		name, contentType, body = "captions.srt", "text/srt", captions.SRT(vtt)
+	}
+	u, closeStatic, err := output.Static(s.ctx, s.Publisher, name, contentType, body)
+	if err != nil {
+		slog.WarnContext(s.ctx, "casting without the source's captions", "error", err)
+		return nil
+	}
+	s.releases.publication(closeStatic)
+	slog.InfoContext(s.ctx, "showing the source's captions", "language", c.language, "format", string(c.format))
+	return []media.Caption{{URL: u, Format: c.format, Language: c.language, Name: c.name, Default: true}}
+}
+
+// fetchCaption is the first caption in a language asked for that the source serves, nil where none.
+func (s *preparation) fetchCaption() *fetchedCaption {
 	want := s.Captions
 	published := s.attempt.Rendition.Captions
 	if want == nil || len(published) == 0 {
@@ -46,18 +77,7 @@ func (s *preparation) shownCaptions() []media.Caption {
 			slog.WarnContext(s.ctx, "source caption unavailable, trying the next track", "language", pick.Language, "error", err)
 			continue
 		}
-		name, contentType, body := "captions.vtt", "text/vtt", vtt
-		if format == media.CaptionSRT {
-			name, contentType, body = "captions.srt", "text/srt", captions.SRT(vtt)
-		}
-		u, closeStatic, err := output.Static(s.ctx, s.Publisher, name, contentType, body)
-		if err != nil {
-			slog.WarnContext(s.ctx, "casting without the source's captions", "error", err)
-			return nil
-		}
-		s.releases.publication(closeStatic)
-		slog.InfoContext(s.ctx, "showing the source's captions", "language", pick.Language, "format", string(format))
-		return []media.Caption{{URL: u, Format: format, Language: pick.Language, Name: pick.Name, Default: true}}
+		return &fetchedCaption{language: pick.Language, name: pick.Name, format: format, vtt: vtt}
 	}
 	return nil
 }
@@ -76,11 +96,11 @@ func captionFormat(c media.Capabilities) (media.CaptionFormat, bool) {
 // envelope that advertised it. Both handoff and encoding consume this selection.
 func (s *preparation) playbackCapabilities() media.Capabilities {
 	caps := s.capabilities
-	if len(s.shown) == 0 {
+	if s.caption == nil {
 		return caps
 	}
 	caps.Formats = slices.DeleteFunc(slices.Clone(caps.Formats), func(f media.FormatSupport) bool {
-		return slices.ContainsFunc(s.shown, func(c media.Caption) bool { return !slices.Contains(f.Captions, c.Format) })
+		return !slices.Contains(f.Captions, s.caption.format)
 	})
 	return caps
 }

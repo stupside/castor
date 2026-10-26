@@ -99,7 +99,7 @@ func (s *preparation) transcription(ctx context.Context, facts facts, program me
 	if s.subtitles == nil {
 		return nil
 	}
-	if len(s.shown) > 0 {
+	if s.caption != nil {
 		slog.InfoContext(ctx, "no transcribed subtitles for this cast: the source's own captions are shown")
 		return nil
 	}

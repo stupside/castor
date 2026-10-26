@@ -5,6 +5,7 @@ package castor.media.v1;
 import "buf/validate/validate.proto";
 import "castor/v1/cast.proto";
 import "castor/v1/stream.proto";
+import "google/protobuf/duration.proto";
 
 // CastService starts, stops and follows casts.
 service CastService {
@@ -23,6 +24,8 @@ message StartRequest {
   // source is a direct stream or resolved candidates, never unresolved pages.
   Source source = 2 [(buf.validate.field).required = true];
   PlaybackSettings settings = 3 [(buf.validate.field).required = true];
+  // start is the position in the media to begin at, the beginning when unset.
+  google.protobuf.Duration start = 4 [(buf.validate.field).duration.gt = {}];
 }
 
 // PlaybackSettings is the complete policy resolved by API before media is called.

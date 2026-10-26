@@ -44,7 +44,7 @@ func TestMalformedTerminalWatchResponseStillStopsTheCast(t *testing.T) {
 	casts := castorv1connect.NewCastServiceClient(client, srv.URL, checked)
 	target := &castorv1.Target{Target: &castorv1.Target_DeviceId{DeviceId: "device"}}
 	source := &castorv1.Source{Source: &castorv1.Source_Stream{Stream: &castorv1.Stream{Url: "https://cdn.example/video"}}}
-	err := Run(t.Context(), casts, target, source, nil)
+	err := Run(t.Context(), casts, target, source, nil, 0)
 	if err == nil {
 		t.Fatal("a malformed terminal watch response succeeded")
 	}
@@ -70,7 +70,7 @@ func TestWatchFailureStopsTheCastBeforeReturningItsError(t *testing.T) {
 	srv := httptest.NewTestServer(t, handler)
 	client := srv.Client()
 	casts := castorv1connect.NewCastServiceClient(client, srv.URL)
-	err := Run(t.Context(), casts, nil, nil, nil)
+	err := Run(t.Context(), casts, nil, nil, nil, 0)
 	if connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("Run = %v, want the original watch failure", err)
 	}

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"google.golang.org/protobuf/types/known/durationpb"
+
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/gen/castor/v1/castorv1connect"
 	"github.com/stupside/castor/internal/castid"
@@ -18,8 +20,12 @@ const stopGrace = 10 * time.Second
 var errStopped = errors.New("cast stopped")
 
 // Run casts source to to and follows the cast to its end, cancelling ctx stops it.
-func Run(ctx context.Context, casts castorv1connect.CastServiceClient, to *castorv1.Target, source *castorv1.Source, info *castorv1.MediaInfo) error {
-	started, err := casts.Cast(ctx, &castorv1.CastRequest{Target: to, Source: source, MediaInfo: info})
+func Run(ctx context.Context, casts castorv1connect.CastServiceClient, to *castorv1.Target, source *castorv1.Source, info *castorv1.MediaInfo, start time.Duration) error {
+	req := &castorv1.CastRequest{Target: to, Source: source, MediaInfo: info}
+	if start > 0 {
+		req.Start = durationpb.New(start)
+	}
+	started, err := casts.Cast(ctx, req)
 	if err != nil {
 		return err
 	}

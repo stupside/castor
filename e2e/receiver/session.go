@@ -131,8 +131,8 @@ func (s *Session) Caption(body string) {
 	s.received.Captions = append(s.received.Captions, body)
 }
 
-// Hand starts playing the first URL; any later hand-off is a violation, since a case casts exactly once.
-func (s *Session) Hand(url, declared string) {
+// Hand starts playing the first URL and reports whether it took url; any later hand-off is a violation, since a case casts exactly once.
+func (s *Session) Hand(url, declared string) bool {
 	s.mu.Lock()
 	s.handed++
 	first := s.handed == 1
@@ -147,7 +147,7 @@ func (s *Session) Hand(url, declared string) {
 	if !first {
 		stop(nil)
 		s.Problem("handed a second URL %s; a cast hands over once", url)
-		return
+		return false
 	}
 	close(s.first)
 	s.Go(func() {
@@ -158,6 +158,7 @@ func (s *Session) Hand(url, declared string) {
 		s.mu.Unlock()
 		close(s.done)
 	})
+	return true
 }
 
 // Stop models a receiver obeying a sender's STOP command, including during LOAD.

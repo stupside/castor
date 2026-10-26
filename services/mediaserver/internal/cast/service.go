@@ -31,7 +31,7 @@ var errShutdown = errors.New("server shutting down")
 type Caster interface {
 	Rank(ctx context.Context, streams []*source.Stream) ([]*source.Stream, error)
 	Measure(ctx context.Context, stream *source.Stream) (*source.Stream, error)
-	Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, turns recovery.Turns) error
+	Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, start time.Duration, turns recovery.Turns) error
 }
 
 // Service runs every cast behind the media contract: it starts, stops and follows them, takes the device each is lent, and ranks streams without casting.
@@ -53,7 +53,7 @@ func New(caster func(asked *mediav1.PlaybackSettings) Caster, publisher output.P
 }
 
 func (s *Service) Start(ctx context.Context, req *mediav1.StartRequest) (*mediav1.StartResponse, error) {
-	c := newCast(telemetry.WithTrace(s.ctx, ctx), req.GetCastId(), s.publisher, s.caster(req.GetSettings()), req.GetSource())
+	c := newCast(telemetry.WithTrace(s.ctx, ctx), req.GetCastId(), s.publisher, s.caster(req.GetSettings()), req.GetSource(), req.GetStart().AsDuration())
 	if err := s.casts.Add(c.id, c, c.done); err != nil {
 		c.cancel(errShutdown)
 		if errors.Is(err, registry.ErrCapacity) {

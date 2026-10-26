@@ -8,6 +8,7 @@ type keyMap struct {
 	pageUp, pageDown key.Binding
 	tab, shiftTab    key.Binding
 	enter, back      key.Binding
+	play             key.Binding
 	filter           key.Binding // display-only; list.Model owns the /-handling on drilldown
 	genres           key.Binding
 	sort             key.Binding
@@ -26,6 +27,7 @@ func defaultKeys() keyMap {
 		shiftTab: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev")),
 		enter:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("↵", "open")),
 		back:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		play:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("↵", "play")),
 		filter:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 		genres:   key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("^g", "genres")),
 		sort:     key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("^s", "sort")),

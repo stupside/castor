@@ -50,9 +50,12 @@ type model struct {
 	err     error
 
 	sel  *Selection
+	ask  bool
 	w, h int
 
 	badge string
+
+	start startPrompt
 }
 
 func newModel(ctx context.Context, client Catalog, badge string) model {
@@ -85,6 +88,7 @@ func newModel(ctx context.Context, client Catalog, badge string) model {
 		drill:     newDrilldown(ctx, client),
 		loading:   true,
 		badge:     badge,
+		start:     newStartPrompt(),
 	}
 	m.restyle(true)
 	return m
@@ -97,6 +101,7 @@ func (m *model) restyle(dark bool) {
 	m.help.Styles = newHelpStyles(p)
 	m.spin.Style = lipgloss.NewStyle().Foreground(p.Accent)
 	m.query.SetStyles(newQueryStyles(p))
+	m.start.input.SetStyles(newQueryStyles(p))
 	m.results.SetDelegate(p.Delegate())
 	p.StyleList(&m.results)
 	m.inspector.styles = m.styles
@@ -140,6 +145,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		if key.Matches(msg, m.keys.quit) {
 			return m, tea.Quit
+		}
+		if m.start.pending != nil {
+			return m.updateStart(msg)
 		}
 		if m.genres.draft != nil {
 			cmd, action := m.genres.update(msg, m.keys, m.w, m.h)
@@ -213,6 +221,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.start.pending != nil {
+		return m.updateStart(msg)
+	}
 	switch m.scr {
 	case screenBrowse:
 		return m.updateBrowse(msg)
@@ -299,8 +310,7 @@ func (m model) updateDrilldown(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch {
 	case out.selected != nil:
-		m.sel = out.selected
-		return m, tea.Quit
+		return m.choose(out.selected)
 	case out.exit:
 		m.loading = false
 		m.goTo(screenBrowse)

@@ -10,6 +10,7 @@ import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
@@ -82,11 +83,13 @@ func (FailureCode) EnumDescriptor() ([]byte, []int) {
 }
 
 type CastRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Target        *Target                `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
-	Source        *Source                `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
-	Preferences   *Preferences           `protobuf:"bytes,3,opt,name=preferences,proto3" json:"preferences,omitempty"`
-	MediaInfo     *MediaInfo             `protobuf:"bytes,4,opt,name=media_info,json=mediaInfo,proto3" json:"media_info,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Target      *Target                `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
+	Source      *Source                `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	Preferences *Preferences           `protobuf:"bytes,3,opt,name=preferences,proto3" json:"preferences,omitempty"`
+	MediaInfo   *MediaInfo             `protobuf:"bytes,4,opt,name=media_info,json=mediaInfo,proto3" json:"media_info,omitempty"`
+	// start is the position in the media to begin at, the beginning when unset.
+	Start         *durationpb.Duration `protobuf:"bytes,5,opt,name=start,proto3" json:"start,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -145,6 +148,13 @@ func (x *CastRequest) GetPreferences() *Preferences {
 func (x *CastRequest) GetMediaInfo() *MediaInfo {
 	if x != nil {
 		return x.MediaInfo
+	}
+	return nil
+}
+
+func (x *CastRequest) GetStart() *durationpb.Duration {
+	if x != nil {
+		return x.Start
 	}
 	return nil
 }
@@ -1545,13 +1555,14 @@ var File_castor_v1_cast_proto protoreflect.FileDescriptor
 
 const file_castor_v1_cast_proto_rawDesc = "" +
 	"\n" +
-	"\x14castor/v1/cast.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16castor/v1/device.proto\x1a\x18castor/v1/revision.proto\x1a\x16castor/v1/stream.proto\x1a\x1bgoogle/protobuf/empty.proto\"\xe2\x01\n" +
+	"\x14castor/v1/cast.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16castor/v1/device.proto\x1a\x18castor/v1/revision.proto\x1a\x16castor/v1/stream.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\"\x9d\x02\n" +
 	"\vCastRequest\x121\n" +
 	"\x06target\x18\x01 \x01(\v2\x11.castor.v1.TargetB\x06\xbaH\x03\xc8\x01\x01R\x06target\x121\n" +
 	"\x06source\x18\x02 \x01(\v2\x11.castor.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x128\n" +
 	"\vpreferences\x18\x03 \x01(\v2\x16.castor.v1.PreferencesR\vpreferences\x123\n" +
 	"\n" +
-	"media_info\x18\x04 \x01(\v2\x14.castor.v1.MediaInfoR\tmediaInfo\"\xa4\x01\n" +
+	"media_info\x18\x04 \x01(\v2\x14.castor.v1.MediaInfoR\tmediaInfo\x129\n" +
+	"\x05start\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\x05start\"\xa4\x01\n" +
 	"\tMediaInfo\x12\x1e\n" +
 	"\x05title\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x02R\x05title\x12$\n" +
 	"\bsynopsis\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\bsynopsis\x12%\n" +
@@ -1696,61 +1707,63 @@ var file_castor_v1_cast_proto_goTypes = []any{
 	(*Source_Pages)(nil),           // 23: castor.v1.Source.Pages
 	(*Source_ResolvedStreams)(nil), // 24: castor.v1.Source.ResolvedStreams
 	(*Target)(nil),                 // 25: castor.v1.Target
-	(*RankedStream)(nil),           // 26: castor.v1.RankedStream
-	(*Stream)(nil),                 // 27: castor.v1.Stream
-	(Delivery)(0),                  // 28: castor.v1.Delivery
-	(*emptypb.Empty)(nil),          // 29: google.protobuf.Empty
-	(*Revision)(nil),               // 30: castor.v1.Revision
-	(*Device)(nil),                 // 31: castor.v1.Device
-	(*StreamCandidate)(nil),        // 32: castor.v1.StreamCandidate
+	(*durationpb.Duration)(nil),    // 26: google.protobuf.Duration
+	(*RankedStream)(nil),           // 27: castor.v1.RankedStream
+	(*Stream)(nil),                 // 28: castor.v1.Stream
+	(Delivery)(0),                  // 29: castor.v1.Delivery
+	(*emptypb.Empty)(nil),          // 30: google.protobuf.Empty
+	(*Revision)(nil),               // 31: castor.v1.Revision
+	(*Device)(nil),                 // 32: castor.v1.Device
+	(*StreamCandidate)(nil),        // 33: castor.v1.StreamCandidate
 }
 var file_castor_v1_cast_proto_depIdxs = []int32{
 	25, // 0: castor.v1.CastRequest.target:type_name -> castor.v1.Target
 	6,  // 1: castor.v1.CastRequest.source:type_name -> castor.v1.Source
 	7,  // 2: castor.v1.CastRequest.preferences:type_name -> castor.v1.Preferences
 	2,  // 3: castor.v1.CastRequest.media_info:type_name -> castor.v1.MediaInfo
-	6,  // 4: castor.v1.ResolveRequest.source:type_name -> castor.v1.Source
-	7,  // 5: castor.v1.ResolveRequest.preferences:type_name -> castor.v1.Preferences
-	26, // 6: castor.v1.ResolveResponse.ranked:type_name -> castor.v1.RankedStream
-	27, // 7: castor.v1.Source.stream:type_name -> castor.v1.Stream
-	23, // 8: castor.v1.Source.pages:type_name -> castor.v1.Source.Pages
-	24, // 9: castor.v1.Source.streams:type_name -> castor.v1.Source.ResolvedStreams
-	28, // 10: castor.v1.Preferences.delivery:type_name -> castor.v1.Delivery
-	9,  // 11: castor.v1.Preferences.subtitles:type_name -> castor.v1.SubtitleSelection
-	8,  // 12: castor.v1.Preferences.audio:type_name -> castor.v1.AudioSelection
-	29, // 13: castor.v1.SubtitleSelection.disabled:type_name -> google.protobuf.Empty
-	10, // 14: castor.v1.SubtitleSelection.preferences:type_name -> castor.v1.SubtitlePreferences
-	13, // 15: castor.v1.WatchResponse.status:type_name -> castor.v1.CastStatus
-	16, // 16: castor.v1.WatchResponse.ended:type_name -> castor.v1.Ended
-	29, // 17: castor.v1.CastStatus.connecting:type_name -> google.protobuf.Empty
-	29, // 18: castor.v1.CastStatus.extracting:type_name -> google.protobuf.Empty
-	14, // 19: castor.v1.CastStatus.measuring:type_name -> castor.v1.MeasuringStatus
-	15, // 20: castor.v1.CastStatus.casting:type_name -> castor.v1.CastingStatus
-	30, // 21: castor.v1.CastingStatus.revision:type_name -> castor.v1.Revision
-	29, // 22: castor.v1.Ended.completed:type_name -> google.protobuf.Empty
-	29, // 23: castor.v1.Ended.stopped:type_name -> google.protobuf.Empty
-	17, // 24: castor.v1.Ended.failed:type_name -> castor.v1.Failure
-	0,  // 25: castor.v1.Failure.code:type_name -> castor.v1.FailureCode
-	22, // 26: castor.v1.ListCastsResponse.casts:type_name -> castor.v1.Cast
-	31, // 27: castor.v1.Cast.device:type_name -> castor.v1.Device
-	6,  // 28: castor.v1.Cast.source:type_name -> castor.v1.Source
-	13, // 29: castor.v1.Cast.status:type_name -> castor.v1.CastStatus
-	32, // 30: castor.v1.Source.ResolvedStreams.streams:type_name -> castor.v1.StreamCandidate
-	1,  // 31: castor.v1.CastService.Cast:input_type -> castor.v1.CastRequest
-	4,  // 32: castor.v1.CastService.Resolve:input_type -> castor.v1.ResolveRequest
-	11, // 33: castor.v1.CastService.Watch:input_type -> castor.v1.WatchRequest
-	18, // 34: castor.v1.CastService.Stop:input_type -> castor.v1.StopRequest
-	20, // 35: castor.v1.CastService.ListCasts:input_type -> castor.v1.ListCastsRequest
-	3,  // 36: castor.v1.CastService.Cast:output_type -> castor.v1.CastResponse
-	5,  // 37: castor.v1.CastService.Resolve:output_type -> castor.v1.ResolveResponse
-	12, // 38: castor.v1.CastService.Watch:output_type -> castor.v1.WatchResponse
-	19, // 39: castor.v1.CastService.Stop:output_type -> castor.v1.StopResponse
-	21, // 40: castor.v1.CastService.ListCasts:output_type -> castor.v1.ListCastsResponse
-	36, // [36:41] is the sub-list for method output_type
-	31, // [31:36] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	26, // 4: castor.v1.CastRequest.start:type_name -> google.protobuf.Duration
+	6,  // 5: castor.v1.ResolveRequest.source:type_name -> castor.v1.Source
+	7,  // 6: castor.v1.ResolveRequest.preferences:type_name -> castor.v1.Preferences
+	27, // 7: castor.v1.ResolveResponse.ranked:type_name -> castor.v1.RankedStream
+	28, // 8: castor.v1.Source.stream:type_name -> castor.v1.Stream
+	23, // 9: castor.v1.Source.pages:type_name -> castor.v1.Source.Pages
+	24, // 10: castor.v1.Source.streams:type_name -> castor.v1.Source.ResolvedStreams
+	29, // 11: castor.v1.Preferences.delivery:type_name -> castor.v1.Delivery
+	9,  // 12: castor.v1.Preferences.subtitles:type_name -> castor.v1.SubtitleSelection
+	8,  // 13: castor.v1.Preferences.audio:type_name -> castor.v1.AudioSelection
+	30, // 14: castor.v1.SubtitleSelection.disabled:type_name -> google.protobuf.Empty
+	10, // 15: castor.v1.SubtitleSelection.preferences:type_name -> castor.v1.SubtitlePreferences
+	13, // 16: castor.v1.WatchResponse.status:type_name -> castor.v1.CastStatus
+	16, // 17: castor.v1.WatchResponse.ended:type_name -> castor.v1.Ended
+	30, // 18: castor.v1.CastStatus.connecting:type_name -> google.protobuf.Empty
+	30, // 19: castor.v1.CastStatus.extracting:type_name -> google.protobuf.Empty
+	14, // 20: castor.v1.CastStatus.measuring:type_name -> castor.v1.MeasuringStatus
+	15, // 21: castor.v1.CastStatus.casting:type_name -> castor.v1.CastingStatus
+	31, // 22: castor.v1.CastingStatus.revision:type_name -> castor.v1.Revision
+	30, // 23: castor.v1.Ended.completed:type_name -> google.protobuf.Empty
+	30, // 24: castor.v1.Ended.stopped:type_name -> google.protobuf.Empty
+	17, // 25: castor.v1.Ended.failed:type_name -> castor.v1.Failure
+	0,  // 26: castor.v1.Failure.code:type_name -> castor.v1.FailureCode
+	22, // 27: castor.v1.ListCastsResponse.casts:type_name -> castor.v1.Cast
+	32, // 28: castor.v1.Cast.device:type_name -> castor.v1.Device
+	6,  // 29: castor.v1.Cast.source:type_name -> castor.v1.Source
+	13, // 30: castor.v1.Cast.status:type_name -> castor.v1.CastStatus
+	33, // 31: castor.v1.Source.ResolvedStreams.streams:type_name -> castor.v1.StreamCandidate
+	1,  // 32: castor.v1.CastService.Cast:input_type -> castor.v1.CastRequest
+	4,  // 33: castor.v1.CastService.Resolve:input_type -> castor.v1.ResolveRequest
+	11, // 34: castor.v1.CastService.Watch:input_type -> castor.v1.WatchRequest
+	18, // 35: castor.v1.CastService.Stop:input_type -> castor.v1.StopRequest
+	20, // 36: castor.v1.CastService.ListCasts:input_type -> castor.v1.ListCastsRequest
+	3,  // 37: castor.v1.CastService.Cast:output_type -> castor.v1.CastResponse
+	5,  // 38: castor.v1.CastService.Resolve:output_type -> castor.v1.ResolveResponse
+	12, // 39: castor.v1.CastService.Watch:output_type -> castor.v1.WatchResponse
+	19, // 40: castor.v1.CastService.Stop:output_type -> castor.v1.StopResponse
+	21, // 41: castor.v1.CastService.ListCasts:output_type -> castor.v1.ListCastsResponse
+	37, // [37:42] is the sub-list for method output_type
+	32, // [32:37] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_castor_v1_cast_proto_init() }

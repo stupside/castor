@@ -160,7 +160,8 @@ func DeviceStarved(subject string, made media.Progress, handed int64) *Fault {
 	return &Fault{
 		Kind:    Starved,
 		Subject: subject,
-		Vitals:  Vitals{Landed: made.Bytes, Position: made.Position, handed: handed},
+		// It took everything made, so it played everything made.
+		Vitals: Vitals{Landed: made.Bytes, Position: made.Position, played: made.Position, handed: handed},
 	}
 }
 
