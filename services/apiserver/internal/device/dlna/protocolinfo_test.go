@@ -31,8 +31,8 @@ func TestRendererWithoutConnectionManagerKeepsConservativePlayback(t *testing.T)
 		t.Fatalf("unsafe DLNA fallback: %v", caps)
 	}
 	entry := sinks[mediav1.Container_CONTAINER_MPEGTS]
-	if entry.mime != "video/mp2t" || entry.features != "*" || len(caps.ServedHeaders) != 0 {
-		t.Fatalf("fallback advertised receiver-specific features: entry=%+v headers=%v", entry, caps.ServedHeaders)
+	if entry.mime != "video/mp2t" || entry.features != "*" {
+		t.Fatalf("fallback advertised receiver-specific features: entry=%+v", entry)
 	}
 }
 

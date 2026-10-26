@@ -54,11 +54,11 @@ const (
 
 // Play hands over one video resource, announcing the caption to show beside it when there is one.
 func (s *session) Play(ctx context.Context, playback device.Playback) error {
-	entry, ok := s.sinks[playback.Container]
+	entry, ok := s.sinks[playback.Container()]
 	if !ok {
-		return fmt.Errorf("the device does not advertise container %v", playback.Container)
+		return fmt.Errorf("the device does not advertise container %v", playback.Container())
 	}
-	metadata, err := buildDIDLMetadata(playback.URL, entry, shownCaption(playback.Captions), playback.Info)
+	metadata, err := buildDIDLMetadata(entry, playback)
 	if err != nil {
 		return fmt.Errorf("building DIDL-Lite metadata: %w", err)
 	}

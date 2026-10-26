@@ -56,10 +56,12 @@ type presentation struct {
 	target      *url.URL
 	contentType string
 	source      bool
-	readiness   presentationReadiness
-	delivery    *delivery
-	feed        feed
-	reached     ran
+	// runtime is what is left of the program from where the attempt begins, zero where the source declared none.
+	runtime   time.Duration
+	readiness presentationReadiness
+	delivery  *delivery
+	feed      feed
+	reached   ran
 }
 
 // inspectedPresentation retains the selected reading and any validated local
@@ -86,7 +88,7 @@ func (s *preparation) inspectPresentation() (p inspectedPresentation, err error)
 		return p, err
 	}
 	p.kind = s.compose()
-	p.reached.began = s.attempt.Program.Start
+	p.runtime, p.reached.began = s.attempt.Runtime(), s.attempt.Program.Start
 	p.captions = s.shownCaptions()
 	if p.kind == compose.Handoff {
 		primary, _ := s.attempt.Program.PrimaryInput()

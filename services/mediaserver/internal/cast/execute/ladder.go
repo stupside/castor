@@ -80,6 +80,18 @@ func (l *ladder) open(ctx context.Context, rung source.Rendition, at time.Durati
 	return l.s.readAt(ctx, l.s.releases, resolved.Program, at, from, path, nil)
 }
 
+// program is what the cast reads now: the rung it is on, resolved again.
+func (l *ladder) program(ctx context.Context) (media.Program, error) {
+	l.mu.Lock()
+	current := l.current
+	l.mu.Unlock()
+	resolved, err := l.s.Resolver.Resolve(ctx, l.stream, current, 0)
+	if err != nil {
+		return media.Program{}, fmt.Errorf("reading the rung: %w", err)
+	}
+	return resolved.Program, nil
+}
+
 // readAt starts reading program from at into spool on the clock of from, released with rel; a known probe of the program spares measuring it again.
 func (s *preparation) readAt(ctx context.Context, rel *releases, program media.Program, at time.Duration, from *pull, spool string, known *media.ProbeInfo) (*pull, error) {
 	program.Start = at

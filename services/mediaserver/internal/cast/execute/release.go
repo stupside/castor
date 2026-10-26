@@ -98,7 +98,8 @@ func (c *coordinator) join() error {
 		} else {
 			err = errors.Join(err, teardown.Failures(c.ctx, op.err))
 		}
-		if op.event == deliverySettled && op.err == nil {
+		// Only the delivery as made last counts, however the device's end raced it.
+		if op.event == deliverySettled && op.err == nil && op.off == c.made {
 			c.delivered = true
 		}
 	}

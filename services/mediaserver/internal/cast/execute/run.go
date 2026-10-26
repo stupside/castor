@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"time"
 
 	"github.com/looplab/fsm"
@@ -54,6 +53,7 @@ const (
 	deliverySettled
 	healthEnded
 	drainElapsed
+	deliverySought
 	attemptCancelled
 	attemptFailed
 	cleanupFinished
@@ -73,6 +73,7 @@ func (e attemptEvent) String() string {
 		deliverySettled:    "delivery-settled",
 		healthEnded:        "health-ended",
 		drainElapsed:       "drain-elapsed",
+		deliverySought:     "delivery-sought",
 		attemptCancelled:   "cancelled",
 		attemptFailed:      "failed",
 		cleanupFinished:    "cleanup-finished",
@@ -113,6 +114,7 @@ func (c *coordinator) attemptMachine() *fsm.FSM {
 		{Name: deliverySettled.String(), Src: []string{playingBack}, Dst: draining},
 		{Name: healthEnded.String(), Src: []string{playingBack}, Dst: stopping},
 		{Name: drainElapsed.String(), Src: []string{draining}, Dst: stopping},
+		{Name: deliverySought.String(), Src: []string{playingBack, draining}, Dst: playingBack},
 		{Name: attemptCancelled.String(), Src: active, Dst: stopping},
 		{Name: attemptFailed.String(), Src: active, Dst: stopping},
 		{Name: cleanupFinished.String(), Src: []string{stopping}, Dst: attemptFinished},
@@ -181,7 +183,11 @@ type coordinator struct {
 	interruption error
 	delivered    bool
 	starvation   *health.Fault
-	stopHealth   context.CancelFunc
+	// made is the delivery as made since playback began or the device last sought; what watches it is called off with it.
+	made       context.Context
+	unmade     context.CancelFunc
+	stopHealth context.CancelFunc
+	stopDrain  context.CancelFunc
 }
 
 func newCoordinator(parent context.Context, c Cast, a recovery.Attempt) *coordinator {
@@ -323,6 +329,8 @@ func (c *coordinator) loop() {
 				c.observePlayback()
 			case deliverySettled:
 				c.drain()
+			case deliverySought:
+				c.sought()
 			}
 		}
 	}
@@ -367,15 +375,17 @@ func (c *coordinator) startPlayback() {
 	})
 }
 
-// watchProduction watches what makes the delivery, until it ends.
+// watchProduction watches what makes the delivery anew, until it ends or the device seeks.
 func (c *coordinator) watchProduction() {
 	d := c.presentation.delivery
 	if d == nil {
 		return
 	}
-	c.launch(productionFinished, func() error { return ended(c.ctx, d.output) })
+	c.made, c.unmade = context.WithCancel(c.ctx)
+	made := c.made
+	c.launchUntil(made, productionFinished, func() error { return ended(made, d.output) })
 	if f := c.presentation.feed; f.buffered != nil && d.output != f.buffered.reader {
-		c.launch(productionFinished, func() error { return ended(c.ctx, f.buffered.reader) })
+		c.launchUntil(made, productionFinished, func() error { return ended(made, f.buffered.reader) })
 	}
 }
 
@@ -406,18 +416,20 @@ func (c *coordinator) observePlayback() {
 	if d := c.presentation.delivery; d != nil {
 		c.settle(d)
 		c.watchHealth(d)
+		c.watchSeeks(d)
 	}
 }
 
 // settle waits for the device to take the whole of what is made, once it is made.
 func (c *coordinator) settle(d *delivery) {
+	made := c.made
 	produced := make(chan struct{})
 	go func() {
-		if madeDone(c.ctx, d.output) != nil {
+		if madeDone(made, d.output) != nil {
 			close(produced)
 		}
 	}()
-	c.launch(deliverySettled, func() error { return d.sink.Wait(c.ctx, produced) })
+	c.launchUntil(made, deliverySettled, func() error { return d.sink.Wait(made, produced) })
 }
 
 // watchHealth judges the playing cast until nothing is left to judge.
@@ -430,6 +442,33 @@ func (c *coordinator) watchHealth(d *delivery) {
 	watching, stop := context.WithCancel(c.ctx)
 	c.stopHealth = stop
 	c.launchUntil(watching, healthEnded, func() error { return observeHealth(watching, monitor, c.device, d.rate) })
+}
+
+func (c *coordinator) watchSeeks(d *delivery) {
+	if d.sought == nil {
+		return
+	}
+	c.launch(deliverySought, func() error {
+		select {
+		case <-d.sought:
+		case <-c.ctx.Done():
+		}
+		return nil
+	})
+}
+
+// sought watches the delivery made anew from where the device asked, the device being no longer let play out what it held.
+func (c *coordinator) sought() {
+	d := c.presentation.delivery
+	c.unmade()
+	c.watchProduction()
+	c.settle(d)
+	if c.stopDrain != nil {
+		c.stopDrain()
+		c.stopDrain = nil
+		c.watchHealth(d)
+	}
+	c.watchSeeks(d)
 }
 
 const (
@@ -446,31 +485,34 @@ func (c *coordinator) drain() {
 		c.stopHealth()
 	}
 	d := c.presentation.delivery
-	c.launch(drainElapsed, func() error {
+	waiting, stop := context.WithCancel(c.ctx)
+	c.stopDrain = stop
+	c.launchUntil(waiting, drainElapsed, func() error {
 		left := drainMost
 		if head, ok := c.device.(health.Playhead); ok {
-			asking, cancel := context.WithTimeout(c.ctx, askFor)
+			asking, cancel := context.WithTimeout(waiting, askFor)
 			if at, _, known := head.Position(asking); known {
 				left = min(left, max(0, d.output.Progress().Position-at))
 			}
 			cancel()
 		}
-		slog.InfoContext(c.ctx, "the device took the whole stream and plays out what it holds", "left", left.Round(time.Second))
+		slog.InfoContext(waiting, "the device took the whole stream and plays out what it holds", "left", left.Round(time.Second))
 		select {
 		case <-time.After(left + drainGrace):
-			slog.WarnContext(c.ctx, "the device never said it ended; the cast ends with the media it held", "waited", (left + drainGrace).Round(time.Second))
-		case <-c.ctx.Done():
+			slog.WarnContext(waiting, "the device never said it ended; the cast ends with the media it held", "waited", (left + drainGrace).Round(time.Second))
+		case <-waiting.Done():
 		}
 		return nil
 	})
 }
 
-// hand points the device at target; source says whether that is the source itself rather than what castor serves.
-func hand(ctx context.Context, dev Device, target *url.URL, contentType string, shown []media.Caption, source bool) (err error) {
+// hand points the device at p.
+func hand(ctx context.Context, dev Device, p Playback) (err error) {
 	ctx, finish := telemetry.Start(ctx, telemetry.Play)
 	defer func() { finish(err) }()
-	slog.InfoContext(ctx, "starting playback", "host", target.Host, "content_type", contentType, "handoff", source)
-	if err := dev.Play(ctx, target, contentType, shown); err != nil {
+	_, source := p.Stream.(Source)
+	slog.InfoContext(ctx, "starting playback", "host", p.URL.Host, "stream", p.Stream)
+	if err := dev.Play(ctx, p); err != nil {
 		return &playRefused{err: err, source: source}
 	}
 	return nil

@@ -9,7 +9,6 @@ import (
 	"net/url"
 
 	"github.com/huin/goupnp"
-	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 
 	"github.com/stupside/castor/services/apiserver/internal/device"
 )
@@ -91,11 +90,7 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 	if err != nil {
 		return nil, err
 	}
-	preferred := mediav1.Container_CONTAINER_MP4
-	if caps.Formats[0].GetProgressive().GetContainer() == mediav1.ProgressiveSupport_CONTAINER_MPEGTS {
-		preferred = mediav1.Container_CONTAINER_MPEGTS
-	}
-	caps.ServedHeaders = servedHeaders(sinks[preferred])
+	streamed(caps)
 	return &session{transport: transport, caps: caps, sinks: sinks}, nil
 }
 

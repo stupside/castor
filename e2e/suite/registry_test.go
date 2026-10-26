@@ -101,6 +101,7 @@ var (
 		strategy.Fixed[receiver.Viewer]{Strategy: viewer.ToTheEnd{}},
 		viewer.StopsAfter{},
 		viewer.Takes{},
+		viewer.Seeks{},
 	}
 	outcomes     = strategy.Registry[judge.Outcome]{outcome.Plays{}, outcome.Refused{}, outcome.Aborted{}}
 	expectations = strategy.Registry[strategy.Factory[judge.Check]]{
@@ -110,6 +111,7 @@ var (
 		expect.Captioned{},
 		expect.AudioIn{},
 		strategy.Fixed[judge.Check]{Strategy: expect.Uninterrupted{}},
+		strategy.Fixed[judge.Check]{Strategy: expect.Seeked{}},
 		strategy.OneOf[judge.Check]{Called: "frames", Of: strategy.Registry[judge.Check]{expect.Complete{}}},
 	}
 	invariants = []judge.Check{

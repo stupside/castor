@@ -303,8 +303,10 @@ type tracker struct {
 	sample  media.Progress
 	samples int
 
-	// fetchedAt is when the device first took a byte.
+	// fetchedAt is when the device first took a byte of its current fetch, which began at began.
 	fetchedAt time.Time
+	began     time.Duration
+	handed    int64
 
 	reading reading
 
@@ -401,6 +403,11 @@ func (t *tracker) read(ctx context.Context) (Vitals, error) {
 
 	if a := t.m.Audience; a != nil {
 		handed, last := a.Handed()
+		// A device that asked for the stream again was handed it afresh, even from where it was.
+		if began := a.Began(); began != t.began || handed < t.handed {
+			t.restarted(ctx, now, began)
+		}
+		t.handed = handed
 		h.handed = handed
 		if handed > 0 {
 			if t.fetchedAt.IsZero() {
@@ -453,6 +460,7 @@ func (t *tracker) read(ctx context.Context) (Vitals, error) {
 		if !t.fetchedAt.IsZero() {
 			h.played = now.Sub(t.fetchedAt) - stopped
 		}
+		h.began = t.began
 	}
 
 	if t.m.Grace > 0 {
@@ -460,6 +468,20 @@ func (t *tracker) read(ctx context.Context) (Vitals, error) {
 	}
 
 	return h, nil
+}
+
+// restarted starts the measures over: what the device took and played before began says nothing of it now.
+func (t *tracker) restarted(ctx context.Context, now time.Time, began time.Duration) {
+	slog.InfoContext(ctx, "the device asked for the stream from elsewhere", "gate", t.m.Subject, "from", t.began, "to", began)
+	t.began, t.fetchedAt, t.held, t.grew, t.kept = began, time.Time{}, 0, now, now
+	if !t.pausedAt.IsZero() {
+		t.pausedAt = now
+	}
+	t.viewerAt, t.viewerHolds = time.Time{}, 0
+	t.trail.Reset()
+	t.curve = nil
+	t.reading.restart()
+	t.reading.playhead.forget()
 }
 
 // pace records position and reports the media made per second over the trail, zero until it spans two readings.

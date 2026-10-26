@@ -54,3 +54,21 @@ func TestClockPlaysWhatItWasGivenAtMostAndStopsWhileHeld(t *testing.T) {
 		t.Errorf("played while held = %v, want it stopped at 2s", got)
 	}
 }
+
+func TestAJumpRestartsTheClockAtThePositionWithoutEarlierPauses(t *testing.T) {
+	var c clock
+	now := time.Now()
+	c.started, c.latest, c.held = now, 10*time.Second, 3*time.Second
+	c.restart(30 * time.Second)
+	if got := c.played(now); got != 30*time.Second {
+		t.Errorf("played before anything landed = %v, want the position jumped to", got)
+	}
+	c.observe(31 * time.Second)
+	c.observe(40 * time.Second)
+	if got := c.played(c.started.Add(4 * time.Second)); got != 34*time.Second {
+		t.Errorf("played = %v, want 30s plus the 4s since", got)
+	}
+	if got := c.taken(); got != 39*time.Second {
+		t.Errorf("taken = %v, want 30s plus the 9s landed", got)
+	}
+}

@@ -3,6 +3,8 @@ package execute
 import (
 	"context"
 	"fmt"
+
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // presentationReadiness records the evidence preparation acquired before a
@@ -40,5 +42,20 @@ func certifyPresentation(p presentation) (readyPresentation, error) {
 }
 
 func (p readyPresentation) play(ctx context.Context, device Device) error {
-	return hand(ctx, device, p.target, p.contentType, p.captions, p.source)
+	return hand(ctx, device, Playback{URL: p.target, Captions: p.captions, Stream: p.stream()})
+}
+
+// stream is how what the device is handed reaches it.
+func (p presentation) stream() Stream {
+	switch {
+	case p.source:
+		return Source{ContentType: p.contentType, Runtime: p.runtime}
+	case p.contentType == media.HLS:
+		return Playlist{Runtime: p.runtime}
+	}
+	served := Served{ContentType: p.contentType}
+	if p.runtime > 0 {
+		served.Runtime = &Runtime{Length: p.runtime, TimeSeek: p.delivery != nil && p.delivery.sought != nil}
+	}
+	return served
 }

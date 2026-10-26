@@ -2,7 +2,9 @@ package dlna
 
 import (
 	"encoding/xml"
+	"fmt"
 	"strings"
+	"time"
 )
 
 // didlProtocolInfo reads what the DIDL-Lite res declares (http-get:*:<mime>:<features>).
@@ -60,3 +62,15 @@ func didlFeatures(meta string) string {
 	}
 	return fields[3]
 }
+
+// timeSeeks reads DLNA.ORG_OP, whose first digit offers fetching the stream from a position in time.
+func timeSeeks(features string) bool {
+	for param := range strings.SplitSeq(features, ";") {
+		if op, ok := strings.CutPrefix(param, "DLNA.ORG_OP="); ok {
+			return strings.HasPrefix(op, "1")
+		}
+	}
+	return false
+}
+
+func timeSeekRange(at time.Duration) string { return fmt.Sprintf("npt=%.3f-", at.Seconds()) }

@@ -53,3 +53,13 @@ func TestAnAttemptBeginsWhereASourceHasAPlaceToBeginAt(t *testing.T) {
 		t.Error("a source was given a position past its end")
 	}
 }
+
+func TestRuntimeIsWhatIsLeftFromWhereItBegins(t *testing.T) {
+	a := Attempt{Origin: source.Origin{Duration: 2 * time.Hour}, Program: media.Program{Start: 30 * time.Minute}}
+	if got := a.Runtime(); got != 90*time.Minute {
+		t.Errorf("Runtime = %v, want 1h30m", got)
+	}
+	if got := (Attempt{Program: media.Program{Start: time.Hour}}).Runtime(); got != 0 {
+		t.Errorf("Runtime without a declared duration = %v, want 0", got)
+	}
+}

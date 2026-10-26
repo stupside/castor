@@ -5,14 +5,12 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"net/url"
 	"sync"
 	"time"
 
 	castmedia "github.com/vishen/go-chromecast/cast"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
-	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
@@ -32,7 +30,7 @@ var _ device.Device = (*session)(nil)
 
 // Play returns the receiver's own verdict on the LOAD, so a refused URL fails the hand-off; a dropped connection is gone.
 func (s *session) Play(ctx context.Context, playback device.Playback) error {
-	if err := s.play(ctx, playback.URL, device.MIME(playback.Container), playback.Captions, playback.Info); err != nil {
+	if err := s.play(ctx, playback); err != nil {
 		select {
 		case <-s.ch.gone:
 			return &device.Gone{Device: s.name, Observed: "the Cast connection closed before the media loaded", Err: err}
@@ -43,7 +41,8 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	return nil
 }
 
-func (s *session) play(ctx context.Context, streamURL *url.URL, contentType string, captions []*mediav1.DeviceCommand_Caption, info *castorv1.MediaInfo) error {
+func (s *session) play(ctx context.Context, playback device.Playback) error {
+	stream, info := playback.URL.String(), playback.Info
 	transport, err := s.mediaReceiver(ctx)
 	if err != nil {
 		return fmt.Errorf("starting the chromecast's media receiver: %w", err)
@@ -54,22 +53,22 @@ func (s *session) play(ctx context.Context, streamURL *url.URL, contentType stri
 	// Each Play is awaited to its own end, so a retry after a refused one starts clean on the same connection.
 	mine := newEnding()
 	s.watchMu.Lock()
-	s.watch.begin(streamURL.String())
+	s.watch.begin(stream)
 	s.ending = mine
 	s.transport = transport
 	s.watchMu.Unlock()
 	load := &loadCommand{
 		Type: msgLoad, Autoplay: true,
-		Media: mediaItem{MediaItem: castmedia.MediaItem{ContentId: streamURL.String(), ContentType: contentType, StreamType: "BUFFERED"}},
+		Media: mediaItem{MediaItem: castmedia.MediaItem{ContentId: stream, ContentType: device.MIME(playback.Container()), StreamType: "BUFFERED", Duration: float32(playback.Duration().Seconds())}},
 	}
 	load.Media.Metadata = castmedia.MediaMetadata{Title: info.GetTitle(), Subtitle: info.GetSynopsis(), ReleaseDate: info.GetReleaseDate()}
 	if imageURL := info.GetImageUrl(); imageURL != "" {
 		load.Media.Metadata.Images = []castmedia.Image{{URL: imageURL}}
 	}
-	load.Media.Tracks, load.ActiveTrackIds = textTracks(captions)
+	load.Media.Tracks, load.ActiveTrackIds = textTracks(playback.Play.GetCaptions())
 	reply, err := s.ch.request(ctx, transport, nsMedia, load)
 	if err == nil {
-		err = loadVerdict(reply, streamURL.String())
+		err = loadVerdict(reply, stream)
 	}
 	if err != nil {
 		s.watchMu.Lock()

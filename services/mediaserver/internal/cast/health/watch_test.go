@@ -160,6 +160,8 @@ type heldDevice struct {
 	refuseResume error
 }
 
+func (*heldDevice) Began() time.Duration { return 0 }
+
 func (d *heldDevice) Handed() (int64, time.Time) { return 1 << 20, time.Now() }
 func (d *heldDevice) Pause(context.Context) error {
 	d.mu.Lock()
@@ -370,6 +372,8 @@ type takingDevice struct {
 	rate  float64
 }
 
+func (*takingDevice) Began() time.Duration { return 0 }
+
 func (d *takingDevice) Handed() (int64, time.Time) {
 	return int64(time.Since(d.start).Seconds() * d.rate), time.Now()
 }
@@ -379,6 +383,8 @@ type burstingDevice struct {
 	start       time.Time
 	burst, rate float64
 }
+
+func (*burstingDevice) Began() time.Duration { return 0 }
 
 func (d *burstingDevice) Handed() (int64, time.Time) {
 	t := time.Since(d.start).Seconds()
@@ -627,6 +633,80 @@ func TestAHeavierRateTheLinkCannotCarryIsGivenBackAtOnce(t *testing.T) {
 	})
 }
 
+// seekingDevice takes bytes at a fixed rate of a fetch that began at began, which a seek moves.
+type seekingDevice struct {
+	mu    sync.Mutex
+	began time.Duration
+	since time.Time
+	rate  float64
+}
+
+func (d *seekingDevice) Began() time.Duration {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.began
+}
+
+func (d *seekingDevice) Handed() (int64, time.Time) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return int64(time.Since(d.since).Seconds() * d.rate), time.Now()
+}
+
+func (d *seekingDevice) Position(context.Context) (time.Duration, bool, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.began + time.Since(d.since), false, true
+}
+
+func (d *seekingDevice) seek(to time.Duration) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.began, d.since = to, time.Now()
+}
+
+// A device that asks for the stream from elsewhere is measured from there: what it took and played before says nothing of it now.
+func TestADeviceThatSeeksIsMeasuredFromWhereItAsked(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &seekingDevice{since: start, rate: weight}
+		producer := &pacedProducer{done: make(chan struct{}), start: start, made: func(d time.Duration) time.Duration { return d + time.Minute }}
+		o := Observe(Monitor{Subject: "the playing cast", Phase: Playing, Producer: producer, Telemetry: producer, Audience: dev, Playhead: dev})
+		for range 40 {
+			time.Sleep(time.Second)
+			if _, err := o.read(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		before, _ := o.read(t.Context())
+		if !before.intakeKnown || !before.headKnown {
+			t.Fatalf("after 40s the device's intake and playhead are unknown: %+v", before)
+		}
+
+		dev.seek(20 * time.Minute)
+		time.Sleep(time.Second)
+		after, err := o.read(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.began != 20*time.Minute || after.intakeKnown || after.headKnown && after.head < 20*time.Minute || after.played > 2*time.Second {
+			t.Errorf("right after the seek: began %v, intake known %t, head %v (known %t), played %v; want the measures started over at 20m", after.began, after.intakeKnown, after.head, after.headKnown, after.played)
+		}
+		if got := after.Reached(); got < 20*time.Minute || got > 20*time.Minute+2*time.Second {
+			t.Errorf("reached %v right after the seek, want about 20m", got)
+		}
+		for range 10 {
+			time.Sleep(time.Second)
+			if _, err := o.read(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if later, _ := o.read(t.Context()); !later.headKnown || later.head < 20*time.Minute+5*time.Second {
+			t.Errorf("10s after the seek the device's word is %v (known %t), want past 20m05s", later.head, later.headKnown)
+		}
+	})
+}
+
 // pausingDevice plays from the start and says when its viewer holds it.
 type pausingDevice struct {
 	mu     sync.Mutex
@@ -635,6 +715,8 @@ type pausingDevice struct {
 	held   bool
 	handed int64
 }
+
+func (d *pausingDevice) Began() time.Duration { return 0 }
 
 func (d *pausingDevice) Handed() (int64, time.Time) {
 	d.mu.Lock()
@@ -697,6 +779,31 @@ func TestADevicesOwnPauseIsAHoldNotAStall(t *testing.T) {
 		}
 		if _, act, _ := judge(Playing, held); act == lighten {
 			t.Error("a device its viewer holds is made lighter")
+		}
+	})
+}
+
+// A device that asks for the stream again from where it already began is measured afresh too.
+func TestADeviceThatSeeksBackToWhereItBeganIsMeasuredAfresh(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		dev := &seekingDevice{since: start, rate: weight}
+		producer := &pacedProducer{done: make(chan struct{}), start: start, made: func(d time.Duration) time.Duration { return d + time.Minute }}
+		o := Observe(Monitor{Subject: "the playing cast", Phase: Playing, Producer: producer, Telemetry: producer, Audience: dev, Playhead: dev})
+		for range 40 {
+			time.Sleep(time.Second)
+			if _, err := o.read(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		dev.seek(0)
+		time.Sleep(time.Second)
+		after, err := o.read(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.played > 2*time.Second || after.intakeKnown {
+			t.Errorf("right after seeking back to the start: played %v, intake known %t; want the measures started over", after.played, after.intakeKnown)
 		}
 	})
 }

@@ -72,4 +72,6 @@ type Lead interface {
 type Audience interface {
 	// Handed is the bytes taken and when the last one moved.
 	Handed() (bytes int64, last time.Time)
+	// Began is where in the program the device's current fetch began; a seek moves it.
+	Began() time.Duration
 }

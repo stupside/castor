@@ -215,11 +215,11 @@ func TestAReasonThatHoldsIsSaidOnceHoweverItsMeasurementMoves(t *testing.T) {
 	}
 }
 
-func TestWhereTheViewerGotToIsTheDevicesWordElseTheClock(t *testing.T) {
-	if got := (Vitals{played: time.Minute}).Reached(); got != time.Minute {
-		t.Errorf("by the clock, reached %v, want the minute played", got)
+func TestWhereTheViewerGotToIsTheDevicesWordElseTheClockFromWhereItAsked(t *testing.T) {
+	if got := (Vitals{began: 20 * time.Minute, played: time.Minute}).Reached(); got != 21*time.Minute {
+		t.Errorf("by the clock, reached %v, want the minute played from the 20m asked for", got)
 	}
-	if got := (Vitals{played: time.Minute, head: 40 * time.Second, headKnown: true}).Reached(); got != 40*time.Second {
+	if got := (Vitals{began: 20 * time.Minute, played: time.Minute, head: 20*time.Minute + 40*time.Second, headKnown: true}).Reached(); got != 20*time.Minute+40*time.Second {
 		t.Errorf("reached %v, want where the device says it is, since it buffered part of that minute", got)
 	}
 }

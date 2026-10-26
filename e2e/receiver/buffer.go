@@ -18,19 +18,47 @@ var errStarved = errors.New("the device played out its buffer")
 // clock is the device's playback clock: media timestamps taken in against wall time spent playing.
 type clock struct {
 	mu sync.Mutex
-	// first and latest are the earliest and latest presentation times seen; started is when the first landed.
-	first, latest time.Duration
-	started       time.Time
-	// heldSince is when playback was last paused, zero while playing; held is every pause before it.
-	heldSince time.Time
-	held      time.Duration
+	// from is where playback last began; first and latest are the presentation times seen since, started when the first landed.
+	from, first, latest time.Duration
+	started             time.Time
+	// heldSince is when playback was last paused, zero while playing; held is every pause before it, heldBefore those before from.
+	heldSince        time.Time
+	held, heldBefore time.Duration
 	// holds counts every time playback was paused.
 	holds int
 }
 
+// restart begins playback again at position, as a device does when its viewer jumps there.
+func (c *clock) restart(position time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.from, c.first, c.latest, c.started, c.heldBefore = position, 0, 0, time.Time{}, c.held
+}
+
+// reach waits until playback is at position, false if ctx ends first.
+func (c *clock) reach(ctx context.Context, position time.Duration) bool {
+	tick := time.NewTicker(20 * time.Millisecond)
+	defer tick.Stop()
+	for c.played(time.Now()) < position {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-tick.C:
+		}
+	}
+	return true
+}
+
+// taken is the position playback reaches once it has played everything taken in.
+func (c *clock) taken() time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.from + c.latest - c.first
+}
+
 // playing is the wall time spent playing since the first presentation time landed.
 func (c *clock) playing(now time.Time) time.Duration {
-	held := c.held
+	held := c.held - c.heldBefore
 	if !c.heldSince.IsZero() {
 		held += now.Sub(c.heldSince)
 	}
@@ -62,14 +90,14 @@ func (c *clock) paused() (int, time.Duration) {
 	return c.holds, held
 }
 
-// played is the position the device has played to by now: wall time playing, never past what it was given.
+// played is the position the device has played to by now: where it began, plus wall time playing, never past what it was given.
 func (c *clock) played(now time.Time) time.Duration {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.started.IsZero() {
-		return 0
+		return c.from
 	}
-	return max(0, min(c.playing(now), c.latest-c.first))
+	return c.from + max(0, min(c.playing(now), c.latest-c.first))
 }
 
 func (c *clock) holding() bool {
@@ -119,6 +147,23 @@ func (c *clock) starve(ctx context.Context, cancel context.CancelCauseFunc) {
 			}
 		}
 	}
+}
+
+// deviceBuffer is how far ahead of playback a device playing in real time reads.
+const deviceBuffer = 5 * time.Second
+
+// ahead holds reads while the device has a full buffer it has not played yet.
+type ahead struct {
+	r     io.Reader
+	ctx   context.Context
+	clock *clock
+}
+
+func (a ahead) Read(p []byte) (int, error) {
+	if !a.clock.reach(a.ctx, a.clock.taken()-deviceBuffer) {
+		return 0, context.Cause(a.ctx)
+	}
+	return a.r.Read(p)
 }
 
 // tsPacket is the size of one MPEG-TS packet, and tsSync the byte every one opens with.

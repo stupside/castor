@@ -58,6 +58,8 @@ type stoppedDevice struct {
 	last time.Time
 }
 
+func (stoppedDevice) Began() time.Duration { return 0 }
+
 func (s stoppedDevice) Handed() (int64, time.Time) { return 0, s.last }
 
 // gateFixture is a buffered read over an empty spool.
@@ -81,6 +83,8 @@ type heldAudience struct {
 	entered chan struct{}
 	release chan struct{}
 }
+
+func (heldAudience) Began() time.Duration { return 0 }
 
 func (a heldAudience) Handed() (int64, time.Time) {
 	close(a.entered)
@@ -150,6 +154,8 @@ func (d *blockedPlaybackControl) Pause(ctx context.Context) error {
 func (*blockedPlaybackControl) Resume(context.Context) error { return nil }
 
 type fetchingAudience struct{}
+
+func (fetchingAudience) Began() time.Duration { return 0 }
 
 func (fetchingAudience) Handed() (int64, time.Time) { return 1, time.Now() }
 

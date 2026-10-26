@@ -126,6 +126,9 @@ func (a Attempt) live() bool {
 	return slices.ContainsFunc(a.Program.Inputs, func(input media.Input) bool { return input.Fetching().Live })
 }
 
+// Runtime is what is left to play of the program from where the attempt begins, zero where the source declared none.
+func (a Attempt) Runtime() time.Duration { return max(0, a.Origin.Duration-a.Program.Start) }
+
 // reading binds a resolution to the attempt with a fetch plan derived for its program.
 func (a Attempt) reading(r source.Resolution, deadline time.Duration) Attempt {
 	a.Program, a.Origin, a.Rendition = r.Program, r.Origin, r.Rendition

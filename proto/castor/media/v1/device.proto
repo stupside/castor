@@ -57,18 +57,8 @@ message Capabilities {
   }];
   string provenance = 2;
   bool deinterlaces = 3;
-  // served_headers are set on every response the device fetches what it is served from.
-  map<string, string> served_headers = 4 [(buf.validate.field).map = {
-    keys: {
-      string: {well_known_regex: KNOWN_REGEX_HTTP_HEADER_NAME}
-    }
-    values: {
-      string: {
-        well_known_regex: KNOWN_REGEX_HTTP_HEADER_VALUE
-        strict: false
-      }
-    }
-  }];
+  reserved 4;
+  reserved "served_headers";
   // self_fetch is whether the device fetches a stream URL itself, rather than only playing what it is served.
   bool self_fetch = 5;
 }
@@ -90,6 +80,8 @@ message FormatSupport {
     defined_only: true
     not_in: [0]
   }];
+  reserved 7;
+  reserved "served_headers";
 }
 
 message AVSupport {
@@ -108,6 +100,18 @@ message ProgressiveSupport {
   Container container = 1 [(buf.validate.field).enum = {
     defined_only: true
     not_in: [0]
+  }];
+  // served_headers are set on every response that serves this format.
+  map<string, string> served_headers = 2 [(buf.validate.field).map = {
+    keys: {
+      string: {well_known_regex: KNOWN_REGEX_HTTP_HEADER_NAME}
+    }
+    values: {
+      string: {
+        well_known_regex: KNOWN_REGEX_HTTP_HEADER_VALUE
+        strict: false
+      }
+    }
   }];
 }
 
@@ -271,11 +275,63 @@ message DeviceCommand {
         expression: "this.isUri() && (this.startsWith('http://') || this.startsWith('https://'))"
       }
     ];
-    Container container = 2 [(buf.validate.field).enum = {
-      defined_only: true
-      not_in: [0]
-    }];
     repeated Caption captions = 3;
+    oneof stream {
+      option (buf.validate.oneof).required = true;
+      Source source = 6;
+      Progressive progressive = 7;
+      Playlist playlist = 8;
+    }
+    reserved 2, 4, 5;
+    reserved "container", "duration", "seek";
+
+    // Source is the source itself, fetched from its own server, which alone knows how it seeks.
+    message Source {
+      Container container = 1 [(buf.validate.field).enum = {
+        defined_only: true
+        not_in: [0]
+      }];
+      // duration is unset where the source declared none.
+      google.protobuf.Duration duration = 2 [(buf.validate.field).duration.gt = {}];
+    }
+
+    // Progressive is one stream the media server serves.
+    message Progressive {
+      Container container = 1 [(buf.validate.field).enum = {
+        defined_only: true
+        not_in: [
+          0,
+          3
+        ]
+      }];
+      // runtime is unset where the source declared none, and such a stream is served from its start only.
+      Runtime runtime = 2;
+    }
+
+    // Runtime is a served stream's length from where it begins, and how the media server serves it within.
+    message Runtime {
+      enum Seek {
+        SEEK_UNSPECIFIED = 0;
+        // SEEK_START serves the stream from its start only.
+        SEEK_START = 1;
+        // SEEK_TIME serves it from any time asked for within duration.
+        SEEK_TIME = 2;
+      }
+      google.protobuf.Duration duration = 1 [
+        (buf.validate.field).required = true,
+        (buf.validate.field).duration.gt = {}
+      ];
+      Seek seek = 2 [(buf.validate.field).enum = {
+        defined_only: true
+        not_in: [0]
+      }];
+    }
+
+    // Playlist is an HLS playlist the media server serves, which the device seeks within by its segments.
+    message Playlist {
+      // duration is unset where the source declared none.
+      google.protobuf.Duration duration = 1 [(buf.validate.field).duration.gt = {}];
+    }
   }
 
   // Caption is a text track the device shows over the stream; its url is fetched like the stream's.

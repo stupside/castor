@@ -147,12 +147,16 @@ A link that is a master playlist lists several renditions. The one read is the b
 
 The source is read once into a buffer on disk. Encoders read that buffer and feed the device, running only about 10 seconds ahead of it, so a change reaches the device within seconds.
 
-The health watch judges the link by how fast the device plays. Every family reports the device's own position (DLNA from its transport, a Chromecast from its media status, a Roku from its media player); it is asked every 5 seconds, and its pace is the media it played per second of wall clock over the last 30 seconds. The pace is measured from when the device's position first moves, after it is asked to play or released from a pause, since the seconds a device takes to start say nothing of its link; a change of rate starts every measure over. A device that cannot say, such as a renderer that answers no position, is judged by the bytes it takes per second against what the cast weighs.
+The health watch judges the link by how fast the device plays. Every family reports the device's own position (DLNA from its transport, a Chromecast from its media status, a Roku from its media player); it is asked every 5 seconds, and its pace is the media it played per second of wall clock over the last 30 seconds. The pace is measured from when the device's position first moves, after it is asked to play, released from a pause, or seeks, since the seconds a device takes to start say nothing of its link; a change of rate starts every measure over. A device that cannot say, such as a renderer that answers no position, is judged by the bytes it takes per second against what the cast weighs.
 
 - **Too slow:** a device playing under 0.9 of real time is asked to weigh 0.75 of what it took, never under 1 Mbit/s. A device playing in real time is never lightened, however little it reads: a device that plays what it takes keeps a thin buffer and reads exactly the cast's rate.
 - **Room to spare:** after 3 minutes at a pace of 0.97 or more, a heavier rate is tried (90 seconds once one has held). If the device falls short of it, the old rate is given back at once and that rate is left alone for 10 minutes, then 20, then 40.
 
 Nothing is kept between casts: each starts at the operator's `max_bitrate` and finds the link while it plays. The ceiling bounds the picture and the sound together: a sound whose weight is unknown, or too heavy for its share, is encoded lighter.
+
+### Seeking
+
+A DLNA device fetches the stream from a position with `TimeSeekRange.dlna.org`, which castor announces (`DLNA.ORG_OP=10`) only for an MPEG-TS stream it serves from one read of a source with a declared duration and no generated captions. Castor then reads the source again from that position, in the rung and at the rate the cast stands at, cuts the encoders over to the new read, and serves the stream made from there on the same URL. The health watch starts its measures over from where the new stream begins, and a recovery resumes from where the device says it is.
 
 ### Changing the stream
 

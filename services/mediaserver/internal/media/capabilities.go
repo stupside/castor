@@ -7,11 +7,20 @@ import (
 
 // Capabilities contains atomic playback envelopes in preference order.
 type Capabilities struct {
-	Formats       []FormatSupport
-	Provenance    string
-	SelfFetch     bool
-	Deinterlaces  bool
-	ServedHeaders map[string]string
+	Formats      []FormatSupport
+	Provenance   string
+	SelfFetch    bool
+	Deinterlaces bool
+}
+
+// Served is the headers a response serving contentType carries, from the first format that serves it.
+func (c Capabilities) Served(contentType string) map[string]string {
+	for _, f := range c.Formats {
+		if f.Transport.ContentType() == contentType {
+			return f.ServedHeaders
+		}
+	}
+	return nil
 }
 
 // Transport is a complete delivery variant, including its rendition support.
@@ -128,6 +137,7 @@ type FormatSupport struct {
 	Audio         AudioSupport
 	Captions      []CaptionFormat
 	ExtraSegments []HLSExtraSegmentFormat
+	ServedHeaders map[string]string
 }
 
 type HLSExtraSegmentFormat uint8

@@ -10,13 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/splice"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-// adjustable is a delivery whose rate changes while the device plays it: the read's buffer as it is, or encoders over it.
+// adjustable is a delivery whose rate and position change while the device plays it: the read's buffer as it is, or encoders over it.
 type adjustable struct {
 	s        *preparation
 	spec     stageSpec
@@ -25,8 +27,9 @@ type adjustable struct {
 	audience health.Audience
 	// reader is the cast's first read, which every read that takes its place is said through.
 	reader *pull
+	sought chan struct{}
 
-	// changing serializes changes of rate; mu guards what follows.
+	// changing serializes changes of rate and of position; mu guards what follows.
 	changing sync.Mutex
 	mu       sync.Mutex
 	// stages is nil while the read's buffer is served as it is.
@@ -35,6 +38,8 @@ type adjustable struct {
 	cut     int64
 	ceiling media.Bitrate
 	made    int
+	// run holds what the last seek started, released once another takes its place; nil before any seek.
+	run *releases
 }
 
 var (
@@ -42,13 +47,24 @@ var (
 	_ producer   = (*adjustable)(nil)
 )
 
-// served is the output an adjustable delivery is served through, carried on after a cut.
+// served is the output an adjustable delivery is served through: carried on after a cut, or begun again from a seek.
 type served interface {
 	output.Continuer
+	output.Seekable
 }
 
 func newAdjustable(s *preparation, spec stageSpec, dir string, stream served, audience health.Audience, reader *pull, chain *stages) *adjustable {
-	return &adjustable{s: s, spec: spec, dir: dir, stream: stream, audience: audience, reader: reader, stages: chain, ceiling: s.MaxBitrate}
+	a := &adjustable{s: s, spec: spec, dir: dir, stream: stream, audience: audience, reader: reader, sought: make(chan struct{}, 1), stages: chain, ceiling: s.MaxBitrate}
+	s.releases.push(func() error {
+		a.mu.Lock()
+		run := a.run
+		a.mu.Unlock()
+		if run == nil {
+			return nil
+		}
+		return run.release()
+	})
+	return a
 }
 
 // unit is what makes the delivery now: its encoders, else the read whose buffer is served.
@@ -70,6 +86,16 @@ func (a *adjustable) chain() (*stages, int64) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.stages, a.cut
+}
+
+// scope is where what the delivery starts now is released: with the last seek's, else with the attempt.
+func (a *adjustable) scope() *releases {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.run != nil {
+		return a.run
+	}
+	return a.s.releases
 }
 
 // Progress is what the read made until encoders carry it on, then the bytes of the stream as served and the media they hold.
@@ -131,7 +157,7 @@ func (a *adjustable) begin(ctx context.Context, ceiling media.Bitrate) (int64, e
 			change.abandon()
 			return 0, err
 		}
-		carried, err := a.spoolIn(a.s.releases, change.opts.Format.Extension)
+		carried, err := a.spoolIn(a.scope(), change.opts.Format.Extension)
 		if err != nil {
 			first.close()
 			change.abandon()
@@ -145,7 +171,7 @@ func (a *adjustable) begin(ctx context.Context, ceiling media.Bitrate) (int64, e
 		a.mu.Lock()
 		a.cut = cut.Offset
 		a.mu.Unlock()
-		chain := a.startIn(a.s.releases, first, carried, cut.PTS)
+		chain := a.startIn(a.scope(), first, carried, cut.PTS)
 		change.done()
 		a.mu.Lock()
 		a.stages = chain
@@ -155,6 +181,102 @@ func (a *adjustable) begin(ctx context.Context, ceiling media.Bitrate) (int64, e
 	}
 	change.abandon()
 	return 0, errCutMissed
+}
+
+// Seek makes the stream again from at, a position in the attempt's program, for a device that asked for it there, and has the output serve it.
+func (a *adjustable) Seek(ctx context.Context, at time.Duration) error {
+	a.changing.Lock()
+	defer a.changing.Unlock()
+	// A device that gave up on a seek while a change held the delivery has asked again since.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := a.workdir(); err != nil {
+		return err
+	}
+	from := a.reader.tail()
+	program, known := a.s.attempt.Program, &from.probe
+	if a.spec.ladder != nil {
+		var err error
+		if program, err = a.spec.ladder.program(ctx); err != nil {
+			return err
+		}
+	}
+	run := &releases{ctx: a.s.releases.ctx}
+	a.mu.Lock()
+	a.made++
+	path := filepath.Join(a.dir, fmt.Sprintf("seek-%d%s", a.made, encoding.SpoolFormat.Extension))
+	chain, ceiling := a.stages, a.ceiling
+	a.mu.Unlock()
+	read, err := a.s.readAt(ctx, run, program, a.s.attempt.Program.Start+at, from, path, known)
+	if err != nil {
+		_ = run.release()
+		return err
+	}
+	waiting, cancel := context.WithTimeout(ctx, cutWait)
+	first, err := read.index.Wait(waiting, 0)
+	cancel()
+	if err != nil {
+		_ = run.release()
+		return fmt.Errorf("the read made no keyframe: %w", err)
+	}
+	origin, _ := a.reader.index.First()
+	began := max(0, first.PTS-origin)
+
+	var out *storage.Spool
+	var next *stages
+	if chain != nil {
+		if out, next, err = a.encodeFrom(ctx, run, read, first, ceiling); err != nil {
+			_ = run.release()
+			return err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		_ = run.release()
+		return err
+	}
+	// The output moves on before what it leaves stops, so no client takes that end for the stream's.
+	if next == nil {
+		a.stream.Restart(began, read.spool)
+	} else {
+		a.mu.Lock()
+		a.stages, a.cut = next, 0
+		a.mu.Unlock()
+		a.stream.Restart(began, out)
+		chain.stop()
+	}
+	from.seekWith(read)
+	a.mu.Lock()
+	left := a.run
+	a.run = run
+	a.mu.Unlock()
+	if left != nil {
+		go func() { _ = left.release() }()
+	}
+	select {
+	case a.sought <- struct{}{}:
+	default:
+	}
+	slog.InfoContext(ctx, "the device is served the stream from where it asked", "asked", at, "at", began.Round(time.Millisecond), "encoded", next != nil, "ceiling", ceiling.String())
+	return nil
+}
+
+// encodeFrom starts encoders over read from first, as the plan for ceiling says, writing a stream of their own released with rel.
+func (a *adjustable) encodeFrom(ctx context.Context, rel *releases, read *pull, first splice.Cut, ceiling media.Bitrate) (*storage.Spool, *stages, error) {
+	opts, err := a.spec.plan(read, ceiling)
+	if err != nil {
+		return nil, nil, fmt.Errorf("planning the cast for %s: %w", ceiling, err)
+	}
+	st, err := cutStage(ctx, a.s.ctx, read, a.spec, opts, first, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	out, err := a.spoolIn(rel, opts.Format.Extension)
+	if err != nil {
+		st.close()
+		return nil, nil, err
+	}
+	return out, a.startIn(rel, st, out, first.PTS), nil
 }
 
 func (a *adjustable) workdir() error {

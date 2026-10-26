@@ -2,6 +2,7 @@
 package device
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net"
@@ -16,12 +17,24 @@ import (
 // Type names a device family in configuration and inside the registry.
 type Type string
 
-// Playback describes the media to hand to a receiver.
+// Playback is the play a cast asked for, its URL as the device reaches it, and what the viewer is told of it.
 type Playback struct {
-	URL       *url.URL
-	Container mediav1.Container
-	Captions  []*mediav1.DeviceCommand_Caption
-	Info      *castorv1.MediaInfo
+	URL  *url.URL
+	Play *mediav1.DeviceCommand_Play
+	Info *castorv1.MediaInfo
+}
+
+// Container is how the stream is packaged, whichever way it reaches the device.
+func (p Playback) Container() mediav1.Container {
+	if p.Play.GetPlaylist() != nil {
+		return mediav1.Container_CONTAINER_HLS
+	}
+	return cmp.Or(p.Play.GetSource().GetContainer(), p.Play.GetProgressive().GetContainer())
+}
+
+// Duration is the stream's runtime, zero where the source declared none.
+func (p Playback) Duration() time.Duration {
+	return cmp.Or(p.Play.GetSource().GetDuration(), p.Play.GetProgressive().GetRuntime().GetDuration(), p.Play.GetPlaylist().GetDuration()).AsDuration()
 }
 
 // Device is a connected device, ready to play; whoever connected it closes it.

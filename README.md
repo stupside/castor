@@ -95,7 +95,7 @@ No Homebrew or Node? Extract the [latest release](https://github.com/stupside/ca
 | `castor cast movie <id>` | Cast a movie using your source templates |
 | `castor cast episode <id> --season N --episode N` | Cast an episode using your source templates |
 
-Add `--dry-run` to a cast command to list resolved streams without casting, and `--at 1h12m` (or `1:12`) to begin at a position; `castor cast` asks for one after you pick a title. Use `castor --help` for all flags and `--debug` for diagnostics.
+Add `--dry-run` to a cast command to list resolved streams without casting, and `--at 1h12m` (or `1:12`) to begin at a position; `castor cast` asks for one after you pick a title. Once playing, a DLNA device's own seek works when castor serves it one MPEG-TS stream of a source with a declared duration and no generated captions: castor reads the source again from the position asked for. Use `castor --help` for all flags and `--debug` for diagnostics.
 
 ## Configuration
 

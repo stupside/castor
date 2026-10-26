@@ -220,7 +220,7 @@ func (m *media) Drive(ctx context.Context, req *mediav1.DriveRequest, out *conne
 	if err != nil {
 		return err
 	}
-	play := &mediav1.DeviceCommand_Play{Url: ranked(c.source)[0].GetUrl(), Container: mediav1.Container_CONTAINER_HLS}
+	play := &mediav1.DeviceCommand_Play{Url: ranked(c.source)[0].GetUrl(), Stream: &mediav1.DeviceCommand_Play_Source_{Source: &mediav1.DeviceCommand_Play_Source{Container: mediav1.Container_CONTAINER_HLS}}}
 	cmd := m.driveCommand
 	if cmd == nil {
 		cmd = &mediav1.DeviceCommand{Command: &mediav1.DeviceCommand_Call_{Call: &mediav1.DeviceCommand_Call{Id: "play", Operation: &mediav1.DeviceCommand_Call_Play{Play: play}}}}
@@ -769,7 +769,7 @@ func TestBrokenMediaWatchStopsTheCast(t *testing.T) {
 
 func TestMalformedDeviceCommandsFailTheCastBeforeTouchingTheDevice(t *testing.T) {
 	m, f := newMedia(true), newFamily()
-	m.driveCommand = &mediav1.DeviceCommand{Command: &mediav1.DeviceCommand_Call_{Call: &mediav1.DeviceCommand_Call{Id: "play", Operation: &mediav1.DeviceCommand_Call_Play{Play: &mediav1.DeviceCommand_Play{Url: "/stream", Container: mediav1.Container_CONTAINER_HLS}}}}}
+	m.driveCommand = &mediav1.DeviceCommand{Command: &mediav1.DeviceCommand_Call_{Call: &mediav1.DeviceCommand_Call{Id: "play", Operation: &mediav1.DeviceCommand_Call_Play{Play: &mediav1.DeviceCommand_Play{Url: "/stream"}}}}}
 	c := serve(t, setup{media: m, family: f, uncheckedMedia: true})
 	w := watch(t, c, cast(t, c, streamOf("https://cdn.example/direct")))
 	if w.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_INTERNAL {

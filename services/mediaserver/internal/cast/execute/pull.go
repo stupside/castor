@@ -50,9 +50,10 @@ type pull struct {
 
 var _ health.Producer = (*pull)(nil)
 
-// continuation is a read taking another's place where it got to, for another rung of the source.
+// continuation is a read taking another's place: where it got to, for another rung of the source, or where the device asked, for a seek.
 type continuation struct {
 	next *pull
+	seek bool
 }
 
 // spoolFraming is how the read's buffer, always MPEG-TS, is cut.
@@ -193,25 +194,35 @@ func (p *pull) run(ctx context.Context) {
 
 // Progress is the process's -progress sample, counted from where this read began, whichever read carried it on.
 func (p *pull) Progress() media.Progress {
+	made, _ := p.progress()
+	return made
+}
+
+// progress is Progress, and whether a seek lies among the reads that carried this one on.
+func (p *pull) progress() (media.Progress, bool) {
 	made := p.proc.Progress()
 	if p.timeline && p.index != nil {
 		made.Position = p.index.Extent()
 	}
 	c := p.continuedBy.Load()
 	if c == nil {
-		return made
+		return made, false
 	}
-	later := c.next.Progress()
+	later, sought := c.next.progress()
 	later.Position += c.next.begins - p.begins
-	if later.Position < made.Position {
+	sought = sought || c.seek
+	if !sought && later.Position < made.Position {
 		// Another rung starts a little behind where this one got to, and what is said of the read does not go back for it.
 		later.Position = made.Position
 	}
-	return later
+	return later, sought
 }
 
 // continueWith ends this read for next, another rung carrying on where it got to.
 func (p *pull) continueWith(next *pull) { p.carryOn(&continuation{next: next}) }
+
+// seekWith ends this read for next, which reads from where the device asked.
+func (p *pull) seekWith(next *pull) { p.carryOn(&continuation{next: next, seek: true}) }
 
 func (p *pull) carryOn(c *continuation) {
 	p.continuedBy.Store(c)

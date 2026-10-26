@@ -36,6 +36,8 @@ type delivery struct {
 	pub    output.Publication
 	// rate changes how the delivery is made while the device plays it, nil for a delivery that cannot.
 	rate switchable
+	// sought hears each time the device asked for the stream from elsewhere, nil for a stream served from its start only.
+	sought <-chan struct{}
 }
 
 // switchable is a delivery whose rate can change while the device plays it.
@@ -72,7 +74,7 @@ func (s *preparation) produce(work string, f feed, opts encodePlan, burn burnRen
 	o := output.Opening{
 		Live:          f.buffered != nil && f.buffered.live || slices.ContainsFunc(f.program.Inputs, func(in media.Input) bool { return in.Fetching().Live }),
 		Format:        opts.Format,
-		Headers:       opts.delivery.Capabilities.ServedHeaders,
+		Headers:       opts.delivery.Capabilities.Served(opts.Format.ContentType),
 		IdleGrace:     idleGrace,
 		WriteDeadline: writeDeadline,
 	}
@@ -176,12 +178,23 @@ func (s *preparation) relay(relay output.Relayer, o output.Opening, f feed, opts
 	if stream, ok := sink.(served); ok && splices {
 		a := newAdjustable(s, s.stageSpec(opts, dir, rungs), dir, stream, sink.Audience(), reader, nil)
 		d.output, d.rate = a, a
+		s.seekable(&d, stream, f, a)
 	}
 	if err := s.publish(&d); err != nil {
 		return delivery{}, err
 	}
 	slog.InfoContext(s.ctx, "serving the read's buffer without another encoder")
 	return d, nil
+}
+
+// seekable has the stream made again from where the device asks, where the read keeps the source's clock and the runtime is known.
+func (s *preparation) seekable(d *delivery, stream served, f feed, a *adjustable) {
+	runtime := s.attempt.Runtime()
+	if runtime == 0 || !f.buffered.reader.timeline {
+		return
+	}
+	stream.SeekWith(runtime, a.Seek)
+	d.sought = a.sought
 }
 
 func (d delivery) URL() *url.URL { return d.pub.URL(d.sink.Path()) }
@@ -280,7 +293,9 @@ func (s *preparation) produceChain(f feed, opts encodePlan, encoderOpts encoding
 		return chain.Err()
 	})
 	a := newAdjustable(s, spec, dir, stream, audience, reader, chain)
-	return delivery{sink: prepared.Output, output: a, rate: a}, nil
+	d := delivery{sink: prepared.Output, output: a, rate: a}
+	s.seekable(&d, stream, f, a)
+	return d, nil
 }
 
 // carried is the audio codec opts gives the device, which a change of rate keeps.

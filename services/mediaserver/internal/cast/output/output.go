@@ -69,6 +69,16 @@ type Continuer interface {
 	Continue(at int64, next *storage.Spool) bool
 }
 
+// Seeker makes the stream again from at and has the output Restart on it.
+type Seeker func(ctx context.Context, at time.Duration) error
+
+// Seekable is an output that serves the stream from a position the device asks for.
+type Seekable interface {
+	SeekWith(runtime time.Duration, seek Seeker)
+	// Restart serves sp, the stream made from began, to every request from now on.
+	Restart(began time.Duration, sp *storage.Spool)
+}
+
 // Adapter accepts complete transport envelopes. An unsupported caption request
 // is declined rather than silently discarded.
 type Adapter interface {

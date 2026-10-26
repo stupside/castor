@@ -3,7 +3,9 @@ package execute
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/url"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
@@ -65,8 +67,7 @@ type Cast struct {
 
 // Device is what a cast plays on, connected for the whole cast by whoever lent it, who also closes it.
 type Device interface {
-	// Play points the device at streamURL, advertised as contentType.
-	Play(ctx context.Context, streamURL *url.URL, contentType string, captions []media.Caption) error
+	Play(ctx context.Context, p Playback) error
 
 	AwaitEnd(ctx context.Context) error
 
@@ -75,6 +76,61 @@ type Device interface {
 	Resume(context.Context) error
 
 	Capabilities() media.Capabilities
+}
+
+// Playback is what a device is pointed at: the stream at URL, and the captions shown over it.
+type Playback struct {
+	URL      *url.URL
+	Captions []media.Caption
+	Stream   Stream
+}
+
+// Stream is how what the device plays reaches it: a Source, a Served stream or a Playlist.
+type Stream interface{ stream() }
+
+// Source is the source itself, fetched from its own server, which alone knows how it seeks.
+type Source struct {
+	ContentType string
+	// Runtime is zero where the source declared none.
+	Runtime time.Duration
+}
+
+// Served is one stream castor serves, from its start only where it has no Runtime.
+type Served struct {
+	ContentType string
+	Runtime     *Runtime
+}
+
+// Runtime is a served stream's length from where it begins; TimeSeek serves it from any time within.
+type Runtime struct {
+	Length   time.Duration
+	TimeSeek bool
+}
+
+// Playlist is an HLS playlist castor serves, which the device seeks within by its segments.
+type Playlist struct {
+	// Runtime is zero where the source declared none.
+	Runtime time.Duration
+}
+
+func (Source) stream()   {}
+func (Served) stream()   {}
+func (Playlist) stream() {}
+
+func (s Source) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("kind", "source"), slog.String("content_type", s.ContentType), slog.Duration("runtime", s.Runtime))
+}
+
+func (s Served) LogValue() slog.Value {
+	attrs := []slog.Attr{slog.String("kind", "served"), slog.String("content_type", s.ContentType)}
+	if s.Runtime != nil {
+		attrs = append(attrs, slog.Duration("runtime", s.Runtime.Length), slog.Bool("time_seek", s.Runtime.TimeSeek))
+	}
+	return slog.GroupValue(attrs...)
+}
+
+func (p Playlist) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("kind", "playlist"), slog.Duration("runtime", p.Runtime))
 }
 
 // Subtitles opens the transcription chosen for this attempt, independently of

@@ -64,7 +64,8 @@ func (loopback) Publish(ctx context.Context, h http.Handler) (output.Publication
 
 var _ Device = (*fakeDevice)(nil)
 
-func (d *fakeDevice) Play(ctx context.Context, streamURL *url.URL, _ string, _ []media.Caption) error {
+func (d *fakeDevice) Play(ctx context.Context, p Playback) error {
+	streamURL := p.URL
 	if d.refuse != nil {
 		return d.refuse
 	}

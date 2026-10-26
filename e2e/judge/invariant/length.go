@@ -23,7 +23,7 @@ func (PlayedOut) Judge(e judge.Evidence) []string {
 		return judge.FailIf(!stopped, "the viewer was to stop playback, but the media ended first: lengthen the stream")
 	}
 	p := e.Received.Played
-	want := time.Duration(e.Origin.Stream.Seconds) * time.Second
+	want := time.Duration(e.Origin.Stream.Seconds)*time.Second - e.Received.Begins()
 	short := judge.DurationSlack
 	if e.Origin.Live {
 		short += joinSlack

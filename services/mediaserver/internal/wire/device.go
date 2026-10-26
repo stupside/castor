@@ -67,7 +67,7 @@ func Caption(c media.Caption, reached *url.URL) *mediav1.DeviceCommand_Caption {
 
 // FromCapabilities is what the wire says a device decodes, without what this server does not know.
 func FromCapabilities(c *mediav1.Capabilities) media.Capabilities {
-	out := media.Capabilities{SelfFetch: c.GetSelfFetch(), Provenance: c.GetProvenance(), Deinterlaces: c.GetDeinterlaces(), ServedHeaders: c.GetServedHeaders()}
+	out := media.Capabilities{SelfFetch: c.GetSelfFetch(), Provenance: c.GetProvenance(), Deinterlaces: c.GetDeinterlaces()}
 	for _, f := range c.GetFormats() {
 		var transport media.Transport
 		switch t := f.GetTransport().(type) {
@@ -104,7 +104,7 @@ func FromCapabilities(c *mediav1.Capabilities) media.Capabilities {
 		default:
 			continue
 		}
-		envelope := media.FormatSupport{Transport: transport}
+		envelope := media.FormatSupport{Transport: transport, ServedHeaders: f.GetProgressive().GetServedHeaders()}
 		if hls := f.GetHls(); hls != nil {
 			for _, segment := range hls.GetExtraSegmentFormats() {
 				switch segment {

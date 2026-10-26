@@ -87,3 +87,8 @@ func (p *playTrail) restart() {
 	p.heads.Reset()
 	p.paceAt, p.moving = time.Time{}, false
 }
+
+// forget drops what the device last said, as when it asked for the stream from elsewhere.
+func (p *playTrail) forget() {
+	p.last, p.lastKnown, p.held = 0, false, false
+}

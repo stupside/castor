@@ -94,6 +94,9 @@ func (u *upnp) actions() map[string]func(envelope) (string, int) {
 			for _, track := range didlCaptions(meta) {
 				u.fetchCaption(track)
 			}
+			if timeSeeks(didlFeatures(meta)) {
+				u.session.TimeSeeks("TimeSeekRange.dlna.org", timeSeekRange)
+			}
 			u.fetch(u.session, uri, didlContentType(meta), didlFeatures(meta))
 			return "", 0
 		},

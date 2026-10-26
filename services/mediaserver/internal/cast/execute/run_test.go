@@ -133,7 +133,7 @@ func TestABufferCopiedWholeIsServedAsItIs(t *testing.T) {
 	t.Cleanup(func() { _ = s.releases.release() })
 	p, err := s.preparePresentation()
 	if err == nil {
-		err = hand(s.ctx, dev, p.target, p.contentType, p.captions, p.source)
+		err = hand(s.ctx, dev, Playback{URL: p.target, Captions: p.captions, Stream: p.stream()})
 	}
 	if err == nil {
 		err = superviseFixture(s.ctx, dev, *p.delivery, p.feed)
@@ -339,7 +339,7 @@ type coordinatorDevice struct {
 	wait  func(context.Context) error
 }
 
-func (d *coordinatorDevice) Play(ctx context.Context, _ *url.URL, _ string, _ []media.Caption) error {
+func (d *coordinatorDevice) Play(ctx context.Context, _ Playback) error {
 	return d.start(ctx)
 }
 func (d *coordinatorDevice) AwaitEnd(ctx context.Context) error { return d.wait(ctx) }

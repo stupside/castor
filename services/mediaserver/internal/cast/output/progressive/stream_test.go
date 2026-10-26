@@ -44,7 +44,7 @@ func TestStreamFlushesThroughResponseWrappersAndStopsOnFlushFailure(t *testing.T
 			if err := s.respond(wrapped, sv); (err != nil) != fail {
 				t.Fatalf("flushing headers: %v", err)
 			}
-			complete := s.send(t.Context(), wrapped, httptest.NewRequest(http.MethodGet, "/", nil), sv, strings.NewReader("media"))
+			complete := s.send(t.Context(), wrapped, httptest.NewRequest(http.MethodGet, "/", nil), sv, strings.NewReader("media"), 0)
 			if complete == fail {
 				t.Fatalf("completed=%t despite flush failure=%t", complete, fail)
 			}
@@ -75,7 +75,7 @@ func TestStreamDoesNotWriteAfterRefreshingACancelledRequestsDeadline(t *testing.
 	recorder := httptest.NewRecorder()
 	s := &Stream{o: output.Opening{WriteDeadline: time.Minute}}
 	complete := s.send(ctx, cancelOnWriteDeadline{recorder, cancel}, httptest.NewRequest(http.MethodGet, "/", nil),
-		served{code: http.StatusOK, end: -1, total: -1}, strings.NewReader("media"))
+		served{code: http.StatusOK, end: -1, total: -1}, strings.NewReader("media"), 0)
 	if complete || recorder.Body.Len() != 0 {
 		t.Fatalf("canceled response: completed=%t, wrote=%d", complete, recorder.Body.Len())
 	}
@@ -392,7 +392,7 @@ func TestAMissingWriteDeadlineIsWarnedOnce(t *testing.T) {
 	}
 	defer tail.Close()
 
-	s.send(t.Context(), httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), served{code: http.StatusOK, end: -1, total: -1}, tail)
+	s.send(t.Context(), httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), served{code: http.StatusOK, end: -1, total: -1}, tail, 0)
 	if got := strings.Count(logs.String(), "write deadline unavailable"); got != 1 {
 		t.Errorf("warned %d times over 3 chunks, want once", got)
 	}

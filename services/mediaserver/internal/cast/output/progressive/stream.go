@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -39,12 +40,18 @@ type Stream struct {
 	owned    bool
 	audience streamAudience
 	run      atomic.Pointer[run]
+
+	// seek is nil where the stream is served from its start only.
+	seek    output.Seeker
+	runtime time.Duration
 }
 
-// run is the stream as served: its buffer, and the one it carries on with.
+// run is the stream as served since it last began.
 type run struct {
 	spool *storage.Spool
 	next  *successor
+	began time.Duration
+	gen   int
 }
 
 // successor is the buffer the stream carries on with from byte at.
@@ -52,6 +59,9 @@ type successor struct {
 	at    int64
 	spool *storage.Spool
 }
+
+// errRestarted ends a client of a run that a seek replaced.
+var errRestarted = errors.New("the stream began again from another position")
 
 // Continue serves next after byte at, false where a client was written too close to at.
 func (s *Stream) Continue(at int64, next *storage.Spool) bool {
@@ -62,6 +72,20 @@ func (s *Stream) Continue(at int64, next *storage.Spool) bool {
 	carried := *r
 	carried.next = &successor{at: at, spool: next}
 	return s.run.CompareAndSwap(r, &carried)
+}
+
+// SeekWith lets a device ask for the stream from a position within runtime.
+func (s *Stream) SeekWith(runtime time.Duration, seek output.Seeker) {
+	s.runtime, s.seek = runtime, seek
+}
+
+// Began is where in the program the current run begins.
+func (s *Stream) Began() time.Duration { return s.run.Load().began }
+
+// Restart serves sp, made from began, to every request from now on.
+func (s *Stream) Restart(began time.Duration, sp *storage.Spool) {
+	// The audience moves first, so a client of the run it leaves credits nothing of the next.
+	s.run.Store(&run{spool: sp, began: began, gen: s.audience.restart()})
 }
 
 // cutMargin is how far past what any client was written a cut must lie, so no client is mid-write across it.
@@ -81,7 +105,7 @@ func (s *Stream) snapshot() (int64, bool) {
 // tailAt reads the current run from offset, across into its successor.
 func (s *Stream) tailAt(ctx context.Context, offset int64) (*joinedTail, error) {
 	r := s.run.Load()
-	t := &joinedTail{s: s, ctx: ctx, pos: offset}
+	t := &joinedTail{s: s, run: r, ctx: ctx, pos: offset}
 	if r.next != nil && offset >= r.next.at {
 		t.switched = true
 		cur, err := r.next.spool.TailAt(ctx, offset-r.next.at)
@@ -93,17 +117,27 @@ func (s *Stream) tailAt(ctx context.Context, offset int64) (*joinedTail, error) 
 	return t, err
 }
 
-// joinedTail reads the stream across into the buffer it carries on with.
+// joinedTail fails with errRestarted once a seek replaces its run.
 type joinedTail struct {
 	s        *Stream
+	run      *run
 	ctx      context.Context
 	cur      io.ReadCloser
 	pos      int64
 	switched bool
 }
 
+func (t *joinedTail) current() (*run, bool) {
+	r := t.s.run.Load()
+	return r, r.gen == t.run.gen
+}
+
 func (t *joinedTail) Read(p []byte) (int, error) {
-	if next := t.s.run.Load().next; next != nil && !t.switched {
+	r, ok := t.current()
+	if !ok {
+		return 0, errRestarted
+	}
+	if next := r.next; next != nil && !t.switched {
 		if t.pos >= next.at {
 			if err := t.carryOn(next); err != nil {
 				return 0, err
@@ -114,6 +148,9 @@ func (t *joinedTail) Read(p []byte) (int, error) {
 	}
 	n, err := t.cur.Read(p)
 	t.pos += int64(n)
+	if _, ok := t.current(); !ok && err != nil {
+		return n, errRestarted
+	}
 	return n, err
 }
 
@@ -309,9 +346,22 @@ func (s *Stream) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sv, ok := s.admit(ctx, w, r)
-	if !ok {
-		return
+	// A client is counted from its request, so a seek that takes a while does not leave the stream looking abandoned.
+	reachedEOF, gen := false, -1
+	left := s.audience.joined()
+	defer func() { left(gen, reachedEOF) }()
+
+	var sv served
+	if asked := r.Header.Get(timeSeekHeader); asked != "" {
+		var ok bool
+		if sv, ok = s.seekTo(ctx, w, r, asked); !ok {
+			return
+		}
+	} else {
+		var ok bool
+		if sv, ok = s.admit(ctx, w, r); !ok {
+			return
+		}
 	}
 
 	tail, err := s.tailAt(ctx, sv.start)
@@ -324,16 +374,13 @@ func (s *Stream) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tail.Close()
-
-	reachedEOF := false
-	left := s.audience.joined()
-	defer func() { left(reachedEOF) }()
+	gen = tail.run.gen
 
 	if err := s.respond(w, sv); err != nil {
 		s.severed(ctx, r, err, sv.start, 0)
 		return
 	}
-	reachedEOF = s.send(ctx, w, r, sv, tail)
+	reachedEOF = s.send(ctx, w, r, sv, tail, gen)
 }
 
 func (s *Stream) writeHeaders(w http.ResponseWriter) {
@@ -342,6 +389,59 @@ func (s *Stream) writeHeaders(w http.ResponseWriter) {
 		w.Header().Set(k, v)
 	}
 }
+
+// timeSeekHeader is how a DLNA renderer asks for a stream from a position in time.
+const timeSeekHeader = "TimeSeekRange.dlna.org"
+
+// seekTo has the stream begin again at the position asked, for this request and every one after it.
+func (s *Stream) seekTo(ctx context.Context, w http.ResponseWriter, r *http.Request, asked string) (served, bool) {
+	at, ok := nptStart(asked)
+	slog.InfoContext(ctx, "stream seek", "from", r.RemoteAddr, "user_agent", r.UserAgent(), "asked", asked, "at", at)
+	switch {
+	case s.seek == nil:
+		http.Error(w, "this stream is served from its start only", http.StatusNotAcceptable)
+		return served{}, false
+	case !ok || at >= s.runtime:
+		http.Error(w, "the position asked for is not in the stream", http.StatusRequestedRangeNotSatisfiable)
+		return served{}, false
+	}
+	if err := s.seek(ctx, at); err != nil {
+		slog.WarnContext(ctx, "the stream could not be made from the position asked for", "at", at, "error", err)
+		http.Error(w, "the stream could not be made from there", http.StatusServiceUnavailable)
+		return served{}, false
+	}
+	// The stream begins at the keyframe the source has there, which the answer states.
+	w.Header().Set(timeSeekHeader, "npt="+nptSeconds(s.Began())+"-"+nptSeconds(s.runtime)+"/"+nptSeconds(s.runtime))
+	return served{code: http.StatusOK, start: 0, end: -1, total: -1}, true
+}
+
+// nptStart is the start of a TimeSeekRange npt range, in seconds (12.5) or as H:MM:SS(.f).
+func nptStart(header string) (time.Duration, bool) {
+	spec, found := strings.CutPrefix(strings.TrimSpace(header), "npt=")
+	start, _, ranged := strings.Cut(spec, "-")
+	if !found || !ranged {
+		return 0, false
+	}
+	parts := strings.Split(strings.TrimSpace(start), ":")
+	if len(parts) > 3 {
+		return 0, false
+	}
+	var seconds float64
+	for _, part := range parts {
+		v, err := strconv.ParseFloat(part, 64)
+		if err != nil || v < 0 || math.IsInf(v, 0) || math.IsNaN(v) {
+			return 0, false
+		}
+		seconds = seconds*60 + v
+	}
+	// Anything past a year is no position in a cast, and would overflow a duration.
+	if seconds > (365 * 24 * time.Hour).Seconds() {
+		return 0, false
+	}
+	return time.Duration(seconds * float64(time.Second)), true
+}
+
+func nptSeconds(d time.Duration) string { return strconv.FormatFloat(d.Seconds(), 'f', 3, 64) }
 
 func (s *Stream) admit(ctx context.Context, w http.ResponseWriter, r *http.Request) (served, bool) {
 	asked := r.Header.Get("Range")
@@ -387,7 +487,7 @@ func (s *Stream) respond(w http.ResponseWriter, sv served) error {
 }
 
 // send credits the audience only while gen is the current run.
-func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Request, sv served, tail io.Reader) (reachedEOF bool) {
+func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Request, sv served, tail io.Reader, gen int) (reachedEOF bool) {
 	// remaining is how many bytes this response still owes, and -1 when it owes the rest of the stream.
 	remaining := int64(-1)
 	if sv.end >= 0 {
@@ -435,7 +535,7 @@ func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Reques
 				remaining -= int64(n)
 			}
 			// A resumed connection is credited with the prefix it already had.
-			s.audience.record(sv.start+sent, lastWrite)
+			s.audience.record(gen, sv.start+sent, lastWrite)
 		}
 		if remaining == 0 {
 			// The stretch asked for is delivered.
@@ -445,6 +545,10 @@ func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if readErr != nil {
+			if errors.Is(readErr, errRestarted) {
+				slog.InfoContext(ctx, "stream client left behind by a seek", "from", r.RemoteAddr, "bytes_sent", sent)
+				return
+			}
 			if readErr == io.EOF {
 				reachedEOF = true
 				slog.InfoContext(ctx, "stream fully delivered", "from", r.RemoteAddr, "bytes_sent", sent)

@@ -3,6 +3,7 @@ package receiver
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/stupside/castor/e2e/strategy"
 )
@@ -20,4 +21,10 @@ type Viewer interface {
 	Pace(r io.Reader) io.Reader
 	// Realtime reports whether the viewer consumes at playback speed, which a demuxer must be told.
 	Realtime() bool
+}
+
+// Jumper is a viewer who, after a while into playback, jumps to another position.
+type Jumper interface {
+	Viewer
+	Seeks() (after, to time.Duration)
 }

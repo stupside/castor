@@ -116,9 +116,9 @@ type observedDevice struct {
 	wait func(context.Context) error
 }
 
-func (observedDevice) Play(context.Context, *url.URL, string, []media.Caption) error { return nil }
-func (observedDevice) Capabilities() media.Capabilities                              { return media.Capabilities{} }
-func (r observedDevice) AwaitEnd(ctx context.Context) error                          { return r.wait(ctx) }
+func (observedDevice) Play(context.Context, Playback) error { return nil }
+func (observedDevice) Capabilities() media.Capabilities     { return media.Capabilities{} }
+func (r observedDevice) AwaitEnd(ctx context.Context) error { return r.wait(ctx) }
 
 func TestAPlayingRemuxIsWatchedOverItsEncoder(t *testing.T) {
 	p := took(t, blocking)
@@ -317,7 +317,7 @@ func TestTeardownStopsAnEncoderParkedOnAnInputThatWentQuiet(t *testing.T) {
 			if err := awaitArtifact(t.Context(), d); err != nil {
 				t.Fatal(err)
 			}
-			if err := hand(t.Context(), probingDevice{}, d.URL(), opts.Format.ContentType, nil, false); err != nil {
+			if err := hand(t.Context(), probingDevice{}, Playback{URL: d.URL(), Stream: Served{ContentType: opts.Format.ContentType}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -407,8 +407,8 @@ func openFixture(t *testing.T, contentType, workDir string) delivery {
 // probingDevice accepts the URL, probes it like a real firmware, and never takes a byte.
 type probingDevice struct{}
 
-func (probingDevice) Play(ctx context.Context, streamURL *url.URL, _ string, _ []media.Caption) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, streamURL.String(), nil)
+func (probingDevice) Play(ctx context.Context, p Playback) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, p.URL.String(), nil)
 	if err != nil {
 		return err
 	}

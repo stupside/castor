@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/media/v1/device.proto.
  */
 export const file_castor_media_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChxjYXN0b3IvbWVkaWEvdjEvZGV2aWNlLnByb3RvEg9jYXN0b3IubWVkaWEudjEiZQoMRHJpdmVSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAESOwoMY2FwYWJpbGl0aWVzGAIgASgLMh0uY2FzdG9yLm1lZGlhLnYxLkNhcGFiaWxpdGllc0IGukgDyAEBIkgKDURyaXZlUmVzcG9uc2USNwoHY29tbWFuZBgBIAEoCzIeLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kQga6SAPIAQEi0AIKDUFuc3dlclJlcXVlc3QSGAoHY2FzdF9pZBgBIAEoCUIHukgEcgIQARIbCgpjb21tYW5kX2lkGAIgASgJQge6SARyAhABEjMKBGRvbmUYAyABKAsyIy5jYXN0b3IubWVkaWEudjEuQW5zd2VyUmVxdWVzdC5Eb25lSAASLQoFZXJyb3IYBCABKAsyHC5jYXN0b3IubWVkaWEudjEuRGV2aWNlRXJyb3JIABI7Cghwb3NpdGlvbhgFIAEoCzInLmNhc3Rvci5tZWRpYS52MS5BbnN3ZXJSZXF1ZXN0LlBvc2l0aW9uSAAaBgoERG9uZRpOCghQb3NpdGlvbhIyCgJhdBgBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkILukgIyAEBqgECMgASDgoGcGF1c2VkGAIgASgIQg8KBmFuc3dlchIFukgCCAEiEAoOQW5zd2VyUmVzcG9uc2UiowIKDENhcGFiaWxpdGllcxI8Cgdmb3JtYXRzGAEgAygLMh4uY2FzdG9yLm1lZGlhLnYxLkZvcm1hdFN1cHBvcnRCC7pICJIBBQgBEIABEhIKCnByb3ZlbmFuY2UYAiABKAkSFAoMZGVpbnRlcmxhY2VzGAMgASgIEmEKDnNlcnZlZF9oZWFkZXJzGAQgAygLMjAuY2FzdG9yLm1lZGlhLnYxLkNhcGFiaWxpdGllcy5TZXJ2ZWRIZWFkZXJzRW50cnlCF7pIFJoBESIFcgPAAQEqCHIGyAEAwAECEhIKCnNlbGZfZmV0Y2gYBSABKAgaNAoSU2VydmVkSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEi6QIKDUZvcm1hdFN1cHBvcnQSOgoLcHJvZ3Jlc3NpdmUYASABKAsyIy5jYXN0b3IubWVkaWEudjEuUHJvZ3Jlc3NpdmVTdXBwb3J0SAASKgoDaGxzGAIgASgLMhsuY2FzdG9yLm1lZGlhLnYxLkhMU1N1cHBvcnRIABIuCgV2aWRlbxgDIAEoCzIdLmNhc3Rvci5tZWRpYS52MS5WaWRlb1N1cHBvcnRIARIuCgVhdWRpbxgEIAEoCzIdLmNhc3Rvci5tZWRpYS52MS5BdWRpb1N1cHBvcnRIARIoCgJhdhgFIAEoCzIaLmNhc3Rvci5tZWRpYS52MS5BVlN1cHBvcnRIARJBCghjYXB0aW9ucxgGIAMoDjIeLmNhc3Rvci5tZWRpYS52MS5DYXB0aW9uRm9ybWF0Qg+6SAySAQkiB4IBBBABIABCEgoJdHJhbnNwb3J0EgW6SAIIAUIPCgZ0cmFja3MSBbpIAggBIncKCUFWU3VwcG9ydBI0CgV2aWRlbxgBIAEoCzIdLmNhc3Rvci5tZWRpYS52MS5WaWRlb1N1cHBvcnRCBrpIA8gBARI0CgVhdWRpbxgCIAEoCzIdLmNhc3Rvci5tZWRpYS52MS5BdWRpb1N1cHBvcnRCBrpIA8gBASLaAQoSUHJvZ3Jlc3NpdmVTdXBwb3J0EkwKCWNvbnRhaW5lchgBIAEoDjItLmNhc3Rvci5tZWRpYS52MS5Qcm9ncmVzc2l2ZVN1cHBvcnQuQ29udGFpbmVyQgq6SAeCAQQQASAAInYKCUNvbnRhaW5lchIZChVDT05UQUlORVJfVU5TUEVDSUZJRUQQABIRCg1DT05UQUlORVJfTVA0EAESFAoQQ09OVEFJTkVSX01QRUdUUxACEhEKDUNPTlRBSU5FUl9NS1YQAxISCg5DT05UQUlORVJfV0VCTRAEIs8CCgpITFNTdXBwb3J0EkIKCXN1YnRpdGxlcxgBIAEoDjIlLmNhc3Rvci5tZWRpYS52MS5ITFNTdXBwb3J0LlN1YnRpdGxlc0IIukgFggECEAESYAoVZXh0cmFfc2VnbWVudF9mb3JtYXRzGAIgAygOMi4uY2FzdG9yLm1lZGlhLnYxLkhMU1N1cHBvcnQuRXh0cmFTZWdtZW50Rm9ybWF0QhG6SA6SAQsQEBgBIgWCAQIgACI8CglTdWJ0aXRsZXMSGQoVU1VCVElUTEVTX1VOU1BFQ0lGSUVEEAASFAoQU1VCVElUTEVTX1dFQlZUVBABIl0KEkV4dHJhU2VnbWVudEZvcm1hdBIkCiBFWFRSQV9TRUdNRU5UX0ZPUk1BVF9VTlNQRUNJRklFRBAAEiEKHUVYVFJBX1NFR01FTlRfRk9STUFUX1RJS1RJS1BYEAEipgEKDFZpZGVvU3VwcG9ydBIsCgRoMjY0GAEgASgLMhwuY2FzdG9yLm1lZGlhLnYxLkgyNjRTdXBwb3J0SAASLAoEaGV2YxgCIAEoCzIcLmNhc3Rvci5tZWRpYS52MS5IRVZDU3VwcG9ydEgAEioKA3ZwOBgDIAEoCzIbLmNhc3Rvci5tZWRpYS52MS5WUDhTdXBwb3J0SABCDgoFY29kZWMSBbpIAggBIu0BCgtIMjY0U3VwcG9ydBJLCghwcm9maWxlcxgBIAMoDjIkLmNhc3Rvci5tZWRpYS52MS5IMjY0U3VwcG9ydC5Qcm9maWxlQhO6SBCSAQ0QBBgBIgeCAQQQASAAEhEKCW1heF9sZXZlbBgCIAEoDSJ+CgdQcm9maWxlEhcKE1BST0ZJTEVfVU5TUEVDSUZJRUQQABIgChxQUk9GSUxFX0NPTlNUUkFJTkVEX0JBU0VMSU5FEAESFAoQUFJPRklMRV9CQVNFTElORRACEhAKDFBST0ZJTEVfTUFJThADEhAKDFBST0ZJTEVfSElHSBAEIuIBCgtIRVZDU3VwcG9ydBJLCghwcm9maWxlcxgBIAMoDjIkLmNhc3Rvci5tZWRpYS52MS5IRVZDU3VwcG9ydC5Qcm9maWxlQhO6SBCSAQ0QAhgBIgeCAQQQASAAEigKCmJpdF9kZXB0aHMYAiADKA1CFLpIEZIBDhADGAEiCCoGMAgwCjAMEhEKCW1heF9sZXZlbBgDIAEoDSJJCgdQcm9maWxlEhcKE1BST0ZJTEVfVU5TUEVDSUZJRUQQABIQCgxQUk9GSUxFX01BSU4QARITCg9QUk9GSUxFX01BSU5fMTAQAiIMCgpWUDhTdXBwb3J0IlwKDEF1ZGlvU3VwcG9ydBI2CgVjb2RlYxgBIAEoDjIbLmNhc3Rvci5tZWRpYS52MS5BdWRpb0NvZGVjQgq6SAeCAQQQASAAEhQKDG1heF9jaGFubmVscxgCIAEoDSLbCAoNRGV2aWNlQ29tbWFuZBIzCgRjYWxsGAEgASgLMiMuY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmQuQ2FsbEgAEjcKBmNhbmNlbBgCIAEoCzIlLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kLkNhbmNlbEgAGs8CCgRDYWxsEhMKAmlkGAEgASgJQge6SARyAhABEjMKBHBsYXkYAiABKAsyIy5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5QbGF5SAASPAoJYXdhaXRfZW5kGAMgASgLMicuY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmQuQXdhaXRFbmRIABI1CgVwYXVzZRgEIAEoCzIkLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kLlBhdXNlSAASNwoGcmVzdW1lGAUgASgLMiUuY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmQuUmVzdW1lSAASOwoIcG9zaXRpb24YBiABKAsyJy5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5Qb3NpdGlvbkgAQhIKCW9wZXJhdGlvbhIFukgCCAEakgIKBFBsYXkSlAEKA3VybBgBIAEoCUKGAbpIggG6AXoKDXBsYXkudXJsLmh0dHASHG11c3QgYmUgYW4gaHR0cCBvciBodHRwcyBVUkwaS3RoaXMuaXNVcmkoKSAmJiAodGhpcy5zdGFydHNXaXRoKCdodHRwOi8vJykgfHwgdGhpcy5zdGFydHNXaXRoKCdodHRwczovLycpKXIDGIBAEjkKCWNvbnRhaW5lchgCIAEoDjIaLmNhc3Rvci5tZWRpYS52MS5Db250YWluZXJCCrpIB4IBBBABIAASOAoIY2FwdGlvbnMYAyADKAsyJi5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5DYXB0aW9uGpACCgdDYXB0aW9uEpcBCgN1cmwYASABKAlCiQG6SIUBugF9ChBjYXB0aW9uLnVybC5odHRwEhxtdXN0IGJlIGFuIGh0dHAgb3IgaHR0cHMgVVJMGkt0aGlzLmlzVXJpKCkgJiYgKHRoaXMuc3RhcnRzV2l0aCgnaHR0cDovLycpIHx8IHRoaXMuc3RhcnRzV2l0aCgnaHR0cHM6Ly8nKSlyAxiAQBI6CgZmb3JtYXQYAiABKA4yHi5jYXN0b3IubWVkaWEudjEuQ2FwdGlvbkZvcm1hdEIKukgHggEEEAEgABIQCghsYW5ndWFnZRgDIAEoCRIMCgRuYW1lGAQgASgJEg8KB2RlZmF1bHQYBSABKAgaCgoIQXdhaXRFbmQaBwoFUGF1c2UaCAoGUmVzdW1lGgoKCFBvc2l0aW9uGiUKBkNhbmNlbBIbCgpjb21tYW5kX2lkGAEgASgJQge6SARyAhABQhAKB2NvbW1hbmQSBbpIAggBIqUBCgtEZXZpY2VFcnJvchIaCgdtZXNzYWdlGAEgASgJQge6SARyAhABSAASMQoEZ29uZRgCIAEoCzIhLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VFcnJvci5Hb25lSAAaNwoER29uZRIOCgZkZXZpY2UYASABKAkSEAoIb2JzZXJ2ZWQYAiABKAkSDQoFY2F1c2UYAyABKAlCDgoFZXJyb3ISBbpIAggBKl8KDUNhcHRpb25Gb3JtYXQSHgoaQ0FQVElPTl9GT1JNQVRfVU5TUEVDSUZJRUQQABIWChJDQVBUSU9OX0ZPUk1BVF9WVFQQARIWChJDQVBUSU9OX0ZPUk1BVF9TUlQQAirpAQoJQ29udGFpbmVyEhkKFUNPTlRBSU5FUl9VTlNQRUNJRklFRBAAEiAKDUNPTlRBSU5FUl9NUDQQARoNwvMYCXZpZGVvL21wNBIkChBDT05UQUlORVJfTVBFR1RTEAIaDsLzGAp2aWRlby9tcDJ0EiwKDUNPTlRBSU5FUl9ITFMQAxoZwvMYFWFwcGxpY2F0aW9uL3gtbXBlZ1VSTBInCg1DT05UQUlORVJfTUtWEAQaFMLzGBB2aWRlby94LW1hdHJvc2thEiIKDkNPTlRBSU5FUl9XRUJNEAUaDsLzGAp2aWRlby93ZWJtKpYBCgpBdWRpb0NvZGVjEhsKF0FVRElPX0NPREVDX1VOU1BFQ0lGSUVEEAASEwoPQVVESU9fQ09ERUNfQUFDEAESEwoPQVVESU9fQ09ERUNfQUMzEAISFAoQQVVESU9fQ09ERUNfRUFDMxADEhMKD0FVRElPX0NPREVDX01QMxAEEhYKEkFVRElPX0NPREVDX1ZPUkJJUxAFMqQBCg1EZXZpY2VTZXJ2aWNlEkgKBURyaXZlEh0uY2FzdG9yLm1lZGlhLnYxLkRyaXZlUmVxdWVzdBoeLmNhc3Rvci5tZWRpYS52MS5Ecml2ZVJlc3BvbnNlMAESSQoGQW5zd2VyEh4uY2FzdG9yLm1lZGlhLnYxLkFuc3dlclJlcXVlc3QaHy5jYXN0b3IubWVkaWEudjEuQW5zd2VyUmVzcG9uc2U6NwoEbWltZRIhLmdvb2dsZS5wcm90b2J1Zi5FbnVtVmFsdWVPcHRpb25zGLiOAyABKAlSBG1pbWViBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_descriptor, file_google_protobuf_duration]);
+  fileDesc("ChxjYXN0b3IvbWVkaWEvdjEvZGV2aWNlLnByb3RvEg9jYXN0b3IubWVkaWEudjEiZQoMRHJpdmVSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAESOwoMY2FwYWJpbGl0aWVzGAIgASgLMh0uY2FzdG9yLm1lZGlhLnYxLkNhcGFiaWxpdGllc0IGukgDyAEBIkgKDURyaXZlUmVzcG9uc2USNwoHY29tbWFuZBgBIAEoCzIeLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kQga6SAPIAQEi0AIKDUFuc3dlclJlcXVlc3QSGAoHY2FzdF9pZBgBIAEoCUIHukgEcgIQARIbCgpjb21tYW5kX2lkGAIgASgJQge6SARyAhABEjMKBGRvbmUYAyABKAsyIy5jYXN0b3IubWVkaWEudjEuQW5zd2VyUmVxdWVzdC5Eb25lSAASLQoFZXJyb3IYBCABKAsyHC5jYXN0b3IubWVkaWEudjEuRGV2aWNlRXJyb3JIABI7Cghwb3NpdGlvbhgFIAEoCzInLmNhc3Rvci5tZWRpYS52MS5BbnN3ZXJSZXF1ZXN0LlBvc2l0aW9uSAAaBgoERG9uZRpOCghQb3NpdGlvbhIyCgJhdBgBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkILukgIyAEBqgECMgASDgoGcGF1c2VkGAIgASgIQg8KBmFuc3dlchIFukgCCAEiEAoOQW5zd2VyUmVzcG9uc2UioAEKDENhcGFiaWxpdGllcxI8Cgdmb3JtYXRzGAEgAygLMh4uY2FzdG9yLm1lZGlhLnYxLkZvcm1hdFN1cHBvcnRCC7pICJIBBQgBEIABEhIKCnByb3ZlbmFuY2UYAiABKAkSFAoMZGVpbnRlcmxhY2VzGAMgASgIEhIKCnNlbGZfZmV0Y2gYBSABKAhKBAgEEAVSDnNlcnZlZF9oZWFkZXJzIv8CCg1Gb3JtYXRTdXBwb3J0EjoKC3Byb2dyZXNzaXZlGAEgASgLMiMuY2FzdG9yLm1lZGlhLnYxLlByb2dyZXNzaXZlU3VwcG9ydEgAEioKA2hscxgCIAEoCzIbLmNhc3Rvci5tZWRpYS52MS5ITFNTdXBwb3J0SAASLgoFdmlkZW8YAyABKAsyHS5jYXN0b3IubWVkaWEudjEuVmlkZW9TdXBwb3J0SAESLgoFYXVkaW8YBCABKAsyHS5jYXN0b3IubWVkaWEudjEuQXVkaW9TdXBwb3J0SAESKAoCYXYYBSABKAsyGi5jYXN0b3IubWVkaWEudjEuQVZTdXBwb3J0SAESQQoIY2FwdGlvbnMYBiADKA4yHi5jYXN0b3IubWVkaWEudjEuQ2FwdGlvbkZvcm1hdEIPukgMkgEJIgeCAQQQASAAQhIKCXRyYW5zcG9ydBIFukgCCAFCDwoGdHJhY2tzEgW6SAIIAUoECAcQCFIOc2VydmVkX2hlYWRlcnMidwoJQVZTdXBwb3J0EjQKBXZpZGVvGAEgASgLMh0uY2FzdG9yLm1lZGlhLnYxLlZpZGVvU3VwcG9ydEIGukgDyAEBEjQKBWF1ZGlvGAIgASgLMh0uY2FzdG9yLm1lZGlhLnYxLkF1ZGlvU3VwcG9ydEIGukgDyAEBIvkCChJQcm9ncmVzc2l2ZVN1cHBvcnQSTAoJY29udGFpbmVyGAEgASgOMi0uY2FzdG9yLm1lZGlhLnYxLlByb2dyZXNzaXZlU3VwcG9ydC5Db250YWluZXJCCrpIB4IBBBABIAASZwoOc2VydmVkX2hlYWRlcnMYAiADKAsyNi5jYXN0b3IubWVkaWEudjEuUHJvZ3Jlc3NpdmVTdXBwb3J0LlNlcnZlZEhlYWRlcnNFbnRyeUIXukgUmgERIgVyA8ABASoIcgbIAQDAAQIaNAoSU2VydmVkSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEidgoJQ29udGFpbmVyEhkKFUNPTlRBSU5FUl9VTlNQRUNJRklFRBAAEhEKDUNPTlRBSU5FUl9NUDQQARIUChBDT05UQUlORVJfTVBFR1RTEAISEQoNQ09OVEFJTkVSX01LVhADEhIKDkNPTlRBSU5FUl9XRUJNEAQizwIKCkhMU1N1cHBvcnQSQgoJc3VidGl0bGVzGAEgASgOMiUuY2FzdG9yLm1lZGlhLnYxLkhMU1N1cHBvcnQuU3VidGl0bGVzQgi6SAWCAQIQARJgChVleHRyYV9zZWdtZW50X2Zvcm1hdHMYAiADKA4yLi5jYXN0b3IubWVkaWEudjEuSExTU3VwcG9ydC5FeHRyYVNlZ21lbnRGb3JtYXRCEbpIDpIBCxAQGAEiBYIBAiAAIjwKCVN1YnRpdGxlcxIZChVTVUJUSVRMRVNfVU5TUEVDSUZJRUQQABIUChBTVUJUSVRMRVNfV0VCVlRUEAEiXQoSRXh0cmFTZWdtZW50Rm9ybWF0EiQKIEVYVFJBX1NFR01FTlRfRk9STUFUX1VOU1BFQ0lGSUVEEAASIQodRVhUUkFfU0VHTUVOVF9GT1JNQVRfVElLVElLUFgQASKmAQoMVmlkZW9TdXBwb3J0EiwKBGgyNjQYASABKAsyHC5jYXN0b3IubWVkaWEudjEuSDI2NFN1cHBvcnRIABIsCgRoZXZjGAIgASgLMhwuY2FzdG9yLm1lZGlhLnYxLkhFVkNTdXBwb3J0SAASKgoDdnA4GAMgASgLMhsuY2FzdG9yLm1lZGlhLnYxLlZQOFN1cHBvcnRIAEIOCgVjb2RlYxIFukgCCAEi7QEKC0gyNjRTdXBwb3J0EksKCHByb2ZpbGVzGAEgAygOMiQuY2FzdG9yLm1lZGlhLnYxLkgyNjRTdXBwb3J0LlByb2ZpbGVCE7pIEJIBDRAEGAEiB4IBBBABIAASEQoJbWF4X2xldmVsGAIgASgNIn4KB1Byb2ZpbGUSFwoTUFJPRklMRV9VTlNQRUNJRklFRBAAEiAKHFBST0ZJTEVfQ09OU1RSQUlORURfQkFTRUxJTkUQARIUChBQUk9GSUxFX0JBU0VMSU5FEAISEAoMUFJPRklMRV9NQUlOEAMSEAoMUFJPRklMRV9ISUdIEAQi4gEKC0hFVkNTdXBwb3J0EksKCHByb2ZpbGVzGAEgAygOMiQuY2FzdG9yLm1lZGlhLnYxLkhFVkNTdXBwb3J0LlByb2ZpbGVCE7pIEJIBDRACGAEiB4IBBBABIAASKAoKYml0X2RlcHRocxgCIAMoDUIUukgRkgEOEAMYASIIKgYwCDAKMAwSEQoJbWF4X2xldmVsGAMgASgNIkkKB1Byb2ZpbGUSFwoTUFJPRklMRV9VTlNQRUNJRklFRBAAEhAKDFBST0ZJTEVfTUFJThABEhMKD1BST0ZJTEVfTUFJTl8xMBACIgwKClZQOFN1cHBvcnQiXAoMQXVkaW9TdXBwb3J0EjYKBWNvZGVjGAEgASgOMhsuY2FzdG9yLm1lZGlhLnYxLkF1ZGlvQ29kZWNCCrpIB4IBBBABIAASFAoMbWF4X2NoYW5uZWxzGAIgASgNIr8OCg1EZXZpY2VDb21tYW5kEjMKBGNhbGwYASABKAsyIy5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5DYWxsSAASNwoGY2FuY2VsGAIgASgLMiUuY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmQuQ2FuY2VsSAAazwIKBENhbGwSEwoCaWQYASABKAlCB7pIBHICEAESMwoEcGxheRgCIAEoCzIjLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kLlBsYXlIABI8Cglhd2FpdF9lbmQYAyABKAsyJy5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5Bd2FpdEVuZEgAEjUKBXBhdXNlGAQgASgLMiQuY2FzdG9yLm1lZGlhLnYxLkRldmljZUNvbW1hbmQuUGF1c2VIABI3CgZyZXN1bWUYBSABKAsyJS5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5SZXN1bWVIABI7Cghwb3NpdGlvbhgGIAEoCzInLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kLlBvc2l0aW9uSABCEgoJb3BlcmF0aW9uEgW6SAIIARr2BwoEUGxheRKUAQoDdXJsGAEgASgJQoYBukiCAboBegoNcGxheS51cmwuaHR0cBIcbXVzdCBiZSBhbiBodHRwIG9yIGh0dHBzIFVSTBpLdGhpcy5pc1VyaSgpICYmICh0aGlzLnN0YXJ0c1dpdGgoJ2h0dHA6Ly8nKSB8fCB0aGlzLnN0YXJ0c1dpdGgoJ2h0dHBzOi8vJykpcgMYgEASOAoIY2FwdGlvbnMYAyADKAsyJi5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5DYXB0aW9uEjwKBnNvdXJjZRgGIAEoCzIqLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kLlBsYXkuU291cmNlSAASRgoLcHJvZ3Jlc3NpdmUYByABKAsyLy5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5QbGF5LlByb2dyZXNzaXZlSAASQAoIcGxheWxpc3QYCCABKAsyLC5jYXN0b3IubWVkaWEudjEuRGV2aWNlQ29tbWFuZC5QbGF5LlBsYXlsaXN0SAAaegoGU291cmNlEjkKCWNvbnRhaW5lchgBIAEoDjIaLmNhc3Rvci5tZWRpYS52MS5Db250YWluZXJCCrpIB4IBBBABIAASNQoIZHVyYXRpb24YAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CCLpIBaoBAioAGogBCgtQcm9ncmVzc2l2ZRI7Cgljb250YWluZXIYASABKA4yGi5jYXN0b3IubWVkaWEudjEuQ29udGFpbmVyQgy6SAmCAQYQASAAIAMSPAoHcnVudGltZRgCIAEoCzIrLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kLlBsYXkuUnVudGltZRrMAQoHUnVudGltZRI4CghkdXJhdGlvbhgBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkILukgIyAEBqgECKgASSgoEc2VlaxgCIAEoDjIwLmNhc3Rvci5tZWRpYS52MS5EZXZpY2VDb21tYW5kLlBsYXkuUnVudGltZS5TZWVrQgq6SAeCAQQQASAAIjsKBFNlZWsSFAoQU0VFS19VTlNQRUNJRklFRBAAEg4KClNFRUtfU1RBUlQQARINCglTRUVLX1RJTUUQAhpBCghQbGF5bGlzdBI1CghkdXJhdGlvbhgBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkIIukgFqgECKgBCDwoGc3RyZWFtEgW6SAIIAUoECAIQA0oECAQQBUoECAUQBlIJY29udGFpbmVyUghkdXJhdGlvblIEc2VlaxqQAgoHQ2FwdGlvbhKXAQoDdXJsGAEgASgJQokBukiFAboBfQoQY2FwdGlvbi51cmwuaHR0cBIcbXVzdCBiZSBhbiBodHRwIG9yIGh0dHBzIFVSTBpLdGhpcy5pc1VyaSgpICYmICh0aGlzLnN0YXJ0c1dpdGgoJ2h0dHA6Ly8nKSB8fCB0aGlzLnN0YXJ0c1dpdGgoJ2h0dHBzOi8vJykpcgMYgEASOgoGZm9ybWF0GAIgASgOMh4uY2FzdG9yLm1lZGlhLnYxLkNhcHRpb25Gb3JtYXRCCrpIB4IBBBABIAASEAoIbGFuZ3VhZ2UYAyABKAkSDAoEbmFtZRgEIAEoCRIPCgdkZWZhdWx0GAUgASgIGgoKCEF3YWl0RW5kGgcKBVBhdXNlGggKBlJlc3VtZRoKCghQb3NpdGlvbholCgZDYW5jZWwSGwoKY29tbWFuZF9pZBgBIAEoCUIHukgEcgIQAUIQCgdjb21tYW5kEgW6SAIIASKlAQoLRGV2aWNlRXJyb3ISGgoHbWVzc2FnZRgBIAEoCUIHukgEcgIQAUgAEjEKBGdvbmUYAiABKAsyIS5jYXN0b3IubWVkaWEudjEuRGV2aWNlRXJyb3IuR29uZUgAGjcKBEdvbmUSDgoGZGV2aWNlGAEgASgJEhAKCG9ic2VydmVkGAIgASgJEg0KBWNhdXNlGAMgASgJQg4KBWVycm9yEgW6SAIIASpfCg1DYXB0aW9uRm9ybWF0Eh4KGkNBUFRJT05fRk9STUFUX1VOU1BFQ0lGSUVEEAASFgoSQ0FQVElPTl9GT1JNQVRfVlRUEAESFgoSQ0FQVElPTl9GT1JNQVRfU1JUEAIq6QEKCUNvbnRhaW5lchIZChVDT05UQUlORVJfVU5TUEVDSUZJRUQQABIgCg1DT05UQUlORVJfTVA0EAEaDcLzGAl2aWRlby9tcDQSJAoQQ09OVEFJTkVSX01QRUdUUxACGg7C8xgKdmlkZW8vbXAydBIsCg1DT05UQUlORVJfSExTEAMaGcLzGBVhcHBsaWNhdGlvbi94LW1wZWdVUkwSJwoNQ09OVEFJTkVSX01LVhAEGhTC8xgQdmlkZW8veC1tYXRyb3NrYRIiCg5DT05UQUlORVJfV0VCTRAFGg7C8xgKdmlkZW8vd2VibSqWAQoKQXVkaW9Db2RlYxIbChdBVURJT19DT0RFQ19VTlNQRUNJRklFRBAAEhMKD0FVRElPX0NPREVDX0FBQxABEhMKD0FVRElPX0NPREVDX0FDMxACEhQKEEFVRElPX0NPREVDX0VBQzMQAxITCg9BVURJT19DT0RFQ19NUDMQBBIWChJBVURJT19DT0RFQ19WT1JCSVMQBTKkAQoNRGV2aWNlU2VydmljZRJICgVEcml2ZRIdLmNhc3Rvci5tZWRpYS52MS5Ecml2ZVJlcXVlc3QaHi5jYXN0b3IubWVkaWEudjEuRHJpdmVSZXNwb25zZTABEkkKBkFuc3dlchIeLmNhc3Rvci5tZWRpYS52MS5BbnN3ZXJSZXF1ZXN0Gh8uY2FzdG9yLm1lZGlhLnYxLkFuc3dlclJlc3BvbnNlOjcKBG1pbWUSIS5nb29nbGUucHJvdG9idWYuRW51bVZhbHVlT3B0aW9ucxi4jgMgASgJUgRtaW1lYgZwcm90bzM", [file_buf_validate_validate, file_google_protobuf_descriptor, file_google_protobuf_duration]);
 
 /**
  * @generated from message castor.media.v1.DriveRequest
@@ -177,13 +177,6 @@ export type Capabilities = Message<"castor.media.v1.Capabilities"> & {
   deinterlaces: boolean;
 
   /**
-   * served_headers are set on every response the device fetches what it is served from.
-   *
-   * @generated from field: map<string, string> served_headers = 4;
-   */
-  servedHeaders: { [key: string]: string };
-
-  /**
    * self_fetch is whether the device fetches a stream URL itself, rather than only playing what it is served.
    *
    * @generated from field: bool self_fetch = 5;
@@ -287,6 +280,13 @@ export type ProgressiveSupport = Message<"castor.media.v1.ProgressiveSupport"> &
    * @generated from field: castor.media.v1.ProgressiveSupport.Container container = 1;
    */
   container: ProgressiveSupport_Container;
+
+  /**
+   * served_headers are set on every response that serves this format.
+   *
+   * @generated from field: map<string, string> served_headers = 2;
+   */
+  servedHeaders: { [key: string]: string };
 };
 
 /**
@@ -686,14 +686,32 @@ export type DeviceCommand_Play = Message<"castor.media.v1.DeviceCommand.Play"> &
   url: string;
 
   /**
-   * @generated from field: castor.media.v1.Container container = 2;
-   */
-  container: Container;
-
-  /**
    * @generated from field: repeated castor.media.v1.DeviceCommand.Caption captions = 3;
    */
   captions: DeviceCommand_Caption[];
+
+  /**
+   * @generated from oneof castor.media.v1.DeviceCommand.Play.stream
+   */
+  stream: {
+    /**
+     * @generated from field: castor.media.v1.DeviceCommand.Play.Source source = 6;
+     */
+    value: DeviceCommand_Play_Source;
+    case: "source";
+  } | {
+    /**
+     * @generated from field: castor.media.v1.DeviceCommand.Play.Progressive progressive = 7;
+     */
+    value: DeviceCommand_Play_Progressive;
+    case: "progressive";
+  } | {
+    /**
+     * @generated from field: castor.media.v1.DeviceCommand.Play.Playlist playlist = 8;
+     */
+    value: DeviceCommand_Play_Playlist;
+    case: "playlist";
+  } | { case: undefined; value?: undefined };
 };
 
 /**
@@ -702,6 +720,133 @@ export type DeviceCommand_Play = Message<"castor.media.v1.DeviceCommand.Play"> &
  */
 export const DeviceCommand_PlaySchema: GenMessage<DeviceCommand_Play> = /*@__PURE__*/
   messageDesc(file_castor_media_v1_device, 14, 1);
+
+/**
+ * Source is the source itself, fetched from its own server, which alone knows how it seeks.
+ *
+ * @generated from message castor.media.v1.DeviceCommand.Play.Source
+ */
+export type DeviceCommand_Play_Source = Message<"castor.media.v1.DeviceCommand.Play.Source"> & {
+  /**
+   * @generated from field: castor.media.v1.Container container = 1;
+   */
+  container: Container;
+
+  /**
+   * duration is unset where the source declared none.
+   *
+   * @generated from field: google.protobuf.Duration duration = 2;
+   */
+  duration?: Duration | undefined;
+};
+
+/**
+ * Describes the message castor.media.v1.DeviceCommand.Play.Source.
+ * Use `create(DeviceCommand_Play_SourceSchema)` to create a new message.
+ */
+export const DeviceCommand_Play_SourceSchema: GenMessage<DeviceCommand_Play_Source> = /*@__PURE__*/
+  messageDesc(file_castor_media_v1_device, 14, 1, 0);
+
+/**
+ * Progressive is one stream the media server serves.
+ *
+ * @generated from message castor.media.v1.DeviceCommand.Play.Progressive
+ */
+export type DeviceCommand_Play_Progressive = Message<"castor.media.v1.DeviceCommand.Play.Progressive"> & {
+  /**
+   * @generated from field: castor.media.v1.Container container = 1;
+   */
+  container: Container;
+
+  /**
+   * runtime is unset where the source declared none, and such a stream is served from its start only.
+   *
+   * @generated from field: castor.media.v1.DeviceCommand.Play.Runtime runtime = 2;
+   */
+  runtime?: DeviceCommand_Play_Runtime | undefined;
+};
+
+/**
+ * Describes the message castor.media.v1.DeviceCommand.Play.Progressive.
+ * Use `create(DeviceCommand_Play_ProgressiveSchema)` to create a new message.
+ */
+export const DeviceCommand_Play_ProgressiveSchema: GenMessage<DeviceCommand_Play_Progressive> = /*@__PURE__*/
+  messageDesc(file_castor_media_v1_device, 14, 1, 1);
+
+/**
+ * Runtime is a served stream's length from where it begins, and how the media server serves it within.
+ *
+ * @generated from message castor.media.v1.DeviceCommand.Play.Runtime
+ */
+export type DeviceCommand_Play_Runtime = Message<"castor.media.v1.DeviceCommand.Play.Runtime"> & {
+  /**
+   * @generated from field: google.protobuf.Duration duration = 1;
+   */
+  duration?: Duration | undefined;
+
+  /**
+   * @generated from field: castor.media.v1.DeviceCommand.Play.Runtime.Seek seek = 2;
+   */
+  seek: DeviceCommand_Play_Runtime_Seek;
+};
+
+/**
+ * Describes the message castor.media.v1.DeviceCommand.Play.Runtime.
+ * Use `create(DeviceCommand_Play_RuntimeSchema)` to create a new message.
+ */
+export const DeviceCommand_Play_RuntimeSchema: GenMessage<DeviceCommand_Play_Runtime> = /*@__PURE__*/
+  messageDesc(file_castor_media_v1_device, 14, 1, 2);
+
+/**
+ * @generated from enum castor.media.v1.DeviceCommand.Play.Runtime.Seek
+ */
+export enum DeviceCommand_Play_Runtime_Seek {
+  /**
+   * @generated from enum value: SEEK_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * SEEK_START serves the stream from its start only.
+   *
+   * @generated from enum value: SEEK_START = 1;
+   */
+  START = 1,
+
+  /**
+   * SEEK_TIME serves it from any time asked for within duration.
+   *
+   * @generated from enum value: SEEK_TIME = 2;
+   */
+  TIME = 2,
+}
+
+/**
+ * Describes the enum castor.media.v1.DeviceCommand.Play.Runtime.Seek.
+ */
+export const DeviceCommand_Play_Runtime_SeekSchema: GenEnum<DeviceCommand_Play_Runtime_Seek> = /*@__PURE__*/
+  enumDesc(file_castor_media_v1_device, 14, 1, 2, 0);
+
+/**
+ * Playlist is an HLS playlist the media server serves, which the device seeks within by its segments.
+ *
+ * @generated from message castor.media.v1.DeviceCommand.Play.Playlist
+ */
+export type DeviceCommand_Play_Playlist = Message<"castor.media.v1.DeviceCommand.Play.Playlist"> & {
+  /**
+   * duration is unset where the source declared none.
+   *
+   * @generated from field: google.protobuf.Duration duration = 1;
+   */
+  duration?: Duration | undefined;
+};
+
+/**
+ * Describes the message castor.media.v1.DeviceCommand.Play.Playlist.
+ * Use `create(DeviceCommand_Play_PlaylistSchema)` to create a new message.
+ */
+export const DeviceCommand_Play_PlaylistSchema: GenMessage<DeviceCommand_Play_Playlist> = /*@__PURE__*/
+  messageDesc(file_castor_media_v1_device, 14, 1, 3);
 
 /**
  * Caption is a text track the device shows over the stream; its url is fetched like the stream's.

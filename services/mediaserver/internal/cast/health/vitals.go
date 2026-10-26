@@ -61,7 +61,8 @@ type Vitals struct {
 	pace      float64
 	paceKnown bool
 
-	// played is how long the device has played since it first fetched, less the time it was held.
+	// began is where in the program the device's current fetch began; played is how long it has played since, less the time it was held.
+	began  time.Duration
 	played time.Duration
 	// head is where the device says it has played to, when it says.
 	head      time.Duration
@@ -94,7 +95,7 @@ func (h Vitals) outranked() bool {
 }
 
 // at is where the device has played to by the clock.
-func (h Vitals) at() time.Duration { return h.played }
+func (h Vitals) at() time.Duration { return h.began + h.played }
 
 // Reached is where the viewer got to in the attempt's program: the device's own word where it says, else the clock.
 func (h Vitals) Reached() time.Duration {

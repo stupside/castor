@@ -1,0 +1,20 @@
+# The viewer jumps ahead mid-cast: castor serves the stream again from where the device asks, and it plays on to the end.
+stream:
+  packaging: hls-ts
+  video: {codec: h264, height: 360}
+  audio: {codec: aac, channels: 2}
+  seconds: 60
+receiver:
+  device:
+    dlna:
+      sink: "http-get:*:video/mp2t:DLNA.ORG_PN=AVC_TS_HD_AAC_ISO,http-get:*:audio/mp4:DLNA.ORG_PN=AAC_ISO"
+      decodes:
+        video: {h264: 8}
+        audio: {aac: 2}
+  viewer:
+    seeks: {after: 8s, to: 30s}
+expect:
+  delivery: served
+  video: copied
+  uninterrupted: {}
+  seeked: {}
