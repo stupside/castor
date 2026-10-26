@@ -247,7 +247,7 @@ func (c *coordinator) loop() {
 		case <-c.ctx.Done():
 			c.move(attemptCancelled)
 		case err := <-c.failures:
-			c.cause = err
+			c.cause = errors.Join(c.cause, err)
 			c.move(attemptFailed)
 		case op := <-c.events:
 			if c.ctx.Err() != nil {
