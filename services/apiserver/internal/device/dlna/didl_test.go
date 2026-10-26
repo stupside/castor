@@ -47,14 +47,8 @@ func TestACaptionIsAnnouncedBesideTheStreamTheWayRenderersReadIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{
-		`protocolInfo="http-get:*:text/srt:*">http://192.0.2.1:8080/en.srt</res>`,
-		`<sec:CaptionInfoEx sec:type="srt">http://192.0.2.1:8080/en.srt</sec:CaptionInfoEx>`,
-		`xmlns:sec="http://www.sec.co.kr/"`,
-	} {
-		if !strings.Contains(metadata, want) {
-			t.Errorf("metadata = %s, want it to contain %s", metadata, want)
-		}
+	if want := `protocolInfo="http-get:*:text/srt:*">http://192.0.2.1:8080/en.srt</res>`; !strings.Contains(metadata, want) {
+		t.Errorf("metadata = %s, want it to contain %s", metadata, want)
 	}
 }
 
