@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.5.0](https://github.com/stupside/castor/compare/v2.4.0...v2.5.0) (2026-10-27)
+
+
+### Features
+
+* **cast:** let the interactive cast run without a configured device ([61c8490](https://github.com/stupside/castor/commit/61c8490ec06070a82c0bb7687f093974683eec0b))
+* **settings:** read the user's config directory, then the working directory's ([a726b44](https://github.com/stupside/castor/commit/a726b444e5631e43efb7be202edd10b8130e3f18))
+
+
+### Bug Fixes
+
+* **deps:** move to Go 1.27.3 and next 16.4.3 for known vulnerabilities ([f16ef1f](https://github.com/stupside/castor/commit/f16ef1f910e1f0cb2f600b81bcb9c9c6648f0ace))
+* **settings:** check required sections and name failures by config key ([71a077c](https://github.com/stupside/castor/commit/71a077c192f9fbf4d74686df666649015054d0f0))
+
+
+### Documentation
+
+* **architecture:** update the architecture documentation ([15d0616](https://github.com/stupside/castor/commit/15d0616aca5f731728f60f39bc6856056d2efcba))
+* **contributing:** require Go 1.27.1 and set out what castor will not take ([54d4398](https://github.com/stupside/castor/commit/54d4398e2ac622ff2caeb33c1953af33c861c5b2))
+* give telemetry its own section in CONTRIBUTING ([ea35704](https://github.com/stupside/castor/commit/ea35704eadedd5210779a1b608c47edf25d375f6))
+* **readme:** add a table of the platforms castor runs on ([2410b80](https://github.com/stupside/castor/commit/2410b802c227eafa1d19593c97316d4b48e8e40a))
+* **readme:** list community projects, starting with castor-android ([435ea38](https://github.com/stupside/castor/commit/435ea38fd27a1067dcbbd8c481d274bb4c2a60e2))
+* **readme:** rewrite as a short onboarding page ([02ef689](https://github.com/stupside/castor/commit/02ef6895fb72ba69a9dee9266a455ee5d64de0b9))
+* **security:** report vulnerabilities privately and warn about open servers ([61e4908](https://github.com/stupside/castor/commit/61e49088441edf46cce704e4d73a94453b80124a))
+
+
+### Continuous Integration
+
+* scan Go and app dependencies for vulnerabilities ([87307d4](https://github.com/stupside/castor/commit/87307d4288f5986b18030ee7032cd9c008ac88a1))
+
 ## [2.4.0](https://github.com/stupside/castor/compare/v2.3.0...v2.4.0) (2026-10-26)
 
 
