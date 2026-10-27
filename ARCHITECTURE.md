@@ -203,6 +203,22 @@ The engine separates what a source declares, what was observed, and what output 
 
 ## Deployment and trust
 
-API runs where it can reach devices; scraping runs with Chrome; media runs where devices can fetch its published URLs. Standalone commands start only their own service. See [README.md](README.md) for configuration.
+API runs where it can reach devices; scraping runs with Chrome; media runs where devices can fetch its published URLs. CLI commands embed whichever services are not configured; standalone commands start only their own service:
+
+| Command | Default port | Runs where |
+| --- | --- | --- |
+| `castor media-server` | 8410 | Devices can fetch its media URLs |
+| `castor scraping-server` | 8412 | Chrome is installed |
+| `castor api-server` | 8411 | It can discover and control devices |
+
+A standalone API server needs `servers.media.url` and its token, and reaches scraping at `servers.scraping.url` (`http://localhost:8412` when unset); its clients set `servers.api.url` and `servers.api.token`. Standalone servers listen on all interfaces, so use HTTPS outside a trusted network. The API exposes device listing, cast, stop and status watching through [Connect contracts](proto/castor/v1), for example:
+
+```sh
+curl -X POST http://localhost:8411/castor.v1.DeviceService/ListDevices \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+The [Compose stack](docker-compose.yml) runs all three with host networking ([how to start it](README.md#the-whole-stack)); a bridged media container instead needs `-p 8410:8410` and a device-reachable `servers.media.advertise`. Image tags are `latest` (stable), `canary` (preview) or a pinned `vX.Y.Z`. Logs share a `cast_id` across services.
 
 Services use independent bearer tokens. Health checks and device-facing `/media` routes are open; publications use random paths and closing them joins active requests. Replay headers reach media but are stripped from public listings. See [SECURITY.md](SECURITY.md).
