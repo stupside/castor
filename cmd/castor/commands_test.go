@@ -62,6 +62,32 @@ func TestScanUsesTheConfiguredAPIWithoutRequiringACastDevice(t *testing.T) {
 	}
 }
 
+func TestADirectCastWithoutADeviceFailsBeforeStartingServers(t *testing.T) {
+	for _, args := range [][]string{
+		{"cast", "url", "https://cdn.example/video.mp4"},
+		{"cast", "player", "https://site.example/watch"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			started := false
+			local := Local(func(context.Context, *cli.Command) (transport.Endpoint, func(), error) {
+				started = true
+				return transport.Endpoint{}, nil, errors.New("server should not start")
+			})
+			root := &cli.Command{Name: "castor", Flags: process.Flags, Commands: Commands(local)}
+			if err := root.Run(t.Context(), append([]string{"castor", "--config", path}, args...)); err == nil || !strings.Contains(err.Error(), "device.type'") {
+				t.Errorf("cast without a device: got %v", err)
+			}
+			if started {
+				t.Fatal("a cast without a device started servers")
+			}
+		})
+	}
+}
+
 func TestMissingCastArgumentsFailBeforeStartingServers(t *testing.T) {
 	for _, args := range [][]string{
 		{"castor", "cast", "--dry-run", "url"},
@@ -96,6 +122,11 @@ func TestCastCommandsOnlyRequireConfigurationTheyUse(t *testing.T) {
 			name:     "direct stream ignores unused sources and catalog",
 			document: "device:\n  name: Living Room\n  type: dlna\nsources:\n  - templates:\n      movvie: /typo\ntmdb:\n  api_kye: typo\n",
 			args:     []string{"cast", "url", "https://cdn.example/video.mp4"},
+		},
+		{
+			name:     "interactive cast needs no device, it asks for one",
+			document: "tmdb:\n  api_key: test-key\n",
+			args:     []string{"cast"},
 		},
 		{
 			name: "player dry run needs no device or sources",

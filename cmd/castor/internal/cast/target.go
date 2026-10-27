@@ -3,7 +3,6 @@ package cast
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -30,9 +29,6 @@ func (d Device) Is(found *castorv1.Device) bool {
 
 // Target is the device d names: pinned at its host, or found by id or name among those the API lists.
 func Target(ctx context.Context, devices castorv1connect.DeviceServiceClient, d Device) (*castorv1.Target, error) {
-	if d.Type == "" {
-		return nil, errors.New("no device to cast to: set device.name and device.type (castor scan lists them)")
-	}
 	kind, err := configuredDeviceType(d.Type)
 	if err != nil {
 		return nil, err

@@ -11,17 +11,18 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func TestCLIConfigChecksItsOwnSourceTemplates(t *testing.T) {
+func TestCLIConfigChecksItsOwnSections(t *testing.T) {
+	const templates = "sources:\n  - proxies: [https://example.com]\n    templates:\n"
 	for _, tc := range []struct {
-		name, document string
-		wantError      bool
+		name, document, wantError string
 	}{
-		{"known template", "sources:\n  - proxies: [https://example.com]\n    templates:\n      movie: /movie/{itemID}\n      episode: /episode/{itemID}\n", false},
-		{"unknown template", "sources:\n  - proxies: [https://example.com]\n    templates:\n      movvie: /movie/{itemID}\n", true},
+		{"known template", "device:\n  name: Living Room\n  type: dlna\n" + templates + "      movie: /movie/{itemID}\n      episode: /episode/{itemID}\n", ""},
+		{"unknown template", "device:\n  name: Living Room\n  type: dlna\n" + templates + "      movvie: /movie/{itemID}\n", "movvie"},
+		{"device without type", "device:\n  name: Living Room\n", "device.type'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "config.yaml")
-			if err := os.WriteFile(path, []byte("device:\n  name: Living Room\n  type: dlna\n"+tc.document), 0o600); err != nil {
+			if err := os.WriteFile(path, []byte(tc.document), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			cmd := &cli.Command{Name: "castor", Flags: []cli.Flag{settings.Flag}, Action: func(_ context.Context, cmd *cli.Command) error {
@@ -29,11 +30,11 @@ func TestCLIConfigChecksItsOwnSourceTemplates(t *testing.T) {
 				return err
 			}}
 			err := cmd.Run(t.Context(), []string{"castor", "--config", path})
-			if tc.wantError && (err == nil || !strings.Contains(err.Error(), "movvie")) {
-				t.Fatalf("config error = %v, want unknown source template", err)
-			}
-			if !tc.wantError && err != nil {
+			if tc.wantError == "" && err != nil {
 				t.Fatal(err)
+			}
+			if tc.wantError != "" && (err == nil || !strings.Contains(err.Error(), tc.wantError)) {
+				t.Fatalf("config error = %v, want one naming %s", err, tc.wantError)
 			}
 		})
 	}

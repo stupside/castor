@@ -11,7 +11,7 @@ import (
 
 // Config is the command line's sections of castor's configuration.
 type Config struct {
-	Device  cast.Device   `yaml:"device" settings:"strict"`
+	Device  cast.Device   `yaml:"device" settings:"strict" validate:"omitzero"`
 	Sources sources.Sites `yaml:"sources" settings:"strict" validate:"dive"`
 	TMDB    tmdb.Config   `yaml:"tmdb" settings:"strict"`
 	Servers apiServers    `yaml:"servers"`
