@@ -34,6 +34,17 @@ tilt up
 
 Tilt builds Whisper, installs app dependencies, generates the TypeScript client, and starts media (`:8410`), API (`:8411`), scraping (`:8412`), and Next.js (`:3000`). Open `http://localhost:3000` or your machine's LAN address. The app calls only public API through `/rpc`.
 
+## Observing a cast
+
+Set `telemetry.endpoint` to an OTLP/HTTP collector's base URL to export logs, traces and metrics (castor adds `/v1/logs`, `/v1/traces` and `/v1/metrics`). Every service needs it, and trace context follows a cast across them. Exported records carry `castor.cast.id`, and castor's own names sit under `castor.`.
+
+```sh
+docker run --rm -p 3000:3000 -p 4318:4318 \
+  -v "$PWD/docker/grafana:/otel-lgtm/grafana/conf/provisioning/dashboards:ro" \
+  grafana/otel-lgtm   # Grafana on :3000 (admin/admin) with the Castor dashboard
+CASTOR_TELEMETRY__ENDPOINT=http://localhost:4318 castor cast
+```
+
 ## The rules
 
 ### Checked by CI

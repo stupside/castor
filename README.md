@@ -194,14 +194,7 @@ Devices fetch media and captions on **8410** for a standalone media server, or a
 
 Logs include a shared `cast_id` across services. With remote services, inspect each server's logs.
 
-Set `telemetry.endpoint` to an OTLP/HTTP collector's base URL to export logs, traces and metrics (castor adds `/v1/logs`, `/v1/traces` and `/v1/metrics`). Every service needs it, and trace context follows a cast across them. Exported records carry `castor.cast.id`, and castor's own names sit under `castor.`.
-
-```sh
-docker run --rm -p 3000:3000 -p 4318:4318 \
-  -v "$PWD/docker/grafana:/otel-lgtm/grafana/conf/provisioning/dashboards:ro" \
-  grafana/otel-lgtm   # Grafana on :3000 (admin/admin) with the Castor dashboard
-CASTOR_TELEMETRY__ENDPOINT=http://localhost:4318 castor cast
-```
+To export logs, traces and metrics, see [Observing a cast](CONTRIBUTING.md#observing-a-cast).
 
 ## Docker
 

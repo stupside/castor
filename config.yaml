@@ -110,3 +110,7 @@ servers:
 
     capture:
       # max_concurrency: 4
+
+# Export logs, traces and metrics to an OTLP/HTTP collector's base URL; unset, nothing is exported.
+# telemetry:
+#   endpoint: http://localhost:4318
