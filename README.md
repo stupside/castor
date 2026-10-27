@@ -160,7 +160,9 @@ Layers merge in this order, each over the one before:
 
 Keep secrets, like your TMDB key, in a git-ignored `config.local.yaml` next to the file. Coming from 1.x? See the [migration guide](migrations/1.x-to-2.0.md).
 
-## Devices
+## Support
+
+### TVs
 
 | Protocol | Status | Reported working on |
 | --- | --- | --- |
@@ -183,6 +185,18 @@ Cast to another TV? Tell us how it went in the [What device do you cast to?](htt
 3. Cast: castor installs its channel the first time.
 
 </details>
+
+### Where castor runs
+
+| Platform | Install with | Notes |
+| --- | --- | --- |
+| macOS, Intel and Apple silicon | Homebrew, npm, release | |
+| Linux, x86-64 and arm64 | npm, release, Docker | The Docker image encodes on Intel GPUs (VA-API) |
+| Windows, x86-64 and arm64 | npm, release | Allow castor on private networks |
+| Android, in Termux | Not documented yet | Reported by [@d4nnABR](https://github.com/d4nnABR) ([#24](https://github.com/stupside/castor/issues/24)). Discovery fails there, so set `device.host` to the TV's IP |
+| Android, as an app | [castor-android](https://github.com/kdpkke/castor-android) | A [community project](#community-projects) |
+
+Castor uses a hardware encoder when ffmpeg has one that works, and software otherwise.
 
 ## Self-host on a NAS
 
