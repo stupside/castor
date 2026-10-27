@@ -236,6 +236,12 @@ Ports, HTTPS and image tags are in [ARCHITECTURE.md](ARCHITECTURE.md#deployment-
 
 Everything the CLI does goes through the public [`castor.v1` API](proto/castor/v1): list devices, find the streams on a page, start, watch or stop a cast. Use it over [Connect](https://connectrpc.com), with generated clients or plain HTTP and JSON.
 
+### Community projects
+
+- [castor-android](https://github.com/kdpkke/castor-android) by [@kdpkke](https://github.com/kdpkke): an Android app that casts from your phone, with castor running on it.
+
+Built something on castor? Open a pull request to add it here.
+
 ## Troubleshooting
 
 | Symptom | Check |
