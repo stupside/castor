@@ -113,6 +113,26 @@ func TestTheNamedFileThenTheWorkingDirectoryWinOverTheUserConfig(t *testing.T) {
 	}
 }
 
+func TestAValidationFailureNamesTheConfigurationKeyAndAnEmptyRequiredSectionFails(t *testing.T) {
+	type endpoint struct {
+		Token string `yaml:"token" validate:"required"`
+	}
+	var cfg struct {
+		Cast struct {
+			MaxHeight uint32 `yaml:"max_height"`
+		} `yaml:"cast" validate:"required"`
+		Servers struct {
+			Media struct {
+				endpoint `yaml:",inline"`
+			} `yaml:"media"`
+		} `yaml:"servers"`
+	}
+	_, err := read([]string{write(t, "", "")}, cfg)
+	if err == nil || !strings.Contains(err.Error(), "'cast'") || !strings.Contains(err.Error(), "'servers.media.token'") {
+		t.Errorf("read = %v, want the empty cast section and servers.media.token named", err)
+	}
+}
+
 func TestAnUnreadableConfigPathIsNotTreatedAsAMissingFile(t *testing.T) {
 	path := write(t, "network:\n  timeout: 2s\n", "")
 	if _, err := read([]string{filepath.Join(path, "config.yaml")}, defaulted()); err == nil {

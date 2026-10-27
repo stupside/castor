@@ -13,7 +13,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/env"
+	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 	"github.com/urfave/cli/v3"
@@ -63,7 +63,7 @@ func read[T any](paths []string, defaults T) (*T, error) {
 			}
 		}
 	}
-	if err := k.Load(env.Provider(envPrefix, ".", envKey), nil); err != nil {
+	if err := k.Load(env.Provider(".", env.Opt{Prefix: envPrefix, TransformFunc: envKey}), nil); err != nil {
 		return nil, fmt.Errorf("loading environment overrides: %w", err)
 	}
 	if err := checkOwnedSections(k, reflect.TypeFor[T](), ""); err != nil {
@@ -74,11 +74,24 @@ func read[T any](paths []string, defaults T) (*T, error) {
 	if err := unmarshal(k, "", cfg, false); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
 	}
-	if err := validator.New().Struct(cfg); err != nil {
+	if err := validation.Struct(cfg); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}
 	return cfg, nil
 }
+
+// validation is shared: validator caches each struct it checks.
+var validation = func() *validator.Validate {
+	v := validator.New(validator.WithRequiredStructEnabled(), validator.WithTagNameFuncBlankOmit())
+	v.RegisterTagNameFunc(func(field reflect.StructField) string {
+		name, _, _ := strings.Cut(field.Tag.Get("yaml"), ",")
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
+	return v
+}()
 
 // checkOwnedSections uses the config type's settings:"strict" tags to reject
 // unknown keys only in sections that this command owns. Other commands may have
@@ -145,8 +158,7 @@ func unmarshal(k *koanf.Koanf, path string, destination any, strict bool) error 
 }
 
 // envKey maps CASTOR_SECTION__FIELD to the koanf key section.field.
-func envKey(s string) string {
-	s = strings.TrimPrefix(s, envPrefix)
-	s = strings.ToLower(s)
-	return strings.ReplaceAll(s, "__", ".")
+func envKey(name, value string) (string, any) {
+	name = strings.ToLower(strings.TrimPrefix(name, envPrefix))
+	return strings.ReplaceAll(name, "__", "."), value
 }
