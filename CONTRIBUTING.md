@@ -2,11 +2,14 @@
 
 ## Scope
 
-Welcome: bug/device reports, fixes, device support, transcoding, subtitles, and extraction robustness. No bundled sources, site-specific scrapers, or DRM/paywall/geo-restriction circumvention.
+Welcome: bug and device reports, fixes, device support, transcoding, subtitles, and extraction robustness.
+
+> [!NOTE]
+> Castor will not take bundled sources, site-specific scrapers, or anything that gets around DRM, paywalls or geo-restrictions.
 
 ## Building from source
 
-Requires Go 1.27+, cmake, and a C/C++ toolchain on macOS/Linux:
+You need Go 1.27.1 or newer, cmake, and a C/C++ toolchain, on macOS or Linux:
 
 ```sh
 git clone --recurse-submodules https://github.com/stupside/castor.git
