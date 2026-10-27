@@ -1,11 +1,14 @@
 package settings
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/urfave/cli/v3"
 )
 
 // sections stands for a command's own view of castor's configuration.
@@ -48,7 +51,7 @@ func write(t *testing.T, yaml, local string) string {
 
 func TestTheOverlayThenTheEnvironmentWinOverTheFileAndTheDefaults(t *testing.T) {
 	path := write(t, "cast:\n  max_height: 1080\nservers:\n  api:\n    network:\n      timeout: 2s\n", "cast:\n  max_height: 720\n")
-	got, err := read(path, defaulted())
+	got, err := read([]string{path}, defaulted())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +60,7 @@ func TestTheOverlayThenTheEnvironmentWinOverTheFileAndTheDefaults(t *testing.T) 
 	}
 
 	t.Setenv("CASTOR_CAST__MAX_HEIGHT", "480")
-	if got, err = read(path, defaulted()); err != nil {
+	if got, err = read([]string{path}, defaulted()); err != nil {
 		t.Fatal(err)
 	}
 	if got.Cast.MaxHeight != 480 {
@@ -66,15 +69,53 @@ func TestTheOverlayThenTheEnvironmentWinOverTheFileAndTheDefaults(t *testing.T) 
 }
 
 func TestNoFileLeavesTheDefaults(t *testing.T) {
-	got, err := read(filepath.Join(t.TempDir(), "config.yaml"), defaulted())
+	got, err := read([]string{filepath.Join(t.TempDir(), "config.yaml")}, defaulted())
 	if err != nil || got.Servers.API.Network.Timeout != 5*time.Second {
 		t.Errorf("read %+v %v without a file, want the defaults", got, err)
 	}
 }
 
+func TestTheNamedFileThenTheWorkingDirectoryWinOverTheUserConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
+	t.Setenv("AppData", home)
+	userDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(userDir, "castor"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "castor", "config.yaml"), []byte("cast:\n  max_height: 1080\nservers:\n  api:\n    network:\n      timeout: 2s\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(filepath.Dir(write(t, "cast:\n  max_height: 720\n", "")))
+	named := write(t, "cast:\n  max_height: 480\n", "")
+
+	load := func(args ...string) sections {
+		t.Helper()
+		var got *sections
+		cmd := &cli.Command{Name: "castor", Flags: []cli.Flag{Flag}, Action: func(_ context.Context, cmd *cli.Command) (err error) {
+			got, err = Load(cmd, defaulted())
+			return err
+		}}
+		if err := cmd.Run(t.Context(), append([]string{"castor"}, args...)); err != nil {
+			t.Fatal(err)
+		}
+		return *got
+	}
+	if got := load(); got.Cast.MaxHeight != 720 || got.Servers.API.Network.Timeout != 2*time.Second {
+		t.Errorf("loaded %+v, want the working directory's height over the user's, and the user's timeout", got)
+	}
+	if got := load("--config", named); got.Cast.MaxHeight != 480 || got.Servers.API.Network.Timeout != 2*time.Second {
+		t.Errorf("loaded %+v with --config, want the named file's height over both, and the user's timeout", got)
+	}
+}
+
 func TestAnUnreadableConfigPathIsNotTreatedAsAMissingFile(t *testing.T) {
 	path := write(t, "network:\n  timeout: 2s\n", "")
-	if _, err := read(filepath.Join(path, "config.yaml"), defaulted()); err == nil {
+	if _, err := read([]string{filepath.Join(path, "config.yaml")}, defaulted()); err == nil {
 		t.Error("a path through a regular file was ignored instead of reporting the filesystem error")
 	}
 }
@@ -87,25 +128,25 @@ type ownedSections struct {
 
 func TestUnknownKeysFailInACommandOwnedSection(t *testing.T) {
 	path := write(t, "cast:\n  max_heigth: 1080\nservers:\n  media:\n    token: secret\n", "")
-	if _, err := read(path, ownedSections{}); err == nil || !strings.Contains(err.Error(), "max_heigth") {
+	if _, err := read([]string{path}, ownedSections{}); err == nil || !strings.Contains(err.Error(), "max_heigth") {
 		t.Errorf("config returned %v, want the unknown cast key", err)
 	}
 	t.Setenv("CASTOR_CAST__MAX_HEIGTH", "720")
-	if _, err := read(filepath.Join(t.TempDir(), "config.yaml"), ownedSections{}); err == nil || !strings.Contains(err.Error(), "max_heigth") {
+	if _, err := read([]string{filepath.Join(t.TempDir(), "config.yaml")}, ownedSections{}); err == nil || !strings.Contains(err.Error(), "max_heigth") {
 		t.Errorf("environment returned %v, want the unknown cast key", err)
 	}
 }
 
 func TestOtherCommandsSectionsAreIgnoredByAnOwnedSectionCheck(t *testing.T) {
 	path := write(t, "cast:\n  max_height: 1080\nservers:\n  media:\n    token: secret\n", "")
-	if _, err := read(path, ownedSections{}); err != nil {
+	if _, err := read([]string{path}, ownedSections{}); err != nil {
 		t.Fatalf("unrelated media key was rejected: %v", err)
 	}
 }
 
 func TestKnownKeysInOtherCommandsSectionsRemainValid(t *testing.T) {
 	path := write(t, "servers:\n  api:\n    token: secret\n  scraping:\n    browser:\n      timeout: 30s\nsources:\n  - proxies: [https://example.com]\n    templates:\n      movie: /watch\n      episode: /episode\n", "")
-	if _, err := read(path, defaulted()); err != nil {
+	if _, err := read([]string{path}, defaulted()); err != nil {
 		t.Fatalf("known keys used by other commands were rejected: %v", err)
 	}
 }
@@ -116,7 +157,7 @@ func TestExampleConfigurationUsesKnownKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := write(t, string(example), "")
-	if _, err := read(path, defaulted()); err != nil {
+	if _, err := read([]string{path}, defaulted()); err != nil {
 		t.Fatalf("example configuration rejected: %v", err)
 	}
 }

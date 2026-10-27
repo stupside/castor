@@ -59,7 +59,7 @@ Then discover your devices:
 castor scan
 ```
 
-Save `config.yaml` in your working directory using the name and type from the scan:
+Save `config.yaml` in `~/.config/castor/` (`~/Library/Application Support/castor/` on macOS, `%AppData%\castor\` on Windows) using the name and type from the scan:
 
 ```yaml
 device:
@@ -99,7 +99,7 @@ Add `--dry-run` to a cast command to list resolved streams without casting, and 
 
 ## Configuration
 
-Castor loads `config.yaml` (or `--config <path>`), overlays git-ignored `config.local.yaml`, then applies environment overrides such as `CASTOR_CAST__MAX_HEIGHT=720`. Keep secrets in the local file or environment. See the annotated [config.yaml](config.yaml) for service settings and the [migration guide](migrations/1.x-to-2.0.md) when upgrading from 1.x.
+Castor merges, each over the last: `castor/config.yaml` in your user config directory, `config.yaml` in the working directory, then the file `--config <path>` names. Each file is followed by its git-ignored `.local` overlay (such as `config.local.yaml`), and environment overrides such as `CASTOR_CAST__MAX_HEIGHT=720` apply last. Keep secrets in the local file or environment. See the annotated [config.yaml](config.yaml) for service settings and the [migration guide](migrations/1.x-to-2.0.md) when upgrading from 1.x.
 
 ### Playback preferences
 

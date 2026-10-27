@@ -1,4 +1,4 @@
-// Package settings is how a castor command reads its configuration: one file, its .local overlay, then CASTOR_ variables, each command decoding only the sections it reads.
+// Package settings is how a castor command reads its configuration: the user's file, the working directory's, then the one named, each with its .local overlay, then CASTOR_ variables, each command decoding only the sections it reads.
 package settings
 
 import (
@@ -25,32 +25,42 @@ const (
 )
 
 // Flag is the root flag every command reads its configuration through.
-var Flag cli.Flag = &cli.StringFlag{Name: configFlag, Aliases: []string{"c"}, Usage: "Path to configuration file", Value: "config.yaml"}
+var Flag cli.Flag = &cli.StringFlag{Name: configFlag, Aliases: []string{"c"}, Usage: "Configuration file merged over castor/config.yaml in the user config directory and config.yaml in the working directory"}
 
-// Load reads the configuration cmd names; the default path may be absent (environment and defaults suffice), a path the user named may not.
+const fileName = "config.yaml"
+
+// Load reads the configuration cmd names; the default files may be absent (environment and defaults suffice), a path the user named may not.
 func Load[T any](cmd *cli.Command, defaults T) (*T, error) {
-	path := cmd.String(configFlag)
+	var paths []string
+	if dir, err := os.UserConfigDir(); err == nil {
+		paths = append(paths, filepath.Join(dir, "castor", fileName))
+	}
+	paths = append(paths, fileName)
 	if cmd.IsSet(configFlag) {
+		path := cmd.String(configFlag)
 		if _, err := os.Stat(path); err != nil {
 			return nil, fmt.Errorf("config file: %w", err)
 		}
+		paths = append(paths, path)
 	}
-	return read(path, defaults)
+	return read(paths, defaults)
 }
 
-// read decodes over defaults the sections T declares, from the file at path when there is one, its .local overlay and the environment, then validates them.
-func read[T any](path string, defaults T) (*T, error) {
+// read decodes over defaults the sections T declares, from each file at paths that exists, each followed by its .local overlay, then the environment, and validates them.
+func read[T any](paths []string, defaults T) (*T, error) {
 	k := koanf.New(".")
-	local := strings.TrimSuffix(path, filepath.Ext(path)) + ".local" + filepath.Ext(path)
-	for _, layer := range []string{path, local} {
-		if _, err := os.Stat(layer); err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
+	for _, path := range paths {
+		local := strings.TrimSuffix(path, filepath.Ext(path)) + ".local" + filepath.Ext(path)
+		for _, layer := range []string{path, local} {
+			if _, err := os.Stat(layer); err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+				return nil, fmt.Errorf("reading %s: %w", layer, err)
 			}
-			return nil, fmt.Errorf("reading %s: %w", layer, err)
-		}
-		if err := k.Load(file.Provider(layer), yaml.Parser()); err != nil {
-			return nil, fmt.Errorf("loading %s: %w", layer, err)
+			if err := k.Load(file.Provider(layer), yaml.Parser()); err != nil {
+				return nil, fmt.Errorf("loading %s: %w", layer, err)
+			}
 		}
 	}
 	if err := k.Load(env.Provider(envPrefix, ".", envKey), nil); err != nil {
