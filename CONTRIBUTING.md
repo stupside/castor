@@ -9,7 +9,7 @@ Welcome: bug and device reports, fixes, device support, transcoding, subtitles, 
 
 ## Building from source
 
-You need Go 1.27.1 or newer, cmake, and a C/C++ toolchain, on macOS or Linux:
+You need Go 1.27.3 or newer, cmake, and a C/C++ toolchain, on macOS or Linux:
 
 ```sh
 git clone --recurse-submodules https://github.com/stupside/castor.git
