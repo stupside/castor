@@ -5,8 +5,8 @@ device:
   # Two devices sharing a name are refused as ambiguous; pick one by the id `castor scan` prints.
   # id: "uuid:..."
   # Run `castor scan` and paste the device's name and type (dlna, chromecast or roku).
-  name: "Samsung Q80CA 55 TV"
-  type: "dlna"
+  # name: "Samsung Q80CA 55 TV"
+  # type: "dlna"
   # Reach the device by unicast where discovery can't (VLANs, Android/Termux); name becomes a label.
   # Its IP, or for a DLNA device that does not answer there, its description URL.
   # host: 192.168.0.3
