@@ -29,6 +29,8 @@ jobs:
       - run: node .yarn/releases/yarn-4.18.1.cjs workspace castor-app lint
       - run: node .yarn/releases/yarn-4.18.1.cjs workspace castor-app test
       - run: node .yarn/releases/yarn-4.18.1.cjs workspace castor-app build
+      # Only what ships; deprecations are not vulnerabilities (@vercel/otel still pins sdk-trace-base).
+      - run: node .yarn/releases/yarn-4.18.1.cjs npm audit --all --recursive --environment production --no-deprecations
 
   test:
     runs-on: ubuntu-latest
@@ -64,6 +66,8 @@ jobs:
           [ -z "$dead" ] || { printf 'unreachable:\n%s\n' "$dead"; exit 1; }
       # Fails with the diff it suggests: run `go fix ./...` and commit it.
       - run: eval "$(make env)" && go fix -diff ./services/... ./internal/... ./cmd/... ./e2e/...
+      # Fails only on vulnerable code that is actually reachable, the standard library included.
+      - run: eval "$(make env)" && go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./services/... ./internal/... ./cmd/... ./e2e/...
       # cgo stays in the media server, so the API server alone still cross-compiles anywhere.
       - run: CGO_ENABLED=0 go build ./services/apiserver/...
       - run: CGO_ENABLED=0 go build ./services/scrapingserver/...
