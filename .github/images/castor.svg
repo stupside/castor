@@ -1,72 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Castor">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Castor, a Go gopher in a beaver costume, holding a remote">
   <defs>
-    <clipPath id="tail">
-      <path d="M64 70 C 76 64, 92 68, 94 79 C 96 88, 85 93, 75 89 C 66 86, 61 78, 64 70 Z"/>
-    </clipPath>
+    <filter id="wobble" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="3"/>
+      <feDisplacementMap in="SourceGraphic" scale="2.6" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
   </defs>
 
-  <!-- Flat paddle tail — tucked to the side, soft scaly crosshatch -->
-  <path d="M64 70 C 76 64, 92 68, 94 79 C 96 88, 85 93, 75 89 C 66 86, 61 78, 64 70 Z" fill="#5c4634"/>
-  <g clip-path="url(#tail)" stroke="#7a5f47" stroke-width="1" opacity="0.85">
-    <line x1="68" y1="66" x2="92" y2="90"/>
-    <line x1="78" y1="62" x2="98" y2="84"/>
-    <line x1="96" y1="68" x2="72" y2="92"/>
-    <line x1="88" y1="62" x2="64" y2="86"/>
+  <g filter="url(#wobble)" stroke="#1f1a17" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Costume tail -->
+    <path d="M70 68 C 80 62, 95 66, 96 77 C 97 87, 86 91, 77 87 C 70 84, 66 76, 70 68 Z" fill="#7a5638"/>
+    <path d="M74 70 L 92 84 M 84 65 L 95 75 M 90 68 L 76 86" stroke="#9c7552" stroke-width="1"/>
+
+    <!-- Feet -->
+    <ellipse cx="39" cy="92" rx="7" ry="3.8" fill="#f3d3a6"/>
+    <ellipse cx="61" cy="92" rx="7" ry="3.8" fill="#f3d3a6"/>
+
+    <!-- Hood ears -->
+    <circle cx="32" cy="17" r="6.5" fill="#a5744d"/>
+    <circle cx="68" cy="17" r="6.5" fill="#a5744d"/>
+    <circle cx="32" cy="17" r="2.8" fill="#7a5638" stroke="none"/>
+    <circle cx="68" cy="17" r="2.8" fill="#7a5638" stroke="none"/>
+
+    <!-- Costume -->
+    <path d="M50 12 C 30 12, 25 28, 25 46 C 25 64, 22 80, 30 87 C 37 93, 63 93, 70 87 C 78 80, 75 64, 75 46 C 75 28, 70 12, 50 12 Z" fill="#a5744d"/>
+    <ellipse cx="50" cy="76" rx="14" ry="11" fill="#ecd6b6"/>
+
+    <!-- Gopher face through the hood -->
+    <ellipse cx="50" cy="41" rx="19" ry="17" fill="#7fd3e6"/>
+
+    <!-- Right paw hanging -->
+    <ellipse cx="76" cy="60" rx="3.5" ry="6" transform="rotate(-20 76 60)" fill="#7fd3e6"/>
+
+    <!-- Remote and the paw holding it -->
+    <rect x="12" y="40" width="7" height="15" rx="2" transform="rotate(-20 15.5 47.5)" fill="#3a3a3a"/>
+    <circle cx="14.5" cy="43" r="1.4" fill="#e5484d" stroke="none"/>
+    <ellipse cx="22" cy="54" rx="4.5" ry="5" fill="#7fd3e6"/>
+
+    <!-- Eyes peeking at the remote -->
+    <circle cx="41" cy="36" r="7.5" fill="#ffffff"/>
+    <circle cx="60" cy="36" r="7.5" fill="#ffffff"/>
+    <circle cx="37.5" cy="35.5" r="2.7" fill="#1f1a17"/>
+    <circle cx="56.5" cy="35.5" r="2.7" fill="#1f1a17"/>
+
+    <!-- Muzzle, nose, teeth -->
+    <ellipse cx="50" cy="47.5" rx="6.5" ry="4.5" fill="#f3d3a6"/>
+    <ellipse cx="50" cy="45" rx="2.6" ry="1.8" fill="#1f1a17"/>
+    <path d="M47.5 51.5 h 2.5 v 3.5 h -2.5 Z M 50 51.5 h 2.5 v 3.5 h -2.5 Z" fill="#ffffff" stroke-width="0.9"/>
   </g>
-
-  <!-- Feet — two little rounded paws peeking at the base -->
-  <ellipse cx="40" cy="91" rx="7" ry="4.5" fill="#8f6039"/>
-  <ellipse cx="60" cy="91" rx="7" ry="4.5" fill="#8f6039"/>
-
-  <!-- Ears — small and round, peeking behind the head -->
-  <circle cx="33" cy="18" r="6.5" fill="#a5744d"/>
-  <circle cx="67" cy="18" r="6.5" fill="#a5744d"/>
-  <circle cx="33" cy="17.5" r="3" fill="#855b39"/>
-  <circle cx="67" cy="17.5" r="3" fill="#855b39"/>
-
-  <!-- Head + body — one smooth, well-rounded silhouette -->
-  <path
-    d="M50 12
-       C 33 12, 26 27, 26 43
-       C 26 56, 20 62, 21 73
-       C 22 85, 34 91, 50 91
-       C 66 91, 78 85, 79 73
-       C 80 62, 74 56, 74 43
-       C 74 27, 67 12, 50 12 Z"
-    fill="#a5744d"
-  />
-
-  <!-- Belly — soft cream tummy -->
-  <ellipse cx="50" cy="70" rx="15" ry="14" fill="#ecd6b6"/>
-
-  <!-- Little paws resting on the belly -->
-  <ellipse cx="36" cy="64" rx="4.5" ry="5.5" fill="#8f6039"/>
-  <ellipse cx="64" cy="64" rx="4.5" ry="5.5" fill="#8f6039"/>
-
-  <!-- Cheek blush -->
-  <ellipse cx="33" cy="44" rx="4.5" ry="3" fill="#e79a7d" opacity="0.5"/>
-  <ellipse cx="67" cy="44" rx="4.5" ry="3" fill="#e79a7d" opacity="0.5"/>
-
-  <!-- Muzzle — soft cream snout -->
-  <ellipse cx="50" cy="45" rx="13" ry="9.5" fill="#ecd6b6"/>
-
-  <!-- Nose -->
-  <ellipse cx="50" cy="41" rx="3.8" ry="3" fill="#33241a"/>
-  <ellipse cx="48.7" cy="40" rx="1.1" ry="0.8" fill="#5e4636"/>
-
-  <!-- Gentle smile with two tiny teeth -->
-  <g fill="none" stroke="#33241a" stroke-width="1.6" stroke-linecap="round">
-    <path d="M50 44 Q 45 49 41 46.5"/>
-    <path d="M50 44 Q 55 49 59 46.5"/>
-  </g>
-  <rect x="48.2" y="46.3" width="3.6" height="2.8" rx="0.9" fill="#fffef7" stroke="#d8c39a" stroke-width="0.5"/>
-  <line x1="50" y1="46.5" x2="50" y2="48.9" stroke="#e2cfa6" stroke-width="0.6"/>
-
-  <!-- Big cute eyes -->
-  <circle cx="40" cy="34" r="5" fill="#2b1d13"/>
-  <circle cx="60" cy="34" r="5" fill="#2b1d13"/>
-  <circle cx="41.8" cy="32.1" r="1.9" fill="#ffffff"/>
-  <circle cx="61.8" cy="32.1" r="1.9" fill="#ffffff"/>
-  <circle cx="38.2" cy="35.6" r="0.9" fill="#ffffff"/>
-  <circle cx="58.2" cy="35.6" r="0.9" fill="#ffffff"/>
 </svg>
