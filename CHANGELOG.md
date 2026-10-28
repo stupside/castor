@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/stupside/castor/compare/v2.5.0...v2.5.1) (2026-10-28)
+
+
+### Documentation
+
+* **readme:** redraw the mascot as a gopher in a beaver costume ([a879ed2](https://github.com/stupside/castor/commit/a879ed2d42c22d23048b00a0e1034ba6de846eaa))
+
 ## [2.5.0](https://github.com/stupside/castor/compare/v2.4.0...v2.5.0) (2026-10-27)
 
 
