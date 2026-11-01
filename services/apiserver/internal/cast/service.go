@@ -15,6 +15,7 @@ import (
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/awake"
 	"github.com/stupside/castor/internal/castid"
 	"github.com/stupside/castor/internal/registry"
 	"github.com/stupside/castor/internal/telemetry"
@@ -103,6 +104,7 @@ func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv
 	go func() {
 		defer close(done)
 		defer stop(nil)
+		defer awake.Hold()()
 		ended := s.play(run, c, target, asked)
 		c.now.Update(func(v view) (view, bool) {
 			if v.ended != nil {

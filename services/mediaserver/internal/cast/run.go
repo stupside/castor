@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/awake"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/lend"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -13,6 +14,7 @@ import (
 
 // run finds the source's streams, readies them and casts them on the lent device, then ends with how that went.
 func (c *cast) run(caps media.Capabilities) {
+	defer awake.Hold()()
 	c.end(eventEnd, outcome(c.ctx, c.play(caps)))
 }
 
