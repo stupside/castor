@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"connectrpc.com/connect"
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -107,5 +108,10 @@ func (s *Service) run(ctx context.Context, c *cast, target device.Info, asked *m
 		return nil, ctx.Err()
 	}
 
-	return s.media.Run(ctx, c.id, source, asked, lent, c.mediaInfo, c.start, c.show)
+	controlled := &playback{Device: lent, lifetime: ctx, requests: make(chan *playbackSeek), reload: asked.GetPreserveSource() && lent.Capabilities().GetNativePlaybackTrial()}
+	c.playback.Store(controlled)
+	defer c.playback.Store(nil)
+	return controlled.drive(ctx, c.id, c.start, c.show, func(run context.Context, id string, start time.Duration, player device.Device, show func(*castorv1.CastStatus)) (*castorv1.Ended, error) {
+		return s.media.Run(run, id, source, asked, player, c.mediaInfo, start, show)
+	})
 }

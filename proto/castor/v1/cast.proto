@@ -21,6 +21,10 @@ service CastService {
   rpc Watch(WatchRequest) returns (stream WatchResponse);
   // Stop ends a cast and returns at once.
   rpc Stop(StopRequest) returns (StopResponse);
+  // Playback reads the connected receiver's actual playhead and available controls.
+  rpc Playback(PlaybackRequest) returns (PlaybackResponse);
+  // Control changes the current playback without starting another cast.
+  rpc Control(ControlRequest) returns (ControlResponse);
   // ListCasts is the casts playing now, oldest first.
   rpc ListCasts(ListCastsRequest) returns (ListCastsResponse);
 }
@@ -99,6 +103,9 @@ message Preferences {
   SubtitleSelection subtitles = 3;
   // Ordered audio languages to try before the source's default track; absent takes the server's default.
   AudioSelection audio = 4;
+  // preserve_source forbids re-encoding and switching to a different stream or rendition.
+  // Containers may change, but the selected video and audio must remain original.
+  optional bool preserve_source = 5;
 }
 
 message AudioSelection {
@@ -183,6 +190,7 @@ enum FailureCode {
   FAILURE_CODE_EXTRACTION_FAILED = 3;
   FAILURE_CODE_SERVER_SHUTDOWN = 4;
   FAILURE_CODE_INTERNAL = 5;
+  FAILURE_CODE_NATIVE_INCOMPATIBLE = 6;
 }
 
 message StopRequest {
@@ -190,6 +198,37 @@ message StopRequest {
 }
 
 message StopResponse {}
+
+message PlaybackRequest {
+  string cast_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message PlaybackResponse {
+  PlaybackState playback = 1 [(buf.validate.field).required = true];
+}
+
+message ControlRequest {
+  string cast_id = 1 [(buf.validate.field).string.min_len = 1];
+  oneof action {
+    option (buf.validate.oneof).required = true;
+    google.protobuf.Empty pause = 2;
+    google.protobuf.Empty resume = 3;
+    google.protobuf.Duration seek = 4 [(buf.validate.field).duration.gte = {}];
+  }
+}
+
+message ControlResponse {
+  PlaybackState playback = 1 [(buf.validate.field).required = true];
+}
+
+// PlaybackState contains receiver observations; an absent position is not an invented zero.
+message PlaybackState {
+  google.protobuf.Duration position = 1 [(buf.validate.field).duration.gte = {}];
+  google.protobuf.Duration duration = 2 [(buf.validate.field).duration.gt = {}];
+  bool paused = 3;
+  bool can_pause = 4;
+  bool can_seek = 5;
+}
 
 message ListCastsRequest {}
 

@@ -82,7 +82,7 @@ type Seekable interface {
 // Adapter accepts complete transport envelopes. An unsupported caption request
 // is declined rather than silently discarded.
 type Adapter interface {
-	Select(media.FormatSupport, *Captions) (Plan, bool)
+	Select(media.FormatSupport, *Captions, time.Duration) (Plan, bool)
 }
 
 type Factory []Adapter
@@ -93,8 +93,8 @@ type Selection struct {
 	Capabilities media.Capabilities
 }
 
-func (f Factory) Select(caps media.Capabilities, captions *Captions) (Selection, error) {
-	selections := f.Selections(caps, captions)
+func (f Factory) Select(caps media.Capabilities, captions *Captions, runtime time.Duration) (Selection, error) {
+	selections := f.Selections(caps, captions, runtime)
 	if len(selections) > 0 {
 		return selections[0], nil
 	}
@@ -104,7 +104,7 @@ func (f Factory) Select(caps media.Capabilities, captions *Captions) (Selection,
 // Selections returns adapter-supported envelopes in receiver preference order.
 // The codec planner can then try the next delivery when the host cannot encode
 // for the first one. Each selection retains only tuples for its transport.
-func (f Factory) Selections(caps media.Capabilities, captions *Captions) []Selection {
+func (f Factory) Selections(caps media.Capabilities, captions *Captions, runtime time.Duration) []Selection {
 	var selections []Selection
 	seen := make(map[media.Transport]bool)
 	for _, envelope := range caps.Formats {
@@ -112,7 +112,7 @@ func (f Factory) Selections(caps media.Capabilities, captions *Captions) []Selec
 			continue
 		}
 		for _, adapter := range f {
-			plan, ok := adapter.Select(envelope, captions)
+			plan, ok := adapter.Select(envelope, captions, runtime)
 			if !ok {
 				continue
 			}

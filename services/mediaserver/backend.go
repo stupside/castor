@@ -151,24 +151,26 @@ func announce(s *source.Stream) *source.Stream {
 func (k caster) Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, start time.Duration, turns recovery.Turns) error {
 	maxBitrate := media.Bitrate(k.asked.GetMaxBitrate().GetBitsPerSecond())
 	run := execute.Cast{
-		Machinery:     k.machinery,
-		Timelines:     k.timelines,
-		Transcription: k.transcription,
-		Device:        device,
-		Publisher:     publisher,
-		Captions:      k.captions(k.asked.GetSubtitles()),
-		MaxHeight:     media.HeightCap(k.asked.GetMaxHeight()),
-		MaxBitrate:    maxBitrate,
-		Resolver:      k.resolver,
+		Machinery:      k.machinery,
+		Timelines:      k.timelines,
+		Transcription:  k.transcription,
+		Device:         device,
+		Publisher:      publisher,
+		Captions:       k.captions(k.asked.GetSubtitles()),
+		MaxHeight:      media.HeightCap(k.asked.GetMaxHeight()),
+		PreserveSource: k.asked.GetPreserveSource(),
+		MaxBitrate:     maxBitrate,
+		Resolver:       k.resolver,
 	}
 	// The ranked streams, head first; the rest are what recovery switches to.
 	return recovery.Cast(ctx, recovery.Intent{
-		Candidates: streams,
-		Deadline:   readDeadline,
-		Delivery:   wire.FromDelivery(k.asked.GetDelivery()),
-		Ceiling:    maxBitrate,
-		Start:      start,
-		Turns:      turns,
+		Candidates:     streams,
+		Deadline:       readDeadline,
+		Delivery:       wire.FromDelivery(k.asked.GetDelivery()),
+		Ceiling:        maxBitrate,
+		PreserveSource: k.asked.GetPreserveSource(),
+		Start:          start,
+		Turns:          turns,
 	}, run, k.resolver)
 }
 

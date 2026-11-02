@@ -131,6 +131,8 @@ func failureCode(err error) castorv1.FailureCode {
 	switch {
 	case errors.Is(err, errShutdown):
 		return castorv1.FailureCode_FAILURE_CODE_SERVER_SHUTDOWN
+	case errors.Is(err, media.ErrNativeIncompatible):
+		return castorv1.FailureCode_FAILURE_CODE_NATIVE_INCOMPATIBLE
 	case errors.Is(err, errUndriven), errors.Is(err, lend.ErrLenderLeft):
 		return castorv1.FailureCode_FAILURE_CODE_DEVICE_UNREACHABLE
 	}

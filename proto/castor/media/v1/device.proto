@@ -61,6 +61,10 @@ message Capabilities {
   reserved "served_headers";
   // self_fetch is whether the device fetches a stream URL itself, rather than only playing what it is served.
   bool self_fetch = 5;
+  // A preserve_source cast may try measured original tracks in an admitted
+  // transport when model/firmware codec support is unknown. The receiver's
+  // playback verdict decides compatibility; this never permits conversion.
+  bool native_playback_trial = 6;
 }
 
 message FormatSupport {

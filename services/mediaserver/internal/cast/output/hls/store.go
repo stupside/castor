@@ -16,6 +16,8 @@ type segmentStore struct {
 	captions *captionDelivery
 }
 
+func (s *segmentStore) rootPlaylist() string { return filepath.Base(s.playlist) }
+
 func openSegmentStore(dir, playlist string) (*segmentStore, error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {

@@ -11,6 +11,9 @@ type Capabilities struct {
 	Provenance   string
 	SelfFetch    bool
 	Deinterlaces bool
+	// NativePlaybackTrial leaves unverified decoder limits to the receiver's playback verdict.
+	// It applies only to original-track delivery, never to encoding or direct-handoff eligibility.
+	NativePlaybackTrial bool
 }
 
 // Served is the headers a response serving contentType carries, from the first format that serves it.

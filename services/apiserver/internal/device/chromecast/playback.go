@@ -49,6 +49,19 @@ func (s *session) watchMessage(payload []byte) {
 	}
 	s.watchMu.Lock()
 	over, playErr := playbackOutcome(&s.watch, &response)
+	var controls struct {
+		Status []struct {
+			MediaSessionID int     `json:"mediaSessionId"`
+			Commands       *uint64 `json:"supportedMediaCommands"`
+		} `json:"status"`
+	}
+	if response.Type == msgMediaStatus && json.Unmarshal(payload, &controls) == nil {
+		for _, status := range controls.Status {
+			if status.MediaSessionID == s.watch.mediaSession && status.Commands != nil {
+				s.watch.commands = *status.Commands
+			}
+		}
+	}
 	if over {
 		e := s.ending
 		e.once.Do(func() {
@@ -65,6 +78,7 @@ type playback struct {
 	content      string
 	mediaSession int
 	active       bool
+	commands     uint64
 }
 
 func (w *playback) begin(content string) {
@@ -72,6 +86,7 @@ func (w *playback) begin(content string) {
 	w.content = content
 	w.mediaSession = 0
 	w.active = false
+	w.commands = 0
 }
 
 func (w *playback) disarm() {
@@ -79,6 +94,7 @@ func (w *playback) disarm() {
 	w.content = ""
 	w.mediaSession = 0
 	w.active = false
+	w.commands = 0
 }
 
 func (w *playback) observe(status castmedia.Media) (bool, error) {

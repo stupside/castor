@@ -51,6 +51,8 @@ message PlaybackSettings {
       expression: "this.bits_per_second <= 1000000000000"
     }
   ];
+  // preserve_source forbids re-encoding and automatic changes of stream or rendition.
+  bool preserve_source = 6;
 }
 
 message StartResponse {}

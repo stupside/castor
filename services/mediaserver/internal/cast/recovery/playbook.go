@@ -51,6 +51,9 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 	pos := f.resumeAt()
 	facts := change{intent: in, attempt: f.attempt, outcome: o, resolver: resolver}
 	for _, s := range playbook[f.kind] {
+		if in.PreserveSource && s.action != RelaxRead && s.action != ServeInstead && s.action != Stay {
+			continue
+		}
 		next, ok := s.apply(ctx, facts)
 		if !ok {
 			continue

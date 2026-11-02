@@ -149,7 +149,6 @@ func TestARefusedRangeReplaysFromByteZero(t *testing.T) {
 		{"a delivery declaring Accept-Ranges: none", func(t *testing.T) *testStream {
 			return spooled(t, testOpening{Headers: map[string]string{"Accept-Ranges": "none"}}, body)
 		}},
-		{"a producer still running", func(t *testing.T) *testStream { return producing(t, body) }},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -180,7 +179,7 @@ func TestAClientThatStopsReadingIsHeldUntilItReadsAgain(t *testing.T) {
 	})
 }
 
-// A spool another writes is replayed from byte 0, resumed once its writer is done, and let go of without waiting for that writer.
+// A borrowed spool resumes from retained offsets while growing and is let go of without waiting for its writer.
 func TestASpoolAnotherWritesIsServedWithoutBeingOwned(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		body := payload(1 << 20)
@@ -207,8 +206,12 @@ func TestASpoolAnotherWritesIsServedWithoutBeingOwned(t *testing.T) {
 		if got := read(t, whole, half); !bytes.Equal(got, body[:half]) {
 			t.Error("a client of a spool still being written was not served it from byte 0")
 		}
-		if resp := get(t, srv, fmt.Sprintf("bytes=%d-", half)); resp.StatusCode != http.StatusOK {
-			t.Errorf("a range asked while the writer runs answered %d, want the 200 replay", resp.StatusCode)
+		resp := get(t, srv, fmt.Sprintf("bytes=%d-", half/2))
+		if resp.StatusCode != http.StatusPartialContent {
+			t.Errorf("a retained range asked while the writer runs answered %d, want 206", resp.StatusCode)
+		}
+		if got, err := io.ReadAll(resp.Body); err != nil || !bytes.Equal(got, body[half/2:half]) {
+			t.Errorf("growing borrowed spool returned %d bytes (%v), want its retained suffix", len(got), err)
 		}
 
 		if _, err := sp.Write(body[half:]); err != nil {

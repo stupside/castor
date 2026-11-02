@@ -2,6 +2,7 @@ package cast
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -20,8 +21,9 @@ type cast struct {
 	start     time.Duration
 	started   time.Time
 	// stop ends the cast; its cause is why, errStopped when asked.
-	stop context.CancelCauseFunc
-	now  *latest.Value[view]
+	stop     context.CancelCauseFunc
+	now      *latest.Value[view]
+	playback atomic.Pointer[playback]
 }
 
 // view is a cast at one moment.

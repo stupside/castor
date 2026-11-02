@@ -29,6 +29,8 @@ type Intent struct {
 
 	// Ceiling is the most the device may be asked to take, zero for none; it bounds the rung a link is read at.
 	Ceiling media.Bitrate
+	// PreserveSource keeps retries on the same source without decoding its tracks.
+	PreserveSource bool
 
 	// Turns hears each attempt and revision.
 	Turns Turns

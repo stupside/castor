@@ -57,6 +57,8 @@ type Cast struct {
 
 	// MaxHeight is the tallest picture the cast may show.
 	MaxHeight media.HeightCap
+	// PreserveSource forbids all video/audio conversions and automatic rendition changes.
+	PreserveSource bool
 
 	// Resolver reads the other rungs of a source, which a cast moves between while it plays; nil keeps it on its first.
 	Resolver recovery.SourceResolver

@@ -21,25 +21,26 @@ import (
 // scope. It cannot command the device or transition the attempt state machine.
 type preparation struct {
 	Machinery
-	Publisher    output.Publisher
-	Timelines    Timelines
-	Captions     *Captions
-	MaxHeight    media.HeightCap
-	MaxBitrate   media.Bitrate
-	Resolver     recovery.SourceResolver
-	capabilities media.Capabilities
-	ctx          context.Context
-	attempt      recovery.Attempt
-	releases     *releases
-	failures     chan<- error
-	subtitles    Subtitles
+	Publisher      output.Publisher
+	Timelines      Timelines
+	Captions       *Captions
+	MaxHeight      media.HeightCap
+	PreserveSource bool
+	MaxBitrate     media.Bitrate
+	Resolver       recovery.SourceResolver
+	capabilities   media.Capabilities
+	ctx            context.Context
+	attempt        recovery.Attempt
+	releases       *releases
+	failures       chan<- error
+	subtitles      Subtitles
 	// caption is the source caption fetched once, nil where none can be shown.
 	caption *fetchedCaption
 }
 
 func newPreparation(ctx context.Context, c Cast, a recovery.Attempt, releases *releases, failures chan<- error) *preparation {
 	p := &preparation{Machinery: c.Machinery, Publisher: c.Publisher, Timelines: c.Timelines,
-		Captions: c.Captions, MaxHeight: c.MaxHeight, MaxBitrate: c.MaxBitrate, Resolver: c.Resolver, ctx: ctx, attempt: a, releases: releases, failures: failures}
+		Captions: c.Captions, MaxHeight: c.MaxHeight, PreserveSource: c.PreserveSource, MaxBitrate: c.MaxBitrate, Resolver: c.Resolver, ctx: ctx, attempt: a, releases: releases, failures: failures}
 	if c.Device != nil {
 		p.capabilities = c.Device.Capabilities()
 	}
@@ -84,6 +85,9 @@ func (s *preparation) inspectPresentation() (p inspectedPresentation, err error)
 		return p, err
 	}
 	s.caption = s.fetchCaption()
+	if s.PreserveSource && s.transcribing() {
+		return p, fmt.Errorf("%w: generated subtitles require conversion", media.ErrNativeIncompatible)
+	}
 	if err := s.ctx.Err(); err != nil {
 		return p, err
 	}
