@@ -1,7 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { DeviceType, type TargetSchema } from "@/gen/castor/v1/device_pb";
 
-const pinnedTypes: readonly DeviceType[] = [DeviceType.DLNA, DeviceType.CHROMECAST, DeviceType.ROKU];
+const pinnedTypes: readonly DeviceType[] = [DeviceType.DLNA, DeviceType.CHROMECAST, DeviceType.ROKU, DeviceType.FCAST];
 
 export function target(f: FormData): MessageInitShape<typeof TargetSchema> {
   if (f.get("targetKind") === "pinned") {

@@ -126,6 +126,10 @@ func TestCanonicalEndpoints(t *testing.T) {
 			t.Errorf("aliases differ: %v", pair)
 		}
 	}
+	// A receiver pinned by its host and found announcing its default port is one receiver.
+	if endpoint(Info{Type: "fcast", Address: "10.0.0.1"}) != endpoint(Info{Type: "fcast", Address: "10.0.0.1:46899"}) {
+		t.Error("an FCast receiver pinned without its port escapes the lease of the same receiver discovered")
+	}
 }
 
 type closingDevice struct {

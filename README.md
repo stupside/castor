@@ -74,7 +74,7 @@ Give castor a page that plays a video: it finds the stream, converts what your T
    ```yaml
    device:
      name: "Living Room TV"
-     type: dlna   # dlna, chromecast, or roku
+     type: dlna   # dlna, chromecast, roku, or fcast
    ```
 
 3. Cast a page, or a direct stream or video file:
@@ -169,6 +169,7 @@ Keep secrets, like your TMDB key, in a git-ignored `config.local.yaml` next to t
 | DLNA / UPnP | Main target | Samsung Q70 and Q80 ([#15](https://github.com/stupside/castor/issues/15)), Philips 50PUD6654 ([#23](https://github.com/stupside/castor/pull/23)) |
 | Chromecast | Experimental | Xiaomi TV Box ([#5](https://github.com/stupside/castor/issues/5)), LG C2 in Chromecast mode, from the Android client ([#68](https://github.com/stupside/castor/pull/68)) |
 | Roku | Experimental | Not tested on hardware yet |
+| FCast | Experimental | Not tested on hardware yet |
 
 Also reported working, without saying which protocol:
 
@@ -183,6 +184,14 @@ Cast to another TV? Tell us how it went in the [What device do you cast to?](htt
 1. Enable Developer Mode: on the remote, press <kbd>Home</kbd> three times, <kbd>Up</kbd> twice, then <kbd>Right</kbd> <kbd>Left</kbd> <kbd>Right</kbd> <kbd>Left</kbd> <kbd>Right</kbd>, and set a web server password.
 2. Put that password in `servers.api.devices.roku.password` in `config.local.yaml`.
 3. Cast: castor installs its channel the first time.
+
+</details>
+
+<details>
+
+<summary>Casting to an FCast receiver</summary>
+
+Castor speaks FCast protocol v3, which the Android receiver and the desktop receiver both accept. v3 has no subtitle tracks, so castor burns subtitles into the picture.
 
 </details>
 
@@ -273,10 +282,10 @@ Built something on castor? Open a pull request to add it here.
 | Port | Direction | Used for |
 | --- | --- | --- |
 | UDP 1900 | Discovery | Finding DLNA TVs and Rokus (SSDP) |
-| UDP 5353 | Discovery | Finding Chromecasts (mDNS) |
+| UDP 5353 | Discovery | Finding Chromecasts and FCast receivers (mDNS) |
 | A random LAN port, or TCP 8410 | TV to castor | The TV fetching the video from the embedded media server, or from a standalone one |
 | TCP 8411, 8412 | Clients to castor | A standalone API server and scraping server |
-| TCP 8009, 8060 | Castor to TV | Controlling a Chromecast, or a Roku (port 80 to install the channel) |
+| TCP 8009, 8060, 46899 | Castor to TV | Controlling a Chromecast, a Roku (port 80 to install the channel), or an FCast receiver |
 
 A DLNA TV is controlled on whatever port it advertises.
 

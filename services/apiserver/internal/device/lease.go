@@ -59,7 +59,7 @@ func newLease(dir *Directory) *lease {
 
 func endpoint(info Info) string {
 	address := info.Address
-	port := map[Type]string{"chromecast": "8009", "roku": "8060", "dlna": "80"}[info.Type]
+	port := map[Type]string{"chromecast": "8009", "roku": "8060", "dlna": "80", "fcast": "46899"}[info.Type]
 	if u, err := url.Parse(address); err == nil && u.Host != "" {
 		address = u.Host
 		if u.Scheme == "https" {
