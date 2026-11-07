@@ -162,7 +162,9 @@ type operation struct {
 // cleanup. Only its event loop changes state; preparation registers resources
 // before handing them back. Operations retain results through cancellation.
 type coordinator struct {
-	device     Device
+	device Device
+	// retire is called once software played what a failed hardware encoder could not; nil otherwise.
+	retire     func()
 	maxBitrate media.Bitrate
 	climb      time.Duration
 	inspect    func() (inspectedPresentation, error)
@@ -203,6 +205,9 @@ func newCoordinator(parent context.Context, c Cast, a recovery.Attempt) *coordin
 	s := &coordinator{
 		device: c.Device, maxBitrate: c.MaxBitrate, climb: a.Climb, ctx: ctx, stop: cancel, releases: rel,
 		events: make(chan *operation), failures: make(chan error),
+	}
+	if a.SoftwareVideo && a.FailedEncoder != "" && c.RetireEncoder != nil {
+		s.retire = func() { c.RetireEncoder(a.FailedEncoder) }
 	}
 
 	s.machine = s.attemptMachine()
@@ -331,6 +336,10 @@ func (c *coordinator) loop() {
 			case presentationReady:
 				c.startPlayback()
 			case playbackStarted:
+				if c.retire != nil {
+					// Software played what the hardware could not: the hardware was the fault.
+					c.retire()
+				}
 				c.observePlayback()
 			case deliverySettled:
 				c.drain()

@@ -114,6 +114,34 @@ func TestARateCeilingForcesAnEncodeOnlyWhereACopyIsNotProvenUnderIt(t *testing.T
 	}
 }
 
+func TestTheEncoderIsToldTheRateFramesReachItAt(t *testing.T) {
+	h264 := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
+	for _, tt := range []struct {
+		name          string
+		source, limit float64
+		ceiling       media.Bitrate
+		want          float64
+	}{
+		{name: "a film keeps its own rate", source: 24000.0 / 1001, want: 24000.0 / 1001},
+		{name: "a rate above the cap is dropped to the cap", source: 120, want: 60},
+		{name: "an unmeasured rate counts as reaching the cap", want: 60},
+		{name: "a thin ceiling lowers the cap below the source", source: 60, ceiling: 1_000_000, want: 30},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sdr := media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 2160, VideoBitDepth: 8, VideoFrameRate: tt.source}
+			in := Inputs{Caps: h264, Probe: sdr, Into: testFormat(t, media.MPEGTS), MaxHeight: 1080, MaxBitrate: tt.ceiling, Rate: 6_500_000, Encoders: hostEncoders}
+			track, _, err := decideVideo(t.Context(), in, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			enc, _ := track.Encode()
+			if enc.FrameRate != tt.want || enc.FrameRate > enc.MaxFrameRate {
+				t.Fatalf("FrameRate = %v under MaxFrameRate %v, want %v", enc.FrameRate, enc.MaxFrameRate, tt.want)
+			}
+		})
+	}
+}
+
 func TestAnEncodeUnderARateCeilingWeighsLessThanItsCeilingLessTheSound(t *testing.T) {
 	h264 := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
 	sdr := media.ProbeInfo{VideoCodec: media.CodecH264, VideoHeight: 720, VideoBitDepth: 8}

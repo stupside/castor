@@ -104,6 +104,7 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 		Deinterlace:         in.Probe.VideoInterlaced && !in.Caps.Deinterlaces,
 		ToneMap:             in.Probe.VideoHDR,
 		MaxFrameRate:        frameRate,
+		FrameRate:           encodedRate(in.Probe.VideoFrameRate, frameRate),
 		Bitrate:             bitrate,
 		Maxrate:             maxrate,
 		Bufsize:             bufsize,

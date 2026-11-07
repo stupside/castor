@@ -82,6 +82,8 @@ func recoveryAction(action recovery.Action) castorv1.RecoveryAction {
 		return castorv1.RecoveryAction_RECOVERY_ACTION_SERVE_INSTEAD
 	case recovery.Stay:
 		return castorv1.RecoveryAction_RECOVERY_ACTION_STAY
+	case recovery.SoftwareEncode:
+		return castorv1.RecoveryAction_RECOVERY_ACTION_SOFTWARE_ENCODE
 	default:
 		panic(fmt.Sprintf("unknown recovery action %q", action))
 	}

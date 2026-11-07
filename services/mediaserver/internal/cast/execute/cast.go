@@ -29,6 +29,10 @@ type Machinery struct {
 
 	// Encoders is the host's encoder lookup, bound to that binary.
 	Encoders codec.Encoders
+	// Software is the lookup an attempt encodes with once a hardware encoder failed it; nil leaves Encoders.
+	Software codec.Encoders
+	// RetireEncoder stops offering an encoder a software retry proved at fault; nil keeps it.
+	RetireEncoder func(name string)
 
 	// Probes measures what an attempt reads: its source program, or its local buffer.
 	Probes probe.FFprobe

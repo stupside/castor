@@ -17,6 +17,8 @@ type Config struct {
 type FFmpegConfig struct {
 	Path      string `yaml:"path" validate:"required"`
 	ProbePath string `yaml:"probe_path" validate:"required"`
+	// HardwareEncoders are encoders only this platform's ffmpeg build offers, tried before the ones castor probes everywhere.
+	HardwareEncoders []string `yaml:"hardware_encoders" validate:"dive,oneof=h264_mediacodec hevc_mediacodec"`
 }
 
 // ResolverConfig is how found streams are ranked.

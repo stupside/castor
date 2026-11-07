@@ -32,6 +32,8 @@ const (
 	deviceRefused
 	// producedNothing is a delivery that ended without an artifact to fetch.
 	producedNothing
+	// hardwareFailed is a hardware video encoder whose output never validated.
+	hardwareFailed
 	// outranked is a cast that played well on a link another outranks.
 	outranked
 )
@@ -58,6 +60,8 @@ func (k kind) String() string {
 		return "device-refused"
 	case producedNothing:
 		return "produced-nothing"
+	case hardwareFailed:
+		return "hardware-failed"
 	case outranked:
 		return "outranked"
 	default:
@@ -116,6 +120,11 @@ var classes = []classRule{{
 		return e.PlayErr != nil || e.Undelivered != nil || e.Verdict == health.Unfetched
 	},
 	kind: deviceRefused,
+}, {
+	// Ahead of blaming the delivery: the same failure in software is a different fault.
+	why:  "the hardware encoder failed before its first output",
+	when: func(e Evidence) bool { return e.HardwareEncoder != "" },
+	kind: hardwareFailed,
 }, {
 	// Container refuses tracks at header-write time or reader's every segment answered 404; or it fell silent over a buffer already proven.
 	why: "the delivery produced nothing",

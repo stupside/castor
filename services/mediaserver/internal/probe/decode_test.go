@@ -205,6 +205,30 @@ func TestTheProbeReadsWhatDecidesWhetherAPictureCanBeCopied(t *testing.T) {
 	}
 }
 
+func TestTheProbeReadsThePicturesFrameRate(t *testing.T) {
+	for _, tt := range []struct {
+		avg, real string
+		want      float64
+	}{
+		{"24000/1001", "24000/1001", 24000.0 / 1001},
+		{"0/0", "25/1", 25},
+		{"", "", 0},
+		{"30/0", "garbage", 0},
+	} {
+		stream := `{"codec_type":"video","codec_name":"h264","width":1920,"height":1080,"avg_frame_rate":"` + tt.avg + `","r_frame_rate":"` + tt.real + `"}`
+		info, err := decode(probeJSON(vodFormat, stream), 0, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.VideoFrameRate != tt.want {
+			t.Errorf("avg %q r %q: VideoFrameRate = %v, want %v", tt.avg, tt.real, info.VideoFrameRate, tt.want)
+		}
+		if carried := (media.ProbeInfo{}).TakeVideo(info); carried.VideoFrameRate != info.VideoFrameRate {
+			t.Error("TakeVideo lost the frame rate")
+		}
+	}
+}
+
 func TestAHighBitDepthPictureCannotBeCopiedAsEightBit(t *testing.T) {
 	device := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
 	for _, format := range []string{"yuv444p9le", "yuv444p14le", "yuv444p16le"} {

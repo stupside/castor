@@ -41,13 +41,17 @@ const (
 // backend is the machinery the media server casts with, bound to c.
 func (c *Config) backend() func(*mediav1.PlaybackSettings) cast.Caster {
 	ffmpegBinary, ffprobeBinary := c.Servers.Media.FFmpeg.Path, c.Servers.Media.FFmpeg.ProbePath
+	// The configuration was validated against the same names the catalog knows.
+	encoders, _ := ffmpeg.NewCatalog(ffmpegBinary, c.Servers.Media.FFmpeg.HardwareEncoders)
 	machinery := execute.Machinery{
-		Outputs:    output.Factory{progressive.Adapter{}, hlsoutput.Adapter{}},
-		FFmpegPath: ffmpegBinary,
-		Binary:     ffmpeg.Inspect(ffmpegBinary),
-		Encoders:   ffmpeg.Encoders(ffmpegBinary),
-		Probes:     probe.FFprobe(ffprobeBinary),
-		InputArgs:  formats.InputArgs,
+		Outputs:       output.Factory{progressive.Adapter{}, hlsoutput.Adapter{}},
+		FFmpegPath:    ffmpegBinary,
+		Binary:        ffmpeg.Inspect(ffmpegBinary),
+		Encoders:      encoders.Best,
+		Software:      encoders.Software,
+		RetireEncoder: encoders.Retire,
+		Probes:        probe.FFprobe(ffprobeBinary),
+		InputArgs:     formats.InputArgs,
 	}
 	resolverConfig, whisperConfig := c.Servers.Media.Resolver.Config, c.Servers.Media.Whisper
 	return func(asked *mediav1.PlaybackSettings) cast.Caster {

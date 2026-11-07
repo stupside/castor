@@ -126,6 +126,12 @@ A DLNA TV can seek when castor serves it a single MPEG-TS stream, from a source 
 - Sound already sent is not sent again.
 - Only MPEG-TS streams can be cut this way.
 
+### Hardware encoders
+
+- Castor proves each encoder with a short test encode and prefers hardware. A platform can declare encoders only its own ffmpeg build offers (`servers.media.ffmpeg.hardware_encoders`), which are tried first; nothing changes where none are declared.
+- MediaCodec encoders run at an average bitrate: they honor neither `-maxrate`/`-bufsize` nor `-crf`, so the ceiling the pacer relies on is an average there, not a VBV bound. They ignore forced keyframes, so castor gives them a GOP of two seconds at the rate frames reach them, which needs the source's measured frame rate (30 is assumed when unknown).
+- A hardware encode whose output never validates (the encoder fails to start, dies before its first output, or produces what the receiver cannot take) is retried in software from the same place before the TV is handed anything (`SOFTWARE_ENCODE`). Once that software attempt plays, the hardware encoder is retired until castor restarts. A hardware encoder that dies after playback began is recovered like any other failed delivery.
+
 ### Recovering, and climbing back
 
 - **A link fails:** castor tries the cheapest fix first (a slower read, another decoder, serving instead of a direct fetch) and the next link last, resuming where the viewer was.

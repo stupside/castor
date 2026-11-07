@@ -31,6 +31,9 @@ var playbook = map[kind][]strategy{
 	// The delivery lost the artifact, not the reader, so decoding would answer nothing.
 	producedNothing: {switchCandidate},
 
+	// The same picture in software; a link that fails there too is the problem.
+	hardwareFailed: {softwareEncode, switchCandidate},
+
 	// A cast that played well is moved back toward the link that outranks it, and resumes where it was when none can be read.
 	outranked: {climb, stay},
 }

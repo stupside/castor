@@ -65,6 +65,11 @@ type Attempt struct {
 	// Delivery is carried per attempt because recovery may change it.
 	Delivery compose.DeliveryPreference
 
+	// SoftwareVideo encodes the picture without hardware, after FailedEncoder produced nothing that validated.
+	SoftwareVideo bool
+	// FailedEncoder is retired for good once this attempt plays, which proves the hardware was the fault.
+	FailedEncoder string
+
 	// Climb is how long the attempt plays well before a better link is tried, zero for never.
 	Climb time.Duration
 }
@@ -79,6 +84,7 @@ type identity struct {
 	fetch     string
 	delivery  compose.DeliveryPreference
 	decode    media.Axes
+	software  bool
 }
 
 // identify reads unset fields as their defaults.
@@ -92,6 +98,7 @@ func (a Attempt) identify() identity {
 		fetch:     fmt.Sprint(a.Fetch),
 		delivery:  cmp.Or(a.Delivery, compose.DeliveryAuto),
 		decode:    a.Decode,
+		software:  a.SoftwareVideo,
 	}
 }
 

@@ -2,6 +2,7 @@ package execute
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/compose"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
@@ -148,19 +150,45 @@ func (s *preparation) producePresentation(planned plannedPresentation) (presenta
 	}
 	d, err := s.produce(planned.work, p.feed, planned.options, planned.burn)
 	if err != nil {
-		return p, err
+		return p, blameHardware(planned.options, err)
 	}
 	p.delivery = &d
 	p.reached.reached = health.Opening
 	if err := awaitArtifact(s.ctx, d); err != nil {
-		return p, err
+		return p, blameHardware(planned.options, err)
 	}
 	if err := s.validateOutput(d, planned.options, p.feed); err != nil {
-		return p, err
+		return p, blameHardware(planned.options, err)
 	}
 	p.target, p.contentType = d.URL(), planned.options.Format.ContentType
 	p.readiness = outputValidated
 	return p, nil
+}
+
+// encoders is the lookup this attempt plans with: software only once a hardware encoder failed it.
+func (s *preparation) encoders() codec.Encoders {
+	if s.attempt.SoftwareVideo && s.Software != nil {
+		return s.Software
+	}
+	return s.Encoders
+}
+
+// hardwareFailed is a delivery a hardware video encoder never made valid, which software may still make.
+type hardwareFailed struct {
+	encoder string
+	err     error
+}
+
+func (e *hardwareFailed) Error() string { return fmt.Sprintf("%s: %v", e.encoder, e.err) }
+func (e *hardwareFailed) Unwrap() error { return e.err }
+
+// blameHardware names the hardware video encoder a delivery failed under; cancellation blames nothing.
+func blameHardware(opts encodePlan, err error) error {
+	venc, ok := opts.Video.Encode()
+	if !ok || !venc.Encoder.Hardware || errors.Is(err, context.Canceled) {
+		return err
+	}
+	return &hardwareFailed{encoder: venc.Encoder.Name, err: err}
 }
 
 // prepare is the work directory and the program with its followed timelines, which a cast castor serves starts from.

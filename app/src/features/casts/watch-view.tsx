@@ -24,6 +24,7 @@ const recoveryActions: Record<RecoveryAction, string> = {
   [RecoveryAction.RELAX_READ]: "relax read",
   [RecoveryAction.SERVE_INSTEAD]: "serve instead",
   [RecoveryAction.STAY]: "stay",
+  [RecoveryAction.SOFTWARE_ENCODE]: "software encode",
 };
 
 export function WatchView({ castId }: { castId: string }) {

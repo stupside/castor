@@ -26,6 +26,7 @@ const (
 	RelaxRead       Action = "relax-read"
 	ServeInstead    Action = "serve-instead"
 	Stay            Action = "stay"
+	SoftwareEncode  Action = "software-encode"
 )
 
 // strategy is one recovery action, applying only where the facts allow it.
@@ -92,6 +93,20 @@ var decodeAxis = strategy{
 			return a, false
 		}
 		a.Decode = next
+		return a, true
+	},
+}
+
+// softwareEncode encodes the picture again without hardware, once, naming the encoder that failed.
+var softwareEncode = strategy{
+	action: SoftwareEncode,
+	apply: func(_ context.Context, c change) (Attempt, bool) {
+		a := c.attempt
+		failed := c.outcome.Evidence.HardwareEncoder
+		if a.SoftwareVideo || failed == "" {
+			return a, false
+		}
+		a.SoftwareVideo, a.FailedEncoder = true, failed
 		return a, true
 	},
 }

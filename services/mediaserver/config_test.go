@@ -4,17 +4,60 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/urfave/cli/v3"
 
 	"github.com/stupside/castor/internal/settings"
+	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 )
 
 func TestDesktopToolPathsStillUseInstalledNames(t *testing.T) {
 	want := FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe"}
-	if got := defaults().Servers.Media.FFmpeg; got != want {
+	if got := defaults().Servers.Media.FFmpeg; !reflect.DeepEqual(got, want) {
 		t.Fatalf("default tool paths = %#v, want %#v", got, want)
+	}
+}
+
+func TestHardwareEncodersAreDeclaredByThePlatformOnly(t *testing.T) {
+	if got := defaults().Servers.Media.FFmpeg.HardwareEncoders; len(got) != 0 {
+		t.Fatalf("a host declares no hardware encoders by default, got %v", got)
+	}
+	load := func(declared string) (*Config, error) {
+		t.Setenv("CASTOR_SERVERS__MEDIA__FFMPEG__HARDWARE_ENCODERS", declared)
+		var cfg *Config
+		var loadErr error
+		cmd := &cli.Command{Flags: []cli.Flag{settings.Flag}, Action: func(_ context.Context, cmd *cli.Command) error {
+			cfg, loadErr = settings.Load(cmd, defaults())
+			return nil
+		}}
+		if err := cmd.Run(t.Context(), []string{"media"}); err != nil {
+			t.Fatal(err)
+		}
+		return cfg, loadErr
+	}
+	cfg, err := load("hevc_mediacodec,h264_mediacodec")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Servers.Media.FFmpeg.HardwareEncoders; !slices.Equal(got, []string{"hevc_mediacodec", "h264_mediacodec"}) {
+		t.Fatalf("declared encoders = %v", got)
+	}
+	if _, err := load("h264_imaginary"); err == nil {
+		t.Fatal("an encoder castor does not know must fail at startup, not be ignored")
+	}
+}
+
+func TestEveryDeclarableEncoderCanBeConfigured(t *testing.T) {
+	field, _ := reflect.TypeFor[FFmpegConfig]().FieldByName("HardwareEncoders")
+	_, names, _ := strings.Cut(field.Tag.Get("validate"), "oneof=")
+	got := strings.Fields(names)
+	slices.Sort(got)
+	if want := ffmpeg.Declarable(); !slices.Equal(got, want) {
+		t.Fatalf("the configuration admits %v, the encoder catalog knows %v", got, want)
 	}
 }
 
@@ -28,7 +71,7 @@ func TestConfiguredToolPaths(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Servers.Media.FFmpeg != want {
+		if !reflect.DeepEqual(got.Servers.Media.FFmpeg, want) {
 			t.Fatalf("tool paths = %#v, want %#v", got.Servers.Media.FFmpeg, want)
 		}
 		return nil
