@@ -103,8 +103,8 @@ message Preferences {
   SubtitleSelection subtitles = 3;
   // Ordered audio languages to try before the source's default track; absent takes the server's default.
   AudioSelection audio = 4;
-  // preserve_source forbids re-encoding and switching to a different stream or rendition.
-  // Containers may change, but the selected video and audio must remain original.
+  // preserve_source keeps the selected video and audio original, allowing container changes.
+  // Live sources that cannot be preserved may be optimized automatically; finite sources stay strict.
   optional bool preserve_source = 5;
 }
 
@@ -163,6 +163,19 @@ message CastingStatus {
   uint32 castable = 2;
   uint32 attempt = 3 [(buf.validate.field).uint32.gte = 1];
   Revision revision = 4;
+  // True once native planning required conversion of this live cast; preferences remain unchanged.
+  bool optimized_live = 5;
+  // handover is what the playing attempt handed the device, absent until the device took it.
+  Handover handover = 6;
+}
+
+message Handover {
+  Fidelity fidelity = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // dolby_vision is a source declaring Dolby Vision, which only an original file is sure to keep signaled.
+  bool dolby_vision = 2;
 }
 
 message Ended {

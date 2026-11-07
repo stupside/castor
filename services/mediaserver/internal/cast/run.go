@@ -9,6 +9,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/lend"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
+	"github.com/stupside/castor/services/mediaserver/internal/wire"
 )
 
 // run finds the source's streams, readies them and casts them on the lent device, then ends with how that went.
@@ -65,13 +66,23 @@ func (c *cast) Attempting(try int) {
 // Revising shows the action the cast is revising its attempt with, and why.
 func (c *cast) Revising(action recovery.Action, why string) {
 	c.fire(eventRevise, func(next *view) {
+		if action == recovery.OptimizeLive {
+			next.status.GetCasting().OptimizedLive = true
+		}
 		next.status.GetCasting().Revision = &castorv1.Revision{Action: recoveryAction(action), Why: why}
 	})
+}
+
+// Delivering shows how much of the source the playing attempt handed the device.
+func (c *cast) Delivering(d media.Delivery) {
+	c.fire(eventDeliver, func(next *view) { next.status.GetCasting().Handover = wire.Handover(d) })
 }
 
 // recoveryAction translates the engine's actions at the contract edge.
 func recoveryAction(action recovery.Action) castorv1.RecoveryAction {
 	switch action {
+	case recovery.OptimizeLive:
+		return castorv1.RecoveryAction_RECOVERY_ACTION_OPTIMIZE_LIVE
 	case recovery.SwitchCandidate:
 		return castorv1.RecoveryAction_RECOVERY_ACTION_SWITCH_CANDIDATE
 	case recovery.DecodeAxis:

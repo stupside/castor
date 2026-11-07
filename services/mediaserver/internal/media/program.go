@@ -227,17 +227,29 @@ func (p Program) PrimaryInput() (Input, bool) {
 
 // SelfFetchable reports whether one URL is sufficient for a device to fetch the complete program; a device handed one would play it from the start.
 func (p Program) SelfFetchable() bool {
-	if len(p.Inputs) != 1 || p.Start != 0 {
-		return false
-	}
-	if p.NeedsTrackSelection {
-		return false
-	}
-	if slices.ContainsFunc(p.Tracks, func(track TrackRef) bool { return track.Index != 0 }) {
+	if !p.whole() {
 		return false
 	}
 	input := p.Inputs[0]
 	return len(input.Headers) == 0 && !input.RequiresRelaxedInput
+}
+
+// Forwardable reports whether castor can forward the program's one finished file byte for byte, its headers and all, for the device to seek within.
+func (p Program) Forwardable() bool {
+	if !p.whole() {
+		return false
+	}
+	input := p.Inputs[0]
+	fetch := input.Fetching()
+	return !input.RequiresRelaxedInput && !fetch.Segmented && !fetch.Live
+}
+
+// whole is one input played from its start on its default tracks.
+func (p Program) whole() bool {
+	if len(p.Inputs) != 1 || p.Start != 0 || p.NeedsTrackSelection {
+		return false
+	}
+	return !slices.ContainsFunc(p.Tracks, func(track TrackRef) bool { return track.Index != 0 })
 }
 
 // Clone returns a deep enough copy for independent planning (URL, header, offset copies).

@@ -29,7 +29,7 @@ type Intent struct {
 
 	// Ceiling is the most the device may be asked to take, zero for none; it bounds the rung a link is read at.
 	Ceiling media.Bitrate
-	// PreserveSource keeps retries on the same source without decoding its tracks.
+	// PreserveSource keeps retries on the same source. A live source may be optimized if native planning refuses it.
 	PreserveSource bool
 
 	// Turns hears each attempt and revision.
@@ -63,6 +63,8 @@ type Attempt struct {
 
 	// Decode only ever gains axes, so recovery strictly descends.
 	Decode media.Axes
+	// OptimizedLive permits conversion of the selected live source after native planning refused it.
+	OptimizedLive bool
 
 	// Delivery is carried per attempt because recovery may change it.
 	Delivery compose.DeliveryPreference
@@ -73,27 +75,29 @@ type Attempt struct {
 
 // identity is exactly the fields a strategy can change, which is the ledger's key; Try is left out.
 type identity struct {
-	candidate int
-	program   string
-	start     time.Duration
-	bitrate   media.Bitrate
-	height    int
-	fetch     string
-	delivery  compose.DeliveryPreference
-	decode    media.Axes
+	candidate     int
+	program       string
+	start         time.Duration
+	bitrate       media.Bitrate
+	height        int
+	fetch         string
+	delivery      compose.DeliveryPreference
+	decode        media.Axes
+	optimizedLive bool
 }
 
 // identify reads unset fields as their defaults.
 func (a Attempt) identify() identity {
 	return identity{
-		candidate: a.candidate,
-		program:   programIdentity(a.Program),
-		start:     a.Program.Start,
-		bitrate:   a.Rendition.Bitrate,
-		height:    a.Rendition.Height,
-		fetch:     fmt.Sprint(a.Fetch),
-		delivery:  cmp.Or(a.Delivery, compose.DeliveryAuto),
-		decode:    a.Decode,
+		candidate:     a.candidate,
+		program:       programIdentity(a.Program),
+		start:         a.Program.Start,
+		bitrate:       a.Rendition.Bitrate,
+		height:        a.Rendition.Height,
+		fetch:         fmt.Sprint(a.Fetch),
+		delivery:      cmp.Or(a.Delivery, compose.DeliveryAuto),
+		decode:        a.Decode,
+		optimizedLive: a.OptimizedLive,
 	}
 }
 

@@ -24,6 +24,7 @@ const (
 	eventRank
 	eventAttempt
 	eventRevise
+	eventDeliver
 	eventEnd
 	eventAbandon
 )
@@ -35,6 +36,7 @@ func (e castEvent) String() string {
 		eventRank:       "rank",
 		eventAttempt:    "attempt",
 		eventRevise:     "revise",
+		eventDeliver:    "deliver",
 		eventEnd:        "end",
 		eventAbandon:    "abandon",
 	}[e]
@@ -67,6 +69,7 @@ func lifecycle() *machine.Machine[castState, castEvent] {
 		{On: eventRank, From: []castState{stateMeasuring}, To: stateMeasuring},
 		{On: eventAttempt, From: []castState{stateMeasuring, stateCasting}, To: stateCasting},
 		{On: eventRevise, From: []castState{stateCasting}, To: stateCasting},
+		{On: eventDeliver, From: []castState{stateCasting}, To: stateCasting},
 		{On: eventEnd, From: []castState{stateMeasuring, stateCasting}, To: stateEnded},
 		// Only a cast still awaiting is abandoned, so a grace that runs out as a device is lent changes nothing.
 		{On: eventAbandon, From: []castState{stateAwaiting}, To: stateEnded},

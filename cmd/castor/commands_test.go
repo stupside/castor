@@ -41,6 +41,10 @@ func (s *scanDevices) ListDevices(context.Context, *castorv1.ListDevicesRequest)
 	return &castorv1.ListDevicesResponse{}, nil
 }
 
+func (*scanDevices) Describe(context.Context, *castorv1.DescribeRequest) (*castorv1.DescribeResponse, error) {
+	return &castorv1.DescribeResponse{}, nil
+}
+
 func TestScanUsesTheConfiguredAPIWithoutRequiringACastDevice(t *testing.T) {
 	devices := &scanDevices{}
 	_, handler := castorv1connect.NewDeviceServiceHandler(devices)

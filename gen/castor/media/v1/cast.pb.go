@@ -104,7 +104,7 @@ type PlaybackSettings struct {
 	Audio     *v1.AudioSelection     `protobuf:"bytes,4,opt,name=audio,proto3" json:"audio,omitempty"`
 	// max_bitrate is the most the cast asks of the device's link, absent for no ceiling.
 	MaxBitrate *Bitrate `protobuf:"bytes,5,opt,name=max_bitrate,json=maxBitrate,proto3" json:"max_bitrate,omitempty"`
-	// preserve_source forbids re-encoding and automatic changes of stream or rendition.
+	// preserve_source keeps finite sources original; live sources may be optimized after a native refusal.
 	PreserveSource bool `protobuf:"varint,6,opt,name=preserve_source,json=preserveSource,proto3" json:"preserve_source,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache

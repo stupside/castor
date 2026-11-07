@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // playbook is each fault kind's recoveries, cheapest first; switching candidate last; a kind absent here has none.
 var playbook = map[kind][]strategy{
+	// Only a live source may relax native quality, and only after planning established the need.
+	nativeIncompatible: {optimizeLive},
 	// Nothing about this link was established, so nothing on it is worth changing.
 	unreachable: {switchCandidate},
 
@@ -51,7 +54,7 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 	pos := f.resumeAt()
 	facts := change{intent: in, attempt: f.attempt, outcome: o, resolver: resolver}
 	for _, s := range playbook[f.kind] {
-		if in.PreserveSource && s.action != RelaxRead && s.action != ServeInstead && s.action != Stay {
+		if in.PreserveSource && s.action != RelaxRead && s.action != ServeInstead && s.action != Stay && s.action != OptimizeLive {
 			continue
 		}
 		next, ok := s.apply(ctx, facts)
@@ -104,5 +107,5 @@ func revisable(o Outcome) bool {
 	if judged, ok := errors.AsType[*health.Fault](o.Err); ok {
 		return judged.Revise
 	}
-	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil
+	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil || errors.Is(o.Err, media.ErrNativeIncompatible)
 }

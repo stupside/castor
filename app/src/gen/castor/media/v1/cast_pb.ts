@@ -93,7 +93,7 @@ export type PlaybackSettings = Message<"castor.media.v1.PlaybackSettings"> & {
   maxBitrate?: Bitrate | undefined;
 
   /**
-   * preserve_source forbids re-encoding and automatic changes of stream or rendition.
+   * preserve_source keeps finite sources original; live sources may be optimized after a native refusal.
    *
    * @generated from field: bool preserve_source = 6;
    */

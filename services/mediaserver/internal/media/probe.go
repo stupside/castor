@@ -30,6 +30,8 @@ type ProbeInfo struct {
 	VideoInterlaced bool
 	// VideoRotation is the display matrix's turn in degrees; no container castor serves carries it.
 	VideoRotation int
+	// VideoDolbyVision is the picture's Dolby Vision configuration, nil where the stream declares none.
+	VideoDolbyVision *DolbyVision
 
 	// VideoStartOffset is stream start_time minus its input's format start_time.
 	// Add the program input offset to locate the picture on the PCM clock.
@@ -53,6 +55,13 @@ type ProbeInfo struct {
 	InputStarts map[InputID]time.Duration
 }
 
+// DolbyVision is a DOVI configuration record. Its signaling lives in the container, so a remux can drop it while the picture survives.
+type DolbyVision struct {
+	Profile, Level int
+	// Compatibility is what a device without Dolby Vision shows: 1 HDR10, 2 SDR, 4 HLG, 0 nothing usable.
+	Compatibility int
+}
+
 type AudioTrack struct {
 	Language   string
 	Codec      Codec
@@ -69,6 +78,7 @@ func (p ProbeInfo) TakeVideo(m ProbeInfo) ProbeInfo {
 	p.VideoHDR, p.VideoLevel = m.VideoHDR, m.VideoLevel
 	p.VideoStartOffset = m.VideoStartOffset
 	p.VideoInterlaced, p.VideoRotation = m.VideoInterlaced, m.VideoRotation
+	p.VideoDolbyVision = m.VideoDolbyVision
 	p.VideoHeights, p.ProgramHeights = slices.Clone(m.VideoHeights), maps.Clone(m.ProgramHeights)
 	return p
 }

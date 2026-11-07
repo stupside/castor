@@ -36,12 +36,16 @@ const (
 	// DeviceServiceListDevicesProcedure is the fully-qualified name of the DeviceService's ListDevices
 	// RPC.
 	DeviceServiceListDevicesProcedure = "/castor.v1.DeviceService/ListDevices"
+	// DeviceServiceDescribeProcedure is the fully-qualified name of the DeviceService's Describe RPC.
+	DeviceServiceDescribeProcedure = "/castor.v1.DeviceService/Describe"
 )
 
 // DeviceServiceClient is a client for the castor.v1.DeviceService service.
 type DeviceServiceClient interface {
 	// ListDevices discovers the devices this server reaches, within its network timeout.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
+	// Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
+	Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error)
 }
 
 // NewDeviceServiceClient constructs a client for the castor.v1.DeviceService service. By default,
@@ -61,12 +65,19 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("ListDevices")),
 			connect.WithClientOptions(opts...),
 		),
+		describe: connect.NewClient[v1.DescribeRequest, v1.DescribeResponse](
+			httpClient,
+			baseURL+DeviceServiceDescribeProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("Describe")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // deviceServiceClient implements DeviceServiceClient.
 type deviceServiceClient struct {
 	listDevices *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
+	describe    *connect.Client[v1.DescribeRequest, v1.DescribeResponse]
 }
 
 // ListDevices calls castor.v1.DeviceService.ListDevices.
@@ -78,10 +89,21 @@ func (c *deviceServiceClient) ListDevices(ctx context.Context, req *v1.ListDevic
 	return nil, err
 }
 
+// Describe calls castor.v1.DeviceService.Describe.
+func (c *deviceServiceClient) Describe(ctx context.Context, req *v1.DescribeRequest) (*v1.DescribeResponse, error) {
+	response, err := c.describe.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // DeviceServiceHandler is an implementation of the castor.v1.DeviceService service.
 type DeviceServiceHandler interface {
 	// ListDevices discovers the devices this server reaches, within its network timeout.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
+	// Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
+	Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -97,10 +119,18 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("ListDevices")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceDescribeHandler := connect.NewUnaryHandlerSimple(
+		DeviceServiceDescribeProcedure,
+		svc.Describe,
+		connect.WithSchema(deviceServiceMethods.ByName("Describe")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/castor.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceListDevicesProcedure:
 			deviceServiceListDevicesHandler.ServeHTTP(w, r)
+		case DeviceServiceDescribeProcedure:
+			deviceServiceDescribeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -112,4 +142,8 @@ type UnimplementedDeviceServiceHandler struct{}
 
 func (UnimplementedDeviceServiceHandler) ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.ListDevices is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.Describe is not implemented"))
 }

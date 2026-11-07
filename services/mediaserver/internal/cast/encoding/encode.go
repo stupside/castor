@@ -38,11 +38,15 @@ type EncodeOptions struct {
 
 // Verbatim reports whether this encode would only re-mux the spool it reads into the same stream.
 func (o EncodeOptions) Verbatim() bool {
+	return o.KeepsTracks() && o.Input.piped && o.Format.Muxer == SpoolFormat.Muxer &&
+		o.Format.Delivery == container.DeliverStream
+}
+
+// KeepsTracks reports whether every track the read carries is copied, none converted or dropped.
+func (o EncodeOptions) KeepsTracks() bool {
 	video := o.Video.Action() == codec.CopyTrack || o.Video.Action() == codec.OmitTrack && !o.Probe.HasVideo()
 	audio := o.Audio.Action() == codec.CopyTrack || o.Audio.Action() == codec.OmitTrack && !o.Probe.HasAudio()
-	return video && audio && (o.Video.Action() == codec.CopyTrack || o.Audio.Action() == codec.CopyTrack) &&
-		o.Input.piped && o.Format.Muxer == SpoolFormat.Muxer &&
-		o.Format.Delivery == container.DeliverStream
+	return video && audio && (o.Video.Action() == codec.CopyTrack || o.Audio.Action() == codec.CopyTrack)
 }
 
 func encodeInputArgs(in EncodeInput, keepTimeline bool) []string {

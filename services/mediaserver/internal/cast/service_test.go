@@ -58,7 +58,7 @@ func (retrying) Measure(_ context.Context, stream *source.Stream) (*source.Strea
 	return stream, nil
 }
 
-func (retrying) Play(ctx context.Context, _ execute.Device, _ output.Publisher, _ []*source.Stream, _ time.Duration, turns recovery.Turns) error {
+func (retrying) Play(ctx context.Context, _ execute.Device, _ output.Publisher, _ []*source.Stream, _ time.Duration, turns Turns) error {
 	turns.Attempting(1)
 	turns.Attempting(2)
 	turns.Revising(recovery.RelaxRead, "stalled")

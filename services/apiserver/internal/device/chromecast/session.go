@@ -290,7 +290,10 @@ func (s *session) Close() error {
 	return s.ch.Close()
 }
 
-func (s *session) Capabilities() *mediav1.Capabilities {
+func (s *session) Capabilities() *mediav1.Capabilities { return capabilities() }
+
+// capabilities are the same for every receiver of the family: castor states nothing it asked a device.
+func capabilities() *mediav1.Capabilities {
 	caps := &mediav1.Capabilities{
 		Provenance: "Cast default Web Receiver family envelopes; model/firmware limits unverified; Native uses the receiver's playback verdict",
 		SelfFetch:  true, NativePlaybackTrial: true,
