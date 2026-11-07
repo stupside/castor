@@ -61,12 +61,17 @@ type Cast struct {
 
 	// MaxHeight is the tallest picture the cast may show.
 	MaxHeight media.HeightCap
+	// PreserveSource forbids conversions and rendition changes unless recovery optimized this live attempt.
+	PreserveSource bool
 
 	// Resolver reads the other rungs of a source, which a cast moves between while it plays; nil keeps it on its first.
 	Resolver recovery.SourceResolver
 
 	// MaxBitrate is the most the cast may ask of the device's link, zero for none.
 	MaxBitrate media.Bitrate
+
+	// Delivering hears what each attempt handed its device, once the device took it; nil hears nothing.
+	Delivering func(media.Delivery)
 }
 
 // Device is what a cast plays on, connected for the whole cast by whoever lent it, who also closes it.

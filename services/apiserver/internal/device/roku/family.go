@@ -18,6 +18,7 @@ import (
 	"github.com/huin/goupnp/httpu"
 	"github.com/huin/goupnp/ssdp"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
@@ -101,6 +102,11 @@ func discover(ctx context.Context, search func(context.Context) ([]*http.Respons
 	}
 	wg.Wait()
 	return devices
+}
+
+// Capabilities are castor's channel's, so describing a Roku neither installs nor launches it.
+func (Family) Capabilities(context.Context, device.Info) (*mediav1.Capabilities, error) {
+	return capabilities(), nil
 }
 
 // Locate reduces a pinned address to its ECP root, bypassing SSDP discovery.

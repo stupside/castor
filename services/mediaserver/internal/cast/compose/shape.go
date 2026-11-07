@@ -23,6 +23,9 @@ type Shape struct {
 	Rate       media.Bitrate
 
 	Delivery DeliveryPreference
+
+	// PreserveSource is a Native cast: only one is forwarded, and a trial device judges its tracks itself.
+	PreserveSource bool
 }
 
 // DeliveryPreference is whether a self-fetching device may be handed the source URL.
@@ -43,7 +46,23 @@ func (s Shape) handoff() bool {
 	}
 	probe, measured := s.Program.Measurement()
 	return s.Device.SelfFetch && s.Program.SelfFetchable() && measured &&
-		s.Device.CanPlaySourceIn(primary.ContentType, probe) &&
-		(s.MaxHeight == 0 || !probe.HasVideo() || s.Height > 0 && s.MaxHeight.Admits(s.Height)) &&
+		s.Device.CanPlaySourceIn(primary.ContentType, probe) && s.withinCeiling(probe)
+}
+
+// forwards is a Native source castor may forward unchanged: one finished file the device plays as it is, within the ceiling.
+// An optimized cast is still served, so castor keeps pacing and lightening it for the device.
+func (s Shape) forwards() bool {
+	primary, ok := s.Program.PrimaryInput()
+	if !ok || !s.PreserveSource || s.Delivery == DeliveryServe {
+		return false
+	}
+	probe, measured := s.Program.Measurement()
+	return s.Program.Forwardable() && measured &&
+		s.Device.AcceptsOriginal(primary.ContentType, probe, s.PreserveSource) && s.withinCeiling(probe)
+}
+
+// withinCeiling: the source's own picture and rate, which nothing in between can lighten.
+func (s Shape) withinCeiling(probe media.ProbeInfo) bool {
+	return (s.MaxHeight == 0 || !probe.HasVideo() || s.Height > 0 && s.MaxHeight.Admits(s.Height)) &&
 		s.MaxBitrate.Admits(s.Rate)
 }

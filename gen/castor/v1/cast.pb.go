@@ -27,12 +27,13 @@ const (
 type FailureCode int32
 
 const (
-	FailureCode_FAILURE_CODE_UNSPECIFIED        FailureCode = 0
-	FailureCode_FAILURE_CODE_PLAYBACK_FAILED    FailureCode = 1
-	FailureCode_FAILURE_CODE_DEVICE_UNREACHABLE FailureCode = 2
-	FailureCode_FAILURE_CODE_EXTRACTION_FAILED  FailureCode = 3
-	FailureCode_FAILURE_CODE_SERVER_SHUTDOWN    FailureCode = 4
-	FailureCode_FAILURE_CODE_INTERNAL           FailureCode = 5
+	FailureCode_FAILURE_CODE_UNSPECIFIED         FailureCode = 0
+	FailureCode_FAILURE_CODE_PLAYBACK_FAILED     FailureCode = 1
+	FailureCode_FAILURE_CODE_DEVICE_UNREACHABLE  FailureCode = 2
+	FailureCode_FAILURE_CODE_EXTRACTION_FAILED   FailureCode = 3
+	FailureCode_FAILURE_CODE_SERVER_SHUTDOWN     FailureCode = 4
+	FailureCode_FAILURE_CODE_INTERNAL            FailureCode = 5
+	FailureCode_FAILURE_CODE_NATIVE_INCOMPATIBLE FailureCode = 6
 )
 
 // Enum value maps for FailureCode.
@@ -44,14 +45,16 @@ var (
 		3: "FAILURE_CODE_EXTRACTION_FAILED",
 		4: "FAILURE_CODE_SERVER_SHUTDOWN",
 		5: "FAILURE_CODE_INTERNAL",
+		6: "FAILURE_CODE_NATIVE_INCOMPATIBLE",
 	}
 	FailureCode_value = map[string]int32{
-		"FAILURE_CODE_UNSPECIFIED":        0,
-		"FAILURE_CODE_PLAYBACK_FAILED":    1,
-		"FAILURE_CODE_DEVICE_UNREACHABLE": 2,
-		"FAILURE_CODE_EXTRACTION_FAILED":  3,
-		"FAILURE_CODE_SERVER_SHUTDOWN":    4,
-		"FAILURE_CODE_INTERNAL":           5,
+		"FAILURE_CODE_UNSPECIFIED":         0,
+		"FAILURE_CODE_PLAYBACK_FAILED":     1,
+		"FAILURE_CODE_DEVICE_UNREACHABLE":  2,
+		"FAILURE_CODE_EXTRACTION_FAILED":   3,
+		"FAILURE_CODE_SERVER_SHUTDOWN":     4,
+		"FAILURE_CODE_INTERNAL":            5,
+		"FAILURE_CODE_NATIVE_INCOMPATIBLE": 6,
 	}
 )
 
@@ -478,9 +481,12 @@ type Preferences struct {
 	// Absent subtitles inherit the server's default; an explicit mode replaces it.
 	Subtitles *SubtitleSelection `protobuf:"bytes,3,opt,name=subtitles,proto3" json:"subtitles,omitempty"`
 	// Ordered audio languages to try before the source's default track; absent takes the server's default.
-	Audio         *AudioSelection `protobuf:"bytes,4,opt,name=audio,proto3" json:"audio,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Audio *AudioSelection `protobuf:"bytes,4,opt,name=audio,proto3" json:"audio,omitempty"`
+	// preserve_source keeps the selected video and audio original, allowing container changes.
+	// Live sources that cannot be preserved may be optimized automatically; finite sources stay strict.
+	PreserveSource *bool `protobuf:"varint,5,opt,name=preserve_source,json=preserveSource,proto3,oneof" json:"preserve_source,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Preferences) Reset() {
@@ -539,6 +545,13 @@ func (x *Preferences) GetAudio() *AudioSelection {
 		return x.Audio
 	}
 	return nil
+}
+
+func (x *Preferences) GetPreserveSource() bool {
+	if x != nil && x.PreserveSource != nil {
+		return *x.PreserveSource
+	}
+	return false
 }
 
 type AudioSelection struct {
@@ -1015,11 +1028,15 @@ func (x *MeasuringStatus) GetCastable() uint32 {
 }
 
 type CastingStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Streams       uint32                 `protobuf:"varint,1,opt,name=streams,proto3" json:"streams,omitempty"`
-	Castable      uint32                 `protobuf:"varint,2,opt,name=castable,proto3" json:"castable,omitempty"`
-	Attempt       uint32                 `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
-	Revision      *Revision              `protobuf:"bytes,4,opt,name=revision,proto3" json:"revision,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Streams  uint32                 `protobuf:"varint,1,opt,name=streams,proto3" json:"streams,omitempty"`
+	Castable uint32                 `protobuf:"varint,2,opt,name=castable,proto3" json:"castable,omitempty"`
+	Attempt  uint32                 `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	Revision *Revision              `protobuf:"bytes,4,opt,name=revision,proto3" json:"revision,omitempty"`
+	// True once native planning required conversion of this live cast; preferences remain unchanged.
+	OptimizedLive bool `protobuf:"varint,5,opt,name=optimized_live,json=optimizedLive,proto3" json:"optimized_live,omitempty"`
+	// handover is what the playing attempt handed the device, absent until the device took it.
+	Handover      *Handover `protobuf:"bytes,6,opt,name=handover,proto3" json:"handover,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1082,6 +1099,73 @@ func (x *CastingStatus) GetRevision() *Revision {
 	return nil
 }
 
+func (x *CastingStatus) GetOptimizedLive() bool {
+	if x != nil {
+		return x.OptimizedLive
+	}
+	return false
+}
+
+func (x *CastingStatus) GetHandover() *Handover {
+	if x != nil {
+		return x.Handover
+	}
+	return nil
+}
+
+type Handover struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Fidelity Fidelity               `protobuf:"varint,1,opt,name=fidelity,proto3,enum=castor.v1.Fidelity" json:"fidelity,omitempty"`
+	// dolby_vision is a source declaring Dolby Vision, which only an original file is sure to keep signaled.
+	DolbyVision   bool `protobuf:"varint,2,opt,name=dolby_vision,json=dolbyVision,proto3" json:"dolby_vision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Handover) Reset() {
+	*x = Handover{}
+	mi := &file_castor_v1_cast_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Handover) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Handover) ProtoMessage() {}
+
+func (x *Handover) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_cast_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Handover.ProtoReflect.Descriptor instead.
+func (*Handover) Descriptor() ([]byte, []int) {
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *Handover) GetFidelity() Fidelity {
+	if x != nil {
+		return x.Fidelity
+	}
+	return Fidelity_FIDELITY_UNSPECIFIED
+}
+
+func (x *Handover) GetDolbyVision() bool {
+	if x != nil {
+		return x.DolbyVision
+	}
+	return false
+}
+
 type Ended struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -1096,7 +1180,7 @@ type Ended struct {
 
 func (x *Ended) Reset() {
 	*x = Ended{}
-	mi := &file_castor_v1_cast_proto_msgTypes[15]
+	mi := &file_castor_v1_cast_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1108,7 +1192,7 @@ func (x *Ended) String() string {
 func (*Ended) ProtoMessage() {}
 
 func (x *Ended) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[15]
+	mi := &file_castor_v1_cast_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1121,7 +1205,7 @@ func (x *Ended) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ended.ProtoReflect.Descriptor instead.
 func (*Ended) Descriptor() ([]byte, []int) {
-	return file_castor_v1_cast_proto_rawDescGZIP(), []int{15}
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Ended) GetResult() isEnded_Result {
@@ -1191,7 +1275,7 @@ type Failure struct {
 
 func (x *Failure) Reset() {
 	*x = Failure{}
-	mi := &file_castor_v1_cast_proto_msgTypes[16]
+	mi := &file_castor_v1_cast_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1203,7 +1287,7 @@ func (x *Failure) String() string {
 func (*Failure) ProtoMessage() {}
 
 func (x *Failure) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[16]
+	mi := &file_castor_v1_cast_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1216,7 +1300,7 @@ func (x *Failure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Failure.ProtoReflect.Descriptor instead.
 func (*Failure) Descriptor() ([]byte, []int) {
-	return file_castor_v1_cast_proto_rawDescGZIP(), []int{16}
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Failure) GetCode() FailureCode {
@@ -1242,7 +1326,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_castor_v1_cast_proto_msgTypes[17]
+	mi := &file_castor_v1_cast_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1254,7 +1338,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[17]
+	mi := &file_castor_v1_cast_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1267,7 +1351,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_castor_v1_cast_proto_rawDescGZIP(), []int{17}
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *StopRequest) GetCastId() string {
@@ -1285,7 +1369,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_castor_v1_cast_proto_msgTypes[18]
+	mi := &file_castor_v1_cast_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1297,7 +1381,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[18]
+	mi := &file_castor_v1_cast_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1310,7 +1394,322 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_castor_v1_cast_proto_rawDescGZIP(), []int{18}
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{19}
+}
+
+type PlaybackRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CastId        string                 `protobuf:"bytes,1,opt,name=cast_id,json=castId,proto3" json:"cast_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaybackRequest) Reset() {
+	*x = PlaybackRequest{}
+	mi := &file_castor_v1_cast_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaybackRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaybackRequest) ProtoMessage() {}
+
+func (x *PlaybackRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_cast_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaybackRequest.ProtoReflect.Descriptor instead.
+func (*PlaybackRequest) Descriptor() ([]byte, []int) {
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *PlaybackRequest) GetCastId() string {
+	if x != nil {
+		return x.CastId
+	}
+	return ""
+}
+
+type PlaybackResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Playback      *PlaybackState         `protobuf:"bytes,1,opt,name=playback,proto3" json:"playback,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaybackResponse) Reset() {
+	*x = PlaybackResponse{}
+	mi := &file_castor_v1_cast_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaybackResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaybackResponse) ProtoMessage() {}
+
+func (x *PlaybackResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_cast_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaybackResponse.ProtoReflect.Descriptor instead.
+func (*PlaybackResponse) Descriptor() ([]byte, []int) {
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *PlaybackResponse) GetPlayback() *PlaybackState {
+	if x != nil {
+		return x.Playback
+	}
+	return nil
+}
+
+type ControlRequest struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	CastId string                 `protobuf:"bytes,1,opt,name=cast_id,json=castId,proto3" json:"cast_id,omitempty"`
+	// Types that are valid to be assigned to Action:
+	//
+	//	*ControlRequest_Pause
+	//	*ControlRequest_Resume
+	//	*ControlRequest_Seek
+	Action        isControlRequest_Action `protobuf_oneof:"action"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlRequest) Reset() {
+	*x = ControlRequest{}
+	mi := &file_castor_v1_cast_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlRequest) ProtoMessage() {}
+
+func (x *ControlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_cast_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlRequest.ProtoReflect.Descriptor instead.
+func (*ControlRequest) Descriptor() ([]byte, []int) {
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ControlRequest) GetCastId() string {
+	if x != nil {
+		return x.CastId
+	}
+	return ""
+}
+
+func (x *ControlRequest) GetAction() isControlRequest_Action {
+	if x != nil {
+		return x.Action
+	}
+	return nil
+}
+
+func (x *ControlRequest) GetPause() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Action.(*ControlRequest_Pause); ok {
+			return x.Pause
+		}
+	}
+	return nil
+}
+
+func (x *ControlRequest) GetResume() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Action.(*ControlRequest_Resume); ok {
+			return x.Resume
+		}
+	}
+	return nil
+}
+
+func (x *ControlRequest) GetSeek() *durationpb.Duration {
+	if x != nil {
+		if x, ok := x.Action.(*ControlRequest_Seek); ok {
+			return x.Seek
+		}
+	}
+	return nil
+}
+
+type isControlRequest_Action interface {
+	isControlRequest_Action()
+}
+
+type ControlRequest_Pause struct {
+	Pause *emptypb.Empty `protobuf:"bytes,2,opt,name=pause,proto3,oneof"`
+}
+
+type ControlRequest_Resume struct {
+	Resume *emptypb.Empty `protobuf:"bytes,3,opt,name=resume,proto3,oneof"`
+}
+
+type ControlRequest_Seek struct {
+	Seek *durationpb.Duration `protobuf:"bytes,4,opt,name=seek,proto3,oneof"`
+}
+
+func (*ControlRequest_Pause) isControlRequest_Action() {}
+
+func (*ControlRequest_Resume) isControlRequest_Action() {}
+
+func (*ControlRequest_Seek) isControlRequest_Action() {}
+
+type ControlResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Playback      *PlaybackState         `protobuf:"bytes,1,opt,name=playback,proto3" json:"playback,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlResponse) Reset() {
+	*x = ControlResponse{}
+	mi := &file_castor_v1_cast_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlResponse) ProtoMessage() {}
+
+func (x *ControlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_cast_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlResponse.ProtoReflect.Descriptor instead.
+func (*ControlResponse) Descriptor() ([]byte, []int) {
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ControlResponse) GetPlayback() *PlaybackState {
+	if x != nil {
+		return x.Playback
+	}
+	return nil
+}
+
+// PlaybackState contains receiver observations; an absent position is not an invented zero.
+type PlaybackState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Position      *durationpb.Duration   `protobuf:"bytes,1,opt,name=position,proto3" json:"position,omitempty"`
+	Duration      *durationpb.Duration   `protobuf:"bytes,2,opt,name=duration,proto3" json:"duration,omitempty"`
+	Paused        bool                   `protobuf:"varint,3,opt,name=paused,proto3" json:"paused,omitempty"`
+	CanPause      bool                   `protobuf:"varint,4,opt,name=can_pause,json=canPause,proto3" json:"can_pause,omitempty"`
+	CanSeek       bool                   `protobuf:"varint,5,opt,name=can_seek,json=canSeek,proto3" json:"can_seek,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaybackState) Reset() {
+	*x = PlaybackState{}
+	mi := &file_castor_v1_cast_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaybackState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaybackState) ProtoMessage() {}
+
+func (x *PlaybackState) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_cast_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaybackState.ProtoReflect.Descriptor instead.
+func (*PlaybackState) Descriptor() ([]byte, []int) {
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *PlaybackState) GetPosition() *durationpb.Duration {
+	if x != nil {
+		return x.Position
+	}
+	return nil
+}
+
+func (x *PlaybackState) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
+func (x *PlaybackState) GetPaused() bool {
+	if x != nil {
+		return x.Paused
+	}
+	return false
+}
+
+func (x *PlaybackState) GetCanPause() bool {
+	if x != nil {
+		return x.CanPause
+	}
+	return false
+}
+
+func (x *PlaybackState) GetCanSeek() bool {
+	if x != nil {
+		return x.CanSeek
+	}
+	return false
 }
 
 type ListCastsRequest struct {
@@ -1321,7 +1720,7 @@ type ListCastsRequest struct {
 
 func (x *ListCastsRequest) Reset() {
 	*x = ListCastsRequest{}
-	mi := &file_castor_v1_cast_proto_msgTypes[19]
+	mi := &file_castor_v1_cast_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1333,7 +1732,7 @@ func (x *ListCastsRequest) String() string {
 func (*ListCastsRequest) ProtoMessage() {}
 
 func (x *ListCastsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[19]
+	mi := &file_castor_v1_cast_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1346,7 +1745,7 @@ func (x *ListCastsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCastsRequest.ProtoReflect.Descriptor instead.
 func (*ListCastsRequest) Descriptor() ([]byte, []int) {
-	return file_castor_v1_cast_proto_rawDescGZIP(), []int{19}
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{25}
 }
 
 type ListCastsResponse struct {
@@ -1358,7 +1757,7 @@ type ListCastsResponse struct {
 
 func (x *ListCastsResponse) Reset() {
 	*x = ListCastsResponse{}
-	mi := &file_castor_v1_cast_proto_msgTypes[20]
+	mi := &file_castor_v1_cast_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1370,7 +1769,7 @@ func (x *ListCastsResponse) String() string {
 func (*ListCastsResponse) ProtoMessage() {}
 
 func (x *ListCastsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[20]
+	mi := &file_castor_v1_cast_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1383,7 +1782,7 @@ func (x *ListCastsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCastsResponse.ProtoReflect.Descriptor instead.
 func (*ListCastsResponse) Descriptor() ([]byte, []int) {
-	return file_castor_v1_cast_proto_rawDescGZIP(), []int{20}
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ListCastsResponse) GetCasts() []*Cast {
@@ -1407,7 +1806,7 @@ type Cast struct {
 
 func (x *Cast) Reset() {
 	*x = Cast{}
-	mi := &file_castor_v1_cast_proto_msgTypes[21]
+	mi := &file_castor_v1_cast_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1419,7 +1818,7 @@ func (x *Cast) String() string {
 func (*Cast) ProtoMessage() {}
 
 func (x *Cast) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[21]
+	mi := &file_castor_v1_cast_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1432,7 +1831,7 @@ func (x *Cast) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cast.ProtoReflect.Descriptor instead.
 func (*Cast) Descriptor() ([]byte, []int) {
-	return file_castor_v1_cast_proto_rawDescGZIP(), []int{21}
+	return file_castor_v1_cast_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *Cast) GetId() string {
@@ -1472,7 +1871,7 @@ type Source_Pages struct {
 
 func (x *Source_Pages) Reset() {
 	*x = Source_Pages{}
-	mi := &file_castor_v1_cast_proto_msgTypes[22]
+	mi := &file_castor_v1_cast_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1484,7 +1883,7 @@ func (x *Source_Pages) String() string {
 func (*Source_Pages) ProtoMessage() {}
 
 func (x *Source_Pages) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[22]
+	mi := &file_castor_v1_cast_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1516,7 +1915,7 @@ type Source_ResolvedStreams struct {
 
 func (x *Source_ResolvedStreams) Reset() {
 	*x = Source_ResolvedStreams{}
-	mi := &file_castor_v1_cast_proto_msgTypes[23]
+	mi := &file_castor_v1_cast_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1528,7 +1927,7 @@ func (x *Source_ResolvedStreams) String() string {
 func (*Source_ResolvedStreams) ProtoMessage() {}
 
 func (x *Source_ResolvedStreams) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_cast_proto_msgTypes[23]
+	mi := &file_castor_v1_cast_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1585,16 +1984,18 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\burl.http\x12\x1cmust be an http or https URL\x1aKthis.isUri() && (this.startsWith('http://') || this.startsWith('https://'))r\x03\x18\x80@R\x04urls\x1aT\n" +
 	"\x0fResolvedStreams\x12A\n" +
 	"\astreams\x18\x01 \x03(\v2\x1a.castor.v1.StreamCandidateB\v\xbaH\b\x92\x01\x05\b\x01\x10\xc0\fR\astreamsB\x0f\n" +
-	"\x06source\x12\x05\xbaH\x02\b\x01\"\x85\x02\n" +
+	"\x06source\x12\x05\xbaH\x02\b\x01\"\xc7\x02\n" +
 	"\vPreferences\x12@\n" +
 	"\bdelivery\x18\x01 \x01(\x0e2\x13.castor.v1.DeliveryB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00H\x00R\bdelivery\x88\x01\x01\x12+\n" +
 	"\n" +
 	"max_height\x18\x02 \x01(\rB\a\xbaH\x04*\x02(\x02H\x01R\tmaxHeight\x88\x01\x01\x12:\n" +
 	"\tsubtitles\x18\x03 \x01(\v2\x1c.castor.v1.SubtitleSelectionR\tsubtitles\x12/\n" +
-	"\x05audio\x18\x04 \x01(\v2\x19.castor.v1.AudioSelectionR\x05audioB\v\n" +
+	"\x05audio\x18\x04 \x01(\v2\x19.castor.v1.AudioSelectionR\x05audio\x12,\n" +
+	"\x0fpreserve_source\x18\x05 \x01(\bH\x02R\x0epreserveSource\x88\x01\x01B\v\n" +
 	"\t_deliveryB\r\n" +
-	"\v_max_height\"H\n" +
+	"\v_max_heightB\x12\n" +
+	"\x10_preserve_source\"H\n" +
 	"\x0eAudioSelection\x126\n" +
 	"\tlanguages\x18\x01 \x03(\tB\x18\xbaH\x15\x92\x01\x12\"\x10r\x0e2\f^[a-z]{2,3}$R\tlanguages\"\x9c\x01\n" +
 	"\x11SubtitleSelection\x124\n" +
@@ -1624,12 +2025,18 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\x0fMeasuringStatus\x12\x18\n" +
 	"\astreams\x18\x01 \x01(\rR\astreams\x12\x1f\n" +
 	"\bcastable\x18\x02 \x01(\rH\x00R\bcastable\x88\x01\x01B\v\n" +
-	"\t_castable\"\x99\x01\n" +
+	"\t_castable\"\xf1\x01\n" +
 	"\rCastingStatus\x12\x18\n" +
 	"\astreams\x18\x01 \x01(\rR\astreams\x12\x1a\n" +
 	"\bcastable\x18\x02 \x01(\rR\bcastable\x12!\n" +
 	"\aattempt\x18\x03 \x01(\rB\a\xbaH\x04*\x02(\x01R\aattempt\x12/\n" +
-	"\brevision\x18\x04 \x01(\v2\x13.castor.v1.RevisionR\brevision\"\xb2\x01\n" +
+	"\brevision\x18\x04 \x01(\v2\x13.castor.v1.RevisionR\brevision\x12%\n" +
+	"\x0eoptimized_live\x18\x05 \x01(\bR\roptimizedLive\x12/\n" +
+	"\bhandover\x18\x06 \x01(\v2\x13.castor.v1.HandoverR\bhandover\"j\n" +
+	"\bHandover\x12;\n" +
+	"\bfidelity\x18\x01 \x01(\x0e2\x13.castor.v1.FidelityB\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bfidelity\x12!\n" +
+	"\fdolby_vision\x18\x02 \x01(\bR\vdolbyVision\"\xb2\x01\n" +
 	"\x05Ended\x126\n" +
 	"\tcompleted\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\tcompleted\x122\n" +
 	"\astopped\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\astopped\x12,\n" +
@@ -1641,7 +2048,25 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\amessage\"/\n" +
 	"\vStopRequest\x12 \n" +
 	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"\x0e\n" +
-	"\fStopResponse\"\x12\n" +
+	"\fStopResponse\"3\n" +
+	"\x0fPlaybackRequest\x12 \n" +
+	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"P\n" +
+	"\x10PlaybackResponse\x12<\n" +
+	"\bplayback\x18\x01 \x01(\v2\x18.castor.v1.PlaybackStateB\x06\xbaH\x03\xc8\x01\x01R\bplayback\"\xe0\x01\n" +
+	"\x0eControlRequest\x12 \n" +
+	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\x12.\n" +
+	"\x05pause\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x05pause\x120\n" +
+	"\x06resume\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x06resume\x129\n" +
+	"\x04seek\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00H\x00R\x04seekB\x0f\n" +
+	"\x06action\x12\x05\xbaH\x02\b\x01\"O\n" +
+	"\x0fControlResponse\x12<\n" +
+	"\bplayback\x18\x01 \x01(\v2\x18.castor.v1.PlaybackStateB\x06\xbaH\x03\xc8\x01\x01R\bplayback\"\xe1\x01\n" +
+	"\rPlaybackState\x12?\n" +
+	"\bposition\x18\x01 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\bposition\x12?\n" +
+	"\bduration\x18\x02 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\bduration\x12\x16\n" +
+	"\x06paused\x18\x03 \x01(\bR\x06paused\x12\x1b\n" +
+	"\tcan_pause\x18\x04 \x01(\bR\bcanPause\x12\x19\n" +
+	"\bcan_seek\x18\x05 \x01(\bR\acanSeek\"\x12\n" +
 	"\x10ListCastsRequest\":\n" +
 	"\x11ListCastsResponse\x12%\n" +
 	"\x05casts\x18\x01 \x03(\v2\x0f.castor.v1.CastR\x05casts\"\x9b\x01\n" +
@@ -1649,19 +2074,22 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12)\n" +
 	"\x06device\x18\x02 \x01(\v2\x11.castor.v1.DeviceR\x06device\x12)\n" +
 	"\x06source\x18\x03 \x01(\v2\x11.castor.v1.SourceR\x06source\x12-\n" +
-	"\x06status\x18\x04 \x01(\v2\x15.castor.v1.CastStatusR\x06status*\xd3\x01\n" +
+	"\x06status\x18\x04 \x01(\v2\x15.castor.v1.CastStatusR\x06status*\xf9\x01\n" +
 	"\vFailureCode\x12\x1c\n" +
 	"\x18FAILURE_CODE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cFAILURE_CODE_PLAYBACK_FAILED\x10\x01\x12#\n" +
 	"\x1fFAILURE_CODE_DEVICE_UNREACHABLE\x10\x02\x12\"\n" +
 	"\x1eFAILURE_CODE_EXTRACTION_FAILED\x10\x03\x12 \n" +
 	"\x1cFAILURE_CODE_SERVER_SHUTDOWN\x10\x04\x12\x19\n" +
-	"\x15FAILURE_CODE_INTERNAL\x10\x052\xc7\x02\n" +
+	"\x15FAILURE_CODE_INTERNAL\x10\x05\x12$\n" +
+	" FAILURE_CODE_NATIVE_INCOMPATIBLE\x10\x062\xce\x03\n" +
 	"\vCastService\x127\n" +
 	"\x04Cast\x12\x16.castor.v1.CastRequest\x1a\x17.castor.v1.CastResponse\x12@\n" +
 	"\aResolve\x12\x19.castor.v1.ResolveRequest\x1a\x1a.castor.v1.ResolveResponse\x12<\n" +
 	"\x05Watch\x12\x17.castor.v1.WatchRequest\x1a\x18.castor.v1.WatchResponse0\x01\x127\n" +
-	"\x04Stop\x12\x16.castor.v1.StopRequest\x1a\x17.castor.v1.StopResponse\x12F\n" +
+	"\x04Stop\x12\x16.castor.v1.StopRequest\x1a\x17.castor.v1.StopResponse\x12C\n" +
+	"\bPlayback\x12\x1a.castor.v1.PlaybackRequest\x1a\x1b.castor.v1.PlaybackResponse\x12@\n" +
+	"\aControl\x12\x19.castor.v1.ControlRequest\x1a\x1a.castor.v1.ControlResponse\x12F\n" +
 	"\tListCasts\x12\x1b.castor.v1.ListCastsRequest\x1a\x1c.castor.v1.ListCastsResponseB\x92\x01\n" +
 	"\rcom.castor.v1B\tCastProtoP\x01Z1github.com/stupside/castor/gen/castor/v1;castorv1\xa2\x02\x03CXX\xaa\x02\tCastor.V1\xca\x02\tCastor\\V1\xe2\x02\x15Castor\\V1\\GPBMetadata\xea\x02\n" +
 	"Castor::V1b\x06proto3"
@@ -1679,7 +2107,7 @@ func file_castor_v1_cast_proto_rawDescGZIP() []byte {
 }
 
 var file_castor_v1_cast_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_castor_v1_cast_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_castor_v1_cast_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_castor_v1_cast_proto_goTypes = []any{
 	(FailureCode)(0),               // 0: castor.v1.FailureCode
 	(*CastRequest)(nil),            // 1: castor.v1.CastRequest
@@ -1697,73 +2125,93 @@ var file_castor_v1_cast_proto_goTypes = []any{
 	(*CastStatus)(nil),             // 13: castor.v1.CastStatus
 	(*MeasuringStatus)(nil),        // 14: castor.v1.MeasuringStatus
 	(*CastingStatus)(nil),          // 15: castor.v1.CastingStatus
-	(*Ended)(nil),                  // 16: castor.v1.Ended
-	(*Failure)(nil),                // 17: castor.v1.Failure
-	(*StopRequest)(nil),            // 18: castor.v1.StopRequest
-	(*StopResponse)(nil),           // 19: castor.v1.StopResponse
-	(*ListCastsRequest)(nil),       // 20: castor.v1.ListCastsRequest
-	(*ListCastsResponse)(nil),      // 21: castor.v1.ListCastsResponse
-	(*Cast)(nil),                   // 22: castor.v1.Cast
-	(*Source_Pages)(nil),           // 23: castor.v1.Source.Pages
-	(*Source_ResolvedStreams)(nil), // 24: castor.v1.Source.ResolvedStreams
-	(*Target)(nil),                 // 25: castor.v1.Target
-	(*durationpb.Duration)(nil),    // 26: google.protobuf.Duration
-	(*RankedStream)(nil),           // 27: castor.v1.RankedStream
-	(*Stream)(nil),                 // 28: castor.v1.Stream
-	(Delivery)(0),                  // 29: castor.v1.Delivery
-	(*emptypb.Empty)(nil),          // 30: google.protobuf.Empty
-	(*Revision)(nil),               // 31: castor.v1.Revision
-	(*Device)(nil),                 // 32: castor.v1.Device
-	(*StreamCandidate)(nil),        // 33: castor.v1.StreamCandidate
+	(*Handover)(nil),               // 16: castor.v1.Handover
+	(*Ended)(nil),                  // 17: castor.v1.Ended
+	(*Failure)(nil),                // 18: castor.v1.Failure
+	(*StopRequest)(nil),            // 19: castor.v1.StopRequest
+	(*StopResponse)(nil),           // 20: castor.v1.StopResponse
+	(*PlaybackRequest)(nil),        // 21: castor.v1.PlaybackRequest
+	(*PlaybackResponse)(nil),       // 22: castor.v1.PlaybackResponse
+	(*ControlRequest)(nil),         // 23: castor.v1.ControlRequest
+	(*ControlResponse)(nil),        // 24: castor.v1.ControlResponse
+	(*PlaybackState)(nil),          // 25: castor.v1.PlaybackState
+	(*ListCastsRequest)(nil),       // 26: castor.v1.ListCastsRequest
+	(*ListCastsResponse)(nil),      // 27: castor.v1.ListCastsResponse
+	(*Cast)(nil),                   // 28: castor.v1.Cast
+	(*Source_Pages)(nil),           // 29: castor.v1.Source.Pages
+	(*Source_ResolvedStreams)(nil), // 30: castor.v1.Source.ResolvedStreams
+	(*Target)(nil),                 // 31: castor.v1.Target
+	(*durationpb.Duration)(nil),    // 32: google.protobuf.Duration
+	(*RankedStream)(nil),           // 33: castor.v1.RankedStream
+	(*Stream)(nil),                 // 34: castor.v1.Stream
+	(Delivery)(0),                  // 35: castor.v1.Delivery
+	(*emptypb.Empty)(nil),          // 36: google.protobuf.Empty
+	(*Revision)(nil),               // 37: castor.v1.Revision
+	(Fidelity)(0),                  // 38: castor.v1.Fidelity
+	(*Device)(nil),                 // 39: castor.v1.Device
+	(*StreamCandidate)(nil),        // 40: castor.v1.StreamCandidate
 }
 var file_castor_v1_cast_proto_depIdxs = []int32{
-	25, // 0: castor.v1.CastRequest.target:type_name -> castor.v1.Target
+	31, // 0: castor.v1.CastRequest.target:type_name -> castor.v1.Target
 	6,  // 1: castor.v1.CastRequest.source:type_name -> castor.v1.Source
 	7,  // 2: castor.v1.CastRequest.preferences:type_name -> castor.v1.Preferences
 	2,  // 3: castor.v1.CastRequest.media_info:type_name -> castor.v1.MediaInfo
-	26, // 4: castor.v1.CastRequest.start:type_name -> google.protobuf.Duration
+	32, // 4: castor.v1.CastRequest.start:type_name -> google.protobuf.Duration
 	6,  // 5: castor.v1.ResolveRequest.source:type_name -> castor.v1.Source
 	7,  // 6: castor.v1.ResolveRequest.preferences:type_name -> castor.v1.Preferences
-	27, // 7: castor.v1.ResolveResponse.ranked:type_name -> castor.v1.RankedStream
-	28, // 8: castor.v1.Source.stream:type_name -> castor.v1.Stream
-	23, // 9: castor.v1.Source.pages:type_name -> castor.v1.Source.Pages
-	24, // 10: castor.v1.Source.streams:type_name -> castor.v1.Source.ResolvedStreams
-	29, // 11: castor.v1.Preferences.delivery:type_name -> castor.v1.Delivery
+	33, // 7: castor.v1.ResolveResponse.ranked:type_name -> castor.v1.RankedStream
+	34, // 8: castor.v1.Source.stream:type_name -> castor.v1.Stream
+	29, // 9: castor.v1.Source.pages:type_name -> castor.v1.Source.Pages
+	30, // 10: castor.v1.Source.streams:type_name -> castor.v1.Source.ResolvedStreams
+	35, // 11: castor.v1.Preferences.delivery:type_name -> castor.v1.Delivery
 	9,  // 12: castor.v1.Preferences.subtitles:type_name -> castor.v1.SubtitleSelection
 	8,  // 13: castor.v1.Preferences.audio:type_name -> castor.v1.AudioSelection
-	30, // 14: castor.v1.SubtitleSelection.disabled:type_name -> google.protobuf.Empty
+	36, // 14: castor.v1.SubtitleSelection.disabled:type_name -> google.protobuf.Empty
 	10, // 15: castor.v1.SubtitleSelection.preferences:type_name -> castor.v1.SubtitlePreferences
 	13, // 16: castor.v1.WatchResponse.status:type_name -> castor.v1.CastStatus
-	16, // 17: castor.v1.WatchResponse.ended:type_name -> castor.v1.Ended
-	30, // 18: castor.v1.CastStatus.connecting:type_name -> google.protobuf.Empty
-	30, // 19: castor.v1.CastStatus.extracting:type_name -> google.protobuf.Empty
+	17, // 17: castor.v1.WatchResponse.ended:type_name -> castor.v1.Ended
+	36, // 18: castor.v1.CastStatus.connecting:type_name -> google.protobuf.Empty
+	36, // 19: castor.v1.CastStatus.extracting:type_name -> google.protobuf.Empty
 	14, // 20: castor.v1.CastStatus.measuring:type_name -> castor.v1.MeasuringStatus
 	15, // 21: castor.v1.CastStatus.casting:type_name -> castor.v1.CastingStatus
-	31, // 22: castor.v1.CastingStatus.revision:type_name -> castor.v1.Revision
-	30, // 23: castor.v1.Ended.completed:type_name -> google.protobuf.Empty
-	30, // 24: castor.v1.Ended.stopped:type_name -> google.protobuf.Empty
-	17, // 25: castor.v1.Ended.failed:type_name -> castor.v1.Failure
-	0,  // 26: castor.v1.Failure.code:type_name -> castor.v1.FailureCode
-	22, // 27: castor.v1.ListCastsResponse.casts:type_name -> castor.v1.Cast
-	32, // 28: castor.v1.Cast.device:type_name -> castor.v1.Device
-	6,  // 29: castor.v1.Cast.source:type_name -> castor.v1.Source
-	13, // 30: castor.v1.Cast.status:type_name -> castor.v1.CastStatus
-	33, // 31: castor.v1.Source.ResolvedStreams.streams:type_name -> castor.v1.StreamCandidate
-	1,  // 32: castor.v1.CastService.Cast:input_type -> castor.v1.CastRequest
-	4,  // 33: castor.v1.CastService.Resolve:input_type -> castor.v1.ResolveRequest
-	11, // 34: castor.v1.CastService.Watch:input_type -> castor.v1.WatchRequest
-	18, // 35: castor.v1.CastService.Stop:input_type -> castor.v1.StopRequest
-	20, // 36: castor.v1.CastService.ListCasts:input_type -> castor.v1.ListCastsRequest
-	3,  // 37: castor.v1.CastService.Cast:output_type -> castor.v1.CastResponse
-	5,  // 38: castor.v1.CastService.Resolve:output_type -> castor.v1.ResolveResponse
-	12, // 39: castor.v1.CastService.Watch:output_type -> castor.v1.WatchResponse
-	19, // 40: castor.v1.CastService.Stop:output_type -> castor.v1.StopResponse
-	21, // 41: castor.v1.CastService.ListCasts:output_type -> castor.v1.ListCastsResponse
-	37, // [37:42] is the sub-list for method output_type
-	32, // [32:37] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	37, // 22: castor.v1.CastingStatus.revision:type_name -> castor.v1.Revision
+	16, // 23: castor.v1.CastingStatus.handover:type_name -> castor.v1.Handover
+	38, // 24: castor.v1.Handover.fidelity:type_name -> castor.v1.Fidelity
+	36, // 25: castor.v1.Ended.completed:type_name -> google.protobuf.Empty
+	36, // 26: castor.v1.Ended.stopped:type_name -> google.protobuf.Empty
+	18, // 27: castor.v1.Ended.failed:type_name -> castor.v1.Failure
+	0,  // 28: castor.v1.Failure.code:type_name -> castor.v1.FailureCode
+	25, // 29: castor.v1.PlaybackResponse.playback:type_name -> castor.v1.PlaybackState
+	36, // 30: castor.v1.ControlRequest.pause:type_name -> google.protobuf.Empty
+	36, // 31: castor.v1.ControlRequest.resume:type_name -> google.protobuf.Empty
+	32, // 32: castor.v1.ControlRequest.seek:type_name -> google.protobuf.Duration
+	25, // 33: castor.v1.ControlResponse.playback:type_name -> castor.v1.PlaybackState
+	32, // 34: castor.v1.PlaybackState.position:type_name -> google.protobuf.Duration
+	32, // 35: castor.v1.PlaybackState.duration:type_name -> google.protobuf.Duration
+	28, // 36: castor.v1.ListCastsResponse.casts:type_name -> castor.v1.Cast
+	39, // 37: castor.v1.Cast.device:type_name -> castor.v1.Device
+	6,  // 38: castor.v1.Cast.source:type_name -> castor.v1.Source
+	13, // 39: castor.v1.Cast.status:type_name -> castor.v1.CastStatus
+	40, // 40: castor.v1.Source.ResolvedStreams.streams:type_name -> castor.v1.StreamCandidate
+	1,  // 41: castor.v1.CastService.Cast:input_type -> castor.v1.CastRequest
+	4,  // 42: castor.v1.CastService.Resolve:input_type -> castor.v1.ResolveRequest
+	11, // 43: castor.v1.CastService.Watch:input_type -> castor.v1.WatchRequest
+	19, // 44: castor.v1.CastService.Stop:input_type -> castor.v1.StopRequest
+	21, // 45: castor.v1.CastService.Playback:input_type -> castor.v1.PlaybackRequest
+	23, // 46: castor.v1.CastService.Control:input_type -> castor.v1.ControlRequest
+	26, // 47: castor.v1.CastService.ListCasts:input_type -> castor.v1.ListCastsRequest
+	3,  // 48: castor.v1.CastService.Cast:output_type -> castor.v1.CastResponse
+	5,  // 49: castor.v1.CastService.Resolve:output_type -> castor.v1.ResolveResponse
+	12, // 50: castor.v1.CastService.Watch:output_type -> castor.v1.WatchResponse
+	20, // 51: castor.v1.CastService.Stop:output_type -> castor.v1.StopResponse
+	22, // 52: castor.v1.CastService.Playback:output_type -> castor.v1.PlaybackResponse
+	24, // 53: castor.v1.CastService.Control:output_type -> castor.v1.ControlResponse
+	27, // 54: castor.v1.CastService.ListCasts:output_type -> castor.v1.ListCastsResponse
+	48, // [48:55] is the sub-list for method output_type
+	41, // [41:48] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_castor_v1_cast_proto_init() }
@@ -1795,10 +2243,15 @@ func file_castor_v1_cast_proto_init() {
 		(*CastStatus_Casting)(nil),
 	}
 	file_castor_v1_cast_proto_msgTypes[13].OneofWrappers = []any{}
-	file_castor_v1_cast_proto_msgTypes[15].OneofWrappers = []any{
+	file_castor_v1_cast_proto_msgTypes[16].OneofWrappers = []any{
 		(*Ended_Completed)(nil),
 		(*Ended_Stopped)(nil),
 		(*Ended_Failed)(nil),
+	}
+	file_castor_v1_cast_proto_msgTypes[22].OneofWrappers = []any{
+		(*ControlRequest_Pause)(nil),
+		(*ControlRequest_Resume)(nil),
+		(*ControlRequest_Seek)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1806,7 +2259,7 @@ func file_castor_v1_cast_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_v1_cast_proto_rawDesc), len(file_castor_v1_cast_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   24,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

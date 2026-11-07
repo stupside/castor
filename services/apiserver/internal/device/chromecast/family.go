@@ -13,6 +13,7 @@ import (
 	castmedia "github.com/vishen/go-chromecast/cast"
 	castdns "github.com/vishen/go-chromecast/dns"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
@@ -50,6 +51,11 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 		return nil, fmt.Errorf("connecting to chromecast: %w", err)
 	}
 	return dev, nil
+}
+
+// Capabilities are the family's own, so describing a receiver neither dials nor wakes it.
+func (Family) Capabilities(context.Context, device.Info) (*mediav1.Capabilities, error) {
+	return capabilities(), nil
 }
 
 // Locate passes the address straight through, Connect already accepting both of its forms.

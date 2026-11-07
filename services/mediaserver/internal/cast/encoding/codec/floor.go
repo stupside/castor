@@ -10,6 +10,9 @@ import (
 
 // Floor plans read-once encoding: which halves produce vs. pass through.
 func Floor(ctx context.Context, in Inputs) (Plan, error) {
+	if in.PreserveSource {
+		return originalTracks(in, videoCarriageRefusals, audioCarriageRefusals)
+	}
 	video, videoRefusals, err := floorVideoTrack(ctx, in)
 	if err != nil {
 		return Plan{}, fmt.Errorf("planning the buffer's video: %w", err)

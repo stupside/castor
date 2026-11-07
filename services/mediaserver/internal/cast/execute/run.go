@@ -10,7 +10,6 @@ import (
 
 	"github.com/stupside/castor/internal/machine"
 	"github.com/stupside/castor/internal/telemetry"
-	"github.com/stupside/castor/services/mediaserver/internal/cast/compose"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -162,9 +161,10 @@ type operation struct {
 // cleanup. Only its event loop changes state; preparation registers resources
 // before handing them back. Operations retain results through cancellation.
 type coordinator struct {
-	device Device
+	device     Device
+	delivering func(media.Delivery)
 	// retire is called once software played what a failed hardware encoder could not; nil otherwise.
-	retire     func()
+	retire func()
 	maxBitrate media.Bitrate
 	climb      time.Duration
 	inspect    func() (inspectedPresentation, error)
@@ -203,7 +203,7 @@ func newCoordinator(parent context.Context, c Cast, a recovery.Attempt) *coordin
 	// Signal every owner before joining or releasing any resource.
 	rel.interrupt(func() { cancel(nil) })
 	s := &coordinator{
-		device: c.Device, maxBitrate: c.MaxBitrate, climb: a.Climb, ctx: ctx, stop: cancel, releases: rel,
+		device: c.Device, delivering: c.Delivering, maxBitrate: c.MaxBitrate, climb: a.Climb, ctx: ctx, stop: cancel, releases: rel,
 		events: make(chan *operation), failures: make(chan error),
 	}
 	if a.SoftwareVideo && a.FailedEncoder != "" && c.RetireEncoder != nil {
@@ -320,7 +320,7 @@ func (c *coordinator) loop() {
 					return err
 				})
 			case planFinished:
-				if c.planned.kind == compose.Handoff {
+				if c.planned.kind.Original() {
 					c.acceptPresentation()
 					c.startPlayback()
 				} else {
@@ -339,6 +339,9 @@ func (c *coordinator) loop() {
 				if c.retire != nil {
 					// Software played what the hardware could not: the hardware was the fault.
 					c.retire()
+				}
+				if c.delivering != nil {
+					c.delivering(c.ready.delivers)
 				}
 				c.observePlayback()
 			case deliverySettled:

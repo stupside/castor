@@ -28,7 +28,8 @@ type session struct {
 	// sinks is how the device names each container it accepts.
 	sinks map[mediav1.Container]sinkEntry
 	// ticked is a playhead seen to move, before which a 0:00:00 says nothing.
-	ticked atomic.Bool
+	ticked   atomic.Bool
+	seekable atomic.Bool
 }
 
 func (s *session) Capabilities() *mediav1.Capabilities { return s.caps }
@@ -74,6 +75,7 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	}); err != nil {
 		return fmt.Errorf("setting transport URI: %w", err)
 	}
+	s.seekable.Store(playback.Duration() > 0 && (playback.Play.GetSource() != nil || playback.Play.GetPlaylist() != nil || playback.Play.GetProgressive().GetRuntime().GetSeek() == mediav1.DeviceCommand_Play_Runtime_SEEK_TIME))
 
 	play := &struct {
 		InstanceID string

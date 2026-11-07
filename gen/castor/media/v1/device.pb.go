@@ -748,9 +748,13 @@ type Capabilities struct {
 	Provenance   string           `protobuf:"bytes,2,opt,name=provenance,proto3" json:"provenance,omitempty"`
 	Deinterlaces bool             `protobuf:"varint,3,opt,name=deinterlaces,proto3" json:"deinterlaces,omitempty"`
 	// self_fetch is whether the device fetches a stream URL itself, rather than only playing what it is served.
-	SelfFetch     bool `protobuf:"varint,5,opt,name=self_fetch,json=selfFetch,proto3" json:"self_fetch,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SelfFetch bool `protobuf:"varint,5,opt,name=self_fetch,json=selfFetch,proto3" json:"self_fetch,omitempty"`
+	// A preserve_source cast may try measured original tracks in an admitted
+	// transport when model/firmware codec support is unknown. The receiver's
+	// playback verdict decides compatibility; this never permits conversion.
+	NativePlaybackTrial bool `protobuf:"varint,6,opt,name=native_playback_trial,json=nativePlaybackTrial,proto3" json:"native_playback_trial,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Capabilities) Reset() {
@@ -807,6 +811,13 @@ func (x *Capabilities) GetDeinterlaces() bool {
 func (x *Capabilities) GetSelfFetch() bool {
 	if x != nil {
 		return x.SelfFetch
+	}
+	return false
+}
+
+func (x *Capabilities) GetNativePlaybackTrial() bool {
+	if x != nil {
+		return x.NativePlaybackTrial
 	}
 	return false
 }
@@ -2511,7 +2522,7 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\x02at\x18\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x022\x00R\x02at\x12\x16\n" +
 	"\x06paused\x18\x02 \x01(\bR\x06pausedB\x0f\n" +
 	"\x06answer\x12\x05\xbaH\x02\b\x01\"\x10\n" +
-	"\x0eAnswerResponse\"\xce\x01\n" +
+	"\x0eAnswerResponse\"\x82\x02\n" +
 	"\fCapabilities\x12E\n" +
 	"\aformats\x18\x01 \x03(\v2\x1e.castor.media.v1.FormatSupportB\v\xbaH\b\x92\x01\x05\b\x01\x10\x80\x01R\aformats\x12\x1e\n" +
 	"\n" +
@@ -2519,7 +2530,8 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"provenance\x12\"\n" +
 	"\fdeinterlaces\x18\x03 \x01(\bR\fdeinterlaces\x12\x1d\n" +
 	"\n" +
-	"self_fetch\x18\x05 \x01(\bR\tselfFetchJ\x04\b\x04\x10\x05R\x0eserved_headers\"\xad\x03\n" +
+	"self_fetch\x18\x05 \x01(\bR\tselfFetch\x122\n" +
+	"\x15native_playback_trial\x18\x06 \x01(\bR\x13nativePlaybackTrialJ\x04\b\x04\x10\x05R\x0eserved_headers\"\xad\x03\n" +
 	"\rFormatSupport\x12G\n" +
 	"\vprogressive\x18\x01 \x01(\v2#.castor.media.v1.ProgressiveSupportH\x00R\vprogressive\x12/\n" +
 	"\x03hls\x18\x02 \x01(\v2\x1b.castor.media.v1.HLSSupportH\x00R\x03hls\x125\n" +

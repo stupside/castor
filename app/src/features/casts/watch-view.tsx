@@ -24,6 +24,7 @@ const recoveryActions: Record<RecoveryAction, string> = {
   [RecoveryAction.RELAX_READ]: "relax read",
   [RecoveryAction.SERVE_INSTEAD]: "serve instead",
   [RecoveryAction.STAY]: "stay",
+  [RecoveryAction.OPTIMIZE_LIVE]: "optimize live playback",
   [RecoveryAction.SOFTWARE_ENCODE]: "software encode",
 };
 
@@ -89,6 +90,7 @@ export function WatchView({ castId }: { castId: string }) {
       {progress && !over && (progress.streams > 0 || casting?.revision) && <p className="text-xs font-semibold text-white/60">
         {progress.streams > 0 && `${progress.streams} streams found${progress.castable === undefined ? "" : `, ${progress.castable} playable`}`}{casting && casting.attempt > 1 && ` · try ${casting.attempt}`}
         {casting?.revision && <span className="block">Changed plan: {recoveryActions[casting.revision.action] ?? "unspecified"}, {casting.revision.why}</span>}
+        {casting?.optimizedLive && <span className="block">Live stream optimized automatically for playback.</span>}
       </p>}
       <div className="mt-1 flex flex-wrap items-center gap-3">
         {!over && <StopButton key={castId} castId={castId} variant="glass" />}

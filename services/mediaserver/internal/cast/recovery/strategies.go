@@ -26,6 +26,7 @@ const (
 	RelaxRead       Action = "relax-read"
 	ServeInstead    Action = "serve-instead"
 	Stay            Action = "stay"
+	OptimizeLive    Action = "optimize-live"
 	SoftwareEncode  Action = "software-encode"
 )
 
@@ -78,9 +79,23 @@ func readable(ctx context.Context, in Intent, resolver SourceResolver, a Attempt
 		a.candidate, a.Stream = i, link
 		// Packets the last link broke on do not condemn this one's.
 		a.Decode = media.Axes{}
+		a.OptimizedLive = false
 		return a.reading(resolved, in.Deadline), true
 	}
 	return a, false
+}
+
+// optimizeLive answers a native planning refusal on a live source, once, without changing its selection.
+var optimizeLive = strategy{
+	action: OptimizeLive,
+	apply: func(_ context.Context, c change) (Attempt, bool) {
+		a := c.attempt
+		if !c.intent.PreserveSource || a.OptimizedLive || !a.live() {
+			return a, false
+		}
+		a.OptimizedLive = true
+		return a, true
+	},
 }
 
 // decodeAxis decodes the packets the reader died copying.

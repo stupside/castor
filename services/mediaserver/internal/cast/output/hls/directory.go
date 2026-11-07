@@ -79,10 +79,14 @@ func checkDirectory(dir string, limit int64, files int) error {
 }
 
 func monitorDirectory(ctx context.Context, dir string) error {
+	return monitorDirectoryWithin(ctx, dir, SegmentDirectoryLimit, segmentFileLimit)
+}
+
+func monitorDirectoryWithin(ctx context.Context, dir string, limit int64, files int) error {
 	ticker := time.NewTicker(directoryCheckInterval)
 	defer ticker.Stop()
 	for ctx.Err() == nil {
-		if err := checkDirectory(dir, SegmentDirectoryLimit, segmentFileLimit); err != nil {
+		if err := checkDirectory(dir, limit, files); err != nil {
 			return err
 		}
 		select {

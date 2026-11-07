@@ -7,11 +7,12 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
+	"time"
 )
 
 type Adapter struct{}
 
-func (Adapter) Select(f media.FormatSupport, c *output.Captions) (output.Plan, bool) {
+func (Adapter) Select(f media.FormatSupport, c *output.Captions, _ time.Duration) (output.Plan, bool) {
 	if c != nil {
 		return nil, false
 	}

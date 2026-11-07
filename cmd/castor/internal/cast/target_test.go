@@ -14,6 +14,10 @@ func (devices listedDevices) ListDevices(context.Context, *castorv1.ListDevicesR
 	return &castorv1.ListDevicesResponse{Devices: devices}, nil
 }
 
+func (listedDevices) Describe(context.Context, *castorv1.DescribeRequest) (*castorv1.DescribeResponse, error) {
+	return &castorv1.DescribeResponse{}, nil
+}
+
 func TestUnknownConfiguredDeviceTypesFailBeforeListingOrPinning(t *testing.T) {
 	for _, host := range []string{"", "10.0.0.9"} {
 		got, err := Target(t.Context(), nil, Device{Name: "Bedroom", Type: "other", Host: host})

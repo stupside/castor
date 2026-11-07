@@ -106,6 +106,18 @@ Pages often offer several links, some of them decoys. Castor probes each one:
 
 Language beats picture: a worse picture in your language wins over a better one in another. From a playlist with several qualities, castor reads the best one the height cap and bitrate ceiling allow, or else the lightest.
 
+### Keeping the original tracks
+
+A client can set `Preferences.preserve_source` to keep the selected source's video and audio without re-encoding or automatic stream/rendition changes. Castor may change the container, but still checks the produced tracks against the measured source. Explicit height and bitrate ceilings, container support and subtitle requirements still apply; generated subtitles require conversion.
+
+Chromecast's family defaults do not establish every model's decoder support. For an original-track cast, Castor can try measured HEVC/HDR and surround audio in an admitted container and let the receiver decide. This does not advertise those codecs as verified or relax the normal conversion policy. An incompatible finite original-track cast reports `FAILURE_CODE_NATIVE_INCOMPATIBLE` instead of silently reducing quality.
+
+A DLNA renderer that lists a container without a codec profile (for example `video/x-matroska:*`) gets the same trial. When a Native source is one finished file in such a container, castor forwards that file unchanged instead of remuxing it: the TV reads it through castor with byte ranges, castor adds the source's own request headers, and every track, subtitle and container signal arrives as published. Dolby Vision is the reason this matters. Its signaling lives in the container (`dvcC`/`dvvC` in MP4, a block-addition mapping in Matroska, a descriptor in MPEG-TS), so a remux can keep the picture yet hand the TV only its HDR10 or SDR base layer. A forward that the TV refuses is served as before.
+
+Castor reads a stream's Dolby Vision configuration when it probes it. `CastingStatus.handover` tells clients what the playing attempt handed the device: the original file, the original tracks in another container, or a conversion, and whether the source declares Dolby Vision. `DeviceService.Describe` asks one device what it accepts, without casting or launching anything on it, and reports the most a Native cast keeps of an arbitrary source there, so a client can recommend and preselect the most faithful protocol for a TV reachable several ways.
+
+A live source can require conversion to join discontinuous segments into one stream. After a typed native incompatibility before playback, recovery retries that same live source once with conversion allowed. An already playable native handoff is left alone; finite sources, unrelated failures and cancellations cannot trigger this fallback. The request's preferences stay unchanged. `CastingStatus.optimized_live` and the `OPTIMIZE_LIVE` revision let clients show the effective mode, including after subsequent revisions or reconnection.
+
 ### Following the TV's speed
 
 - Castor reads the source once into a buffer on disk. Encoders run about 10 seconds ahead of the TV, so a change reaches it within seconds.
@@ -115,9 +127,15 @@ Language beats picture: a worse picture in your language wins over a better one 
 - A paused TV can stop reading for as long as it likes; only the health watch decides a TV is gone.
 - Nothing carries over between casts: each starts at your `max_bitrate`, which covers picture and sound together.
 
-### Seeking on a DLNA TV
+### Playback controls and seeking
+
+Clients read the receiver's current position, duration and supported controls through `CastService.Playback`, and send pause, resume or seek through `CastService.Control`. An absent position stays absent; a client must not invent a zero playhead. The API serializes controls on the cast's existing device connection.
 
 A DLNA TV can seek when castor serves it a single MPEG-TS stream, from a source with a known duration and no generated captions. Castor then reads the source again from the new position, at the same quality and rate, and serves it on the same URL.
+
+For finite original-track casts on Chromecast, Castor prefers HLS EVENT with fMP4 fragments over a growing, unindexed MP4. Completed fragments stay available while the rest is produced. A seek outside that window prepares a new publication from the requested source position, keeping the same cast and global timeline. The old picture is paused during preparation, and the old publication remains available until the new playback starts; a refused replacement can restore it.
+
+An accepted Cast LOAD or SEEK is not proof that playback reached the requested state. Castor waits for the receiver's playhead and distinguishes an initial IDLE/loading state from a terminal refusal.
 
 ### Changing the stream mid-play
 

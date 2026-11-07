@@ -51,6 +51,8 @@ message PlaybackSettings {
       expression: "this.bits_per_second <= 1000000000000"
     }
   ];
+  // preserve_source keeps finite sources original; live sources may be optimized after a native refusal.
+  bool preserve_source = 6;
 }
 
 message StartResponse {}
