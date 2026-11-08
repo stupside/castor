@@ -19,6 +19,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -128,8 +129,10 @@ type media struct {
 	asked   chan *mediav1.PlaybackSettings
 	sources chan *mediav1.Source
 	// stopped closes once a stop reaches a cast.
-	stopped chan struct{}
-	stop    func()
+	stopped    chan struct{}
+	stop       func()
+	sought     chan *castorv1.SeekRequest
+	controlled chan string
 
 	mu    sync.Mutex
 	casts map[string]*mediaCast
@@ -137,7 +140,36 @@ type media struct {
 
 func newMedia(held bool) *media {
 	stopped := make(chan struct{})
-	return &media{held: held, asked: make(chan *mediav1.PlaybackSettings, 8), sources: make(chan *mediav1.Source, 8), stopped: stopped, stop: sync.OnceFunc(func() { close(stopped) }), casts: map[string]*mediaCast{}}
+	return &media{held: held, asked: make(chan *mediav1.PlaybackSettings, 8), sources: make(chan *mediav1.Source, 8), stopped: stopped, stop: sync.OnceFunc(func() { close(stopped) }), sought: make(chan *castorv1.SeekRequest, 4), controlled: make(chan string, 4), casts: map[string]*mediaCast{}}
+}
+
+const runtime = 2 * time.Hour
+
+func (m *media) Pause(_ context.Context, req *castorv1.PauseRequest) (*castorv1.PauseResponse, error) {
+	if _, err := m.find(req.GetCastId()); err != nil {
+		return nil, err
+	}
+	m.controlled <- "pause " + req.GetCastId()
+	return &castorv1.PauseResponse{}, nil
+}
+
+func (m *media) Resume(_ context.Context, req *castorv1.ResumeRequest) (*castorv1.ResumeResponse, error) {
+	if _, err := m.find(req.GetCastId()); err != nil {
+		return nil, err
+	}
+	m.controlled <- "resume " + req.GetCastId()
+	return &castorv1.ResumeResponse{}, nil
+}
+
+func (m *media) Seek(_ context.Context, req *castorv1.SeekRequest) (*castorv1.SeekResponse, error) {
+	if _, err := m.find(req.GetCastId()); err != nil {
+		return nil, err
+	}
+	if req.GetPosition().AsDuration() >= runtime {
+		return nil, connect.NewError(connect.CodeOutOfRange, fmt.Errorf("the media has no position %s", req.GetPosition().AsDuration()))
+	}
+	m.sought <- req
+	return &castorv1.SeekResponse{}, nil
 }
 
 // ranked reverses candidates, so a handoff proves the media server chose the order.
@@ -181,14 +213,14 @@ func (m *media) find(id string) (*mediaCast, error) {
 }
 
 // Stop ends the cast stopped.
-func (m *media) Stop(_ context.Context, req *mediav1.StopRequest) (*mediav1.StopResponse, error) {
+func (m *media) Stop(_ context.Context, req *castorv1.StopRequest) (*castorv1.StopResponse, error) {
 	c, err := m.find(req.GetCastId())
 	if err != nil {
 		return nil, err
 	}
 	m.stop()
 	c.end(&castorv1.Ended{Result: &castorv1.Ended_Stopped{Stopped: &emptypb.Empty{}}})
-	return &mediav1.StopResponse{}, nil
+	return &castorv1.StopResponse{}, nil
 }
 
 func (m *media) Watch(ctx context.Context, req *castorv1.WatchRequest, out *connect.ServerStream[castorv1.WatchResponse]) error {
@@ -848,6 +880,65 @@ func TestAStoppedCastReleasesItsDeviceAndIsNoLongerListed(t *testing.T) {
 			t.Errorf("listed %v after the stop, want nothing playing", listed.GetCasts())
 		}
 	})
+}
+
+func TestPauseAndResumeReachTheMediaServersCast(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, m := newFamily(), newMedia(true)
+		c := serve(t, setup{media: m, family: f})
+
+		id := cast(t, c, streamOf("https://cdn.example/direct"))
+		<-f.played
+		synctest.Wait()
+		if _, err := c.casts.Pause(t.Context(), &castorv1.PauseRequest{CastId: id}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.casts.Resume(t.Context(), &castorv1.ResumeRequest{CastId: id}); err != nil {
+			t.Fatal(err)
+		}
+		if got := []string{<-m.controlled, <-m.controlled}; !slices.Equal(got, []string{"pause " + id, "resume " + id}) {
+			t.Errorf("the media server was asked %v, want the cast paused then resumed", got)
+		}
+	})
+}
+
+func TestSeekMovesTheCastWithinItsMedia(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, m := newFamily(), newMedia(true)
+		c := serve(t, setup{media: m, family: f})
+
+		id := cast(t, c, streamOf("https://cdn.example/direct"))
+		<-f.played
+		synctest.Wait()
+		if _, err := c.casts.Seek(t.Context(), &castorv1.SeekRequest{CastId: id, Position: durationpb.New(90 * time.Minute)}); err != nil {
+			t.Fatal(err)
+		}
+		if got := <-m.sought; got.GetCastId() != id || got.GetPosition().AsDuration() != 90*time.Minute {
+			t.Errorf("the media server was asked %v, want the cast moved to 1h30m", got)
+		}
+		_, err := c.casts.Seek(t.Context(), &castorv1.SeekRequest{CastId: id, Position: durationpb.New(runtime)})
+		if connect.CodeOf(err) != connect.CodeOutOfRange {
+			t.Errorf("seeking past the media's end: %v, want out of range", err)
+		}
+	})
+}
+
+func TestAnEndedCastIsNeitherPausedNorMoved(t *testing.T) {
+	f := newFamily()
+	c := serve(t, setup{media: newMedia(false), family: f})
+
+	id := cast(t, c, streamOf("https://cdn.example/direct"))
+	if w := watch(t, c, id); w.ended.GetCompleted() == nil {
+		t.Fatalf("the cast ended %v, want completed", w.ended)
+	}
+	_, err := c.casts.Pause(t.Context(), &castorv1.PauseRequest{CastId: id})
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("pausing an ended cast: %v, want failed precondition", err)
+	}
+	_, err = c.casts.Seek(t.Context(), &castorv1.SeekRequest{CastId: id, Position: durationpb.New(time.Minute)})
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("seeking an ended cast: %v, want failed precondition", err)
+	}
 }
 
 func TestWatchingDevicesSendsTheListAgainOnceADeviceStopsAnswering(t *testing.T) {

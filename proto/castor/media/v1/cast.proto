@@ -8,12 +8,14 @@ import "castor/v1/cast.proto";
 import "castor/v1/stream.proto";
 import "google/protobuf/duration.proto";
 
-// CastService starts, stops and follows casts.
+// CastService runs the casts the API server is asked for; past Start, it takes the public cast messages as they are.
 service CastService {
+  rpc Seek(castor.v1.SeekRequest) returns (castor.v1.SeekResponse);
+  rpc Stop(castor.v1.StopRequest) returns (castor.v1.StopResponse);
   rpc Start(StartRequest) returns (StartResponse);
-  rpc Stop(StopRequest) returns (StopResponse);
-  // Watch follows a cast without driving it, as the public CastService.Watch does.
   rpc Watch(castor.v1.WatchRequest) returns (stream castor.v1.WatchResponse);
+  rpc Pause(castor.v1.PauseRequest) returns (castor.v1.PauseResponse);
+  rpc Resume(castor.v1.ResumeRequest) returns (castor.v1.ResumeResponse);
 }
 
 message StartRequest {
@@ -43,23 +45,11 @@ message PlaybackSettings {
 
 message StartResponse {}
 
-message StopRequest {
-  string cast_id = 1 [(buf.validate.field).string.min_len = 1];
-}
-
-message StopResponse {}
-
 // Source is a direct stream or extracted candidates, never pages.
 message Source {
   oneof source {
     option (buf.validate.oneof).required = true;
     castor.v1.Stream stream = 1;
-    Streams streams = 2;
-  }
-  message Streams {
-    repeated castor.v1.StreamCandidate streams = 1 [(buf.validate.field).repeated = {
-      min_items: 1
-      max_items: 1600
-    }];
+    castor.v1.Source.ResolvedStreams streams = 2;
   }
 }

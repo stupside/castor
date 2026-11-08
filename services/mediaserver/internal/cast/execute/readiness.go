@@ -42,7 +42,7 @@ func certifyPresentation(p presentation) (readyPresentation, error) {
 }
 
 func (p readyPresentation) play(ctx context.Context, device Device) error {
-	return hand(ctx, device, Playback{URL: p.target, Captions: p.captions, Stream: p.stream()})
+	return hand(ctx, device, Playback{URL: p.target, Captions: p.captions, Stream: p.stream(), Begins: p.reached.began})
 }
 
 // stream is how what the device is handed reaches it.

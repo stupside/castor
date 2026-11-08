@@ -7,9 +7,9 @@ import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2
 import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
 import type { Bitrate } from "./bitrate_pb";
 import { file_castor_media_v1_bitrate } from "./bitrate_pb";
-import type { AudioSelection, SubtitleSelection, WatchRequestSchema, WatchResponseSchema } from "../../v1/cast_pb";
+import type { AudioSelection, PauseRequestSchema, PauseResponseSchema, ResumeRequestSchema, ResumeResponseSchema, SeekRequestSchema, SeekResponseSchema, Source_ResolvedStreams, StopRequestSchema, StopResponseSchema, SubtitleSelection, WatchRequestSchema, WatchResponseSchema } from "../../v1/cast_pb";
 import { file_castor_v1_cast } from "../../v1/cast_pb";
-import type { Delivery, Stream, StreamCandidate } from "../../v1/stream_pb";
+import type { Delivery, Stream } from "../../v1/stream_pb";
 import { file_castor_v1_stream } from "../../v1/stream_pb";
 import type { Duration } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_duration } from "@bufbuild/protobuf/wkt";
@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/media/v1/cast.proto.
  */
 export const file_castor_media_v1_cast: GenFile = /*@__PURE__*/
-  fileDesc("ChpjYXN0b3IvbWVkaWEvdjEvY2FzdC5wcm90bxIPY2FzdG9yLm1lZGlhLnYxItgBCgxTdGFydFJlcXVlc3QSJgoHY2FzdF9pZBgBIAEoCUIVukgSchAyDl5bQS1aMi03XXsyNn0kEi8KBnNvdXJjZRgCIAEoCzIXLmNhc3Rvci5tZWRpYS52MS5Tb3VyY2VCBrpIA8gBARI7CghzZXR0aW5ncxgDIAEoCzIhLmNhc3Rvci5tZWRpYS52MS5QbGF5YmFja1NldHRpbmdzQga6SAPIAQESMgoFc3RhcnQYBCABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CCLpIBaoBAioAIoADChBQbGF5YmFja1NldHRpbmdzEjEKCGRlbGl2ZXJ5GAEgASgOMhMuY2FzdG9yLnYxLkRlbGl2ZXJ5Qgq6SAeCAQQQASAAEhsKCm1heF9oZWlnaHQYAiABKA1CB7pIBCoCKAISNwoJc3VidGl0bGVzGAMgASgLMhwuY2FzdG9yLnYxLlN1YnRpdGxlU2VsZWN0aW9uQga6SAPIAQESKAoFYXVkaW8YBCABKAsyGS5jYXN0b3IudjEuQXVkaW9TZWxlY3Rpb24SuAEKC21heF9iaXRyYXRlGAUgASgLMhguY2FzdG9yLm1lZGlhLnYxLkJpdHJhdGVCiAG6SIQBugGAAQoRbWF4X2JpdHJhdGUucmFuZ2USIW11c3QgYmUgZnJvbSAxIE1iaXQvcyB0byAxIFRiaXQvcxpIdGhpcy5iaXRzX3Blcl9zZWNvbmQgPj0gMTAwMDAwMCAmJiB0aGlzLmJpdHNfcGVyX3NlY29uZCA8PSAxMDAwMDAwMDAwMDAwIg8KDVN0YXJ0UmVzcG9uc2UiJwoLU3RvcFJlcXVlc3QSGAoHY2FzdF9pZBgBIAEoCUIHukgEcgIQASIOCgxTdG9wUmVzcG9uc2UitwEKBlNvdXJjZRIjCgZzdHJlYW0YASABKAsyES5jYXN0b3IudjEuU3RyZWFtSAASMgoHc3RyZWFtcxgCIAEoCzIfLmNhc3Rvci5tZWRpYS52MS5Tb3VyY2UuU3RyZWFtc0gAGkMKB1N0cmVhbXMSOAoHc3RyZWFtcxgBIAMoCzIaLmNhc3Rvci52MS5TdHJlYW1DYW5kaWRhdGVCC7pICJIBBQgBEMAMQg8KBnNvdXJjZRIFukgCCAEy2AEKC0Nhc3RTZXJ2aWNlEkYKBVN0YXJ0Eh0uY2FzdG9yLm1lZGlhLnYxLlN0YXJ0UmVxdWVzdBoeLmNhc3Rvci5tZWRpYS52MS5TdGFydFJlc3BvbnNlEkMKBFN0b3ASHC5jYXN0b3IubWVkaWEudjEuU3RvcFJlcXVlc3QaHS5jYXN0b3IubWVkaWEudjEuU3RvcFJlc3BvbnNlEjwKBVdhdGNoEhcuY2FzdG9yLnYxLldhdGNoUmVxdWVzdBoYLmNhc3Rvci52MS5XYXRjaFJlc3BvbnNlMAFiBnByb3RvMw", [file_buf_validate_validate, file_castor_media_v1_bitrate, file_castor_v1_cast, file_castor_v1_stream, file_google_protobuf_duration]);
+  fileDesc("ChpjYXN0b3IvbWVkaWEvdjEvY2FzdC5wcm90bxIPY2FzdG9yLm1lZGlhLnYxItgBCgxTdGFydFJlcXVlc3QSJgoHY2FzdF9pZBgBIAEoCUIVukgSchAyDl5bQS1aMi03XXsyNn0kEi8KBnNvdXJjZRgCIAEoCzIXLmNhc3Rvci5tZWRpYS52MS5Tb3VyY2VCBrpIA8gBARI7CghzZXR0aW5ncxgDIAEoCzIhLmNhc3Rvci5tZWRpYS52MS5QbGF5YmFja1NldHRpbmdzQga6SAPIAQESMgoFc3RhcnQYBCABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CCLpIBaoBAioAIoADChBQbGF5YmFja1NldHRpbmdzEjEKCGRlbGl2ZXJ5GAEgASgOMhMuY2FzdG9yLnYxLkRlbGl2ZXJ5Qgq6SAeCAQQQASAAEhsKCm1heF9oZWlnaHQYAiABKA1CB7pIBCoCKAISNwoJc3VidGl0bGVzGAMgASgLMhwuY2FzdG9yLnYxLlN1YnRpdGxlU2VsZWN0aW9uQga6SAPIAQESKAoFYXVkaW8YBCABKAsyGS5jYXN0b3IudjEuQXVkaW9TZWxlY3Rpb24SuAEKC21heF9iaXRyYXRlGAUgASgLMhguY2FzdG9yLm1lZGlhLnYxLkJpdHJhdGVCiAG6SIQBugGAAQoRbWF4X2JpdHJhdGUucmFuZ2USIW11c3QgYmUgZnJvbSAxIE1iaXQvcyB0byAxIFRiaXQvcxpIdGhpcy5iaXRzX3Blcl9zZWNvbmQgPj0gMTAwMDAwMCAmJiB0aGlzLmJpdHNfcGVyX3NlY29uZCA8PSAxMDAwMDAwMDAwMDAwIg8KDVN0YXJ0UmVzcG9uc2UidAoGU291cmNlEiMKBnN0cmVhbRgBIAEoCzIRLmNhc3Rvci52MS5TdHJlYW1IABI0CgdzdHJlYW1zGAIgASgLMiEuY2FzdG9yLnYxLlNvdXJjZS5SZXNvbHZlZFN0cmVhbXNIAEIPCgZzb3VyY2USBbpIAggBMoADCgtDYXN0U2VydmljZRI3CgRTZWVrEhYuY2FzdG9yLnYxLlNlZWtSZXF1ZXN0GhcuY2FzdG9yLnYxLlNlZWtSZXNwb25zZRI3CgRTdG9wEhYuY2FzdG9yLnYxLlN0b3BSZXF1ZXN0GhcuY2FzdG9yLnYxLlN0b3BSZXNwb25zZRJGCgVTdGFydBIdLmNhc3Rvci5tZWRpYS52MS5TdGFydFJlcXVlc3QaHi5jYXN0b3IubWVkaWEudjEuU3RhcnRSZXNwb25zZRI8CgVXYXRjaBIXLmNhc3Rvci52MS5XYXRjaFJlcXVlc3QaGC5jYXN0b3IudjEuV2F0Y2hSZXNwb25zZTABEjoKBVBhdXNlEhcuY2FzdG9yLnYxLlBhdXNlUmVxdWVzdBoYLmNhc3Rvci52MS5QYXVzZVJlc3BvbnNlEj0KBlJlc3VtZRIYLmNhc3Rvci52MS5SZXN1bWVSZXF1ZXN0GhkuY2FzdG9yLnYxLlJlc3VtZVJlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate, file_castor_media_v1_bitrate, file_castor_v1_cast, file_castor_v1_stream, file_google_protobuf_duration]);
 
 /**
  * @generated from message castor.media.v1.StartRequest
@@ -110,36 +110,6 @@ export const StartResponseSchema: GenMessage<StartResponse> = /*@__PURE__*/
   messageDesc(file_castor_media_v1_cast, 2);
 
 /**
- * @generated from message castor.media.v1.StopRequest
- */
-export type StopRequest = Message<"castor.media.v1.StopRequest"> & {
-  /**
-   * @generated from field: string cast_id = 1;
-   */
-  castId: string;
-};
-
-/**
- * Describes the message castor.media.v1.StopRequest.
- * Use `create(StopRequestSchema)` to create a new message.
- */
-export const StopRequestSchema: GenMessage<StopRequest> = /*@__PURE__*/
-  messageDesc(file_castor_media_v1_cast, 3);
-
-/**
- * @generated from message castor.media.v1.StopResponse
- */
-export type StopResponse = Message<"castor.media.v1.StopResponse"> & {
-};
-
-/**
- * Describes the message castor.media.v1.StopResponse.
- * Use `create(StopResponseSchema)` to create a new message.
- */
-export const StopResponseSchema: GenMessage<StopResponse> = /*@__PURE__*/
-  messageDesc(file_castor_media_v1_cast, 4);
-
-/**
  * Source is a direct stream or extracted candidates, never pages.
  *
  * @generated from message castor.media.v1.Source
@@ -156,9 +126,9 @@ export type Source = Message<"castor.media.v1.Source"> & {
     case: "stream";
   } | {
     /**
-     * @generated from field: castor.media.v1.Source.Streams streams = 2;
+     * @generated from field: castor.v1.Source.ResolvedStreams streams = 2;
      */
-    value: Source_Streams;
+    value: Source_ResolvedStreams;
     case: "streams";
   } | { case: undefined; value?: undefined };
 };
@@ -168,38 +138,21 @@ export type Source = Message<"castor.media.v1.Source"> & {
  * Use `create(SourceSchema)` to create a new message.
  */
 export const SourceSchema: GenMessage<Source> = /*@__PURE__*/
-  messageDesc(file_castor_media_v1_cast, 5);
+  messageDesc(file_castor_media_v1_cast, 3);
 
 /**
- * @generated from message castor.media.v1.Source.Streams
- */
-export type Source_Streams = Message<"castor.media.v1.Source.Streams"> & {
-  /**
-   * @generated from field: repeated castor.v1.StreamCandidate streams = 1;
-   */
-  streams: StreamCandidate[];
-};
-
-/**
- * Describes the message castor.media.v1.Source.Streams.
- * Use `create(Source_StreamsSchema)` to create a new message.
- */
-export const Source_StreamsSchema: GenMessage<Source_Streams> = /*@__PURE__*/
-  messageDesc(file_castor_media_v1_cast, 5, 0);
-
-/**
- * CastService starts, stops and follows casts.
+ * CastService runs the casts the API server is asked for; past Start, it takes the public cast messages as they are.
  *
  * @generated from service castor.media.v1.CastService
  */
 export const CastService: GenService<{
   /**
-   * @generated from rpc castor.media.v1.CastService.Start
+   * @generated from rpc castor.media.v1.CastService.Seek
    */
-  start: {
+  seek: {
     methodKind: "unary";
-    input: typeof StartRequestSchema;
-    output: typeof StartResponseSchema;
+    input: typeof SeekRequestSchema;
+    output: typeof SeekResponseSchema;
   },
   /**
    * @generated from rpc castor.media.v1.CastService.Stop
@@ -210,14 +163,36 @@ export const CastService: GenService<{
     output: typeof StopResponseSchema;
   },
   /**
-   * Watch follows a cast without driving it, as the public CastService.Watch does.
-   *
+   * @generated from rpc castor.media.v1.CastService.Start
+   */
+  start: {
+    methodKind: "unary";
+    input: typeof StartRequestSchema;
+    output: typeof StartResponseSchema;
+  },
+  /**
    * @generated from rpc castor.media.v1.CastService.Watch
    */
   watch: {
     methodKind: "server_streaming";
     input: typeof WatchRequestSchema;
     output: typeof WatchResponseSchema;
+  },
+  /**
+   * @generated from rpc castor.media.v1.CastService.Pause
+   */
+  pause: {
+    methodKind: "unary";
+    input: typeof PauseRequestSchema;
+    output: typeof PauseResponseSchema;
+  },
+  /**
+   * @generated from rpc castor.media.v1.CastService.Resume
+   */
+  resume: {
+    methodKind: "unary";
+    input: typeof ResumeRequestSchema;
+    output: typeof ResumeResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_castor_media_v1_cast, 0);

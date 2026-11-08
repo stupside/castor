@@ -220,7 +220,7 @@ func (s *session) finish() (*castorv1.Ended, error) {
 // stopRemote retries lost stop requests within the owner's reconciliation budget.
 func (c *Client) stopRemote(ctx context.Context, id string) error {
 	for backoff := stopBackoff; ; backoff = min(2*backoff, controlTimeout) {
-		err := c.Stop(ctx, id)
+		_, err := c.Casts.Stop(ctx, &castorv1.StopRequest{CastId: id})
 		if err == nil || connect.CodeOf(err) == connect.CodeNotFound {
 			return nil
 		}

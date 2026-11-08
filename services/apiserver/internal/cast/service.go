@@ -189,7 +189,7 @@ func (s *Service) resolve(ctx context.Context, source *castorv1.Source) (*mediav
 		return &mediav1.Source{Source: &mediav1.Source_Stream{Stream: one}}, nil
 	}
 	if ready := source.GetStreams(); ready != nil {
-		return &mediav1.Source{Source: &mediav1.Source_Streams_{Streams: &mediav1.Source_Streams{Streams: ready.GetStreams()}}}, nil
+		return &mediav1.Source{Source: &mediav1.Source_Streams{Streams: ready}}, nil
 	}
 	if s.scraping == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("page resolution requires scrapingserver"))
@@ -202,7 +202,7 @@ func (s *Service) resolve(ctx context.Context, source *castorv1.Source) (*mediav
 		}
 		return nil, err
 	}
-	return &mediav1.Source{Source: &mediav1.Source_Streams_{Streams: &mediav1.Source_Streams{Streams: streams}}}, nil
+	return &mediav1.Source{Source: &mediav1.Source_Streams{Streams: &castorv1.Source_ResolvedStreams{Streams: streams}}}, nil
 }
 
 // fromMedia is err from the media server as this API answers it: the media server refusing this server is this server's fault, not the caller's.
@@ -221,6 +221,37 @@ func (s *Service) Stop(_ context.Context, req *castorv1.StopRequest) (*castorv1.
 	}
 	c.stop(errStopped)
 	return &castorv1.StopResponse{}, nil
+}
+
+func (s *Service) Pause(ctx context.Context, req *castorv1.PauseRequest) (*castorv1.PauseResponse, error) {
+	return s.forward(ctx, req, s.media.Casts.Pause)
+}
+
+func (s *Service) Resume(ctx context.Context, req *castorv1.ResumeRequest) (*castorv1.ResumeResponse, error) {
+	return s.forward(ctx, req, s.media.Casts.Resume)
+}
+
+func (s *Service) Seek(ctx context.Context, req *castorv1.SeekRequest) (*castorv1.SeekResponse, error) {
+	return s.forward(ctx, req, s.media.Casts.Seek)
+}
+
+// forward has the media server, which knows a cast once it plays, run call on it.
+func (s *Service) forward[Req interface{ GetCastId() string }, Res any](ctx context.Context, req Req, call func(context.Context, Req) (*Res, error)) (*Res, error) {
+	c, err := s.find(req.GetCastId())
+	if err != nil {
+		return nil, err
+	}
+	if v, _ := c.now.Load(); v.ended != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("cast %q has ended", c.id))
+	}
+	res, err := call(ctx, req)
+	switch {
+	case connect.CodeOf(err) == connect.CodeNotFound:
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("cast %q is not playing on its device yet", c.id))
+	case err != nil:
+		return nil, fromMedia(err)
+	}
+	return res, nil
 }
 
 func (s *Service) ListCasts(context.Context, *castorv1.ListCastsRequest) (*castorv1.ListCastsResponse, error) {

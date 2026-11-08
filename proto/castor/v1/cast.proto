@@ -20,6 +20,10 @@ service CastService {
   rpc Stop(StopRequest) returns (StopResponse);
   // ListCasts is the casts playing now, oldest first.
   rpc ListCasts(ListCastsRequest) returns (ListCastsResponse);
+  rpc Pause(PauseRequest) returns (PauseResponse);
+  // Resume ends a Pause; a device castor holds while its stream catches up plays once it has.
+  rpc Resume(ResumeRequest) returns (ResumeResponse);
+  rpc Seek(SeekRequest) returns (SeekResponse);
 }
 
 message CastRequest {
@@ -163,6 +167,19 @@ message CastingStatus {
   uint32 castable = 2;
   uint32 attempt = 3 [(buf.validate.field).uint32.gte = 1];
   Revision revision = 4;
+  // playhead is absent until the device reports a position, and on devices that never do.
+  Playhead playhead = 5;
+}
+
+message Playhead {
+  // position counts from the media's start, wherever the cast began.
+  google.protobuf.Duration position = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gte = {}
+  ];
+  google.protobuf.Duration duration = 2 [(buf.validate.field).duration.gt = {}];
+  // paused is set by Pause, by the device's own remote, or while castor buffers.
+  bool paused = 3;
 }
 
 message Ended {
@@ -213,3 +230,35 @@ message Cast {
   Source source = 3;
   CastStatus status = 4;
 }
+
+message PauseRequest {
+  string cast_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 64
+  }];
+}
+
+message PauseResponse {}
+
+message ResumeRequest {
+  string cast_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 64
+  }];
+}
+
+message ResumeResponse {}
+
+message SeekRequest {
+  string cast_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 64
+  }];
+  // position counts from the media's start, as Playhead's does.
+  google.protobuf.Duration position = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gte = {}
+  ];
+}
+
+message SeekResponse {}

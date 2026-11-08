@@ -10,7 +10,6 @@ import (
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/gen/castor/media/v1/mediav1connect"
 )
 
@@ -20,7 +19,7 @@ type unavailableCast struct {
 	calls int
 }
 
-func (c *unavailableCast) Stop(context.Context, *mediav1.StopRequest) (*mediav1.StopResponse, error) {
+func (c *unavailableCast) Stop(context.Context, *castorv1.StopRequest) (*castorv1.StopResponse, error) {
 	c.calls++
 	return nil, c.err
 }
@@ -29,7 +28,7 @@ func TestStopReconciliationHasOneBoundedBudget(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		lost := errors.New("stop response lost")
 		remote := &unavailableCast{err: lost}
-		client := &Client{casts: remote}
+		client := &Client{Casts: remote}
 		ctx, cancel := context.WithTimeout(t.Context(), stopGrace)
 		defer cancel()
 		start := time.Now()
@@ -50,7 +49,7 @@ func TestRemoteCompletionDuringJoinSurvivesStopTimeout(t *testing.T) {
 		watched := make(chan watchResult, 1)
 		ended := &castorv1.Ended{Result: &castorv1.Ended_Stopped{Stopped: &emptypb.Empty{}}}
 		s := &session{
-			client: &Client{casts: &unavailableCast{err: errors.New("stop response lost")}},
+			client: &Client{Casts: &unavailableCast{err: errors.New("stop response lost")}},
 			id:     "cast", ctx: ctx, cancel: cancel, machine: newSessionMachine(), watching: watched,
 		}
 		s.move(remoteStarted)

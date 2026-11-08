@@ -115,9 +115,11 @@ Language beats picture: a worse picture in your language wins over a better one 
 - A paused TV can stop reading for as long as it likes; only the health watch decides a TV is gone.
 - Nothing carries over between casts: each starts at your `max_bitrate`, which covers picture and sound together.
 
-### Seeking on a DLNA TV
+### Seeking
 
-A DLNA TV can seek when castor serves it a single MPEG-TS stream, from a source with a known duration and no generated captions. Castor then reads the source again from the new position, at the same quality and rate, and serves it on the same URL.
+A client seeks any cast through the API. Castor ends the attempt playing and starts the next one from the position asked, on the same link, so the TV reloads for a moment.
+
+A DLNA TV can also seek by itself when castor serves it a single MPEG-TS stream, from a source with a known duration and no generated captions. Castor then reads the source again from the new position, at the same quality and rate, and serves it on the same URL.
 
 ### Changing the stream mid-play
 

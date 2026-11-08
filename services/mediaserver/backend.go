@@ -147,7 +147,7 @@ func announce(s *source.Stream) *source.Stream {
 	return &announced
 }
 
-func (k caster) Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, start time.Duration, turns recovery.Turns) error {
+func (k caster) Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, start time.Duration, turns recovery.Turns, seeks <-chan recovery.Seek) error {
 	maxBitrate := media.Bitrate(k.asked.GetMaxBitrate().GetBitsPerSecond())
 	run := execute.Cast{
 		Machinery:     k.machinery,
@@ -168,6 +168,7 @@ func (k caster) Play(ctx context.Context, device execute.Device, publisher outpu
 		Ceiling:    maxBitrate,
 		Start:      start,
 		Turns:      turns,
+		Seeks:      seeks,
 	}, run, k.resolver)
 }
 
