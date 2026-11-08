@@ -421,3 +421,11 @@ func TestReceiversWithoutVideoAreRefused(t *testing.T) {
 		t.Errorf("Connect = %v", err)
 	}
 }
+
+func TestAirPlayAsksForDolbyVisionAsDvh1InHLSOnly(t *testing.T) {
+	for _, f := range capabilities().GetFormats() {
+		if hls := f.GetHls(); hls != nil && !hls.GetDolbyVisionEntry() {
+			t.Error("an HLS format leaves Dolby Vision as hvc1, which an LG plays as HDR10")
+		}
+	}
+}

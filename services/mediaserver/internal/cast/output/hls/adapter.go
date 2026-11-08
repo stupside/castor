@@ -22,7 +22,7 @@ func (Adapter) Select(f media.FormatSupport, c *output.Captions, runtime time.Du
 		if c != nil && (f.Transport != media.TransportHLSWebVTT || c.Cues == nil || c.VideoOffset < 0 || c.VideoOffset >= CaptionSegmentDuration) {
 			return nil, false
 		}
-		return hlsPlan{captions: c, runtime: runtime}, true
+		return hlsPlan{captions: c, runtime: runtime, dolbyVisionEntry: f.DolbyVisionEntry}, true
 	}
 	return nil, false
 }
@@ -30,6 +30,8 @@ func (Adapter) Select(f media.FormatSupport, c *output.Captions, runtime time.Du
 type hlsPlan struct {
 	captions *output.Captions
 	runtime  time.Duration
+	// dolbyVisionEntry is a player that reads Dolby Vision only from a dvh1 sample entry.
+	dolbyVisionEntry bool
 }
 
 // Retained event playlists keep the program's clock and earlier fragments while
@@ -51,6 +53,7 @@ func format() container.Format {
 }
 func (p hlsPlan) Format() container.Format {
 	f := format()
+	f.DolbyVisionEntry = p.dolbyVisionEntry
 	if p.retained() {
 		f.Tuning.Args = []string{
 			"-hls_time", strconv.FormatFloat(CaptionSegmentDuration.Seconds(), 'f', -1, 64),
@@ -68,6 +71,7 @@ func (p hlsPlan) EncoderFormat() container.Format {
 		return p.Format()
 	}
 	f, _ := container.For(media.MP4)
+	f.DolbyVisionEntry = p.dolbyVisionEntry
 	f.Tuning.MovFlags = []string{"delay_moov", "default_base_moof"}
 	micros := strconv.FormatInt(CaptionSegmentDuration.Microseconds(), 10)
 	f.Tuning.Args = []string{"-frag_duration", micros, "-min_frag_duration", micros}

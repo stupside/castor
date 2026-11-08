@@ -19,14 +19,16 @@ type axis struct {
 	// codec is what lands in the container: the source's when copied, the encoder's otherwise.
 	codec   media.Codec
 	copying bool
-	action  codec.Action
+	// dolbyVision is a picture carrying a Dolby Vision configuration, which only a copy keeps.
+	dolbyVision bool
+	action      codec.Action
 	refused bool // the tables already say this container will not carry it
 	// encode is the encoder's own options, nil when copied.
 	encode []string
 }
 
 func videoAxis(probe media.ProbeInfo, video codec.Track[codec.VideoEncode], refused media.Axes) axis {
-	a := axis{spec: "v", kind: media.TrackVideo, name: video.Name(), codec: probe.VideoCodec, copying: video.Action() == codec.CopyTrack, action: video.Action(), refused: refused.Video}
+	a := axis{spec: "v", kind: media.TrackVideo, name: video.Name(), codec: probe.VideoCodec, copying: video.Action() == codec.CopyTrack, dolbyVision: probe.VideoDolbyVision != nil, action: video.Action(), refused: refused.Video}
 	if venc, ok := video.Encode(); ok {
 		a.codec, a.copying, a.encode = venc.Encoder.Codec, false, videoEncodeArgs(venc)
 	}
@@ -94,7 +96,7 @@ func (a axis) args(format container.Format) (axisArgs, error) {
 	if a.action == codec.OmitTrack {
 		return axisArgs{args: []string{"-" + a.spec + "n"}}, nil
 	}
-	cp := container.Adapt(a.kind, a.codec, format, a.copying)
+	cp := container.Adapt(a.kind, a.codec, format, a.copying, a.dolbyVision)
 	// A copy the tables already refuse must not be buildable.
 	if a.copying && a.refused {
 		return axisArgs{}, fmt.Errorf("copy of %q into %q on -c:%s is known not to be carriable; it should have been re-encoded",

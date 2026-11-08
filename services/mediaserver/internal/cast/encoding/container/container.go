@@ -26,6 +26,8 @@ type Format struct {
 	Framing media.Framing
 	// Tuning: fixed options (not codec-dependent); on row to avoid silent drops.
 	Tuning Tuning
+	// DolbyVisionEntry marks a Dolby Vision copy dvh1 rather than hvc1, for a player that reads it only there.
+	DolbyVisionEntry bool
 }
 
 // Tuning is the fixed output configuration of one muxer.

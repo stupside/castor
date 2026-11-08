@@ -106,6 +106,7 @@ func FromCapabilities(c *mediav1.Capabilities) media.Capabilities {
 		}
 		envelope := media.FormatSupport{Transport: transport, ServedHeaders: f.GetProgressive().GetServedHeaders()}
 		if hls := f.GetHls(); hls != nil {
+			envelope.DolbyVisionEntry = hls.GetDolbyVisionEntry()
 			for _, segment := range hls.GetExtraSegmentFormats() {
 				switch segment {
 				case mediav1.HLSSupport_EXTRA_SEGMENT_FORMAT_TIKTIKPX:

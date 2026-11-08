@@ -14,7 +14,7 @@ func TestCapabilitiesPreserveAtomicTransportAndTracks(t *testing.T) {
 	caps := &mediav1.Capabilities{NativePlaybackTrial: true, Formats: []*mediav1.FormatSupport{
 		{Transport: &mediav1.FormatSupport_Progressive{Progressive: &mediav1.ProgressiveSupport{Container: mediav1.ProgressiveSupport_CONTAINER_MP4}}, Tracks: &mediav1.FormatSupport_Av{Av: &mediav1.AVSupport{Video: h264Video(), Audio: &mediav1.AudioSupport{Codec: mediav1.AudioCodec_AUDIO_CODEC_AAC, MaxChannels: 2}}}, Captions: []mediav1.CaptionFormat{mediav1.CaptionFormat_CAPTION_FORMAT_VTT}},
 		{Transport: &mediav1.FormatSupport_Hls{Hls: &mediav1.HLSSupport{}}, Tracks: &mediav1.FormatSupport_Audio{Audio: &mediav1.AudioSupport{Codec: mediav1.AudioCodec_AUDIO_CODEC_AC3}}},
-		{Transport: &mediav1.FormatSupport_Hls{Hls: &mediav1.HLSSupport{Subtitles: mediav1.HLSSupport_SUBTITLES_WEBVTT, ExtraSegmentFormats: []mediav1.HLSSupport_ExtraSegmentFormat{mediav1.HLSSupport_EXTRA_SEGMENT_FORMAT_TIKTIKPX, 999}}}, Tracks: &mediav1.FormatSupport_Video{Video: &mediav1.VideoSupport{Codec: &mediav1.VideoSupport_Hevc{Hevc: &mediav1.HEVCSupport{BitDepths: []uint32{10}}}}}},
+		{Transport: &mediav1.FormatSupport_Hls{Hls: &mediav1.HLSSupport{Subtitles: mediav1.HLSSupport_SUBTITLES_WEBVTT, ExtraSegmentFormats: []mediav1.HLSSupport_ExtraSegmentFormat{mediav1.HLSSupport_EXTRA_SEGMENT_FORMAT_TIKTIKPX, 999}, DolbyVisionEntry: true}}, Tracks: &mediav1.FormatSupport_Video{Video: &mediav1.VideoSupport{Codec: &mediav1.VideoSupport_Hevc{Hevc: &mediav1.HEVCSupport{BitDepths: []uint32{10}}}}}},
 	}}
 	got := FromCapabilities(caps)
 	if !got.NativePlaybackTrial {
@@ -31,6 +31,9 @@ func TestCapabilitiesPreserveAtomicTransportAndTracks(t *testing.T) {
 	}
 	if len(got.Formats[1].ExtraSegments) != 0 || len(got.Formats[2].ExtraSegments) != 1 || got.Formats[2].ExtraSegments[0] != media.HLSExtraSegmentTIKTIKPX {
 		t.Fatalf("HLS segment support lost: %+v", got.Formats)
+	}
+	if got.Formats[1].DolbyVisionEntry || !got.Formats[2].DolbyVisionEntry {
+		t.Fatalf("the dvh1 player signal is lost or widened: %+v", got.Formats)
 	}
 	if len(FromCapabilities(nil).Formats) != 0 {
 		t.Fatal("absent capabilities widened")

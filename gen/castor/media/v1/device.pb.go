@@ -1086,8 +1086,11 @@ type HLSSupport struct {
 	Subtitles HLSSupport_Subtitles `protobuf:"varint,1,opt,name=subtitles,proto3,enum=castor.media.v1.HLSSupport_Subtitles" json:"subtitles,omitempty"`
 	// Nonstandard segment formats accepted in addition to ordinary HLS segments.
 	ExtraSegmentFormats []HLSSupport_ExtraSegmentFormat `protobuf:"varint,2,rep,packed,name=extra_segment_formats,json=extraSegmentFormats,proto3,enum=castor.media.v1.HLSSupport_ExtraSegmentFormat" json:"extra_segment_formats,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// dolby_vision_entry is a player that shows Dolby Vision only from a dvh1 sample entry, as LG's AirPlay
+	// player does: castor marks a Dolby Vision copy dvh1 for it rather than the hvc1 every other player takes.
+	DolbyVisionEntry bool `protobuf:"varint,3,opt,name=dolby_vision_entry,json=dolbyVisionEntry,proto3" json:"dolby_vision_entry,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *HLSSupport) Reset() {
@@ -1132,6 +1135,13 @@ func (x *HLSSupport) GetExtraSegmentFormats() []HLSSupport_ExtraSegmentFormat {
 		return x.ExtraSegmentFormats
 	}
 	return nil
+}
+
+func (x *HLSSupport) GetDolbyVisionEntry() bool {
+	if x != nil {
+		return x.DolbyVisionEntry
+	}
+	return false
 }
 
 type VideoSupport struct {
@@ -2565,11 +2575,12 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\rCONTAINER_MP4\x10\x01\x12\x14\n" +
 	"\x10CONTAINER_MPEGTS\x10\x02\x12\x11\n" +
 	"\rCONTAINER_MKV\x10\x03\x12\x12\n" +
-	"\x0eCONTAINER_WEBM\x10\x04\"\xef\x02\n" +
+	"\x0eCONTAINER_WEBM\x10\x04\"\x9d\x03\n" +
 	"\n" +
 	"HLSSupport\x12M\n" +
 	"\tsubtitles\x18\x01 \x01(\x0e2%.castor.media.v1.HLSSupport.SubtitlesB\b\xbaH\x05\x82\x01\x02\x10\x01R\tsubtitles\x12u\n" +
-	"\x15extra_segment_formats\x18\x02 \x03(\x0e2..castor.media.v1.HLSSupport.ExtraSegmentFormatB\x11\xbaH\x0e\x92\x01\v\x10\x10\x18\x01\"\x05\x82\x01\x02 \x00R\x13extraSegmentFormats\"<\n" +
+	"\x15extra_segment_formats\x18\x02 \x03(\x0e2..castor.media.v1.HLSSupport.ExtraSegmentFormatB\x11\xbaH\x0e\x92\x01\v\x10\x10\x18\x01\"\x05\x82\x01\x02 \x00R\x13extraSegmentFormats\x12,\n" +
+	"\x12dolby_vision_entry\x18\x03 \x01(\bR\x10dolbyVisionEntry\"<\n" +
 	"\tSubtitles\x12\x19\n" +
 	"\x15SUBTITLES_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10SUBTITLES_WEBVTT\x10\x01\"]\n" +

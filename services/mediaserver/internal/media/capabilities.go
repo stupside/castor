@@ -141,6 +141,8 @@ type FormatSupport struct {
 	Captions      []CaptionFormat
 	ExtraSegments []HLSExtraSegmentFormat
 	ServedHeaders map[string]string
+	// DolbyVisionEntry is an HLS player that shows Dolby Vision only from a dvh1 sample entry.
+	DolbyVisionEntry bool
 }
 
 type HLSExtraSegmentFormat uint8

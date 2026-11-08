@@ -31,6 +31,10 @@ func mediaCodecs(movie *mp4.MoovBox) (string, error) {
 		case stsd.AvcX != nil && stsd.AvcX.AvcC != nil:
 			entry := stsd.AvcX
 			codecs = append(codecs, fmt.Sprintf("%s.%02x%02x%02x", entry.Type(), entry.AvcC.AVCProfileIndication, entry.AvcC.ProfileCompatibility, entry.AvcC.AVCLevelIndication))
+		case stsd.HvcX != nil && stsd.HvcX.DoViConfig != nil && (stsd.HvcX.Type() == "dvh1" || stsd.HvcX.Type() == "dvhe"):
+			// A Dolby Vision sample entry names its profile and level, as a player reading it expects.
+			dv := stsd.HvcX.DoViConfig
+			codecs = append(codecs, fmt.Sprintf("%s.%02d.%02d", stsd.HvcX.Type(), dv.DVProfile, dv.DVLevel))
 		case stsd.HvcX != nil && stsd.HvcX.HvcC != nil:
 			entry := stsd.HvcX
 			nalus := entry.HvcC.GetNalusForType(hevc.NALU_SPS)

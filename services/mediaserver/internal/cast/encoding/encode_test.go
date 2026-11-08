@@ -349,3 +349,29 @@ func TestFilterArgEscapingSurvivesAWindowsPath(t *testing.T) {
 		t.Fatalf("filter could not open %q: %v\n%s", src, err, out)
 	}
 }
+
+func TestADolbyVisionCopyIsMarkedDvh1OnlyForAPlayerThatNeedsIt(t *testing.T) {
+	dolbyVision := media.ProbeInfo{VideoCodec: media.CodecHEVC, AudioCodec: media.CodecAAC, VideoDolbyVision: &media.DolbyVision{Profile: 8, Level: 6, Compatibility: 1}}
+	plain := dolbyVision
+	plain.VideoDolbyVision = nil
+	dvh1Player := mp4Format
+	dvh1Player.DolbyVisionEntry = true
+	for _, tt := range []struct {
+		name   string
+		format container.Format
+		probe  media.ProbeInfo
+		video  codec.Track[codec.VideoEncode]
+		want   string
+	}{
+		{"a Dolby Vision copy for a player reading it only from dvh1", dvh1Player, dolbyVision, codec.CopyVideo(), "dvh1"},
+		{"a Dolby Vision copy for any other player", mp4Format, dolbyVision, codec.CopyVideo(), "hvc1"},
+		{"plain HEVC for a dvh1 player", dvh1Player, plain, codec.CopyVideo(), "hvc1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			args := mustEncodeArgs(t, EncodeOptions{Input: FromPipe(fetch.Pace{}), Format: tt.format, Probe: tt.probe, Video: tt.video, Audio: codec.CopyAudio()})
+			if got := argValue(args, "-tag:v"); got != tt.want || strings.Count(strings.Join(args, " "), "-tag:v") != 1 {
+				t.Errorf("-tag:v = %q in %q, want one %q", got, args, tt.want)
+			}
+		})
+	}
+}

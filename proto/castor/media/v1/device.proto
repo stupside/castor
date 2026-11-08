@@ -140,6 +140,9 @@ message HLSSupport {
       }
     }
   }];
+  // dolby_vision_entry is a player that shows Dolby Vision only from a dvh1 sample entry, as LG's AirPlay
+  // player does: castor marks a Dolby Vision copy dvh1 for it rather than the hvc1 every other player takes.
+  bool dolby_vision_entry = 3;
 }
 
 message VideoSupport {

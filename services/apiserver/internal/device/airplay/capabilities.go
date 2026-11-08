@@ -21,7 +21,8 @@ func capabilities() *mediav1.Capabilities {
 	for _, video := range []*mediav1.VideoSupport{device.H264Support(), hevc} {
 		for _, audio := range audios {
 			caps.Formats = append(caps.Formats, &mediav1.FormatSupport{
-				Transport: &mediav1.FormatSupport_Hls{Hls: &mediav1.HLSSupport{Subtitles: mediav1.HLSSupport_SUBTITLES_WEBVTT}},
+				// An LG's AirPlay player shows Dolby Vision in HLS only from a dvh1 sample entry; hvc1 plays as HDR10.
+				Transport: &mediav1.FormatSupport_Hls{Hls: &mediav1.HLSSupport{Subtitles: mediav1.HLSSupport_SUBTITLES_WEBVTT, DolbyVisionEntry: true}},
 				Tracks:    &mediav1.FormatSupport_Av{Av: &mediav1.AVSupport{Video: video, Audio: &mediav1.AudioSupport{Codec: audio, MaxChannels: 6}}},
 				Captions:  []mediav1.CaptionFormat{mediav1.CaptionFormat_CAPTION_FORMAT_VTT},
 			})
