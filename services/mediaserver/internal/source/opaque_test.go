@@ -51,6 +51,18 @@ func TestDirectFileAudioPreferencesSelectTheTrackAndPreventHandoff(t *testing.T)
 	}
 }
 
+func TestCaptionsGivenWithALinkAreTheRenditionsToShow(t *testing.T) {
+	french := Caption{URL: &url.URL{Scheme: "https", Host: "origin.example", Path: "/film.fr.vtt"}, Language: "fre", Name: "Français"}
+	stream := &Stream{URL: &url.URL{Scheme: "https", Host: "origin.example", Path: "/film.mkv"}, ContentType: media.MKV, Captions: []Caption{french}}
+	got, err := NewResolver(nil, 1080, nil, nil).Resolve(t.Context(), stream, Rendition{}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if captions := got.Rendition.Captions; len(captions) != 1 || captions[0].URL.String() != french.URL.String() || captions[0].Language != "fre" {
+		t.Errorf("rendition captions %+v, want the French track given with the link", captions)
+	}
+}
+
 func TestDirectFileUsesItsMarkedDefaultAudioTrack(t *testing.T) {
 	tracks := []media.AudioTrack{{Language: "en"}, {Language: "fr", Default: true}}
 	if index, preferred := selectAudioTrack(tracks, nil); index != 1 || preferred {

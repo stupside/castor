@@ -496,22 +496,42 @@ func (c *coordinator) drain() {
 	waiting, stop := context.WithCancel(c.ctx)
 	c.stopDrain = stop
 	c.launchUntil(waiting, drainElapsed, func() error {
-		left := drainMost
-		if head, ok := c.device.(health.Playhead); ok {
-			asking, cancel := context.WithTimeout(waiting, askFor)
-			if at, _, known := head.Position(asking); known {
-				left = min(left, max(0, d.output.Progress().Position-at))
-			}
-			cancel()
+		// Castor held the device only while its read lagged, and that read is over.
+		if err := c.device.Resume(waiting); err != nil {
+			slog.WarnContext(waiting, "the device castor held would not resume", "error", err)
 		}
+		left, _, _ := c.leftToPlay(waiting, d)
 		slog.InfoContext(waiting, "the device took the whole stream and plays out what it holds", "left", left.Round(time.Second))
-		select {
-		case <-time.After(left + drainGrace):
-			slog.WarnContext(waiting, "the device never said it ended; the cast ends with the media it held", "waited", (left + drainGrace).Round(time.Second))
-		case <-waiting.Done():
+		for {
+			select {
+			case <-time.After(left + drainGrace):
+			case <-waiting.Done():
+				return nil
+			}
+			// A paused device, or one still moving through what it holds, has not played out yet.
+			next, held, known := c.leftToPlay(waiting, d)
+			if !known || !held && (next == 0 || next >= left) {
+				slog.WarnContext(waiting, "the device never said it ended; the cast ends with the media it held")
+				return nil
+			}
+			left = next
 		}
-		return nil
 	})
+}
+
+// leftToPlay is what the device has yet to play of d, and whether it is paused.
+func (c *coordinator) leftToPlay(ctx context.Context, d *delivery) (left time.Duration, held, known bool) {
+	head, ok := c.device.(health.Playhead)
+	if !ok {
+		return drainMost, false, false
+	}
+	asking, cancel := context.WithTimeout(ctx, askFor)
+	defer cancel()
+	at, held, known := head.Position(asking)
+	if !known {
+		return drainMost, false, false
+	}
+	return min(drainMost, max(0, d.output.Progress().Position-at)), held, true
 }
 
 // hand points the device at p.

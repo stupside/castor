@@ -2,6 +2,6 @@ version: v2
 plugins:
   - local: protoc-gen-es
     out: src/gen
-    opt: target=ts
+    opt: target=ts,valid_types=protovalidate_required
     include_imports: true
 clean: true

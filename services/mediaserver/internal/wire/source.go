@@ -23,7 +23,15 @@ func FromStream(s *castorv1.Stream) (*source.Stream, error) {
 			headers.Set(k, v)
 		}
 	}
-	return &source.Stream{URL: u, Headers: headers, ContentType: s.GetContentType()}, nil
+	captions := make([]source.Caption, 0, len(s.GetCaptions()))
+	for _, c := range s.GetCaptions() {
+		cu, err := url.Parse(c.GetUrl())
+		if err != nil {
+			return nil, fmt.Errorf("caption URL: %w", err)
+		}
+		captions = append(captions, source.Caption{URL: cu, Language: c.GetLanguage(), Name: c.GetName()})
+	}
+	return &source.Stream{URL: u, Headers: headers, ContentType: s.GetContentType(), Captions: captions}, nil
 }
 
 // FromCandidate translates playback data and discovery evidence independently.

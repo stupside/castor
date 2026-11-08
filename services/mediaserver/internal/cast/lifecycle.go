@@ -112,7 +112,9 @@ func (c *cast) lend(caps media.Capabilities) error {
 		}
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("this cast already has its device"))
 	}
-	go c.run(caps)
+	d := lend.NewDevice(c.line, caps, func() { c.cancel(lend.ErrLenderLeft) }, c.heard)
+	c.device.Store(d)
+	go c.run(d)
 	return nil
 }
 

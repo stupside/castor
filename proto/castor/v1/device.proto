@@ -4,10 +4,11 @@ package castor.v1;
 
 import "buf/validate/validate.proto";
 
-// DeviceService finds the devices on the network.
 service DeviceService {
   // ListDevices discovers the devices this server reaches, within its network timeout.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  // WatchDevices sends the devices now, then the whole list again whenever one appears or stops answering.
+  rpc WatchDevices(WatchDevicesRequest) returns (stream WatchDevicesResponse);
   // Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
   rpc Describe(DescribeRequest) returns (DescribeResponse);
 }
@@ -40,8 +41,14 @@ message ListDevicesResponse {
   repeated Device devices = 1;
 }
 
+message WatchDevicesRequest {}
+
+message WatchDevicesResponse {
+  repeated Device devices = 1;
+}
+
 message Device {
-  // id is opaque and the same on every discovery; a cast's target names it.
+  // id is the same on every discovery.
   string id = 1;
   string name = 2;
   DeviceType type = 3 [(buf.validate.field).enum = {
@@ -51,22 +58,27 @@ message Device {
   string address = 4;
 }
 
-// Target is the device a cast plays on: one discovered, or one pinned where discovery cannot see.
 message Target {
   oneof target {
     option (buf.validate.oneof).required = true;
-    string device_id = 1 [(buf.validate.field).string.min_len = 1];
+    string device_id = 1 [(buf.validate.field).string = {
+      min_len: 1
+      max_bytes: 256
+    }];
     Pinned pinned = 2;
   }
 
+  // Pinned is a device discovery cannot see.
   message Pinned {
-    // type is the device's family, as Device.type reports it.
     DeviceType type = 1 [(buf.validate.field).enum = {
       defined_only: true
       not_in: [0]
     }];
-    // address is a host, a host:port, or the URL the family answers at.
-    string address = 2 [(buf.validate.field).string.min_len = 1];
+    // address is a host, a host:port, or the URL the device answers at.
+    string address = 2 [(buf.validate.field).string = {
+      min_len: 1
+      max_bytes: 8192
+    }];
   }
 }
 

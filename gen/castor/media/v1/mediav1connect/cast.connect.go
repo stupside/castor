@@ -8,8 +8,8 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	v1 "github.com/stupside/castor/gen/castor/media/v1"
-	v11 "github.com/stupside/castor/gen/castor/v1"
+	v11 "github.com/stupside/castor/gen/castor/media/v1"
+	v1 "github.com/stupside/castor/gen/castor/v1"
 	http "net/http"
 	strings "strings"
 )
@@ -34,23 +34,28 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// CastServiceStartProcedure is the fully-qualified name of the CastService's Start RPC.
-	CastServiceStartProcedure = "/castor.media.v1.CastService/Start"
+	// CastServiceSeekProcedure is the fully-qualified name of the CastService's Seek RPC.
+	CastServiceSeekProcedure = "/castor.media.v1.CastService/Seek"
 	// CastServiceStopProcedure is the fully-qualified name of the CastService's Stop RPC.
 	CastServiceStopProcedure = "/castor.media.v1.CastService/Stop"
+	// CastServiceStartProcedure is the fully-qualified name of the CastService's Start RPC.
+	CastServiceStartProcedure = "/castor.media.v1.CastService/Start"
 	// CastServiceWatchProcedure is the fully-qualified name of the CastService's Watch RPC.
 	CastServiceWatchProcedure = "/castor.media.v1.CastService/Watch"
+	// CastServicePauseProcedure is the fully-qualified name of the CastService's Pause RPC.
+	CastServicePauseProcedure = "/castor.media.v1.CastService/Pause"
+	// CastServiceResumeProcedure is the fully-qualified name of the CastService's Resume RPC.
+	CastServiceResumeProcedure = "/castor.media.v1.CastService/Resume"
 )
 
 // CastServiceClient is a client for the castor.media.v1.CastService service.
 type CastServiceClient interface {
-	// Start begins a cast and returns at once; it plays once a device is lent to it through DeviceService.
-	Start(context.Context, *v1.StartRequest) (*v1.StartResponse, error)
-	// Stop ends a cast and returns at once.
+	Seek(context.Context, *v1.SeekRequest) (*v1.SeekResponse, error)
 	Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error)
-	// Watch follows a cast without driving it, as the public CastService.Watch does.
-	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
-	Watch(context.Context, *v11.WatchRequest) (*connect.ServerStreamForClient[v11.WatchResponse], error)
+	Start(context.Context, *v11.StartRequest) (*v11.StartResponse, error)
+	Watch(context.Context, *v1.WatchRequest) (*connect.ServerStreamForClient[v1.WatchResponse], error)
+	Pause(context.Context, *v1.PauseRequest) (*v1.PauseResponse, error)
+	Resume(context.Context, *v1.ResumeRequest) (*v1.ResumeResponse, error)
 }
 
 // NewCastServiceClient constructs a client for the castor.media.v1.CastService service. By default,
@@ -62,12 +67,12 @@ type CastServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewCastServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) CastServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	castServiceMethods := v1.File_castor_media_v1_cast_proto.Services().ByName("CastService").Methods()
+	castServiceMethods := v11.File_castor_media_v1_cast_proto.Services().ByName("CastService").Methods()
 	return &castServiceClient{
-		start: connect.NewClient[v1.StartRequest, v1.StartResponse](
+		seek: connect.NewClient[v1.SeekRequest, v1.SeekResponse](
 			httpClient,
-			baseURL+CastServiceStartProcedure,
-			connect.WithSchema(castServiceMethods.ByName("Start")),
+			baseURL+CastServiceSeekProcedure,
+			connect.WithSchema(castServiceMethods.ByName("Seek")),
 			connect.WithClientOptions(opts...),
 		),
 		stop: connect.NewClient[v1.StopRequest, v1.StopResponse](
@@ -76,10 +81,28 @@ func NewCastServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(castServiceMethods.ByName("Stop")),
 			connect.WithClientOptions(opts...),
 		),
-		watch: connect.NewClient[v11.WatchRequest, v11.WatchResponse](
+		start: connect.NewClient[v11.StartRequest, v11.StartResponse](
+			httpClient,
+			baseURL+CastServiceStartProcedure,
+			connect.WithSchema(castServiceMethods.ByName("Start")),
+			connect.WithClientOptions(opts...),
+		),
+		watch: connect.NewClient[v1.WatchRequest, v1.WatchResponse](
 			httpClient,
 			baseURL+CastServiceWatchProcedure,
 			connect.WithSchema(castServiceMethods.ByName("Watch")),
+			connect.WithClientOptions(opts...),
+		),
+		pause: connect.NewClient[v1.PauseRequest, v1.PauseResponse](
+			httpClient,
+			baseURL+CastServicePauseProcedure,
+			connect.WithSchema(castServiceMethods.ByName("Pause")),
+			connect.WithClientOptions(opts...),
+		),
+		resume: connect.NewClient[v1.ResumeRequest, v1.ResumeResponse](
+			httpClient,
+			baseURL+CastServiceResumeProcedure,
+			connect.WithSchema(castServiceMethods.ByName("Resume")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -87,14 +110,17 @@ func NewCastServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // castServiceClient implements CastServiceClient.
 type castServiceClient struct {
-	start *connect.Client[v1.StartRequest, v1.StartResponse]
-	stop  *connect.Client[v1.StopRequest, v1.StopResponse]
-	watch *connect.Client[v11.WatchRequest, v11.WatchResponse]
+	seek   *connect.Client[v1.SeekRequest, v1.SeekResponse]
+	stop   *connect.Client[v1.StopRequest, v1.StopResponse]
+	start  *connect.Client[v11.StartRequest, v11.StartResponse]
+	watch  *connect.Client[v1.WatchRequest, v1.WatchResponse]
+	pause  *connect.Client[v1.PauseRequest, v1.PauseResponse]
+	resume *connect.Client[v1.ResumeRequest, v1.ResumeResponse]
 }
 
-// Start calls castor.media.v1.CastService.Start.
-func (c *castServiceClient) Start(ctx context.Context, req *v1.StartRequest) (*v1.StartResponse, error) {
-	response, err := c.start.CallUnary(ctx, connect.NewRequest(req))
+// Seek calls castor.media.v1.CastService.Seek.
+func (c *castServiceClient) Seek(ctx context.Context, req *v1.SeekRequest) (*v1.SeekResponse, error) {
+	response, err := c.seek.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -110,20 +136,46 @@ func (c *castServiceClient) Stop(ctx context.Context, req *v1.StopRequest) (*v1.
 	return nil, err
 }
 
+// Start calls castor.media.v1.CastService.Start.
+func (c *castServiceClient) Start(ctx context.Context, req *v11.StartRequest) (*v11.StartResponse, error) {
+	response, err := c.start.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // Watch calls castor.media.v1.CastService.Watch.
-func (c *castServiceClient) Watch(ctx context.Context, req *v11.WatchRequest) (*connect.ServerStreamForClient[v11.WatchResponse], error) {
+func (c *castServiceClient) Watch(ctx context.Context, req *v1.WatchRequest) (*connect.ServerStreamForClient[v1.WatchResponse], error) {
 	return c.watch.CallServerStream(ctx, connect.NewRequest(req))
+}
+
+// Pause calls castor.media.v1.CastService.Pause.
+func (c *castServiceClient) Pause(ctx context.Context, req *v1.PauseRequest) (*v1.PauseResponse, error) {
+	response, err := c.pause.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// Resume calls castor.media.v1.CastService.Resume.
+func (c *castServiceClient) Resume(ctx context.Context, req *v1.ResumeRequest) (*v1.ResumeResponse, error) {
+	response, err := c.resume.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
 }
 
 // CastServiceHandler is an implementation of the castor.media.v1.CastService service.
 type CastServiceHandler interface {
-	// Start begins a cast and returns at once; it plays once a device is lent to it through DeviceService.
-	Start(context.Context, *v1.StartRequest) (*v1.StartResponse, error)
-	// Stop ends a cast and returns at once.
+	Seek(context.Context, *v1.SeekRequest) (*v1.SeekResponse, error)
 	Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error)
-	// Watch follows a cast without driving it, as the public CastService.Watch does.
-	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
-	Watch(context.Context, *v11.WatchRequest, *connect.ServerStream[v11.WatchResponse]) error
+	Start(context.Context, *v11.StartRequest) (*v11.StartResponse, error)
+	Watch(context.Context, *v1.WatchRequest, *connect.ServerStream[v1.WatchResponse]) error
+	Pause(context.Context, *v1.PauseRequest) (*v1.PauseResponse, error)
+	Resume(context.Context, *v1.ResumeRequest) (*v1.ResumeResponse, error)
 }
 
 // NewCastServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -132,11 +184,11 @@ type CastServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewCastServiceHandler(svc CastServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	castServiceMethods := v1.File_castor_media_v1_cast_proto.Services().ByName("CastService").Methods()
-	castServiceStartHandler := connect.NewUnaryHandlerSimple(
-		CastServiceStartProcedure,
-		svc.Start,
-		connect.WithSchema(castServiceMethods.ByName("Start")),
+	castServiceMethods := v11.File_castor_media_v1_cast_proto.Services().ByName("CastService").Methods()
+	castServiceSeekHandler := connect.NewUnaryHandlerSimple(
+		CastServiceSeekProcedure,
+		svc.Seek,
+		connect.WithSchema(castServiceMethods.ByName("Seek")),
 		connect.WithHandlerOptions(opts...),
 	)
 	castServiceStopHandler := connect.NewUnaryHandlerSimple(
@@ -145,20 +197,44 @@ func NewCastServiceHandler(svc CastServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(castServiceMethods.ByName("Stop")),
 		connect.WithHandlerOptions(opts...),
 	)
+	castServiceStartHandler := connect.NewUnaryHandlerSimple(
+		CastServiceStartProcedure,
+		svc.Start,
+		connect.WithSchema(castServiceMethods.ByName("Start")),
+		connect.WithHandlerOptions(opts...),
+	)
 	castServiceWatchHandler := connect.NewServerStreamHandlerSimple(
 		CastServiceWatchProcedure,
 		svc.Watch,
 		connect.WithSchema(castServiceMethods.ByName("Watch")),
 		connect.WithHandlerOptions(opts...),
 	)
+	castServicePauseHandler := connect.NewUnaryHandlerSimple(
+		CastServicePauseProcedure,
+		svc.Pause,
+		connect.WithSchema(castServiceMethods.ByName("Pause")),
+		connect.WithHandlerOptions(opts...),
+	)
+	castServiceResumeHandler := connect.NewUnaryHandlerSimple(
+		CastServiceResumeProcedure,
+		svc.Resume,
+		connect.WithSchema(castServiceMethods.ByName("Resume")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/castor.media.v1.CastService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case CastServiceStartProcedure:
-			castServiceStartHandler.ServeHTTP(w, r)
+		case CastServiceSeekProcedure:
+			castServiceSeekHandler.ServeHTTP(w, r)
 		case CastServiceStopProcedure:
 			castServiceStopHandler.ServeHTTP(w, r)
+		case CastServiceStartProcedure:
+			castServiceStartHandler.ServeHTTP(w, r)
 		case CastServiceWatchProcedure:
 			castServiceWatchHandler.ServeHTTP(w, r)
+		case CastServicePauseProcedure:
+			castServicePauseHandler.ServeHTTP(w, r)
+		case CastServiceResumeProcedure:
+			castServiceResumeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -168,14 +244,26 @@ func NewCastServiceHandler(svc CastServiceHandler, opts ...connect.HandlerOption
 // UnimplementedCastServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedCastServiceHandler struct{}
 
-func (UnimplementedCastServiceHandler) Start(context.Context, *v1.StartRequest) (*v1.StartResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.media.v1.CastService.Start is not implemented"))
+func (UnimplementedCastServiceHandler) Seek(context.Context, *v1.SeekRequest) (*v1.SeekResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.media.v1.CastService.Seek is not implemented"))
 }
 
 func (UnimplementedCastServiceHandler) Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.media.v1.CastService.Stop is not implemented"))
 }
 
-func (UnimplementedCastServiceHandler) Watch(context.Context, *v11.WatchRequest, *connect.ServerStream[v11.WatchResponse]) error {
+func (UnimplementedCastServiceHandler) Start(context.Context, *v11.StartRequest) (*v11.StartResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.media.v1.CastService.Start is not implemented"))
+}
+
+func (UnimplementedCastServiceHandler) Watch(context.Context, *v1.WatchRequest, *connect.ServerStream[v1.WatchResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("castor.media.v1.CastService.Watch is not implemented"))
+}
+
+func (UnimplementedCastServiceHandler) Pause(context.Context, *v1.PauseRequest) (*v1.PauseResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.media.v1.CastService.Pause is not implemented"))
+}
+
+func (UnimplementedCastServiceHandler) Resume(context.Context, *v1.ResumeRequest) (*v1.ResumeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.media.v1.CastService.Resume is not implemented"))
 }

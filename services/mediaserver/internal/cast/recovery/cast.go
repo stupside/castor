@@ -66,7 +66,15 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 		slog.InfoContext(ctx, "attempt", "try", a.Try, "candidate", a.candidate+1, "candidates", len(in.Candidates))
 		in.Turns.Attempting(a.Try)
 
-		out := run.Run(ctx, a)
+		out, sought := steer(ctx, run, a, in.Seeks)
+		if sought != nil {
+			// The viewer moved: what this attempt became says nothing of the next.
+			slog.InfoContext(ctx, "the viewer moved the cast", "to", sought.Program.Start)
+			led.admit(*sought)
+			left = nil
+			a = *sought
+			continue
+		}
 		// Whose account to report is settled before cancellation is, which reads it.
 		out.Err = attribute(out.Err, out.Evidence.ReadErr)
 		if out.Err == nil {
@@ -110,6 +118,32 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 		in.Turns.Revising(rev.action, f.why)
 		tried = append(tried, string(rev.action))
 		a = rev.attempt
+	}
+}
+
+var errSought = errors.New("the viewer moved the cast")
+
+// steer runs a until it ends or a seek cuts it short, returning the attempt from the seek.
+func steer(ctx context.Context, run Runner, a Attempt, seeks <-chan Seek) (Outcome, *Attempt) {
+	attempt, cut := context.WithCancelCause(ctx)
+	defer cut(nil)
+	ran := make(chan Outcome, 1)
+	go func() { ran <- run.Run(attempt, a) }()
+	for {
+		select {
+		case out := <-ran:
+			return out, nil
+		case s := <-seeks:
+			next, ok := a.at(s.At)
+			if !ok {
+				s.Accepted <- fmt.Errorf("%w: %s", ErrNoPosition, s.At)
+				continue
+			}
+			next.Try = a.Try + 1
+			s.Accepted <- nil
+			cut(errSought)
+			return <-ran, &next
+		}
 	}
 }
 

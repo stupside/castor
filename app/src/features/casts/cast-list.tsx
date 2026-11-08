@@ -1,39 +1,128 @@
+import { durationMs } from "@bufbuild/protobuf/wkt";
+import * as stylex from "@stylexjs/stylex";
 import Link from "next/link";
-import type { Cast } from "@/gen/castor/v1/cast_pb";
+import { Badge } from "@/components/badge";
+import { ButtonLink } from "@/components/button";
+import { Card } from "@/components/card";
+import { EmptyState } from "@/components/empty-state";
+import { Icon } from "@/components/icon";
+import { List, ListItem, ListSkeleton } from "@/components/list";
+import { Notice } from "@/components/notice";
+import { Mono } from "@/components/text";
+import { color } from "@/components/tokens.stylex";
+import {
+  ListCastsResponseSchema,
+  type CastValid,
+} from "@/gen/castor/v1/cast_pb";
 import { describe } from "@/lib/errors";
 import { casts } from "@/lib/server";
-import { StopButton } from "./stop-button";
+import { valid } from "@/lib/valid";
 import { AutoRefresh } from "./auto-refresh";
-import { journey } from "./phases";
+import { deviceName, deviceTypes, sourceLabel, stateBadge } from "./labels";
+import { LivePlayhead } from "./live-playhead";
+import { StopButton } from "./stop-button";
 
 export async function CastList() {
-  let activeCasts: Cast[];
+  let active: CastValid[];
   try {
-    ({ casts: activeCasts } = await casts.listCasts({}));
+    ({ casts: active } = valid(
+      ListCastsResponseSchema,
+      await casts.listCasts({}),
+    ));
   } catch (e) {
-    return <section className="mt-10 max-w-md">
-      <AutoRefresh />
-      <p role="status" className="text-sm font-semibold text-peach">Can’t check active casts: {describe(e)}. Retrying…</p>
-    </section>;
+    return (
+      <>
+        <AutoRefresh />
+        <Notice tone="danger">
+          Can’t check active casts: {describe(e)}. Retrying…
+        </Notice>
+      </>
+    );
   }
+
   return (
-    <section className="mt-10 max-w-md space-y-3">
+    <Card
+      flush
+      title="Playing now"
+      description={active.length === 1 ? "1 cast" : `${active.length} casts`}
+    >
       <AutoRefresh />
-      {activeCasts.length > 0 && <h2 className="text-xs font-extrabold uppercase tracking-[0.18em] text-peach">Active casts</h2>}
-      <ul className="grid gap-3">
-        {activeCasts.map((c) => {
-          const step = journey.find((j) => j.state === c.status?.state.case) ?? journey[0];
-          return (
-            <li key={c.id} className="animate-rise flex items-center gap-3 rounded-2xl bg-white/10 p-4 text-[#fffaf2]">
-              <Link href={`/casts/${encodeURIComponent(c.id)}`} className="group flex min-w-0 flex-1 items-center gap-3">
-                <span className="relative grid size-3 place-items-center"><span className="absolute size-3 animate-ping-soft rounded-full bg-ember" /><span className="size-3 rounded-full bg-ember" /></span>
-                <span className="min-w-0"><span className="block truncate font-semibold group-hover:underline">{c.device?.name || c.device?.address}</span><span className="block text-xs text-white/60">{step.say}</span></span>
-              </Link>
-              <StopButton castId={c.id} />
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+      {active.length ? (
+        <List>
+          {active.map((cast) => (
+            <CastRow key={cast.id} cast={cast} />
+          ))}
+        </List>
+      ) : (
+        <EmptyState
+          title="Nothing is playing"
+          action={
+            <ButtonLink href="/casts/new" variant="primary" icon="plus">
+              New cast
+            </ButtonLink>
+          }
+        >
+          Send a video page or a media link to a device and it shows up here.
+        </EmptyState>
+      )}
+    </Card>
   );
 }
+
+export function CastListSkeleton() {
+  return (
+    <Card flush title="Playing now" description="Checking…">
+      <ListSkeleton />
+    </Card>
+  );
+}
+
+function CastRow({ cast }: { cast: CastValid }) {
+  const href = `/casts/${encodeURIComponent(cast.id)}` as const;
+  const badge = stateBadge(cast.status);
+  const state = cast.status?.state;
+  const playhead = state?.case === "casting" ? state.value.playhead : undefined;
+
+  return (
+    <ListItem
+      leading={<Icon name="device" />}
+      title={
+        <>
+          <Link href={href} {...stylex.props(styles.link)}>
+            {cast.device && deviceName(cast.device)}
+          </Link>
+          {cast.device && <Badge>{deviceTypes[cast.device.type]}</Badge>}
+          <Badge tone={badge.tone} live={badge.live}>
+            {badge.label}
+          </Badge>
+        </>
+      }
+      meta={<Mono>{sourceLabel(cast.source)}</Mono>}
+      footer={
+        playhead && (
+          <LivePlayhead
+            position={durationMs(playhead.position)}
+            duration={playhead.duration && durationMs(playhead.duration)}
+            paused={playhead.paused}
+          />
+        )
+      }
+      trailing={
+        <>
+          <ButtonLink href={href} size="sm">
+            Open
+          </ButtonLink>
+          <StopButton castId={cast.id} size="sm" />
+        </>
+      }
+    />
+  );
+}
+
+const styles = stylex.create({
+  link: {
+    color: { default: color.ink, ":hover": color.accentStrong },
+    textDecoration: { default: "none", ":hover": "underline" },
+    textUnderlineOffset: 3,
+  },
+});

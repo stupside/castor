@@ -15,9 +15,13 @@ import (
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 )
 
-// Busy means another cast owns this receiver. Stop that cast before starting
-// another; implicit replacement would otherwise let old cleanup stop new media.
-type Busy struct{ Address string }
+// Busy is a device another cast owns, which must let go first or its cleanup stops the new media.
+type Busy struct {
+	Address string
+	// Owner is the cast holding the device; Released closes once it let the device go.
+	Owner    string
+	Released <-chan struct{}
+}
 
 func (e *Busy) Error() string {
 	return fmt.Sprintf("device %q is busy; stop its current cast before starting another", e.Address)
@@ -27,6 +31,8 @@ func (e *Busy) Error() string {
 // Endpoint and discovery ID are aliases, so pinning a discovered device cannot
 // bypass ownership. Explicit nondefault ports identify separate endpoints.
 type lease struct {
+	owner     string
+	released  chan struct{}
 	dir       *Directory
 	device    Device
 	commands  *semaphore.Weighted
@@ -38,9 +44,9 @@ type lease struct {
 
 var errLeaseClosed = errors.New("device lease is closed")
 
-func newLease(dir *Directory) *lease {
+func newLease(dir *Directory, owner string) *lease {
 	lifetime, cancel := context.WithCancelCause(context.Background())
-	l := &lease{dir: dir, commands: semaphore.NewWeighted(1), lifetime: lifetime}
+	l := &lease{owner: owner, released: make(chan struct{}), dir: dir, commands: semaphore.NewWeighted(1), lifetime: lifetime}
 	l.shutdown = sync.OnceValue(func() error {
 		l.mu.Lock()
 		cancel(errLeaseClosed)
@@ -58,13 +64,9 @@ func newLease(dir *Directory) *lease {
 }
 
 func endpoint(info Info) string {
-	address := info.Address
-	port := map[Type]string{"chromecast": "8009", "roku": "8060", "dlna": "80"}[info.Type]
+	address, port := info.Address, ""
 	if u, err := url.Parse(address); err == nil && u.Host != "" {
-		address = u.Host
-		if u.Scheme == "https" {
-			port = "443"
-		}
+		address, port = u.Host, map[string]string{"http": "80", "https": "443"}[u.Scheme]
 	}
 	host, explicit, err := net.SplitHostPort(address)
 	if err == nil {
@@ -117,7 +119,7 @@ func (l *lease) claimKeys(info Info, keys []string) error {
 	}
 	for _, key := range keys {
 		if owner := l.dir.leases[key]; owner != nil && owner != l {
-			return &Busy{Address: info.Address}
+			return &Busy{Address: info.Address, Owner: owner.owner, Released: owner.released}
 		}
 	}
 	for _, key := range keys {
@@ -134,6 +136,11 @@ func (l *lease) release() {
 		if owner == l {
 			delete(l.dir.leases, key)
 		}
+	}
+	select {
+	case <-l.released:
+	default:
+		close(l.released)
 	}
 }
 func (l *lease) command(ctx context.Context, fn func(context.Context, Device) error) error {

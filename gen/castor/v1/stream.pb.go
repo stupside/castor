@@ -77,7 +77,7 @@ const (
 	Delivery_DELIVERY_UNSPECIFIED Delivery = 0
 	// DELIVERY_AUTO lets the evidence decide between pass-through and serving.
 	Delivery_DELIVERY_AUTO Delivery = 1
-	// DELIVERY_SERVE refuses pass-through: the media server reads the source and serves the device.
+	// DELIVERY_SERVE never passes the source through: the media server serves the device.
 	Delivery_DELIVERY_SERVE Delivery = 2
 )
 
@@ -122,14 +122,15 @@ func (Delivery) EnumDescriptor() ([]byte, []int) {
 	return file_castor_v1_stream_proto_rawDescGZIP(), []int{1}
 }
 
-// Stream is one link to the media, with what fetching it needs.
 type Stream struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Url   string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
-	// headers are replayed on every fetch, as captured where the link was found.
+	// headers are sent on every fetch, as captured where the link was found.
 	Headers map[string]string `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// content_type is empty for a link given as is, which castor then identifies.
-	ContentType   string `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	// content_type is empty when castor should identify the link itself.
+	ContentType string `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	// captions are fetched with the stream's headers; one in a language the cast asks for is shown.
+	Captions      []*Caption `protobuf:"bytes,4,rep,name=captions,proto3" json:"captions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -185,7 +186,75 @@ func (x *Stream) GetContentType() string {
 	return ""
 }
 
-// StreamCandidate pairs playback data with evidence from discovery.
+func (x *Stream) GetCaptions() []*Caption {
+	if x != nil {
+		return x.Captions
+	}
+	return nil
+}
+
+// Caption is a WebVTT document, or an HLS playlist of them.
+type Caption struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Url   string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// language is empty for an untagged track.
+	Language      string `protobuf:"bytes,2,opt,name=language,proto3" json:"language,omitempty"`
+	Name          string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Caption) Reset() {
+	*x = Caption{}
+	mi := &file_castor_v1_stream_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Caption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Caption) ProtoMessage() {}
+
+func (x *Caption) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_stream_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Caption.ProtoReflect.Descriptor instead.
+func (*Caption) Descriptor() ([]byte, []int) {
+	return file_castor_v1_stream_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Caption) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *Caption) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
+}
+
+func (x *Caption) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 type StreamCandidate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Stream        *Stream                `protobuf:"bytes,1,opt,name=stream,proto3" json:"stream,omitempty"`
@@ -197,7 +266,7 @@ type StreamCandidate struct {
 
 func (x *StreamCandidate) Reset() {
 	*x = StreamCandidate{}
-	mi := &file_castor_v1_stream_proto_msgTypes[1]
+	mi := &file_castor_v1_stream_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -209,7 +278,7 @@ func (x *StreamCandidate) String() string {
 func (*StreamCandidate) ProtoMessage() {}
 
 func (x *StreamCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_stream_proto_msgTypes[1]
+	mi := &file_castor_v1_stream_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -222,7 +291,7 @@ func (x *StreamCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamCandidate.ProtoReflect.Descriptor instead.
 func (*StreamCandidate) Descriptor() ([]byte, []int) {
-	return file_castor_v1_stream_proto_rawDescGZIP(), []int{1}
+	return file_castor_v1_stream_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *StreamCandidate) GetStream() *Stream {
@@ -251,7 +320,7 @@ type RankedStream struct {
 	Url   string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	// bitrate is in bits per second, absent when neither measured nor declared.
 	Bitrate *uint64 `protobuf:"varint,2,opt,name=bitrate,proto3,oneof" json:"bitrate,omitempty"`
-	// last_resort marks a stream admitted without a measurement to back it.
+	// last_resort is a stream admitted without a measurement.
 	LastResort    bool `protobuf:"varint,3,opt,name=last_resort,json=lastResort,proto3" json:"last_resort,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -259,7 +328,7 @@ type RankedStream struct {
 
 func (x *RankedStream) Reset() {
 	*x = RankedStream{}
-	mi := &file_castor_v1_stream_proto_msgTypes[2]
+	mi := &file_castor_v1_stream_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -271,7 +340,7 @@ func (x *RankedStream) String() string {
 func (*RankedStream) ProtoMessage() {}
 
 func (x *RankedStream) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_stream_proto_msgTypes[2]
+	mi := &file_castor_v1_stream_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -284,7 +353,7 @@ func (x *RankedStream) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RankedStream.ProtoReflect.Descriptor instead.
 func (*RankedStream) Descriptor() ([]byte, []int) {
-	return file_castor_v1_stream_proto_rawDescGZIP(), []int{2}
+	return file_castor_v1_stream_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RankedStream) GetUrl() string {
@@ -312,19 +381,25 @@ var File_castor_v1_stream_proto protoreflect.FileDescriptor
 
 const file_castor_v1_stream_proto_rawDesc = "" +
 	"\n" +
-	"\x16castor/v1/stream.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"\xd2\x02\n" +
-	"\x06Stream\x12\x93\x01\n" +
-	"\x03url\x18\x01 \x01(\tB\x80\x01\xbaH}\xba\x01u\n" +
-	"\burl.http\x12\x1cmust be an http or https URL\x1aKthis.isUri() && (this.startsWith('http://') || this.startsWith('https://'))r\x03\x18\x80@R\x03url\x12S\n" +
+	"\x16castor/v1/stream.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"\xa1\x02\n" +
+	"\x06Stream\x12)\n" +
+	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\x03url\x12S\n" +
 	"\aheaders\x18\x02 \x03(\v2\x1e.castor.v1.Stream.HeadersEntryB\x19\xbaH\x16\x9a\x01\x13\x10@\"\x05r\x03\xc0\x01\x01*\br\x06\xc8\x01\x00\xc0\x01\x02R\aheaders\x12!\n" +
-	"\fcontent_type\x18\x03 \x01(\tR\vcontentType\x1a:\n" +
+	"\fcontent_type\x18\x03 \x01(\tR\vcontentType\x128\n" +
+	"\bcaptions\x18\x04 \x03(\v2\x12.castor.v1.CaptionB\b\xbaH\x05\x92\x01\x02\x10@R\bcaptions\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc1\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x86\x01\n" +
+	"\aCaption\x12)\n" +
+	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\x03url\x122\n" +
+	"\blanguage\x18\x02 \x01(\tB\x16\xbaH\x13\xd8\x01\x01r\x0e2\f^[a-z]{2,3}$R\blanguage\x12\x1c\n" +
+	"\x04name\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x02R\x04name\"\xb6\x01\n" +
 	"\x0fStreamCandidate\x121\n" +
-	"\x06stream\x18\x01 \x01(\v2\x11.castor.v1.StreamB\x06\xbaH\x03\xc8\x01\x01R\x06stream\x12\xc5\x01\n" +
-	"\vsource_page\x18\x02 \x01(\tB\xa3\x01\xbaH\x9f\x01\xba\x01\x96\x01\n" +
-	"\x10source_page.http\x12%must be empty or an http or https URL\x1a[this == '' || (this.isUri() && (this.startsWith('http://') || this.startsWith('https://')))r\x03\x18\x80@R\n" +
+	"\x06stream\x18\x01 \x01(\v2\x11.castor.v1.StreamB\x06\xbaH\x03\xc8\x01\x01R\x06stream\x12;\n" +
+	"\vsource_page\x18\x02 \x01(\tB\x1a\xbaH\x17\xd8\x01\x01r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\n" +
 	"sourcePage\x123\n" +
 	"\x06ladder\x18\x03 \x01(\x0e2\x11.castor.v1.LadderB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06ladder\"u\n" +
 	"\fRankedStream\x12\x10\n" +
@@ -358,24 +433,26 @@ func file_castor_v1_stream_proto_rawDescGZIP() []byte {
 }
 
 var file_castor_v1_stream_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_castor_v1_stream_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_castor_v1_stream_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_castor_v1_stream_proto_goTypes = []any{
 	(Ladder)(0),             // 0: castor.v1.Ladder
 	(Delivery)(0),           // 1: castor.v1.Delivery
 	(*Stream)(nil),          // 2: castor.v1.Stream
-	(*StreamCandidate)(nil), // 3: castor.v1.StreamCandidate
-	(*RankedStream)(nil),    // 4: castor.v1.RankedStream
-	nil,                     // 5: castor.v1.Stream.HeadersEntry
+	(*Caption)(nil),         // 3: castor.v1.Caption
+	(*StreamCandidate)(nil), // 4: castor.v1.StreamCandidate
+	(*RankedStream)(nil),    // 5: castor.v1.RankedStream
+	nil,                     // 6: castor.v1.Stream.HeadersEntry
 }
 var file_castor_v1_stream_proto_depIdxs = []int32{
-	5, // 0: castor.v1.Stream.headers:type_name -> castor.v1.Stream.HeadersEntry
-	2, // 1: castor.v1.StreamCandidate.stream:type_name -> castor.v1.Stream
-	0, // 2: castor.v1.StreamCandidate.ladder:type_name -> castor.v1.Ladder
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	6, // 0: castor.v1.Stream.headers:type_name -> castor.v1.Stream.HeadersEntry
+	3, // 1: castor.v1.Stream.captions:type_name -> castor.v1.Caption
+	2, // 2: castor.v1.StreamCandidate.stream:type_name -> castor.v1.Stream
+	0, // 3: castor.v1.StreamCandidate.ladder:type_name -> castor.v1.Ladder
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_castor_v1_stream_proto_init() }
@@ -383,14 +460,14 @@ func file_castor_v1_stream_proto_init() {
 	if File_castor_v1_stream_proto != nil {
 		return
 	}
-	file_castor_v1_stream_proto_msgTypes[2].OneofWrappers = []any{}
+	file_castor_v1_stream_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_v1_stream_proto_rawDesc), len(file_castor_v1_stream_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

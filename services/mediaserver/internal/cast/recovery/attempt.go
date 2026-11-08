@@ -2,6 +2,7 @@ package recovery
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -34,7 +35,19 @@ type Intent struct {
 
 	// Turns hears each attempt and revision.
 	Turns Turns
+
+	// Seeks moves the playing cast; nil for one that never moves.
+	Seeks <-chan Seek
 }
+
+// Seek asks the cast to play from At in its media; Accepted hears whether its media has that position.
+type Seek struct {
+	At       time.Duration
+	Accepted chan<- error
+}
+
+// ErrNoPosition refuses a seek outside the media, or into a live one.
+var ErrNoPosition = errors.New("the media has no such position")
 
 // Turns is told the turns a cast takes, as they are taken.
 type Turns interface {

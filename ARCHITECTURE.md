@@ -127,15 +127,15 @@ A live source can require conversion to join discontinuous segments into one str
 - A paused TV can stop reading for as long as it likes; only the health watch decides a TV is gone.
 - Nothing carries over between casts: each starts at your `max_bitrate`, which covers picture and sound together.
 
-### Playback controls and seeking
+### Seeking
 
-Clients read the receiver's current position, duration and supported controls through `CastService.Playback`, and send pause, resume or seek through `CastService.Control`. An absent position stays absent; a client must not invent a zero playhead. The API serializes controls on the cast's existing device connection.
+A client seeks any cast through the API. Castor ends the attempt playing and starts the next one from the position asked, on the same link, so the TV reloads for a moment.
 
-A DLNA TV can seek when castor serves it a single MPEG-TS stream, from a source with a known duration and no generated captions. Castor then reads the source again from the new position, at the same quality and rate, and serves it on the same URL.
+A DLNA TV can also seek by itself when castor serves it a single MPEG-TS stream, from a source with a known duration and no generated captions. Castor then reads the source again from the new position, at the same quality and rate, and serves it on the same URL.
 
-For finite original-track casts on Chromecast, Castor prefers HLS EVENT with fMP4 fragments over a growing, unindexed MP4. Completed fragments stay available while the rest is produced. A seek outside that window prepares a new publication from the requested source position, keeping the same cast and global timeline. The old picture is paused during preparation, and the old publication remains available until the new playback starts; a refused replacement can restore it.
+For finite original-track casts on Chromecast, Castor prefers HLS EVENT with fMP4 fragments over a growing, unindexed MP4. Completed fragments stay available while the rest is produced.
 
-An accepted Cast LOAD or SEEK is not proof that playback reached the requested state. Castor waits for the receiver's playhead and distinguishes an initial IDLE/loading state from a terminal refusal.
+An accepted Cast LOAD is not proof that playback started. Castor waits for the receiver's playhead and distinguishes an initial IDLE/loading state from a terminal refusal.
 
 ### Changing the stream mid-play
 
@@ -186,13 +186,21 @@ API runs where it can reach the TVs, scraping where Chrome is installed, and med
 - Clients set `servers.api.url` and `servers.api.token`.
 - Standalone servers listen on all interfaces, so use HTTPS outside a trusted network.
 
-The API lists devices and starts, stops and watches casts through [Connect contracts](proto/castor/v1), for example:
+The API is all a client needs, through [Connect contracts](proto/castor/v1):
+
+1. `ListDevices` finds the TVs, or `WatchDevices` follows them as they come and go.
+2. `Cast` plays a source on one. A TV plays one cast, so casting to a busy one replaces its cast.
+3. `Watch` follows the cast: its state, then where the TV plays, then how it ended.
+4. `Pause`, `Resume` and `Seek` act as the TV's remote would.
+5. `Stop` ends it.
 
 ```sh
 curl -X POST http://localhost:8411/castor.v1.DeviceService/ListDevices \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{}'
 ```
+
+A stream can carry its own text tracks (`Stream.captions`); castor shows one in a language the cast asks for, as it shows an HLS source's.
 
 The [Compose stack](docker-compose.yml) runs all three with host networking ([how to start it](README.md#the-whole-stack)). A media container on a bridged network needs `-p 8410:8410` and a TV-reachable `servers.media.advertise`. Image tags are `latest` (stable), `canary` (preview) or a pinned `vX.Y.Z`.
 

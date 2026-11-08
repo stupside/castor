@@ -5,6 +5,8 @@ import test from "node:test";
 import { gzipSync } from "node:zlib";
 import { proxyWatch } from "../src/lib/watch-proxy.ts";
 
+const watch = { name: "Watch", parent: { typeName: "castor.v1.CastService" } };
+
 async function serve(t, handler) {
   const server = createServer(handler);
   server.listen(0, "127.0.0.1");
@@ -18,8 +20,13 @@ async function serve(t, handler) {
 
 function request(options = {}) {
   return new Request("http://castor.test/rpc/api/castor.v1.CastService/Watch", {
-    method: "POST", body: new Uint8Array([0, 0, 0, 0, 1, 7]),
-    headers: { "content-type": "application/connect+proto", "connect-protocol-version": "1" }, ...options,
+    method: "POST",
+    body: new Uint8Array([0, 0, 0, 0, 1, 7]),
+    headers: {
+      "content-type": "application/connect+proto",
+      "connect-protocol-version": "1",
+    },
+    ...options,
   });
 }
 
@@ -30,18 +37,35 @@ test("the watch proxy relays bytes with server credentials and strips browser cr
   const url = await serve(t, async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
-    received = { path: req.url, headers: req.headers, body: Buffer.concat(chunks) };
+    received = {
+      path: req.url,
+      headers: req.headers,
+      body: Buffer.concat(chunks),
+    };
     res.writeHead(200, {
-      "content-type": "application/connect+proto", "content-encoding": "gzip", "content-length": compressed.length,
-      "set-cookie": "api-session=private", "access-control-allow-origin": "*", "x-private": "secret",
+      "content-type": "application/connect+proto",
+      "content-encoding": "gzip",
+      "content-length": compressed.length,
+      "set-cookie": "api-session=private",
+      "access-control-allow-origin": "*",
+      "x-private": "secret",
     });
     res.end(compressed);
   });
-  const response = await proxyWatch(request({ headers: {
-    "content-type": "application/connect+proto", "connect-protocol-version": "1",
-    authorization: "Bearer browser-token", cookie: "browser-session=private", "x-forwarded-host": "attacker.test",
-    "accept-encoding": "gzip",
-  } }), { url: `${url}/`, token: "server-token" });
+  const response = await proxyWatch(
+    watch,
+    request({
+      headers: {
+        "content-type": "application/connect+proto",
+        "connect-protocol-version": "1",
+        authorization: "Bearer browser-token",
+        cookie: "browser-session=private",
+        "x-forwarded-host": "attacker.test",
+        "accept-encoding": "gzip",
+      },
+    }),
+    { url: `${url}/`, token: "server-token" },
+  );
   assert.deepEqual(new Uint8Array(await response.arrayBuffer()), payload);
   assert.equal(received.path, "/castor.v1.CastService/Watch");
   assert.equal(received.headers.authorization, "Bearer server-token");
@@ -51,10 +75,19 @@ test("the watch proxy relays bytes with server credentials and strips browser cr
   assert.equal(received.headers["content-type"], "application/connect+proto");
   assert.equal(received.headers["connect-protocol-version"], "1");
   assert.deepEqual(received.body, Buffer.from([0, 0, 0, 0, 1, 7]));
-  for (const name of ["set-cookie", "access-control-allow-origin", "content-encoding", "content-length", "x-private"]) {
+  for (const name of [
+    "set-cookie",
+    "access-control-allow-origin",
+    "content-encoding",
+    "content-length",
+    "x-private",
+  ]) {
     assert.equal(response.headers.get(name), null, name);
   }
-  assert.equal(response.headers.get("content-type"), "application/connect+proto");
+  assert.equal(
+    response.headers.get("content-type"),
+    "application/connect+proto",
+  );
   assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
@@ -62,40 +95,61 @@ test("a watch redirect is refused before credentials reach another endpoint", as
   const paths = [];
   const url = await serve(t, (req, res) => {
     paths.push(req.url);
-    if (req.url === "/castor.v1.CastService/Watch") res.writeHead(307, { location: "/other" });
+    if (req.url === "/castor.v1.CastService/Watch")
+      res.writeHead(307, { location: "/other" });
     res.end();
   });
-  const response = await proxyWatch(request(), { url, token: "server-token" });
+  const response = await proxyWatch(watch, request(), {
+    url,
+    token: "server-token",
+  });
   assert.equal(response.status, 502);
   assert.deepEqual(paths, ["/castor.v1.CastService/Watch"]);
   assert.equal((await response.json()).code, "unavailable");
 });
 
 for (const cancelVia of ["response body", "request signal"]) {
-  test(`cancelling the ${cancelVia} closes a quiet upstream watch`, { timeout: 5000 }, async (t) => {
-    let closed;
-    const disconnected = new Promise((resolve) => { closed = resolve; });
-    const url = await serve(t, (req, res) => {
-      res.once("close", closed);
-      res.writeHead(200, { "content-type": "application/connect+proto" });
-      res.write(new Uint8Array([0, 0, 0, 0, 0]));
-    });
-    const abort = new AbortController();
-    const response = await proxyWatch(request({ signal: abort.signal }), { url, token: "" });
-    const reader = response.body.getReader();
-    assert.equal((await reader.read()).done, false);
-    if (cancelVia === "response body") await reader.cancel();
-    else {
-      abort.abort();
-      await assert.rejects(reader.read());
-    }
-    await disconnected;
-  });
+  test(
+    `cancelling the ${cancelVia} closes a quiet upstream watch`,
+    { timeout: 5000 },
+    async (t) => {
+      let closed;
+      const disconnected = new Promise((resolve) => {
+        closed = resolve;
+      });
+      const url = await serve(t, (req, res) => {
+        res.once("close", closed);
+        res.writeHead(200, { "content-type": "application/connect+proto" });
+        res.write(new Uint8Array([0, 0, 0, 0, 0]));
+      });
+      const abort = new AbortController();
+      const response = await proxyWatch(
+        watch,
+        request({ signal: abort.signal }),
+        {
+          url,
+          token: "",
+        },
+      );
+      const reader = response.body.getReader();
+      assert.equal((await reader.read()).done, false);
+      if (cancelVia === "response body") await reader.cancel();
+      else {
+        abort.abort();
+        await assert.rejects(reader.read());
+      }
+      await disconnected;
+    },
+  );
 }
 
 test("an unavailable API returns a usable error without exposing the server token", async (t) => {
   const url = await serve(t, (req) => req.socket.destroy());
-  const response = await proxyWatch(request({ headers: { authorization: "Bearer browser-token" } }), { url, token: "secret-server-token" });
+  const response = await proxyWatch(
+    watch,
+    request({ headers: { authorization: "Bearer browser-token" } }),
+    { url, token: "secret-server-token" },
+  );
   assert.equal(response.status, 502);
   const body = await response.json();
   assert.equal(body.code, "unavailable");
