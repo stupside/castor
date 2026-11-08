@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -13,6 +15,7 @@ import (
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/gen/castor/v1/castorv1connect"
 )
 
 func directoryWithFamilies(reach Registry) *Directory {
@@ -140,4 +143,22 @@ func TestDiscoveryCacheExpiresWithoutReleasingActiveOwnership(t *testing.T) {
 		}
 		l.release()
 	})
+}
+
+func TestWatchingDevicesFailsWhenItsFirstDiscoveryDoes(t *testing.T) {
+	d := NewDirectory(Registry{Timeout: time.Second}, func(context.Context) ([]Info, error) {
+		return nil, errors.New("no multicast interface")
+	})
+	mux := http.NewServeMux()
+	mux.Handle(castorv1connect.NewDeviceServiceHandler(d))
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	stream, err := castorv1connect.NewDeviceServiceClient(srv.Client(), srv.URL).WatchDevices(t.Context(), &castorv1.WatchDevicesRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	if stream.Receive() || connect.CodeOf(stream.Err()) != connect.CodeUnavailable {
+		t.Errorf("first sent %v (%v), want the stream to fail unavailable rather than list no device", stream.Msg().GetDevices(), stream.Err())
+	}
 }

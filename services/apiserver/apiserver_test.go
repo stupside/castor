@@ -40,7 +40,8 @@ type family struct {
 	closed   chan int
 	devices  []device.Info
 	// stops counts the stops the device was sent.
-	stops atomic.Int32
+	stops  atomic.Int32
+	silent atomic.Bool
 	// unreachable is a device that answers no connection.
 	unreachable bool
 	// goneFirst is a device whose first connection is found gone at its first play.
@@ -57,6 +58,9 @@ var bedroom = device.Info{ID: "uuid-1", Name: "Bedroom", Type: "dlna", Address: 
 func (*family) Type() device.Type { return bedroom.Type }
 
 func (f *family) Discover(context.Context) []device.Info {
+	if f.silent.Load() {
+		return nil
+	}
 	if len(f.devices) > 0 {
 		return f.devices
 	}
@@ -842,6 +846,26 @@ func TestAStoppedCastReleasesItsDeviceAndIsNoLongerListed(t *testing.T) {
 		}
 		if listed, _ := c.casts.ListCasts(t.Context(), &castorv1.ListCastsRequest{}); len(listed.GetCasts()) != 0 {
 			t.Errorf("listed %v after the stop, want nothing playing", listed.GetCasts())
+		}
+	})
+}
+
+func TestWatchingDevicesSendsTheListAgainOnceADeviceStopsAnswering(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFamily()
+		c := serve(t, setup{media: newMedia(true), family: f})
+
+		stream, err := c.devices.WatchDevices(t.Context(), &castorv1.WatchDevicesRequest{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stream.Close()
+		if !stream.Receive() || len(stream.Msg().GetDevices()) != 1 || stream.Msg().GetDevices()[0].GetId() != "dlna:uuid-1" {
+			t.Fatalf("first sent %v (%v), want the bedroom", stream.Msg().GetDevices(), stream.Err())
+		}
+		f.silent.Store(true)
+		if !stream.Receive() || len(stream.Msg().GetDevices()) != 0 {
+			t.Errorf("then sent %v (%v), want no device once the bedroom stopped answering", stream.Msg().GetDevices(), stream.Err())
 		}
 	})
 }

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
-	"github.com/stupside/castor/gen/castor/v1/castorv1connect"
 	"github.com/stupside/castor/internal/settings"
 )
 
@@ -29,7 +28,9 @@ func (d Device) Is(found *castorv1.Device) bool {
 }
 
 // Target is the device d names: pinned at its host, or found by id or name among those the API lists.
-func Target(ctx context.Context, devices castorv1connect.DeviceServiceClient, d Device) (*castorv1.Target, error) {
+func Target(ctx context.Context, devices interface {
+	ListDevices(context.Context, *castorv1.ListDevicesRequest) (*castorv1.ListDevicesResponse, error)
+}, d Device) (*castorv1.Target, error) {
 	kind, err := configuredDeviceType(d.Type)
 	if err != nil {
 		return nil, err

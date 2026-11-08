@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/device.proto.
  */
 export const file_castor_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiZAoGRGV2aWNlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSLwoEdHlwZRgDIAEoDjIVLmNhc3Rvci52MS5EZXZpY2VUeXBlQgq6SAeCAQQQASAAEg8KB2FkZHJlc3MYBCABKAkivgEKBlRhcmdldBIfCglkZXZpY2VfaWQYASABKAlCCrpIB3IFEAEogAJIABIqCgZwaW5uZWQYAiABKAsyGC5jYXN0b3IudjEuVGFyZ2V0LlBpbm5lZEgAGlYKBlBpbm5lZBIvCgR0eXBlGAEgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASGwoHYWRkcmVzcxgCIAEoCUIKukgHcgUQASiAQEIPCgZ0YXJnZXQSBbpIAggBKnEKCkRldmljZVR5cGUSGwoXREVWSUNFX1RZUEVfVU5TUEVDSUZJRUQQABIUChBERVZJQ0VfVFlQRV9ETE5BEAESGgoWREVWSUNFX1RZUEVfQ0hST01FQ0FTVBACEhQKEERFVklDRV9UWVBFX1JPS1UQAzJdCg1EZXZpY2VTZXJ2aWNlEkwKC0xpc3REZXZpY2VzEh0uY2FzdG9yLnYxLkxpc3REZXZpY2VzUmVxdWVzdBoeLmNhc3Rvci52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate]);
+  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiFQoTV2F0Y2hEZXZpY2VzUmVxdWVzdCI6ChRXYXRjaERldmljZXNSZXNwb25zZRIiCgdkZXZpY2VzGAEgAygLMhEuY2FzdG9yLnYxLkRldmljZSJkCgZEZXZpY2USCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgR0eXBlGAMgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASDwoHYWRkcmVzcxgEIAEoCSK+AQoGVGFyZ2V0Eh8KCWRldmljZV9pZBgBIAEoCUIKukgHcgUQASiAAkgAEioKBnBpbm5lZBgCIAEoCzIYLmNhc3Rvci52MS5UYXJnZXQuUGlubmVkSAAaVgoGUGlubmVkEi8KBHR5cGUYASABKA4yFS5jYXN0b3IudjEuRGV2aWNlVHlwZUIKukgHggEEEAEgABIbCgdhZGRyZXNzGAIgASgJQgq6SAdyBRABKIBAQg8KBnRhcmdldBIFukgCCAEqcQoKRGV2aWNlVHlwZRIbChdERVZJQ0VfVFlQRV9VTlNQRUNJRklFRBAAEhQKEERFVklDRV9UWVBFX0RMTkEQARIaChZERVZJQ0VfVFlQRV9DSFJPTUVDQVNUEAISFAoQREVWSUNFX1RZUEVfUk9LVRADMrABCg1EZXZpY2VTZXJ2aWNlEkwKC0xpc3REZXZpY2VzEh0uY2FzdG9yLnYxLkxpc3REZXZpY2VzUmVxdWVzdBoeLmNhc3Rvci52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlElEKDFdhdGNoRGV2aWNlcxIeLmNhc3Rvci52MS5XYXRjaERldmljZXNSZXF1ZXN0Gh8uY2FzdG9yLnYxLldhdGNoRGV2aWNlc1Jlc3BvbnNlMAFiBnByb3RvMw", [file_buf_validate_validate]);
 
 /**
  * @generated from message castor.v1.ListDevicesRequest
@@ -42,6 +42,36 @@ export type ListDevicesResponse = Message<"castor.v1.ListDevicesResponse"> & {
  */
 export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__PURE__*/
   messageDesc(file_castor_v1_device, 1);
+
+/**
+ * @generated from message castor.v1.WatchDevicesRequest
+ */
+export type WatchDevicesRequest = Message<"castor.v1.WatchDevicesRequest"> & {
+};
+
+/**
+ * Describes the message castor.v1.WatchDevicesRequest.
+ * Use `create(WatchDevicesRequestSchema)` to create a new message.
+ */
+export const WatchDevicesRequestSchema: GenMessage<WatchDevicesRequest> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 2);
+
+/**
+ * @generated from message castor.v1.WatchDevicesResponse
+ */
+export type WatchDevicesResponse = Message<"castor.v1.WatchDevicesResponse"> & {
+  /**
+   * @generated from field: repeated castor.v1.Device devices = 1;
+   */
+  devices: Device[];
+};
+
+/**
+ * Describes the message castor.v1.WatchDevicesResponse.
+ * Use `create(WatchDevicesResponseSchema)` to create a new message.
+ */
+export const WatchDevicesResponseSchema: GenMessage<WatchDevicesResponse> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 3);
 
 /**
  * @generated from message castor.v1.Device
@@ -75,7 +105,7 @@ export type Device = Message<"castor.v1.Device"> & {
  * Use `create(DeviceSchema)` to create a new message.
  */
 export const DeviceSchema: GenMessage<Device> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 2);
+  messageDesc(file_castor_v1_device, 4);
 
 /**
  * @generated from message castor.v1.Target
@@ -104,7 +134,7 @@ export type Target = Message<"castor.v1.Target"> & {
  * Use `create(TargetSchema)` to create a new message.
  */
 export const TargetSchema: GenMessage<Target> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 3);
+  messageDesc(file_castor_v1_device, 5);
 
 /**
  * Pinned is a device discovery cannot see.
@@ -130,7 +160,7 @@ export type Target_Pinned = Message<"castor.v1.Target.Pinned"> & {
  * Use `create(Target_PinnedSchema)` to create a new message.
  */
 export const Target_PinnedSchema: GenMessage<Target_Pinned> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 3, 0);
+  messageDesc(file_castor_v1_device, 5, 0);
 
 /**
  * @generated from enum castor.v1.DeviceType
@@ -176,6 +206,16 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof ListDevicesRequestSchema;
     output: typeof ListDevicesResponseSchema;
+  },
+  /**
+   * WatchDevices sends the devices now, then the whole list again whenever one appears or stops answering.
+   *
+   * @generated from rpc castor.v1.DeviceService.WatchDevices
+   */
+  watchDevices: {
+    methodKind: "server_streaming";
+    input: typeof WatchDevicesRequestSchema;
+    output: typeof WatchDevicesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_castor_v1_device, 0);

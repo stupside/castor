@@ -7,11 +7,19 @@ import "buf/validate/validate.proto";
 service DeviceService {
   // ListDevices discovers the devices this server reaches, within its network timeout.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  // WatchDevices sends the devices now, then the whole list again whenever one appears or stops answering.
+  rpc WatchDevices(WatchDevicesRequest) returns (stream WatchDevicesResponse);
 }
 
 message ListDevicesRequest {}
 
 message ListDevicesResponse {
+  repeated Device devices = 1;
+}
+
+message WatchDevicesRequest {}
+
+message WatchDevicesResponse {
   repeated Device devices = 1;
 }
 

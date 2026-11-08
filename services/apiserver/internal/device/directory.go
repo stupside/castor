@@ -5,11 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"connectrpc.com/connect"
+	"golang.org/x/sync/semaphore"
+	"google.golang.org/protobuf/proto"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/settings"
@@ -27,11 +32,67 @@ type Directory struct {
 	mu     sync.Mutex
 	seen   discoveries
 	leases map[string]*lease
+
+	watchers *semaphore.Weighted
 }
 
 // NewDirectory lists devices from find and lends them through reach.
 func NewDirectory(reach Registry, find Discovery) *Directory {
-	return &Directory{reach: reach, find: find, resolve: net.DefaultResolver.LookupIPAddr, seen: discoveries{}, leases: map[string]*lease{}}
+	return &Directory{reach: reach, find: find, resolve: net.DefaultResolver.LookupIPAddr, seen: discoveries{}, leases: map[string]*lease{}, watchers: semaphore.NewWeighted(16)}
+}
+
+const (
+	sweepEvery = 10 * time.Second
+	// sweepsMissed tolerates discovery dropping answers.
+	sweepsMissed = 3
+)
+
+func (d *Directory) WatchDevices(ctx context.Context, _ *castorv1.WatchDevicesRequest, out *connect.ServerStream[castorv1.WatchDevicesResponse]) error {
+	if !d.watchers.TryAcquire(1) {
+		return connect.NewError(connect.CodeResourceExhausted, errors.New("concurrent device watchers capacity exhausted"))
+	}
+	defer d.watchers.Release(1)
+	// ponytail: each watcher sweeps on its own; share one sweep if many ever watch.
+	present := map[string]*castorv1.Device{}
+	missed := map[string]int{}
+	var sent *castorv1.WatchDevicesResponse
+	for first := true; ; first = false {
+		found, err := d.discover(ctx)
+		switch {
+		case err != nil && first:
+			return connect.NewError(connect.CodeUnavailable, fmt.Errorf("discovering devices: %w", err))
+		case err != nil:
+			if ctx.Err() == nil {
+				slog.WarnContext(ctx, "discovering devices", "error", err)
+			}
+		default:
+			for id := range present {
+				missed[id]++
+			}
+			for _, info := range found {
+				public := info.Public()
+				present[public.GetId()], missed[public.GetId()] = public, 0
+			}
+			for id, n := range missed {
+				if n > sweepsMissed {
+					delete(present, id)
+					delete(missed, id)
+				}
+			}
+		}
+		next := &castorv1.WatchDevicesResponse{Devices: slices.SortedFunc(maps.Values(present), func(a, b *castorv1.Device) int { return strings.Compare(a.GetId(), b.GetId()) })}
+		if !proto.Equal(next, sent) {
+			if err := out.Send(next); err != nil {
+				return err
+			}
+			sent = next
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(sweepEvery):
+		}
+	}
 }
 
 func (d *Directory) ListDevices(ctx context.Context, _ *castorv1.ListDevicesRequest) (*castorv1.ListDevicesResponse, error) {
