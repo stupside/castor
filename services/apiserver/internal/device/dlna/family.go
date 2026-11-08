@@ -10,6 +10,7 @@ import (
 
 	"github.com/huin/goupnp"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
@@ -92,6 +93,24 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 	}
 	streamed(caps)
 	return &session{transport: transport, caps: caps, sinks: sinks}, nil
+}
+
+// Capabilities asks the renderer's ConnectionManager what it plays, which reads and changes nothing on screen.
+func (Family) Capabilities(ctx context.Context, info device.Info) (*mediav1.Capabilities, error) {
+	u, err := url.Parse(info.Address)
+	if err != nil {
+		return nil, fmt.Errorf("parsing device location URL: %w", err)
+	}
+	loc, err := goupnp.DeviceByURLCtx(ctx, u)
+	if err != nil {
+		return nil, fmt.Errorf("fetching device description: %w", err)
+	}
+	caps, _, err := negotiateCaps(ctx, loc, u)
+	if err != nil {
+		return nil, err
+	}
+	streamed(caps)
+	return caps, nil
 }
 
 // findService returns a client for the newest version of the named service the device publishes.

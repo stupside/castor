@@ -101,9 +101,11 @@ type PlaybackSettings struct {
 	Subtitles *v1.SubtitleSelection  `protobuf:"bytes,3,opt,name=subtitles,proto3" json:"subtitles,omitempty"`
 	Audio     *v1.AudioSelection     `protobuf:"bytes,4,opt,name=audio,proto3" json:"audio,omitempty"`
 	// max_bitrate is the most the cast asks of the device's link, absent for no ceiling.
-	MaxBitrate    *Bitrate `protobuf:"bytes,5,opt,name=max_bitrate,json=maxBitrate,proto3" json:"max_bitrate,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MaxBitrate *Bitrate `protobuf:"bytes,5,opt,name=max_bitrate,json=maxBitrate,proto3" json:"max_bitrate,omitempty"`
+	// preserve_source keeps finite sources original; live sources may be optimized after a native refusal.
+	PreserveSource bool `protobuf:"varint,6,opt,name=preserve_source,json=preserveSource,proto3" json:"preserve_source,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *PlaybackSettings) Reset() {
@@ -169,6 +171,13 @@ func (x *PlaybackSettings) GetMaxBitrate() *Bitrate {
 		return x.MaxBitrate
 	}
 	return nil
+}
+
+func (x *PlaybackSettings) GetPreserveSource() bool {
+	if x != nil {
+		return x.PreserveSource
+	}
+	return false
 }
 
 type StartResponse struct {
@@ -299,7 +308,7 @@ const file_castor_media_v1_cast_proto_rawDesc = "" +
 	"\acast_id\x18\x01 \x01(\tB\x15\xbaH\x12r\x102\x0e^[A-Z2-7]{26}$R\x06castId\x127\n" +
 	"\x06source\x18\x02 \x01(\v2\x17.castor.media.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x12E\n" +
 	"\bsettings\x18\x03 \x01(\v2!.castor.media.v1.PlaybackSettingsB\x06\xbaH\x03\xc8\x01\x01R\bsettings\x129\n" +
-	"\x05start\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\x05start\"\xb3\x03\n" +
+	"\x05start\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\x05start\"\xdc\x03\n" +
 	"\x10PlaybackSettings\x12;\n" +
 	"\bdelivery\x18\x01 \x01(\x0e2\x13.castor.v1.DeliveryB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bdelivery\x12&\n" +
@@ -309,7 +318,8 @@ const file_castor_media_v1_cast_proto_rawDesc = "" +
 	"\x05audio\x18\x04 \x01(\v2\x19.castor.v1.AudioSelectionR\x05audio\x12\xc4\x01\n" +
 	"\vmax_bitrate\x18\x05 \x01(\v2\x18.castor.media.v1.BitrateB\x88\x01\xbaH\x84\x01\xba\x01\x80\x01\n" +
 	"\x11max_bitrate.range\x12!must be from 1 Mbit/s to 1 Tbit/s\x1aHthis.bits_per_second >= 1000000 && this.bits_per_second <= 1000000000000R\n" +
-	"maxBitrate\"\x0f\n" +
+	"maxBitrate\x12'\n" +
+	"\x0fpreserve_source\x18\x06 \x01(\bR\x0epreserveSource\"\x0f\n" +
 	"\rStartResponse\"\x85\x01\n" +
 	"\x06Source\x12+\n" +
 	"\x06stream\x18\x01 \x01(\v2\x11.castor.v1.StreamH\x00R\x06stream\x12=\n" +

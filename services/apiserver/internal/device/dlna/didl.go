@@ -35,11 +35,7 @@ const streamingFlags = "DLNA.ORG_FLAGS=01700000000000000000000000000000"
 
 // stated is the protocolInfo fourth field castor gives a stream its sink entry describes, fetched as seek says.
 func stated(entry sinkEntry, play *mediav1.DeviceCommand_Play) string {
-	switch {
-	case play.GetSource() != nil:
-		// Castor does not serve it, so it states only what the device itself said.
-		return entry.features
-	case play.GetPlaylist() != nil:
+	if play.GetPlaylist() != nil {
 		// No DLNA parameter describes a playlist.
 		return "*"
 	}
@@ -51,7 +47,11 @@ func stated(entry sinkEntry, play *mediav1.DeviceCommand_Play) string {
 		}
 	}
 	op := "DLNA.ORG_OP=00"
-	if play.GetProgressive().GetRuntime().GetSeek() == mediav1.DeviceCommand_Play_Runtime_SEEK_TIME {
+	switch {
+	case play.GetSource() != nil:
+		// A renderer is handed a source through the media server's forward, which passes its byte ranges on.
+		op = "DLNA.ORG_OP=01"
+	case play.GetProgressive().GetRuntime().GetSeek() == mediav1.DeviceCommand_Play_Runtime_SEEK_TIME:
 		op = "DLNA.ORG_OP=10"
 	}
 	return strings.Join(append(params, op, streamingFlags), ";")

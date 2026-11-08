@@ -2,7 +2,9 @@ package ffmpeg
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -20,6 +22,14 @@ type Encoder struct {
 	InitArgs []string    // emitted before the input: hardware device setup
 	Filters  []string    // appended to the -vf chain: e.g. the GPU upload
 	Flags    []string    // encoder-specific -c:v flags: preset, pix_fmt, GOP
+
+	// GOPKeyframes ignores forced keyframes: only the -g length places them, counted in frames of the rate truncated
+	// to a whole number, so a fractional rate (23.976) drifts them off the clock.
+	GOPKeyframes bool
+	// AverageRate honors -b:v alone: no VBV ceiling and no constant-quality target.
+	AverageRate bool
+	// Level spells castor's dotted level (e.g. "4.0") as -level:v expects it; nil passes it as is.
+	Level func(string) string
 }
 
 const vaapiRenderNode = "/dev/dri/renderD128"
@@ -58,9 +68,33 @@ var encoders = []Encoder{
 	hevcVideoToolbox, hevcNVENC, hevcQSV, hevcVAAPI, hevcAMF, libx265,
 }
 
-// candidates is encoders plus VA-API on every other render node this host has.
-func candidates() []Encoder {
-	out := slices.Clone(encoders)
+// declarable are encoders only a platform's own build offers, so castor tries them only where the host declares them.
+var declarable = map[string]Encoder{
+	"h264_mediacodec": mediacodecEncoder("h264_mediacodec", media.CodecH264, ""),
+	"hevc_mediacodec": mediacodecEncoder("hevc_mediacodec", media.CodecHEVC, "m"),
+}
+
+// Declarable is every encoder name a host may declare, sorted.
+func Declarable() []string {
+	names := slices.Collect(maps.Keys(declarable))
+	slices.Sort(names)
+	return names
+}
+
+// mediacodecEncoder takes 8-bit NV12 buffers at an average rate; tier is the HEVC level prefix ("m" main), empty for H.264.
+func mediacodecEncoder(name string, codec media.Codec, tier string) Encoder {
+	return Encoder{
+		Name: name, Codec: codec, Hardware: true,
+		Flags:        []string{"-pix_fmt", "nv12", "-bitrate_mode", "vbr"},
+		GOPKeyframes: true, AverageRate: true,
+		// Its levels are named constants: "4.0" would parse as the number 4, which is level 1.1.
+		Level: func(level string) string { return tier + strings.TrimSuffix(level, ".0") },
+	}
+}
+
+// candidates is the declared encoders, then encoders plus VA-API on every other render node this host has.
+func candidates(declared []Encoder) []Encoder {
+	out := slices.Concat(declared, encoders)
 	nodes, _ := filepath.Glob("/dev/dri/renderD*")
 	for _, node := range nodes {
 		if node == vaapiRenderNode {
@@ -82,15 +116,53 @@ func vaapiEncoder(name string, codec media.Codec, node string) Encoder {
 
 // Encoders is the best working encoder per codec on ffmpegPath, hardware first; each encoder is proven once by the value it returns.
 func Encoders(ffmpegPath string) func(context.Context, media.Codec) (Encoder, bool) {
-	proven := &provenEncoders{ffmpegPath: ffmpegPath, slots: map[string]*proof{}}
-	return proven.best
+	c, _ := NewCatalog(ffmpegPath, nil)
+	return c.Best
+}
+
+// Catalog is the encoders proven on one ffmpeg binary, and those retired after failing a cast.
+type Catalog struct{ proven *provenEncoders }
+
+// NewCatalog proves encoders on ffmpegPath, trying the declared ones, which only a platform's own build offers, before the rest.
+func NewCatalog(ffmpegPath string, declared []string) (*Catalog, error) {
+	p := &provenEncoders{ffmpegPath: ffmpegPath, slots: map[string]*proof{}, retired: map[string]bool{}}
+	for _, name := range declared {
+		e, ok := declarable[name]
+		if !ok {
+			return nil, fmt.Errorf("unknown hardware encoder %q: castor knows %s", name, strings.Join(Declarable(), ", "))
+		}
+		p.declared = append(p.declared, e)
+	}
+	return &Catalog{proven: p}, nil
+}
+
+// Best is the best working encoder for codec, hardware first.
+func (c *Catalog) Best(ctx context.Context, codec media.Codec) (Encoder, bool) {
+	return c.proven.best(ctx, codec, []bool{true, false})
+}
+
+// Software is the best working encoder for codec that needs no hardware.
+func (c *Catalog) Software(ctx context.Context, codec media.Codec) (Encoder, bool) {
+	return c.proven.best(ctx, codec, []bool{false})
+}
+
+// Retire stops offering the encoder named name for as long as this catalog lives.
+func (c *Catalog) Retire(name string) {
+	c.proven.mu.Lock()
+	defer c.proven.mu.Unlock()
+	if !c.proven.retired[name] {
+		slog.Warn("encoder retired after failing a cast", "encoder", name)
+	}
+	c.proven.retired[name] = true
 }
 
 type provenEncoders struct {
 	ffmpegPath string
+	declared   []Encoder
 
-	mu    sync.Mutex
-	slots map[string]*proof
+	mu      sync.Mutex
+	slots   map[string]*proof
+	retired map[string]bool
 }
 
 // proof is one encoder's test, held per encoder so a slow test blocks only askers of that same encoder.
@@ -100,11 +172,11 @@ type proof struct {
 	works  bool
 }
 
-func (p *provenEncoders) best(ctx context.Context, codec media.Codec) (Encoder, bool) {
-	all := candidates()
-	for _, hardware := range []bool{true, false} {
+func (p *provenEncoders) best(ctx context.Context, codec media.Codec, passes []bool) (Encoder, bool) {
+	all := candidates(p.declared)
+	for _, hardware := range passes {
 		for _, e := range all {
-			if e.Codec != codec || e.Hardware != hardware {
+			if e.Codec != codec || e.Hardware != hardware || p.isRetired(e.Name) {
 				continue
 			}
 			works, ran := p.available(ctx, e)
@@ -118,6 +190,12 @@ func (p *provenEncoders) best(ctx context.Context, codec media.Codec) (Encoder, 
 		}
 	}
 	return Encoder{}, false
+}
+
+func (p *provenEncoders) isRetired(name string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.retired[name]
 }
 
 // available reports whether e works, and whether this call ran the test encode that proved it.

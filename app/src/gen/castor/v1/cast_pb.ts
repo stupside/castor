@@ -5,7 +5,7 @@
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
-import type { Device, DeviceValid, Target, TargetValid } from "./device_pb";
+import type { Device, DeviceValid, Fidelity, Target, TargetValid } from "./device_pb";
 import { file_castor_v1_device } from "./device_pb";
 import type { Revision, RevisionValid } from "./revision_pb";
 import { file_castor_v1_revision } from "./revision_pb";
@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/cast.proto.
  */
 export const file_castor_v1_cast: GenFile = /*@__PURE__*/
-  fileDesc("ChRjYXN0b3IvdjEvY2FzdC5wcm90bxIJY2FzdG9yLnYxIu4BCgtDYXN0UmVxdWVzdBIpCgZ0YXJnZXQYASABKAsyES5jYXN0b3IudjEuVGFyZ2V0Qga6SAPIAQESKQoGc291cmNlGAIgASgLMhEuY2FzdG9yLnYxLlNvdXJjZUIGukgDyAEBEisKC3ByZWZlcmVuY2VzGAMgASgLMhYuY2FzdG9yLnYxLlByZWZlcmVuY2VzEigKCm1lZGlhX2luZm8YBCABKAsyFC5jYXN0b3IudjEuTWVkaWFJbmZvEjIKBXN0YXJ0GAUgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQgi6SAWqAQIqACKOAQoJTWVkaWFJbmZvEhcKBXRpdGxlGAEgASgJQgi6SAVyAxiAAhIaCghzeW5vcHNpcxgCIAEoCUIIukgFcgMYgCASLQoJaW1hZ2VfdXJsGAMgASgJQhq6SBfYAQFyEiiAQDIKXmh0dHBzPzovL4gBARIdCgxyZWxlYXNlX2RhdGUYBCABKAlCB7pIBHICGAoiKgoMQ2FzdFJlc3BvbnNlEhoKB2Nhc3RfaWQYASABKAlCCbpIBnIEEAEoQCJoCg5SZXNvbHZlUmVxdWVzdBIpCgZzb3VyY2UYASABKAsyES5jYXN0b3IudjEuU291cmNlQga6SAPIAQESKwoLcHJlZmVyZW5jZXMYAiABKAsyFi5jYXN0b3IudjEuUHJlZmVyZW5jZXMiOgoPUmVzb2x2ZVJlc3BvbnNlEicKBnJhbmtlZBgBIAMoCzIXLmNhc3Rvci52MS5SYW5rZWRTdHJlYW0ipAIKBlNvdXJjZRIjCgZzdHJlYW0YASABKAsyES5jYXN0b3IudjEuU3RyZWFtSAASKAoFcGFnZXMYAiABKAsyFy5jYXN0b3IudjEuU291cmNlLlBhZ2VzSAASNAoHc3RyZWFtcxgDIAEoCzIhLmNhc3Rvci52MS5Tb3VyY2UuUmVzb2x2ZWRTdHJlYW1zSAAaNwoFUGFnZXMSLgoEdXJscxgBIAMoCUIgukgdkgEaCAEQECIUchIogEAyCl5odHRwcz86Ly+IAQEaSwoPUmVzb2x2ZWRTdHJlYW1zEjgKB3N0cmVhbXMYASADKAsyGi5jYXN0b3IudjEuU3RyZWFtQ2FuZGlkYXRlQgu6SAiSAQUIARDADEIPCgZzb3VyY2USBbpIAggBIt4BCgtQcmVmZXJlbmNlcxI2CghkZWxpdmVyeRgBIAEoDjITLmNhc3Rvci52MS5EZWxpdmVyeUIKukgHggEEEAEgAEgAiAEBEiAKCm1heF9oZWlnaHQYAiABKA1CB7pIBCoCKAJIAYgBARIvCglzdWJ0aXRsZXMYAyABKAsyHC5jYXN0b3IudjEuU3VidGl0bGVTZWxlY3Rpb24SKAoFYXVkaW8YBCABKAsyGS5jYXN0b3IudjEuQXVkaW9TZWxlY3Rpb25CCwoJX2RlbGl2ZXJ5Qg0KC19tYXhfaGVpZ2h0Ij0KDkF1ZGlvU2VsZWN0aW9uEisKCWxhbmd1YWdlcxgBIAMoCUIYukgVkgESIhByDjIMXlthLXpdezIsM30kIoUBChFTdWJ0aXRsZVNlbGVjdGlvbhIqCghkaXNhYmxlZBgBIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEjUKC3ByZWZlcmVuY2VzGAIgASgLMh4uY2FzdG9yLnYxLlN1YnRpdGxlUHJlZmVyZW5jZXNIAEINCgRtb2RlEgW6SAIIASJjChNTdWJ0aXRsZVByZWZlcmVuY2VzEi0KCWxhbmd1YWdlcxgBIAMoCUIaukgXkgEUCAEiEHIOMgxeW2Etel17MiwzfSQSHQoVdHJhbnNjcmliZV9pZl9taXNzaW5nGAIgASgIIioKDFdhdGNoUmVxdWVzdBIaCgdjYXN0X2lkGAEgASgJQgm6SAZyBBABKEAibAoNV2F0Y2hSZXNwb25zZRInCgZzdGF0dXMYASABKAsyFS5jYXN0b3IudjEuQ2FzdFN0YXR1c0gAEiEKBWVuZGVkGAIgASgLMhAuY2FzdG9yLnYxLkVuZGVkSABCDwoGdXBkYXRlEgW6SAIIASLWAQoKQ2FzdFN0YXR1cxIsCgpjb25uZWN0aW5nGAEgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASLAoKZXh0cmFjdGluZxgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEi8KCW1lYXN1cmluZxgDIAEoCzIaLmNhc3Rvci52MS5NZWFzdXJpbmdTdGF0dXNIABIrCgdjYXN0aW5nGAQgASgLMhguY2FzdG9yLnYxLkNhc3RpbmdTdGF0dXNIAEIOCgVzdGF0ZRIFukgCCAEiRgoPTWVhc3VyaW5nU3RhdHVzEg8KB3N0cmVhbXMYASABKA0SFQoIY2FzdGFibGUYAiABKA1IAIgBAUILCglfY2FzdGFibGUimgEKDUNhc3RpbmdTdGF0dXMSDwoHc3RyZWFtcxgBIAEoDRIQCghjYXN0YWJsZRgCIAEoDRIYCgdhdHRlbXB0GAMgASgNQge6SAQqAigBEiUKCHJldmlzaW9uGAQgASgLMhMuY2FzdG9yLnYxLlJldmlzaW9uEiUKCHBsYXloZWFkGAUgASgLMhMuY2FzdG9yLnYxLlBsYXloZWFkIosBCghQbGF5aGVhZBI4Cghwb3NpdGlvbhgBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkILukgIyAEBqgECMgASNQoIZHVyYXRpb24YAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CCLpIBaoBAioAEg4KBnBhdXNlZBgDIAEoCCKWAQoFRW5kZWQSKwoJY29tcGxldGVkGAEgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASKQoHc3RvcHBlZBgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEiQKBmZhaWxlZBgDIAEoCzISLmNhc3Rvci52MS5GYWlsdXJlSABCDwoGcmVzdWx0EgW6SAIIASJVCgdGYWlsdXJlEjAKBGNvZGUYASABKA4yFi5jYXN0b3IudjEuRmFpbHVyZUNvZGVCCrpIB4IBBBABIAASGAoHbWVzc2FnZRgCIAEoCUIHukgEcgIQASIpCgtTdG9wUmVxdWVzdBIaCgdjYXN0X2lkGAEgASgJQgm6SAZyBBABKEAiDgoMU3RvcFJlc3BvbnNlIhIKEExpc3RDYXN0c1JlcXVlc3QiMwoRTGlzdENhc3RzUmVzcG9uc2USHgoFY2FzdHMYASADKAsyDy5jYXN0b3IudjEuQ2FzdCJ/CgRDYXN0EgoKAmlkGAEgASgJEiEKBmRldmljZRgCIAEoCzIRLmNhc3Rvci52MS5EZXZpY2USIQoGc291cmNlGAMgASgLMhEuY2FzdG9yLnYxLlNvdXJjZRIlCgZzdGF0dXMYBCABKAsyFS5jYXN0b3IudjEuQ2FzdFN0YXR1cyIqCgxQYXVzZVJlcXVlc3QSGgoHY2FzdF9pZBgBIAEoCUIJukgGcgQQAShAIg8KDVBhdXNlUmVzcG9uc2UiKwoNUmVzdW1lUmVxdWVzdBIaCgdjYXN0X2lkGAEgASgJQgm6SAZyBBABKEAiEAoOUmVzdW1lUmVzcG9uc2UiYwoLU2Vla1JlcXVlc3QSGgoHY2FzdF9pZBgBIAEoCUIJukgGcgQQAShAEjgKCHBvc2l0aW9uGAIgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQgu6SAjIAQGqAQIyACIOCgxTZWVrUmVzcG9uc2Uq0wEKC0ZhaWx1cmVDb2RlEhwKGEZBSUxVUkVfQ09ERV9VTlNQRUNJRklFRBAAEiAKHEZBSUxVUkVfQ09ERV9QTEFZQkFDS19GQUlMRUQQARIjCh9GQUlMVVJFX0NPREVfREVWSUNFX1VOUkVBQ0hBQkxFEAISIgoeRkFJTFVSRV9DT0RFX0VYVFJBQ1RJT05fRkFJTEVEEAMSIAocRkFJTFVSRV9DT0RFX1NFUlZFUl9TSFVURE9XThAEEhkKFUZBSUxVUkVfQ09ERV9JTlRFUk5BTBAFMvsDCgtDYXN0U2VydmljZRI3CgRDYXN0EhYuY2FzdG9yLnYxLkNhc3RSZXF1ZXN0GhcuY2FzdG9yLnYxLkNhc3RSZXNwb25zZRJACgdSZXNvbHZlEhkuY2FzdG9yLnYxLlJlc29sdmVSZXF1ZXN0GhouY2FzdG9yLnYxLlJlc29sdmVSZXNwb25zZRI8CgVXYXRjaBIXLmNhc3Rvci52MS5XYXRjaFJlcXVlc3QaGC5jYXN0b3IudjEuV2F0Y2hSZXNwb25zZTABEjcKBFN0b3ASFi5jYXN0b3IudjEuU3RvcFJlcXVlc3QaFy5jYXN0b3IudjEuU3RvcFJlc3BvbnNlEkYKCUxpc3RDYXN0cxIbLmNhc3Rvci52MS5MaXN0Q2FzdHNSZXF1ZXN0GhwuY2FzdG9yLnYxLkxpc3RDYXN0c1Jlc3BvbnNlEjoKBVBhdXNlEhcuY2FzdG9yLnYxLlBhdXNlUmVxdWVzdBoYLmNhc3Rvci52MS5QYXVzZVJlc3BvbnNlEj0KBlJlc3VtZRIYLmNhc3Rvci52MS5SZXN1bWVSZXF1ZXN0GhkuY2FzdG9yLnYxLlJlc3VtZVJlc3BvbnNlEjcKBFNlZWsSFi5jYXN0b3IudjEuU2Vla1JlcXVlc3QaFy5jYXN0b3IudjEuU2Vla1Jlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate, file_castor_v1_device, file_castor_v1_revision, file_castor_v1_stream, file_google_protobuf_duration, file_google_protobuf_empty]);
+  fileDesc("ChRjYXN0b3IvdjEvY2FzdC5wcm90bxIJY2FzdG9yLnYxIu4BCgtDYXN0UmVxdWVzdBIpCgZ0YXJnZXQYASABKAsyES5jYXN0b3IudjEuVGFyZ2V0Qga6SAPIAQESKQoGc291cmNlGAIgASgLMhEuY2FzdG9yLnYxLlNvdXJjZUIGukgDyAEBEisKC3ByZWZlcmVuY2VzGAMgASgLMhYuY2FzdG9yLnYxLlByZWZlcmVuY2VzEigKCm1lZGlhX2luZm8YBCABKAsyFC5jYXN0b3IudjEuTWVkaWFJbmZvEjIKBXN0YXJ0GAUgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQgi6SAWqAQIqACKOAQoJTWVkaWFJbmZvEhcKBXRpdGxlGAEgASgJQgi6SAVyAxiAAhIaCghzeW5vcHNpcxgCIAEoCUIIukgFcgMYgCASLQoJaW1hZ2VfdXJsGAMgASgJQhq6SBfYAQFyEiiAQDIKXmh0dHBzPzovL4gBARIdCgxyZWxlYXNlX2RhdGUYBCABKAlCB7pIBHICGAoiKgoMQ2FzdFJlc3BvbnNlEhoKB2Nhc3RfaWQYASABKAlCCbpIBnIEEAEoQCJoCg5SZXNvbHZlUmVxdWVzdBIpCgZzb3VyY2UYASABKAsyES5jYXN0b3IudjEuU291cmNlQga6SAPIAQESKwoLcHJlZmVyZW5jZXMYAiABKAsyFi5jYXN0b3IudjEuUHJlZmVyZW5jZXMiOgoPUmVzb2x2ZVJlc3BvbnNlEicKBnJhbmtlZBgBIAMoCzIXLmNhc3Rvci52MS5SYW5rZWRTdHJlYW0ipAIKBlNvdXJjZRIjCgZzdHJlYW0YASABKAsyES5jYXN0b3IudjEuU3RyZWFtSAASKAoFcGFnZXMYAiABKAsyFy5jYXN0b3IudjEuU291cmNlLlBhZ2VzSAASNAoHc3RyZWFtcxgDIAEoCzIhLmNhc3Rvci52MS5Tb3VyY2UuUmVzb2x2ZWRTdHJlYW1zSAAaNwoFUGFnZXMSLgoEdXJscxgBIAMoCUIgukgdkgEaCAEQECIUchIogEAyCl5odHRwcz86Ly+IAQEaSwoPUmVzb2x2ZWRTdHJlYW1zEjgKB3N0cmVhbXMYASADKAsyGi5jYXN0b3IudjEuU3RyZWFtQ2FuZGlkYXRlQgu6SAiSAQUIARDADEIPCgZzb3VyY2USBbpIAggBIpACCgtQcmVmZXJlbmNlcxI2CghkZWxpdmVyeRgBIAEoDjITLmNhc3Rvci52MS5EZWxpdmVyeUIKukgHggEEEAEgAEgAiAEBEiAKCm1heF9oZWlnaHQYAiABKA1CB7pIBCoCKAJIAYgBARIvCglzdWJ0aXRsZXMYAyABKAsyHC5jYXN0b3IudjEuU3VidGl0bGVTZWxlY3Rpb24SKAoFYXVkaW8YBCABKAsyGS5jYXN0b3IudjEuQXVkaW9TZWxlY3Rpb24SHAoPcHJlc2VydmVfc291cmNlGAUgASgISAKIAQFCCwoJX2RlbGl2ZXJ5Qg0KC19tYXhfaGVpZ2h0QhIKEF9wcmVzZXJ2ZV9zb3VyY2UiPQoOQXVkaW9TZWxlY3Rpb24SKwoJbGFuZ3VhZ2VzGAEgAygJQhi6SBWSARIiEHIOMgxeW2Etel17MiwzfSQihQEKEVN1YnRpdGxlU2VsZWN0aW9uEioKCGRpc2FibGVkGAEgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASNQoLcHJlZmVyZW5jZXMYAiABKAsyHi5jYXN0b3IudjEuU3VidGl0bGVQcmVmZXJlbmNlc0gAQg0KBG1vZGUSBbpIAggBImMKE1N1YnRpdGxlUHJlZmVyZW5jZXMSLQoJbGFuZ3VhZ2VzGAEgAygJQhq6SBeSARQIASIQcg4yDF5bYS16XXsyLDN9JBIdChV0cmFuc2NyaWJlX2lmX21pc3NpbmcYAiABKAgiKgoMV2F0Y2hSZXF1ZXN0EhoKB2Nhc3RfaWQYASABKAlCCbpIBnIEEAEoQCJsCg1XYXRjaFJlc3BvbnNlEicKBnN0YXR1cxgBIAEoCzIVLmNhc3Rvci52MS5DYXN0U3RhdHVzSAASIQoFZW5kZWQYAiABKAsyEC5jYXN0b3IudjEuRW5kZWRIAEIPCgZ1cGRhdGUSBbpIAggBItYBCgpDYXN0U3RhdHVzEiwKCmNvbm5lY3RpbmcYASABKAsyFi5nb29nbGUucHJvdG9idWYuRW1wdHlIABIsCgpleHRyYWN0aW5nGAIgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASLwoJbWVhc3VyaW5nGAMgASgLMhouY2FzdG9yLnYxLk1lYXN1cmluZ1N0YXR1c0gAEisKB2Nhc3RpbmcYBCABKAsyGC5jYXN0b3IudjEuQ2FzdGluZ1N0YXR1c0gAQg4KBXN0YXRlEgW6SAIIASJGCg9NZWFzdXJpbmdTdGF0dXMSDwoHc3RyZWFtcxgBIAEoDRIVCghjYXN0YWJsZRgCIAEoDUgAiAEBQgsKCV9jYXN0YWJsZSLZAQoNQ2FzdGluZ1N0YXR1cxIPCgdzdHJlYW1zGAEgASgNEhAKCGNhc3RhYmxlGAIgASgNEhgKB2F0dGVtcHQYAyABKA1CB7pIBCoCKAESJQoIcmV2aXNpb24YBCABKAsyEy5jYXN0b3IudjEuUmV2aXNpb24SJQoIcGxheWhlYWQYBSABKAsyEy5jYXN0b3IudjEuUGxheWhlYWQSFgoOb3B0aW1pemVkX2xpdmUYBiABKAgSJQoIaGFuZG92ZXIYByABKAsyEy5jYXN0b3IudjEuSGFuZG92ZXIiUwoISGFuZG92ZXISMQoIZmlkZWxpdHkYASABKA4yEy5jYXN0b3IudjEuRmlkZWxpdHlCCrpIB4IBBBABIAASFAoMZG9sYnlfdmlzaW9uGAIgASgIIosBCghQbGF5aGVhZBI4Cghwb3NpdGlvbhgBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkILukgIyAEBqgECMgASNQoIZHVyYXRpb24YAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CCLpIBaoBAioAEg4KBnBhdXNlZBgDIAEoCCKWAQoFRW5kZWQSKwoJY29tcGxldGVkGAEgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASKQoHc3RvcHBlZBgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEiQKBmZhaWxlZBgDIAEoCzISLmNhc3Rvci52MS5GYWlsdXJlSABCDwoGcmVzdWx0EgW6SAIIASJVCgdGYWlsdXJlEjAKBGNvZGUYASABKA4yFi5jYXN0b3IudjEuRmFpbHVyZUNvZGVCCrpIB4IBBBABIAASGAoHbWVzc2FnZRgCIAEoCUIHukgEcgIQASIpCgtTdG9wUmVxdWVzdBIaCgdjYXN0X2lkGAEgASgJQgm6SAZyBBABKEAiDgoMU3RvcFJlc3BvbnNlIhIKEExpc3RDYXN0c1JlcXVlc3QiMwoRTGlzdENhc3RzUmVzcG9uc2USHgoFY2FzdHMYASADKAsyDy5jYXN0b3IudjEuQ2FzdCJ/CgRDYXN0EgoKAmlkGAEgASgJEiEKBmRldmljZRgCIAEoCzIRLmNhc3Rvci52MS5EZXZpY2USIQoGc291cmNlGAMgASgLMhEuY2FzdG9yLnYxLlNvdXJjZRIlCgZzdGF0dXMYBCABKAsyFS5jYXN0b3IudjEuQ2FzdFN0YXR1cyIqCgxQYXVzZVJlcXVlc3QSGgoHY2FzdF9pZBgBIAEoCUIJukgGcgQQAShAIg8KDVBhdXNlUmVzcG9uc2UiKwoNUmVzdW1lUmVxdWVzdBIaCgdjYXN0X2lkGAEgASgJQgm6SAZyBBABKEAiEAoOUmVzdW1lUmVzcG9uc2UiYwoLU2Vla1JlcXVlc3QSGgoHY2FzdF9pZBgBIAEoCUIJukgGcgQQAShAEjgKCHBvc2l0aW9uGAIgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQgu6SAjIAQGqAQIyACIOCgxTZWVrUmVzcG9uc2Uq+QEKC0ZhaWx1cmVDb2RlEhwKGEZBSUxVUkVfQ09ERV9VTlNQRUNJRklFRBAAEiAKHEZBSUxVUkVfQ09ERV9QTEFZQkFDS19GQUlMRUQQARIjCh9GQUlMVVJFX0NPREVfREVWSUNFX1VOUkVBQ0hBQkxFEAISIgoeRkFJTFVSRV9DT0RFX0VYVFJBQ1RJT05fRkFJTEVEEAMSIAocRkFJTFVSRV9DT0RFX1NFUlZFUl9TSFVURE9XThAEEhkKFUZBSUxVUkVfQ09ERV9JTlRFUk5BTBAFEiQKIEZBSUxVUkVfQ09ERV9OQVRJVkVfSU5DT01QQVRJQkxFEAYy+wMKC0Nhc3RTZXJ2aWNlEjcKBENhc3QSFi5jYXN0b3IudjEuQ2FzdFJlcXVlc3QaFy5jYXN0b3IudjEuQ2FzdFJlc3BvbnNlEkAKB1Jlc29sdmUSGS5jYXN0b3IudjEuUmVzb2x2ZVJlcXVlc3QaGi5jYXN0b3IudjEuUmVzb2x2ZVJlc3BvbnNlEjwKBVdhdGNoEhcuY2FzdG9yLnYxLldhdGNoUmVxdWVzdBoYLmNhc3Rvci52MS5XYXRjaFJlc3BvbnNlMAESNwoEU3RvcBIWLmNhc3Rvci52MS5TdG9wUmVxdWVzdBoXLmNhc3Rvci52MS5TdG9wUmVzcG9uc2USRgoJTGlzdENhc3RzEhsuY2FzdG9yLnYxLkxpc3RDYXN0c1JlcXVlc3QaHC5jYXN0b3IudjEuTGlzdENhc3RzUmVzcG9uc2USOgoFUGF1c2USFy5jYXN0b3IudjEuUGF1c2VSZXF1ZXN0GhguY2FzdG9yLnYxLlBhdXNlUmVzcG9uc2USPQoGUmVzdW1lEhguY2FzdG9yLnYxLlJlc3VtZVJlcXVlc3QaGS5jYXN0b3IudjEuUmVzdW1lUmVzcG9uc2USNwoEU2VlaxIWLmNhc3Rvci52MS5TZWVrUmVxdWVzdBoXLmNhc3Rvci52MS5TZWVrUmVzcG9uc2ViBnByb3RvMw", [file_buf_validate_validate, file_castor_v1_device, file_castor_v1_revision, file_castor_v1_stream, file_google_protobuf_duration, file_google_protobuf_empty]);
 
 /**
  * @generated from message castor.v1.CastRequest
@@ -337,6 +337,14 @@ export type Preferences = Message<"castor.v1.Preferences"> & {
    * @generated from field: castor.v1.AudioSelection audio = 4;
    */
   audio?: AudioSelection | undefined;
+
+  /**
+   * preserve_source keeps the selected video and audio original, allowing container changes.
+   * Live sources that cannot be preserved may be optimized automatically; finite sources stay strict.
+   *
+   * @generated from field: optional bool preserve_source = 5;
+   */
+  preserveSource?: boolean | undefined;
 };
 
 export type PreferencesValid = Preferences;
@@ -627,6 +635,20 @@ export type CastingStatus = Message<"castor.v1.CastingStatus"> & {
    * @generated from field: castor.v1.Playhead playhead = 5;
    */
   playhead?: Playhead | undefined;
+
+  /**
+   * True once native planning required conversion of this live cast; preferences remain unchanged.
+   *
+   * @generated from field: bool optimized_live = 6;
+   */
+  optimizedLive: boolean;
+
+  /**
+   * handover is what the playing attempt handed the device, absent until the device took it.
+   *
+   * @generated from field: castor.v1.Handover handover = 7;
+   */
+  handover?: Handover | undefined;
 };
 
 /**
@@ -659,6 +681,20 @@ export type CastingStatusValid = Message<"castor.v1.CastingStatus"> & {
    * @generated from field: castor.v1.Playhead playhead = 5;
    */
   playhead?: PlayheadValid | undefined;
+
+  /**
+   * True once native planning required conversion of this live cast; preferences remain unchanged.
+   *
+   * @generated from field: bool optimized_live = 6;
+   */
+  optimizedLive: boolean;
+
+  /**
+   * handover is what the playing attempt handed the device, absent until the device took it.
+   *
+   * @generated from field: castor.v1.Handover handover = 7;
+   */
+  handover?: HandoverValid | undefined;
 };
 
 /**
@@ -667,6 +703,32 @@ export type CastingStatusValid = Message<"castor.v1.CastingStatus"> & {
  */
 export const CastingStatusSchema: GenMessage<CastingStatus, {validType: CastingStatusValid}> = /*@__PURE__*/
   messageDesc(file_castor_v1_cast, 14);
+
+/**
+ * @generated from message castor.v1.Handover
+ */
+export type Handover = Message<"castor.v1.Handover"> & {
+  /**
+   * @generated from field: castor.v1.Fidelity fidelity = 1;
+   */
+  fidelity: Fidelity;
+
+  /**
+   * dolby_vision is a source declaring Dolby Vision, which only an original file is sure to keep signaled.
+   *
+   * @generated from field: bool dolby_vision = 2;
+   */
+  dolbyVision: boolean;
+};
+
+export type HandoverValid = Handover;
+
+/**
+ * Describes the message castor.v1.Handover.
+ * Use `create(HandoverSchema)` to create a new message.
+ */
+export const HandoverSchema: GenMessage<Handover, {validType: HandoverValid}> = /*@__PURE__*/
+  messageDesc(file_castor_v1_cast, 15);
 
 /**
  * @generated from message castor.v1.Playhead
@@ -721,7 +783,7 @@ export type PlayheadValid = Message<"castor.v1.Playhead"> & {
  * Use `create(PlayheadSchema)` to create a new message.
  */
 export const PlayheadSchema: GenMessage<Playhead, {validType: PlayheadValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 15);
+  messageDesc(file_castor_v1_cast, 16);
 
 /**
  * @generated from message castor.v1.Ended
@@ -758,7 +820,7 @@ export type EndedValid = Ended;
  * Use `create(EndedSchema)` to create a new message.
  */
 export const EndedSchema: GenMessage<Ended, {validType: EndedValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 16);
+  messageDesc(file_castor_v1_cast, 17);
 
 /**
  * @generated from message castor.v1.Failure
@@ -782,7 +844,7 @@ export type FailureValid = Failure;
  * Use `create(FailureSchema)` to create a new message.
  */
 export const FailureSchema: GenMessage<Failure, {validType: FailureValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 17);
+  messageDesc(file_castor_v1_cast, 18);
 
 /**
  * @generated from message castor.v1.StopRequest
@@ -801,7 +863,7 @@ export type StopRequestValid = StopRequest;
  * Use `create(StopRequestSchema)` to create a new message.
  */
 export const StopRequestSchema: GenMessage<StopRequest, {validType: StopRequestValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 18);
+  messageDesc(file_castor_v1_cast, 19);
 
 /**
  * @generated from message castor.v1.StopResponse
@@ -816,7 +878,7 @@ export type StopResponseValid = StopResponse;
  * Use `create(StopResponseSchema)` to create a new message.
  */
 export const StopResponseSchema: GenMessage<StopResponse, {validType: StopResponseValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 19);
+  messageDesc(file_castor_v1_cast, 20);
 
 /**
  * @generated from message castor.v1.ListCastsRequest
@@ -831,7 +893,7 @@ export type ListCastsRequestValid = ListCastsRequest;
  * Use `create(ListCastsRequestSchema)` to create a new message.
  */
 export const ListCastsRequestSchema: GenMessage<ListCastsRequest, {validType: ListCastsRequestValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 20);
+  messageDesc(file_castor_v1_cast, 21);
 
 /**
  * @generated from message castor.v1.ListCastsResponse
@@ -858,7 +920,7 @@ export type ListCastsResponseValid = Message<"castor.v1.ListCastsResponse"> & {
  * Use `create(ListCastsResponseSchema)` to create a new message.
  */
 export const ListCastsResponseSchema: GenMessage<ListCastsResponse, {validType: ListCastsResponseValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 21);
+  messageDesc(file_castor_v1_cast, 22);
 
 /**
  * @generated from message castor.v1.Cast
@@ -919,7 +981,7 @@ export type CastValid = Message<"castor.v1.Cast"> & {
  * Use `create(CastSchema)` to create a new message.
  */
 export const CastSchema: GenMessage<Cast, {validType: CastValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 22);
+  messageDesc(file_castor_v1_cast, 23);
 
 /**
  * @generated from message castor.v1.PauseRequest
@@ -938,7 +1000,7 @@ export type PauseRequestValid = PauseRequest;
  * Use `create(PauseRequestSchema)` to create a new message.
  */
 export const PauseRequestSchema: GenMessage<PauseRequest, {validType: PauseRequestValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 23);
+  messageDesc(file_castor_v1_cast, 24);
 
 /**
  * @generated from message castor.v1.PauseResponse
@@ -953,7 +1015,7 @@ export type PauseResponseValid = PauseResponse;
  * Use `create(PauseResponseSchema)` to create a new message.
  */
 export const PauseResponseSchema: GenMessage<PauseResponse, {validType: PauseResponseValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 24);
+  messageDesc(file_castor_v1_cast, 25);
 
 /**
  * @generated from message castor.v1.ResumeRequest
@@ -972,7 +1034,7 @@ export type ResumeRequestValid = ResumeRequest;
  * Use `create(ResumeRequestSchema)` to create a new message.
  */
 export const ResumeRequestSchema: GenMessage<ResumeRequest, {validType: ResumeRequestValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 25);
+  messageDesc(file_castor_v1_cast, 26);
 
 /**
  * @generated from message castor.v1.ResumeResponse
@@ -987,7 +1049,7 @@ export type ResumeResponseValid = ResumeResponse;
  * Use `create(ResumeResponseSchema)` to create a new message.
  */
 export const ResumeResponseSchema: GenMessage<ResumeResponse, {validType: ResumeResponseValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 26);
+  messageDesc(file_castor_v1_cast, 27);
 
 /**
  * @generated from message castor.v1.SeekRequest
@@ -1028,7 +1090,7 @@ export type SeekRequestValid = Message<"castor.v1.SeekRequest"> & {
  * Use `create(SeekRequestSchema)` to create a new message.
  */
 export const SeekRequestSchema: GenMessage<SeekRequest, {validType: SeekRequestValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 27);
+  messageDesc(file_castor_v1_cast, 28);
 
 /**
  * @generated from message castor.v1.SeekResponse
@@ -1043,7 +1105,7 @@ export type SeekResponseValid = SeekResponse;
  * Use `create(SeekResponseSchema)` to create a new message.
  */
 export const SeekResponseSchema: GenMessage<SeekResponse, {validType: SeekResponseValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_cast, 28);
+  messageDesc(file_castor_v1_cast, 29);
 
 /**
  * @generated from enum castor.v1.FailureCode
@@ -1078,6 +1140,11 @@ export enum FailureCode {
    * @generated from enum value: FAILURE_CODE_INTERNAL = 5;
    */
   INTERNAL = 5,
+
+  /**
+   * @generated from enum value: FAILURE_CODE_NATIVE_INCOMPATIBLE = 6;
+   */
+  NATIVE_INCOMPATIBLE = 6,
 }
 
 /**

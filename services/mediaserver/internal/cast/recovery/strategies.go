@@ -26,6 +26,8 @@ const (
 	RelaxRead       Action = "relax-read"
 	ServeInstead    Action = "serve-instead"
 	Stay            Action = "stay"
+	OptimizeLive    Action = "optimize-live"
+	SoftwareEncode  Action = "software-encode"
 )
 
 // strategy is one recovery action, applying only where the facts allow it.
@@ -77,9 +79,23 @@ func readable(ctx context.Context, in Intent, resolver SourceResolver, a Attempt
 		a.candidate, a.Stream = i, link
 		// Packets the last link broke on do not condemn this one's.
 		a.Decode = media.Axes{}
+		a.OptimizedLive = false
 		return a.reading(resolved, in.Deadline), true
 	}
 	return a, false
+}
+
+// optimizeLive answers a native planning refusal on a live source, once, without changing its selection.
+var optimizeLive = strategy{
+	action: OptimizeLive,
+	apply: func(_ context.Context, c change) (Attempt, bool) {
+		a := c.attempt
+		if !c.intent.PreserveSource || a.OptimizedLive || !a.live() {
+			return a, false
+		}
+		a.OptimizedLive = true
+		return a, true
+	},
 }
 
 // decodeAxis decodes the packets the reader died copying.
@@ -92,6 +108,20 @@ var decodeAxis = strategy{
 			return a, false
 		}
 		a.Decode = next
+		return a, true
+	},
+}
+
+// softwareEncode encodes the picture again without hardware, once, naming the encoder that failed.
+var softwareEncode = strategy{
+	action: SoftwareEncode,
+	apply: func(_ context.Context, c change) (Attempt, bool) {
+		a := c.attempt
+		failed := c.outcome.Evidence.HardwareEncoder
+		if a.SoftwareVideo || failed == "" {
+			return a, false
+		}
+		a.SoftwareVideo, a.FailedEncoder = true, failed
 		return a, true
 	},
 }

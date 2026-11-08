@@ -1,6 +1,8 @@
 package codec
 
 import (
+	"time"
+
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -96,6 +98,18 @@ type VideoEncode struct {
 	ToneMap bool
 	// MaxFrameRate drops frames above it; 0 keeps the source's rate.
 	MaxFrameRate float64
+	// FrameRate is the rate frames reach the encoder at, the source's under MaxFrameRate; 0 is unknown.
+	FrameRate float64
+	// From is the source time the picture begins at, on a kept timeline: earlier frames are decoded only to reach it.
+	From time.Duration
+}
+
+// encodedRate is the rate an fps cap leaves of source; an unknown source counts as reaching the cap.
+func encodedRate(source, limit float64) float64 {
+	if source > 0 && (limit <= 0 || source < limit) {
+		return source
+	}
+	return limit
 }
 
 func (e VideoEncode) name() string { return e.Encoder.Name }

@@ -205,6 +205,50 @@ func TestTheProbeReadsWhatDecidesWhetherAPictureCanBeCopied(t *testing.T) {
 	}
 }
 
+func TestTheProbeReadsThePicturesFrameRate(t *testing.T) {
+	for _, tt := range []struct {
+		avg, real string
+		want      float64
+	}{
+		{"24000/1001", "24000/1001", 24000.0 / 1001},
+		{"0/0", "25/1", 25},
+		{"", "", 0},
+		{"30/0", "garbage", 0},
+	} {
+		stream := `{"codec_type":"video","codec_name":"h264","width":1920,"height":1080,"avg_frame_rate":"` + tt.avg + `","r_frame_rate":"` + tt.real + `"}`
+		info, err := decode(probeJSON(vodFormat, stream), 0, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.VideoFrameRate != tt.want {
+			t.Errorf("avg %q r %q: VideoFrameRate = %v, want %v", tt.avg, tt.real, info.VideoFrameRate, tt.want)
+		}
+		if carried := (media.ProbeInfo{}).TakeVideo(info); carried.VideoFrameRate != info.VideoFrameRate {
+			t.Error("TakeVideo lost the frame rate")
+		}
+	}
+}
+
+func TestTheProbeReadsTheDolbyVisionConfigurationOfThePicture(t *testing.T) {
+	dovi := `{"codec_type":"video","codec_name":"hevc","profile":"Main 10","width":3840,"height":2160,"pix_fmt":"yuv420p10le","color_transfer":"smpte2084",
+		"side_data_list":[{"side_data_type":"DOVI configuration record","dv_profile":8,"dv_level":6,"dv_bl_signal_compatibility_id":1}]}`
+	info, err := decode(probeJSON(vodFormat, dovi), 0, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := media.DolbyVision{Profile: 8, Level: 6, Compatibility: 1}
+	if info.VideoDolbyVision == nil || *info.VideoDolbyVision != want {
+		t.Fatalf("VideoDolbyVision = %+v, want %+v", info.VideoDolbyVision, want)
+	}
+	if carried := (media.ProbeInfo{}).TakeVideo(info); carried.VideoDolbyVision == nil || *carried.VideoDolbyVision != want {
+		t.Fatalf("TakeVideo lost the Dolby Vision configuration: %+v", carried.VideoDolbyVision)
+	}
+	hdr10 := `{"codec_type":"video","codec_name":"hevc","width":3840,"height":2160,"color_transfer":"smpte2084","side_data_list":[{"rotation":0}]}`
+	if info, err = decode(probeJSON(vodFormat, hdr10), 0, -1); err != nil || info.VideoDolbyVision != nil {
+		t.Fatalf("plain HDR10 declares no Dolby Vision, got %+v (err %v)", info.VideoDolbyVision, err)
+	}
+}
+
 func TestAHighBitDepthPictureCannotBeCopiedAsEightBit(t *testing.T) {
 	device := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
 	for _, format := range []string{"yuv444p9le", "yuv444p14le", "yuv444p16le"} {

@@ -196,7 +196,7 @@ Cast to another TV? Tell us how it went in the [What device do you cast to?](htt
 | Android, in Termux | Not documented yet | Reported by [@d4nnABR](https://github.com/d4nnABR) ([#24](https://github.com/stupside/castor/issues/24)). Discovery fails there, so set `device.host` to the TV's IP |
 | Android, as an app | [castor-android](https://github.com/kdpkke/castor-android) | A [community project](#community-projects) |
 
-Castor uses a hardware encoder when ffmpeg has one that works, and software otherwise.
+Castor uses a hardware encoder when ffmpeg has one that works, and software otherwise. A platform whose own ffmpeg build adds encoders castor does not probe everywhere declares them in `servers.media.ffmpeg.hardware_encoders` (today `h264_mediacodec` and `hevc_mediacodec`). If a hardware encode fails before its first output, the cast is retried in software, and once that plays the hardware encoder is no longer used until castor restarts.
 
 ## Self-host on a NAS
 

@@ -16,11 +16,14 @@ import (
 )
 
 const showEntries = "format=format_name,bit_rate,duration,start_time:" +
-	"stream=index,start_time,codec_type,codec_name,profile,level,width,height,pix_fmt,color_transfer,field_order,channels,sample_rate,bit_rate:" +
-	"stream_disposition=attached_pic,default:stream_side_data=rotation:" +
+	"stream=index,start_time,codec_type,codec_name,profile,level,width,height,pix_fmt,color_transfer,field_order,avg_frame_rate,r_frame_rate,channels,sample_rate,bit_rate:" +
+	"stream_disposition=attached_pic,default:stream_side_data=side_data_type,rotation,dv_profile,dv_level,dv_bl_signal_compatibility_id:" +
 	"stream_tags=language:" +
 	"program=program_id:program_stream_disposition=attached_pic:" +
 	"frame=stream_index,interlaced_frame"
+
+// dolbyVisionRecord is how ffprobe names a stream's DOVI configuration side data.
+const dolbyVisionRecord = "DOVI configuration record"
 
 func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 	var result struct {
@@ -36,6 +39,8 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 			ColorTransfer string `json:"color_transfer"`
 			Level         int    `json:"level"`
 			FieldOrder    string `json:"field_order"`
+			AvgFrameRate  string `json:"avg_frame_rate"`
+			RFrameRate    string `json:"r_frame_rate"`
 			Channels      int    `json:"channels"`
 			SampleRate    string `json:"sample_rate"`
 			BitRate       string `json:"bit_rate"`
@@ -47,7 +52,11 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 				Default     int `json:"default"`
 			} `json:"disposition"`
 			SideData []struct {
-				Rotation int `json:"rotation"`
+				Type            string `json:"side_data_type"`
+				Rotation        int    `json:"rotation"`
+				DVProfile       int    `json:"dv_profile"`
+				DVLevel         int    `json:"dv_level"`
+				DVCompatibility int    `json:"dv_bl_signal_compatibility_id"`
 			} `json:"side_data_list"`
 		} `json:"streams"`
 		Programs []struct {
@@ -110,11 +119,15 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 					info.VideoBitDepth = pixFmtBitDepth(s.PixFmt)
 					info.VideoHDR = isHDRTransfer(s.ColorTransfer)
 					info.VideoLevel = s.Level
+					info.VideoFrameRate = cmp.Or(frameRate(s.AvgFrameRate), frameRate(s.RFrameRate))
 					info.VideoInterlaced = interlaced[s.FieldOrder] || slices.ContainsFunc(result.Frames, func(f probedFrame) bool {
 						return f.StreamIndex == s.Index && f.InterlacedFrame == 1
 					})
 					for _, d := range s.SideData {
 						info.VideoRotation = cmp.Or(info.VideoRotation, d.Rotation)
+						if d.Type == dolbyVisionRecord {
+							info.VideoDolbyVision = &media.DolbyVision{Profile: d.DVProfile, Level: d.DVLevel, Compatibility: d.DVCompatibility}
+						}
 					}
 				}
 			}
@@ -174,6 +187,17 @@ func pixFmtBitDepth(pixFmt string) int {
 	default:
 		return 8
 	}
+}
+
+// frameRate reads ffprobe's "num/den"; 0 is unknown, as ffprobe's own "0/0" is.
+func frameRate(rational string) float64 {
+	num, den, ok := strings.Cut(rational, "/")
+	n, nerr := strconv.ParseFloat(num, 64)
+	d, derr := strconv.ParseFloat(den, 64)
+	if !ok || nerr != nil || derr != nil || n <= 0 || d <= 0 {
+		return 0
+	}
+	return n / d
 }
 
 // probedFrame is one decoded frame: whether it was coded as fields is only known once one decodes.

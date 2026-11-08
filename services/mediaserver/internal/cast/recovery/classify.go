@@ -1,10 +1,12 @@
 package recovery
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // kind classifies attempt failures: two failures share a kind exactly when the same change would answer both.
@@ -13,6 +15,7 @@ type kind int
 const (
 	// unclassified is a real verdict before any row has spoken, not an error.
 	unclassified kind = iota
+	nativeIncompatible
 	// cancelled is the cast's context ending, not a failure.
 	cancelled
 	resourceExhausted
@@ -32,12 +35,16 @@ const (
 	deviceRefused
 	// producedNothing is a delivery that ended without an artifact to fetch.
 	producedNothing
+	// hardwareFailed is a hardware video encoder that failed on its own: its output never validated, or it died with errors of its own.
+	hardwareFailed
 	// outranked is a cast that played well on a link another outranks.
 	outranked
 )
 
 func (k kind) String() string {
 	switch k {
+	case nativeIncompatible:
+		return "native-incompatible"
 	case resourceExhausted:
 		return "resource-exhausted"
 	case cancelled:
@@ -58,6 +65,8 @@ func (k kind) String() string {
 		return "device-refused"
 	case producedNothing:
 		return "produced-nothing"
+	case hardwareFailed:
+		return "hardware-failed"
 	case outranked:
 		return "outranked"
 	default:
@@ -117,6 +126,11 @@ var classes = []classRule{{
 	},
 	kind: deviceRefused,
 }, {
+	// Ahead of blaming the delivery: the same failure in software is a different fault.
+	why:  "the hardware encoder failed",
+	when: func(e Evidence) bool { return e.HardwareEncoder != "" },
+	kind: hardwareFailed,
+}, {
 	// Container refuses tracks at header-write time or reader's every segment answered 404; or it fell silent over a buffer already proven.
 	why: "the delivery produced nothing",
 	when: func(e Evidence) bool {
@@ -154,6 +168,9 @@ var unrecognised = classRule{
 // classify names what failed, after the strategies already tried.
 func classify(a Attempt, o Outcome, tried []string) *fault {
 	r := classFor(o.Evidence)
+	if r.kind == unclassified && errors.Is(o.Err, media.ErrNativeIncompatible) {
+		r = classRule{kind: nativeIncompatible, why: "the source requires conversion"}
+	}
 	return &fault{
 		kind:     r.kind,
 		why:      r.why,

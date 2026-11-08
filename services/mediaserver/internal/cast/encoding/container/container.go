@@ -36,6 +36,8 @@ type Tuning struct {
 	Args []string
 	// Output: muxer target (pipe for stream, playlist for segmented).
 	Output string
+	// ClockCuts: fragments cut on the clock are each served as a segment, so each must open on a keyframe the encode put there.
+	ClockCuts bool
 }
 
 // formats is every container castor produces, keyed by content type.

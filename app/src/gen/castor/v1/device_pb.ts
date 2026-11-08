@@ -11,7 +11,62 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/device.proto.
  */
 export const file_castor_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiFQoTV2F0Y2hEZXZpY2VzUmVxdWVzdCI6ChRXYXRjaERldmljZXNSZXNwb25zZRIiCgdkZXZpY2VzGAEgAygLMhEuY2FzdG9yLnYxLkRldmljZSJkCgZEZXZpY2USCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgR0eXBlGAMgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASDwoHYWRkcmVzcxgEIAEoCSK+AQoGVGFyZ2V0Eh8KCWRldmljZV9pZBgBIAEoCUIKukgHcgUQASiAAkgAEioKBnBpbm5lZBgCIAEoCzIYLmNhc3Rvci52MS5UYXJnZXQuUGlubmVkSAAaVgoGUGlubmVkEi8KBHR5cGUYASABKA4yFS5jYXN0b3IudjEuRGV2aWNlVHlwZUIKukgHggEEEAEgABIbCgdhZGRyZXNzGAIgASgJQgq6SAdyBRABKIBAQg8KBnRhcmdldBIFukgCCAEqcQoKRGV2aWNlVHlwZRIbChdERVZJQ0VfVFlQRV9VTlNQRUNJRklFRBAAEhQKEERFVklDRV9UWVBFX0RMTkEQARIaChZERVZJQ0VfVFlQRV9DSFJPTUVDQVNUEAISFAoQREVWSUNFX1RZUEVfUk9LVRADMrABCg1EZXZpY2VTZXJ2aWNlEkwKC0xpc3REZXZpY2VzEh0uY2FzdG9yLnYxLkxpc3REZXZpY2VzUmVxdWVzdBoeLmNhc3Rvci52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlElEKDFdhdGNoRGV2aWNlcxIeLmNhc3Rvci52MS5XYXRjaERldmljZXNSZXF1ZXN0Gh8uY2FzdG9yLnYxLldhdGNoRGV2aWNlc1Jlc3BvbnNlMAFiBnByb3RvMw", [file_buf_validate_validate]);
+  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiPAoPRGVzY3JpYmVSZXF1ZXN0EikKBnRhcmdldBgBIAEoCzIRLmNhc3Rvci52MS5UYXJnZXRCBrpIA8gBASJZChBEZXNjcmliZVJlc3BvbnNlEiUKCGZpZGVsaXR5GAEgASgOMhMuY2FzdG9yLnYxLkZpZGVsaXR5Eh4KFm9yaWdpbmFsX2NvbnRlbnRfdHlwZXMYAiADKAkiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiFQoTV2F0Y2hEZXZpY2VzUmVxdWVzdCI6ChRXYXRjaERldmljZXNSZXNwb25zZRIiCgdkZXZpY2VzGAEgAygLMhEuY2FzdG9yLnYxLkRldmljZSJkCgZEZXZpY2USCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgR0eXBlGAMgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASDwoHYWRkcmVzcxgEIAEoCSK+AQoGVGFyZ2V0Eh8KCWRldmljZV9pZBgBIAEoCUIKukgHcgUQASiAAkgAEioKBnBpbm5lZBgCIAEoCzIYLmNhc3Rvci52MS5UYXJnZXQuUGlubmVkSAAaVgoGUGlubmVkEi8KBHR5cGUYASABKA4yFS5jYXN0b3IudjEuRGV2aWNlVHlwZUIKukgHggEEEAEgABIbCgdhZGRyZXNzGAIgASgJQgq6SAdyBRABKIBAQg8KBnRhcmdldBIFukgCCAEqdgoIRmlkZWxpdHkSGAoURklERUxJVFlfVU5TUEVDSUZJRUQQABIWChJGSURFTElUWV9DT05WRVJURUQQARIcChhGSURFTElUWV9PUklHSU5BTF9UUkFDS1MQAhIaChZGSURFTElUWV9PUklHSU5BTF9GSUxFEAMqcQoKRGV2aWNlVHlwZRIbChdERVZJQ0VfVFlQRV9VTlNQRUNJRklFRBAAEhQKEERFVklDRV9UWVBFX0RMTkEQARIaChZERVZJQ0VfVFlQRV9DSFJPTUVDQVNUEAISFAoQREVWSUNFX1RZUEVfUk9LVRADMvUBCg1EZXZpY2VTZXJ2aWNlEkwKC0xpc3REZXZpY2VzEh0uY2FzdG9yLnYxLkxpc3REZXZpY2VzUmVxdWVzdBoeLmNhc3Rvci52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlElEKDFdhdGNoRGV2aWNlcxIeLmNhc3Rvci52MS5XYXRjaERldmljZXNSZXF1ZXN0Gh8uY2FzdG9yLnYxLldhdGNoRGV2aWNlc1Jlc3BvbnNlMAESQwoIRGVzY3JpYmUSGi5jYXN0b3IudjEuRGVzY3JpYmVSZXF1ZXN0GhsuY2FzdG9yLnYxLkRlc2NyaWJlUmVzcG9uc2ViBnByb3RvMw", [file_buf_validate_validate]);
+
+/**
+ * @generated from message castor.v1.DescribeRequest
+ */
+export type DescribeRequest = Message<"castor.v1.DescribeRequest"> & {
+  /**
+   * @generated from field: castor.v1.Target target = 1;
+   */
+  target?: Target | undefined;
+};
+
+/**
+ * @generated from message castor.v1.DescribeRequest
+ */
+export type DescribeRequestValid = Message<"castor.v1.DescribeRequest"> & {
+  /**
+   * @generated from field: castor.v1.Target target = 1;
+   */
+  target: TargetValid;
+};
+
+/**
+ * Describes the message castor.v1.DescribeRequest.
+ * Use `create(DescribeRequestSchema)` to create a new message.
+ */
+export const DescribeRequestSchema: GenMessage<DescribeRequest, {validType: DescribeRequestValid}> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 0);
+
+/**
+ * @generated from message castor.v1.DescribeResponse
+ */
+export type DescribeResponse = Message<"castor.v1.DescribeResponse"> & {
+  /**
+   * fidelity is what a Native cast keeps of a source whose tracks the device states nothing about.
+   *
+   * @generated from field: castor.v1.Fidelity fidelity = 1;
+   */
+  fidelity: Fidelity;
+
+  /**
+   * original_content_types are the containers the device is handed source files in unchanged, preferred first.
+   *
+   * @generated from field: repeated string original_content_types = 2;
+   */
+  originalContentTypes: string[];
+};
+
+export type DescribeResponseValid = DescribeResponse;
+
+/**
+ * Describes the message castor.v1.DescribeResponse.
+ * Use `create(DescribeResponseSchema)` to create a new message.
+ */
+export const DescribeResponseSchema: GenMessage<DescribeResponse, {validType: DescribeResponseValid}> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 1);
 
 /**
  * @generated from message castor.v1.ListDevicesRequest
@@ -26,7 +81,7 @@ export type ListDevicesRequestValid = ListDevicesRequest;
  * Use `create(ListDevicesRequestSchema)` to create a new message.
  */
 export const ListDevicesRequestSchema: GenMessage<ListDevicesRequest, {validType: ListDevicesRequestValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 0);
+  messageDesc(file_castor_v1_device, 2);
 
 /**
  * @generated from message castor.v1.ListDevicesResponse
@@ -45,7 +100,7 @@ export type ListDevicesResponseValid = ListDevicesResponse;
  * Use `create(ListDevicesResponseSchema)` to create a new message.
  */
 export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse, {validType: ListDevicesResponseValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 1);
+  messageDesc(file_castor_v1_device, 3);
 
 /**
  * @generated from message castor.v1.WatchDevicesRequest
@@ -60,7 +115,7 @@ export type WatchDevicesRequestValid = WatchDevicesRequest;
  * Use `create(WatchDevicesRequestSchema)` to create a new message.
  */
 export const WatchDevicesRequestSchema: GenMessage<WatchDevicesRequest, {validType: WatchDevicesRequestValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 2);
+  messageDesc(file_castor_v1_device, 4);
 
 /**
  * @generated from message castor.v1.WatchDevicesResponse
@@ -79,7 +134,7 @@ export type WatchDevicesResponseValid = WatchDevicesResponse;
  * Use `create(WatchDevicesResponseSchema)` to create a new message.
  */
 export const WatchDevicesResponseSchema: GenMessage<WatchDevicesResponse, {validType: WatchDevicesResponseValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 3);
+  messageDesc(file_castor_v1_device, 5);
 
 /**
  * @generated from message castor.v1.Device
@@ -115,7 +170,7 @@ export type DeviceValid = Device;
  * Use `create(DeviceSchema)` to create a new message.
  */
 export const DeviceSchema: GenMessage<Device, {validType: DeviceValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 4);
+  messageDesc(file_castor_v1_device, 6);
 
 /**
  * @generated from message castor.v1.Target
@@ -146,7 +201,7 @@ export type TargetValid = Target;
  * Use `create(TargetSchema)` to create a new message.
  */
 export const TargetSchema: GenMessage<Target, {validType: TargetValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 5);
+  messageDesc(file_castor_v1_device, 7);
 
 /**
  * Pinned is a device discovery cannot see.
@@ -174,7 +229,46 @@ export type Target_PinnedValid = Target_Pinned;
  * Use `create(Target_PinnedSchema)` to create a new message.
  */
 export const Target_PinnedSchema: GenMessage<Target_Pinned, {validType: Target_PinnedValid}> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 5, 0);
+  messageDesc(file_castor_v1_device, 7, 0);
+
+/**
+ * Fidelity is how much of the source the device is handed unchanged, least first.
+ *
+ * @generated from enum castor.v1.Fidelity
+ */
+export enum Fidelity {
+  /**
+   * @generated from enum value: FIDELITY_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * FIDELITY_CONVERTED re-encodes at least one track.
+   *
+   * @generated from enum value: FIDELITY_CONVERTED = 1;
+   */
+  CONVERTED = 1,
+
+  /**
+   * FIDELITY_ORIGINAL_TRACKS copies every track into another container, which can drop container signaling such as Dolby Vision.
+   *
+   * @generated from enum value: FIDELITY_ORIGINAL_TRACKS = 2;
+   */
+  ORIGINAL_TRACKS = 2,
+
+  /**
+   * FIDELITY_ORIGINAL_FILE hands over the source file itself, with every track and signal it carries.
+   *
+   * @generated from enum value: FIDELITY_ORIGINAL_FILE = 3;
+   */
+  ORIGINAL_FILE = 3,
+}
+
+/**
+ * Describes the enum castor.v1.Fidelity.
+ */
+export const FidelitySchema: GenEnum<Fidelity> = /*@__PURE__*/
+  enumDesc(file_castor_v1_device, 0);
 
 /**
  * @generated from enum castor.v1.DeviceType
@@ -205,7 +299,7 @@ export enum DeviceType {
  * Describes the enum castor.v1.DeviceType.
  */
 export const DeviceTypeSchema: GenEnum<DeviceType> = /*@__PURE__*/
-  enumDesc(file_castor_v1_device, 0);
+  enumDesc(file_castor_v1_device, 1);
 
 /**
  * @generated from service castor.v1.DeviceService
@@ -230,6 +324,16 @@ export const DeviceService: GenService<{
     methodKind: "server_streaming";
     input: typeof WatchDevicesRequestSchema;
     output: typeof WatchDevicesResponseSchema;
+  },
+  /**
+   * Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
+   *
+   * @generated from rpc castor.v1.DeviceService.Describe
+   */
+  describe: {
+    methodKind: "unary";
+    input: typeof DescribeRequestSchema;
+    output: typeof DescribeResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_castor_v1_device, 0);

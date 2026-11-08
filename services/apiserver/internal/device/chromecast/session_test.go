@@ -417,6 +417,18 @@ func TestDefaultReceiverSupportsProgressiveWebVTT(t *testing.T) {
 	t.Fatal("default receiver lacks explicit HLS subtitle rendition envelope")
 }
 
+func TestDefaultReceiverTriesNativeWithoutInventingDecoderCapabilities(t *testing.T) {
+	caps := (&session{}).Capabilities()
+	if !caps.NativePlaybackTrial {
+		t.Fatal("Native must reach the receiver instead of being refused by unverified family defaults")
+	}
+	for _, f := range caps.Formats {
+		if f.GetAv().GetVideo().GetHevc() != nil {
+			t.Fatal("a native playback trial must not advertise unverified HEVC support to Optimized")
+		}
+	}
+}
+
 func TestRequestTimeoutRetainsDeadlineIdentity(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		local, remote := net.Pipe()

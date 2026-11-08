@@ -27,8 +27,11 @@ type session struct {
 	caps      *mediav1.Capabilities
 	// sinks is how the device names each container it accepts.
 	sinks map[mediav1.Container]sinkEntry
-	// ticked is a playhead seen to move, before which a 0:00:00 says nothing.
-	ticked atomic.Bool
+	// ticked is a playhead seen to move since the last Play, before which a 0:00:00 says nothing.
+	ticked   atomic.Bool
+	seekable atomic.Bool
+	// file is a source the renderer seeks by its bytes, as opposed to a stream castor makes.
+	file atomic.Bool
 }
 
 func (s *session) Capabilities() *mediav1.Capabilities { return s.caps }
@@ -69,11 +72,23 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 		CurrentURI         string
 		CurrentURIMetaData string
 	}{"0", playback.URL.String(), metadata}
-	if err := retryTransportLocked(ctx, func() error {
-		return s.action(ctx, "SetAVTransportURI", setURI)
-	}); err != nil {
+	set := func() error {
+		return retryTransportLocked(ctx, func() error { return s.action(ctx, "SetAVTransportURI", setURI) })
+	}
+	err = set()
+	if upnpError(err, transitionUnavailable) {
+		// Some renderers, LG's among them, take a new stream only once stopped, not while paused.
+		if stopped := s.Stop(ctx); stopped == nil {
+			err = set()
+		}
+	}
+	if err != nil {
 		return fmt.Errorf("setting transport URI: %w", err)
 	}
+	// The new stream's playhead has yet to move: until it does, its 0:00:00 says nothing.
+	s.ticked.Store(false)
+	s.file.Store(playback.Play.GetSource() != nil)
+	s.seekable.Store(playback.Duration() > 0 && (playback.Play.GetSource() != nil || playback.Play.GetPlaylist() != nil || playback.Play.GetProgressive().GetRuntime().GetSeek() == mediav1.DeviceCommand_Play_Runtime_SEEK_TIME))
 
 	play := &struct {
 		InstanceID string
@@ -152,9 +167,18 @@ func retryTransportLocked(ctx context.Context, do func() error) error {
 	return err
 }
 
-func isTransportLocked(err error) bool {
+// AVTransport's errors for an action that failed, one the current state does not allow, and a transport another action holds.
+const (
+	actionFailed          = 501
+	transitionUnavailable = 701
+	transportLocked       = 705
+)
+
+func isTransportLocked(err error) bool { return upnpError(err, transportLocked) }
+
+func upnpError(err error, code int) bool {
 	fault, ok := errors.AsType[*soap.SOAPFaultError](err)
-	return ok && fault.Detail.UPnPError.Errorcode == 705
+	return ok && fault.Detail.UPnPError.Errorcode == code
 }
 
 // action performs a SOAP action namespaced to the service version the device published.
@@ -239,7 +263,14 @@ func (s *session) transportInfo(ctx context.Context) (transportInfo, error) {
 
 // Stop ends whatever the device is playing.
 func (s *session) Stop(ctx context.Context) error {
-	if err := s.action(ctx, "Stop", &struct{ InstanceID string }{"0"}); err != nil {
+	err := s.action(ctx, "Stop", &struct{ InstanceID string }{"0"})
+	// LG's renderer refuses Stop with nothing loaded, which leaves nothing to stop.
+	if upnpError(err, transitionUnavailable) {
+		if state := s.state(ctx); state == "STOPPED" || state == "NO_MEDIA_PRESENT" {
+			return nil
+		}
+	}
+	if err != nil {
 		return fmt.Errorf("stopping playback: %w", err)
 	}
 	return nil

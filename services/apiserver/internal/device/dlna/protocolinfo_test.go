@@ -88,6 +88,37 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 	}
 }
 
+// lgC2Sink is the video part of an LG OLED42C24LA's GetProtocolInfo answer: codecs only for a CIF baseline MP4.
+const lgC2Sink = "http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_BL_CIF15_AAC_520,http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=MPEG_TS_HD_KO," +
+	"http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_NA_T,http-get:*:video/x-ms-wmv:*,http-get:*:video/mpeg:*," +
+	"http-get:*:video/mp4:*,http-get:*:video/x-matroska:*,http-get:*:video/mp2t:*,http-get:*:video/x-msvideo:*"
+
+func TestContainersListedWithoutAProfileLeaveNativeTracksToTheRenderer(t *testing.T) {
+	caps, sinks := parseSinkProtocolInfo(lgC2Sink)
+	if !caps.GetNativePlaybackTrial() {
+		t.Fatal("a renderer naming containers without codecs must leave Native track support to its verdict")
+	}
+	var order []mediav1.ProgressiveSupport_Container
+	for _, f := range caps.Formats {
+		order = append(order, f.GetProgressive().GetContainer())
+	}
+	if want := []mediav1.ProgressiveSupport_Container{
+		mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
+		mediav1.ProgressiveSupport_CONTAINER_MP4,
+		mediav1.ProgressiveSupport_CONTAINER_MP4,
+		mediav1.ProgressiveSupport_CONTAINER_MKV,
+	}; !slices.Equal(order, want) {
+		t.Fatalf("containers %v, want %v: served output prefers MPEG-TS and never a Matroska still being muxed", order, want)
+	}
+	if got := sinks[mediav1.Container_CONTAINER_MKV]; got.mime != "video/x-matroska" || got.features != "*" {
+		t.Fatalf("Matroska sink entry = %+v", got)
+	}
+	// A profile naming codecs still stands on its own, without trial.
+	if profiled, _ := parseSinkProtocolInfo("http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_MP_HD_AAC"); profiled.GetNativePlaybackTrial() {
+		t.Fatal("a profile naming its codecs is not a trial")
+	}
+}
+
 func TestRepeatedSinkProfilesDoNotDuplicateCapabilities(t *testing.T) {
 	const entry = "http-get:*:video/mp2t:DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO"
 	caps, sinks := parseSinkProtocolInfo(entry + "," + entry + "," + entry)

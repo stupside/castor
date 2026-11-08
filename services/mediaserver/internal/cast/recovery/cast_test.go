@@ -161,6 +161,45 @@ func TestOnlyADeviceHandedWhatItFetchesItselfIsServedInstead(t *testing.T) {
 	}
 }
 
+func TestAHardwareEncoderThatNeverMadeValidOutputIsRetriedInSoftware(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"an encoder that would not start", errors.New("h264_nvenc: validating encoded output: context deadline exceeded")},
+		{"an encoder that ended with nothing playable", &health.Fault{Kind: health.Dead, Subject: "the stream output", Revise: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8"), Deadline: 30 * time.Second}
+			failed := Outcome{Err: tc.err, Evidence: Evidence{Reached: health.Opening, HardwareEncoder: "h264_nvenc"}}
+			run := &scriptedRunner{outcomes: []Outcome{failed, delivered}}
+			if err := Cast(t.Context(), in, run, &fakeProgram{}); err != nil || len(run.seen) != 2 {
+				t.Fatalf("Cast error = %v after %d attempts, want a second attempt to deliver", err, len(run.seen))
+			}
+			if next := run.seen[1]; !next.SoftwareVideo || next.candidate != 0 {
+				t.Fatalf("second attempt = candidate %d, software %v; want the same link in software", next.candidate, next.SoftwareVideo)
+			}
+		})
+	}
+}
+
+func TestAHardwareEncoderThatDiesWhilePlayingIsReplacedBySoftwareWhereTheViewerWas(t *testing.T) {
+	in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8"), Deadline: 30 * time.Second}
+	died := &health.Fault{Kind: health.Dead, Revise: true, Subject: "the encoder", Err: errors.New("exit status 187")}
+	failed := Outcome{Err: died, Evidence: Evidence{Reached: health.Playing, Began: 40 * time.Second, Verdict: health.Dead, HardwareEncoder: "h264_mediacodec"}}
+	run := &scriptedRunner{outcomes: []Outcome{failed, delivered}}
+	if err := Cast(t.Context(), in, run, &fakeProgram{}); err != nil || len(run.seen) != 2 {
+		t.Fatalf("Cast error = %v after %d attempts, want a second attempt to deliver", err, len(run.seen))
+	}
+	next := run.seen[1]
+	if !next.SoftwareVideo || next.FailedEncoder != "h264_mediacodec" {
+		t.Fatalf("second attempt software %v after %q, want software after h264_mediacodec", next.SoftwareVideo, next.FailedEncoder)
+	}
+	if next.Program.Start != 40*time.Second {
+		t.Fatalf("second attempt starts at %v, want 40s where the viewer was", next.Program.Start)
+	}
+}
+
 func TestUnreadableLinksAreMovedPastInRankOrder(t *testing.T) {
 	in := Intent{Turns: unheard{}, Candidates: candidates(t,
 		"https://cdn.example/expired.m3u8",
@@ -294,6 +333,27 @@ func TestCastDecodesTheAxisWhoseCopyBrokeUpstream(t *testing.T) {
 	}
 	if second := run.seen[1]; !second.Decode.Video || !second.Decode.Audio || second.candidate != 0 {
 		t.Errorf("second attempt decodes %s on candidate %d, want every copied axis on the same link", second.Decode, second.candidate)
+	}
+}
+
+func TestNativeRecoveryNeverDecodesOrSwitchesToAnotherStream(t *testing.T) {
+	in := Intent{PreserveSource: true, Turns: unheard{}, Candidates: candidates(t,
+		"https://cdn.example/original.m3u8", "https://cdn.example/lower.m3u8"), Deadline: 30 * time.Second}
+	run := &scriptedRunner{outcomes: []Outcome{broke(media.Axes{Video: true, Audio: true}), delivered}}
+	if err := Cast(t.Context(), in, run, publishing(in.Candidates[0], source.Origin{Segmented: true}, source.Rendition{})); err == nil || len(run.seen) != 1 {
+		t.Fatalf("native cast = %v after %d attempts; want failure without a changed source", err, len(run.seen))
+	}
+}
+
+func TestNativeDoesNotScheduleAClimbAwayFromItsSelectedReadableSource(t *testing.T) {
+	in := Intent{PreserveSource: true, Turns: unheard{}, Candidates: candidates(t,
+		"https://cdn.example/expired.m3u8", "https://cdn.example/original.m3u8"), Deadline: 30 * time.Second}
+	prog := &fakeProgram{answers: map[string]published{
+		"https://cdn.example/expired.m3u8": {err: errors.New("HTTP 410")},
+	}}
+	run := &scriptedRunner{outcomes: []Outcome{delivered}}
+	if err := Cast(t.Context(), in, run, prog); err != nil || len(run.seen) != 1 || run.seen[0].Climb != 0 {
+		t.Fatalf("native cast = %v, attempts %+v; no stream change may be scheduled", err, run.seen)
 	}
 }
 

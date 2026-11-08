@@ -61,6 +61,10 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 		Type: msgLoad, Autoplay: true,
 		Media: mediaItem{MediaItem: castmedia.MediaItem{ContentId: stream, ContentType: device.MIME(playback.Container()), StreamType: "BUFFERED", Duration: float32(playback.Duration().Seconds())}},
 	}
+	if playback.Play.GetPlaylist() != nil {
+		load.Media.HLSSegmentFormat = "fmp4"
+		load.Media.HLSVideoSegmentFormat = "fmp4"
+	}
 	load.Media.Metadata = castmedia.MediaMetadata{Title: info.GetTitle(), Subtitle: info.GetSynopsis(), ReleaseDate: info.GetReleaseDate()}
 	if imageURL := info.GetImageUrl(); imageURL != "" {
 		load.Media.Metadata.Images = []castmedia.Image{{URL: imageURL}}
@@ -69,6 +73,9 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 	reply, err := s.ch.request(ctx, transport, nsMedia, load)
 	if err == nil {
 		err = loadVerdict(reply, stream)
+	}
+	if err == nil && playback.Play.GetPlaylist() != nil && playback.Duration() > 0 {
+		err = s.awaitHLSStart(ctx, reply)
 	}
 	if err != nil {
 		s.watchMu.Lock()
@@ -91,7 +98,9 @@ type loadCommand struct {
 
 type mediaItem struct {
 	castmedia.MediaItem
-	Tracks []track `json:"tracks,omitempty"`
+	Tracks                []track `json:"tracks,omitempty"`
+	HLSSegmentFormat      string  `json:"hlsSegmentFormat,omitempty"`
+	HLSVideoSegmentFormat string  `json:"hlsVideoSegmentFormat,omitempty"`
 }
 
 type track struct {
@@ -141,22 +150,45 @@ func (s *session) Position(ctx context.Context) (device.Playhead, error) {
 	if err != nil {
 		return device.Playhead{}, fmt.Errorf("reading the playback position: %w", err)
 	}
+	return playhead(reply, mediaSession)
+}
+
+type receiverPosition struct {
+	MediaSessionID int      `json:"mediaSessionId"`
+	CurrentTime    *float64 `json:"currentTime"`
+	PlayerState    string   `json:"playerState"`
+	IdleReason     string   `json:"idleReason"`
+	Seekable       *struct {
+		Start float64 `json:"start"`
+		End   float64 `json:"end"`
+	} `json:"liveSeekableRange"`
+}
+
+func positionStatus(reply []byte, mediaSession int) (receiverPosition, error) {
 	var response struct {
-		Status []struct {
-			MediaSessionID int      `json:"mediaSessionId"`
-			CurrentTime    *float64 `json:"currentTime"`
-			PlayerState    string   `json:"playerState"`
-		} `json:"status"`
+		Status []receiverPosition `json:"status"`
 	}
 	if json.Unmarshal(reply, &response) != nil {
-		return device.Playhead{}, device.ErrNoPosition
+		return receiverPosition{}, device.ErrNoPosition
 	}
 	for _, status := range response.Status {
-		if status.MediaSessionID == mediaSession && status.CurrentTime != nil {
-			return device.Playhead{At: time.Duration(*status.CurrentTime * float64(time.Second)), Paused: status.PlayerState == "PAUSED"}, nil
+		if status.MediaSessionID == mediaSession {
+			return status, nil
 		}
 	}
-	return device.Playhead{}, device.ErrNoPosition
+	return receiverPosition{}, device.ErrNoPosition
+}
+
+func playhead(reply []byte, mediaSession int) (device.Playhead, error) {
+	status, err := positionStatus(reply, mediaSession)
+	if err != nil || status.CurrentTime == nil {
+		return device.Playhead{}, device.ErrNoPosition
+	}
+	head := device.Playhead{At: time.Duration(*status.CurrentTime * float64(time.Second)), Paused: status.PlayerState == "PAUSED"}
+	if status.Seekable != nil && status.Seekable.Start >= 0 && status.Seekable.End >= status.Seekable.Start {
+		head.Seekable = &device.SeekWindow{Start: time.Duration(status.Seekable.Start * float64(time.Second)), End: time.Duration(status.Seekable.End * float64(time.Second))}
+	}
+	return head, nil
 }
 
 var errNoMediaSession = errors.New("the chromecast has reported no media session yet")
@@ -258,8 +290,14 @@ func (s *session) Close() error {
 	return s.ch.Close()
 }
 
-func (s *session) Capabilities() *mediav1.Capabilities {
-	caps := &mediav1.Capabilities{Provenance: "Cast default Web Receiver family envelopes; model/firmware limits unverified", SelfFetch: true}
+func (s *session) Capabilities() *mediav1.Capabilities { return capabilities() }
+
+// capabilities are the same for every receiver of the family: castor states nothing it asked a device.
+func capabilities() *mediav1.Capabilities {
+	caps := &mediav1.Capabilities{
+		Provenance: "Cast default Web Receiver family envelopes; model/firmware limits unverified; Native uses the receiver's playback verdict",
+		SelfFetch:  true, NativePlaybackTrial: true,
+	}
 	for _, container := range []mediav1.ProgressiveSupport_Container{mediav1.ProgressiveSupport_CONTAINER_MP4, mediav1.ProgressiveSupport_CONTAINER_MPEGTS} {
 		for _, audio := range []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AAC, mediav1.AudioCodec_AUDIO_CODEC_AC3, mediav1.AudioCodec_AUDIO_CODEC_EAC3, mediav1.AudioCodec_AUDIO_CODEC_MP3} {
 			caps.Formats = append(caps.Formats, &mediav1.FormatSupport{

@@ -1,7 +1,9 @@
 package encoding
 
 import (
+	"cmp"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -47,7 +49,11 @@ func videoEncodeArgs(venc codec.VideoEncode) []string {
 		args = append(args, "-profile:v", venc.Profile)
 	}
 	if venc.Level != "" {
-		args = append(args, "-level:v", venc.Level)
+		level := venc.Level
+		if venc.Encoder.Level != nil {
+			level = venc.Encoder.Level(level)
+		}
+		args = append(args, "-level:v", level)
 	}
 	if venc.ToneMap {
 		args = append(args, "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709")
@@ -55,22 +61,32 @@ func videoEncodeArgs(venc codec.VideoEncode) []string {
 	if venc.Bitrate > 0 {
 		args = append(args, "-b:v", venc.Bitrate.FFmpeg())
 	}
-	// A quality target rather than an average rate, which only the recovery floor asks for.
-	if venc.Quality > 0 {
-		args = append(args, "-crf", strconv.Itoa(venc.Quality))
+	if !venc.Encoder.AverageRate {
+		// A quality target rather than an average rate, which only the recovery floor asks for.
+		if venc.Quality > 0 {
+			args = append(args, "-crf", strconv.Itoa(venc.Quality))
+		}
+		// VBV cap: bound the instantaneous bitrate so the pacer's fixed send rate is a real ceiling.
+		if venc.Maxrate > 0 {
+			args = append(args, "-maxrate", venc.Maxrate.FFmpeg())
+		}
+		if venc.Bufsize > 0 {
+			args = append(args, "-bufsize", venc.Bufsize.FFmpeg())
+		}
 	}
-	// VBV cap: bound the instantaneous bitrate so the pacer's fixed send rate is a real ceiling.
-	if venc.Maxrate > 0 {
-		args = append(args, "-maxrate", venc.Maxrate.FFmpeg())
-	}
-	if venc.Bufsize > 0 {
-		args = append(args, "-bufsize", venc.Bufsize.FFmpeg())
-	}
-	if venc.KeyframeIntervalSec > 0 {
+	switch {
+	case venc.KeyframeIntervalSec <= 0:
+	case venc.Encoder.GOPKeyframes:
+		// The interval the encoder derives is the GOP over the rate it is told, so the GOP spans the seconds at the rate frames arrive.
+		args = append(args, "-g", strconv.Itoa(int(math.Round(float64(venc.KeyframeIntervalSec)*cmp.Or(venc.FrameRate, defaultFrameRate)))))
+	default:
 		args = append(args, "-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", venc.KeyframeIntervalSec))
 	}
 	return args
 }
+
+// defaultFrameRate is what an encoder assumes of a picture whose rate nothing measured.
+const defaultFrameRate = 30.0
 
 func hardwareInitArgs(video codec.Track[codec.VideoEncode]) []string {
 	venc, ok := video.Encode()

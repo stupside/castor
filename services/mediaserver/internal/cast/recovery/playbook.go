@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // playbook is each fault kind's recoveries, cheapest first; switching candidate last; a kind absent here has none.
 var playbook = map[kind][]strategy{
+	// Only a live source may relax native quality, and only after planning established the need.
+	nativeIncompatible: {optimizeLive},
 	// Nothing about this link was established, so nothing on it is worth changing.
 	unreachable: {switchCandidate},
 
@@ -31,6 +34,9 @@ var playbook = map[kind][]strategy{
 	// The delivery lost the artifact, not the reader, so decoding would answer nothing.
 	producedNothing: {switchCandidate},
 
+	// The same picture in software; a link that fails there too is the problem.
+	hardwareFailed: {softwareEncode, switchCandidate},
+
 	// A cast that played well is moved back toward the link that outranks it, and resumes where it was when none can be read.
 	outranked: {climb, stay},
 }
@@ -51,6 +57,9 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 	pos := f.resumeAt()
 	facts := change{intent: in, attempt: f.attempt, outcome: o, resolver: resolver}
 	for _, s := range playbook[f.kind] {
+		if in.PreserveSource && s.action != RelaxRead && s.action != ServeInstead && s.action != Stay && s.action != OptimizeLive && s.action != SoftwareEncode {
+			continue
+		}
 		next, ok := s.apply(ctx, facts)
 		if !ok {
 			continue
@@ -91,6 +100,10 @@ func fallBack(left *Attempt, f *fault, led *ledger) revision {
 
 // revisable is an attempt that failed before playing and can change; once playing, only one that can resume where it got to.
 func revisable(o Outcome) bool {
+	// A hardware encoder that failed on its own can be replaced by software, before playback or from where the viewer got to.
+	if o.Evidence.HardwareEncoder != "" {
+		return true
+	}
 	if o.Evidence.Reached >= health.Playing {
 		switch o.Evidence.Verdict {
 		case health.Starved, health.Stalled, health.Outranked:
@@ -101,5 +114,5 @@ func revisable(o Outcome) bool {
 	if judged, ok := errors.AsType[*health.Fault](o.Err); ok {
 		return judged.Revise
 	}
-	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil
+	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil || errors.Is(o.Err, media.ErrNativeIncompatible)
 }

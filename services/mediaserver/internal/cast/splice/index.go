@@ -132,6 +132,20 @@ func (x *Index) after(offset int64) (Cut, bool) {
 	return x.cuts[i], true
 }
 
+// Before is the last cut whose picture is at or before pts, if the stream has one.
+func (x *Index) Before(pts time.Duration) (Cut, bool) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	i := len(x.cuts)
+	for i > 0 && x.cuts[i-1].PTS > pts {
+		i--
+	}
+	if i == 0 {
+		return Cut{}, false
+	}
+	return x.cuts[i-1], true
+}
+
 // Wait is the first cut at or past offset, once the stream has reached one; it gives up when ctx ends or the stream does.
 func (x *Index) Wait(ctx context.Context, offset int64) (Cut, error) {
 	for {

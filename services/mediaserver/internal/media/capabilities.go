@@ -11,6 +11,9 @@ type Capabilities struct {
 	Provenance   string
 	SelfFetch    bool
 	Deinterlaces bool
+	// NativePlaybackTrial leaves unverified decoder limits to the receiver's playback verdict.
+	// It applies only to original-track delivery and forwards of the source file, never to encoding or direct-handoff eligibility.
+	NativePlaybackTrial bool
 }
 
 // Served is the headers a response serving contentType carries, from the first format that serves it.
@@ -173,6 +176,17 @@ func (c Capabilities) CanPlaySourceIn(container string, p ProbeInfo) bool {
 		return c.canPlayHLSWith(p, HLSExtraSegmentTIKTIKPX)
 	}
 	return c.CanPlayIn(container, p)
+}
+
+// AcceptsOriginal reports whether the device may be given the source file itself. A Native trial
+// leaves the tracks to the device's verdict, so only the container has to be one it names.
+func (c Capabilities) AcceptsOriginal(container string, p ProbeInfo, preserve bool) bool {
+	if preserve && c.NativePlaybackTrial {
+		return (p.HasVideo() || p.HasAudio()) && slices.ContainsFunc(c.Formats, func(f FormatSupport) bool {
+			return f.Transport.ContentType() == container
+		})
+	}
+	return c.CanPlaySourceIn(container, p)
 }
 
 func (c Capabilities) CanPlayIn(container string, p ProbeInfo) bool {

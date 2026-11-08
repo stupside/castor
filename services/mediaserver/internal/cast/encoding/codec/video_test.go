@@ -114,6 +114,77 @@ func TestARateCeilingForcesAnEncodeOnlyWhereACopyIsNotProvenUnderIt(t *testing.T
 	}
 }
 
+func TestTheEncoderIsToldTheRateFramesReachItAt(t *testing.T) {
+	h264 := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
+	for _, tt := range []struct {
+		name          string
+		source, limit float64
+		ceiling       media.Bitrate
+		want          float64
+	}{
+		{name: "a film keeps its own rate", source: 24000.0 / 1001, want: 24000.0 / 1001},
+		{name: "a rate above the cap is dropped to the cap", source: 120, want: 60},
+		{name: "an unmeasured rate counts as reaching the cap", want: 60},
+		{name: "a thin ceiling lowers the cap below the source", source: 60, ceiling: 1_000_000, want: 30},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sdr := media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 2160, VideoBitDepth: 8, VideoFrameRate: tt.source}
+			in := Inputs{Caps: h264, Probe: sdr, Into: testFormat(t, media.MPEGTS), MaxHeight: 1080, MaxBitrate: tt.ceiling, Rate: 6_500_000, Encoders: hostEncoders}
+			track, _, err := decideVideo(t.Context(), in, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			enc, _ := track.Encode()
+			if enc.FrameRate != tt.want || enc.FrameRate > enc.MaxFrameRate {
+				t.Fatalf("FrameRate = %v under MaxFrameRate %v, want %v", enc.FrameRate, enc.MaxFrameRate, tt.want)
+			}
+		})
+	}
+}
+
+func TestAClockCutDeliveryIsEncodedWhereItsKeyframesFallOnTheClock(t *testing.T) {
+	h264 := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
+	gopKeyed := ffmpeg.Encoder{Name: "h264_mediacodec", Codec: media.CodecH264, Hardware: true, GOPKeyframes: true}
+	hardware := func(context.Context, media.Codec) (ffmpeg.Encoder, bool) { return gopKeyed, true }
+	software := func(context.Context, media.Codec) (ffmpeg.Encoder, bool) {
+		return ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264}, true
+	}
+	for _, tt := range []struct {
+		name    string
+		clock   bool
+		source  float64
+		ceiling media.Bitrate
+		want    string
+	}{
+		{name: "a film's fractional rate is keyed in software", clock: true, source: 24000.0 / 1001, want: "libx264"},
+		{name: "a whole rate keeps the hardware", clock: true, source: 25, want: "h264_mediacodec"},
+		{name: "a rate held to a whole cap keeps the hardware", clock: true, source: 120, want: "h264_mediacodec"},
+		{name: "a fractional rate a thin ceiling holds to a whole cap keeps the hardware", clock: true, source: 60000.0 / 1001, ceiling: 1_000_000, want: "h264_mediacodec"},
+		{name: "an unmeasured rate is keyed in software", clock: true, want: "libx264"},
+		{name: "a delivery cut at keyframes keeps the hardware at any rate", source: 24000.0 / 1001, want: "h264_mediacodec"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			hdr := media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 2160, VideoBitDepth: 10, VideoHDR: true, VideoFrameRate: tt.source}
+			in := Inputs{Caps: h264, Probe: hdr, Into: testFormat(t, media.MPEGTS), MaxHeight: 1080, MaxBitrate: tt.ceiling, Rate: 6_500_000,
+				Encoders: hardware, Software: software, KeyframesOnClock: tt.clock}
+			track, _, err := decideVideo(t.Context(), in, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if enc, _ := track.Encode(); enc.Encoder.Name != tt.want {
+				t.Fatalf("encoded with %s at %v fps under a %v fps cap, want %s", enc.Encoder.Name, tt.source, enc.MaxFrameRate, tt.want)
+			}
+		})
+	}
+	t.Run("without a software encoder the plan is refused, not keyed off the clock", func(t *testing.T) {
+		film := media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 2160, VideoBitDepth: 10, VideoHDR: true, VideoFrameRate: 24000.0 / 1001}
+		in := Inputs{Caps: h264, Probe: film, Into: testFormat(t, media.MPEGTS), MaxHeight: 1080, Encoders: hardware, KeyframesOnClock: true}
+		if _, _, err := decideVideo(t.Context(), in, 0); err == nil {
+			t.Fatal("a hardware encode was planned on a clock it cannot key")
+		}
+	})
+}
+
 func TestAnEncodeUnderARateCeilingWeighsLessThanItsCeilingLessTheSound(t *testing.T) {
 	h264 := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
 	sdr := media.ProbeInfo{VideoCodec: media.CodecH264, VideoHeight: 720, VideoBitDepth: 8}

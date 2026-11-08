@@ -44,6 +44,8 @@ func (r *remote) device(t *testing.T, at time.Duration) *Device {
 				r.presses = append(r.presses, "pause")
 			case *mediav1.DeviceCommand_Call_Resume:
 				r.presses = append(r.presses, "resume")
+			case *mediav1.DeviceCommand_Call_Seek:
+				r.presses = append(r.presses, "seek "+call.GetSeek().GetPosition().AsDuration().String())
 			case *mediav1.DeviceCommand_Call_Position:
 				answer.Answer = &mediav1.AnswerRequest_Position_{Position: &mediav1.AnswerRequest_Position{At: durationpb.New(at), Paused: r.paused}}
 			}
@@ -168,6 +170,38 @@ func TestCastorNeverResumesADeviceItsViewerPaused(t *testing.T) {
 		_ = d.Resume(ctx)
 		if want := []string{"play"}; !slices.Equal(r.presses, want) {
 			t.Errorf("the device was pressed %v, want %v: castor held nothing, so it resumes nothing", r.presses, want)
+		}
+	})
+}
+
+func TestTheDeviceSeeksWithinTheOriginalFileItPlaysAndNothingElse(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := &remote{}
+		d := r.device(t, 0)
+		ctx := t.Context()
+		if err := d.Seek(ctx, time.Hour); !errors.Is(err, ErrNotPlaying) {
+			t.Fatalf("a seek before any stream = %v, want ErrNotPlaying", err)
+		}
+		_ = d.Play(ctx, fromAMinuteIn)
+		if err := d.Seek(ctx, 31*time.Minute); err != nil {
+			t.Fatal(err)
+		}
+		if head := r.heads[len(r.heads)-1]; head.GetPosition().AsDuration() != 31*time.Minute {
+			t.Errorf("playhead %v, want 31m in the whole media", head)
+		}
+		// Before the file's start or past its end, the device has nothing to move to.
+		for _, at := range []time.Duration{30 * time.Second, 92 * time.Minute} {
+			if err := d.Seek(ctx, at); !errors.Is(err, ErrNotNative) {
+				t.Errorf("a seek to %v = %v, want ErrNotNative", at, err)
+			}
+		}
+		served := execute.Playback{URL: fromAMinuteIn.URL, Stream: execute.Served{ContentType: media.MPEGTS, Runtime: &execute.Runtime{Length: time.Hour, TimeSeek: true}}}
+		_ = d.Play(ctx, served)
+		if err := d.Seek(ctx, 10*time.Minute); !errors.Is(err, ErrNotNative) {
+			t.Errorf("a seek in a stream castor makes = %v, want ErrNotNative", err)
+		}
+		if want := []string{"play", "seek 30m0s", "play"}; !slices.Equal(r.presses, want) {
+			t.Errorf("the device was pressed %v, want %v: only the original file is sought by the device, from its own start", r.presses, want)
 		}
 	})
 }

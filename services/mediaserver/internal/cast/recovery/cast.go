@@ -60,6 +60,9 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 			return cause
 		}
 		a.Climb = climbWait(a, wait)
+		if in.PreserveSource {
+			a.Climb = 0
+		}
 		slog.InfoContext(ctx, "attempt", "try", a.Try, "candidate", a.candidate+1, "candidates", len(in.Candidates))
 		in.Turns.Attempting(a.Try)
 

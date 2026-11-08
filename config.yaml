@@ -87,6 +87,9 @@ servers:
     #   interface: "eth0" # pin the LAN interface if automatic selection fails
     # resolver:
     #   probe_max_concurrency: 2
+    # ffmpeg:
+    #   # Encoders only this platform's ffmpeg build offers, tried before the ones castor probes everywhere.
+    #   hardware_encoders: [hevc_mediacodec, h264_mediacodec]
     whisper:
       # Downloads ggml-tiny.en for English, multilingual ggml-tiny for other languages or auto.
       # Point at a larger model to trade speed for accuracy.

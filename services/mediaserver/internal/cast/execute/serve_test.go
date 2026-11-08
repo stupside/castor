@@ -68,6 +68,40 @@ func TestOutputRetainsTracksDiscoveredByTheBufferedRead(t *testing.T) {
 	}
 }
 
+func TestNativeTrialValidatesOriginalTracksInsteadOfUnverifiedReceiverDefaults(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+	path := generateFixture(t, ffmpegPath, "native-output.ts", 1,
+		[]string{"-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-f", "mpegts"})
+	probes := probe.FFprobe(ffprobePath)
+	original, _, err := probes.File(path).Probe(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := testPreparation(t.Context(), Cast{Probes: probes, PreserveSource: true}, recovery.Attempt{})
+	t.Cleanup(func() { _ = s.releases.release() })
+	p := took(t, over)
+	close(p.buf.reader.done)
+	d := delivery{sink: &artifactMechanism{path: path}, output: p.buf.reader}
+	opts := encodePlan{
+		Probe: original, Format: encoding.SpoolFormat, Video: codec.CopyVideo(), Audio: codec.CopyAudio(),
+		delivery: output.Selection{Capabilities: media.Capabilities{NativePlaybackTrial: true, Formats: []media.FormatSupport{{
+			Transport: media.TransportMPEGTS, Video: media.VideoSupport{Codec: media.CodecHEVC}, Audio: media.AudioSupport{Codec: media.CodecAC3},
+		}}}},
+	}
+	if err := s.validateOutput(d, opts, feed{}); err != nil {
+		t.Fatalf("intact native trial failed before reaching the receiver: %v", err)
+	}
+	s.PreserveSource = false
+	if err := s.validateOutput(d, opts, feed{}); err == nil {
+		t.Fatal("Optimized bypassed the receiver's envelope because native trials were allowed")
+	}
+	s.PreserveSource = true
+	opts.delivery.Capabilities.NativePlaybackTrial = false
+	if err := s.validateOutput(d, opts, feed{}); err == nil {
+		t.Fatal("an ordinary receiver bypassed its envelope without a native trial policy")
+	}
+}
+
 // playing is a buffered cast handed to a device, whose delivery ends as its mechanism says.
 type playing struct {
 	buf  *buffered
@@ -384,7 +418,7 @@ func openFixture(t *testing.T, contentType, workDir string) delivery {
 	ffmpegPath, _ := requireFFmpegTools(t)
 	origin := serveFixture(t, ffmpegPath)
 	s := servingAttempt(t, ffmpegPath)
-	selected, err := testOutputs().Select(chromecastLike(contentType), nil)
+	selected, err := testOutputs().Select(chromecastLike(contentType), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,7 +491,7 @@ func (probingDevice) Resume(context.Context) error { return nil }
 
 func testEncoding(t *testing.T, opts encoding.EncodeOptions) encodePlan {
 	t.Helper()
-	selected, err := testOutputs().Select(chromecastLike(opts.Format.ContentType), nil)
+	selected, err := testOutputs().Select(chromecastLike(opts.Format.ContentType), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

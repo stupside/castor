@@ -152,6 +152,14 @@ func (s *Service) asked(p *castorv1.Preferences) *mediav1.PlaybackSettings {
 		if p.Audio != nil {
 			asked.Audio = proto.CloneOf(p.Audio)
 		}
+		if p.PreserveSource != nil {
+			asked.PreserveSource = p.GetPreserveSource()
+		}
+	}
+	if asked.GetPreserveSource() {
+		// A native cast cannot inherit a server ceiling that silently selects a smaller source.
+		asked.MaxHeight = ^uint32(0)
+		asked.MaxBitrate = nil
 	}
 	return asked
 }

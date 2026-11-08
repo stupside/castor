@@ -27,7 +27,7 @@ type ladder struct {
 // rungs is the versions of its program a cast can move between: those that declared what they weigh and the cast admits.
 func (s *preparation) rungs() []source.Rendition {
 	a := s.attempt
-	if s.Resolver == nil || a.Stream == nil || a.Rendition.Bitrate == 0 {
+	if s.PreserveSource || s.Resolver == nil || a.Stream == nil || a.Rendition.Bitrate == 0 {
 		return nil
 	}
 	var usable []source.Rendition

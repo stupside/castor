@@ -103,4 +103,14 @@ func (c *Cursor) Stop(at int64) bool {
 	return true
 }
 
+// Unread is what the cursor has yet to read of a buffer size bytes long, up to where it was stopped.
+func (c *Cursor) Unread(size int64) int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.limit >= 0 {
+		size = min(size, c.limit)
+	}
+	return max(0, size-c.next)
+}
+
 func (c *Cursor) Close() error { return c.tail.Close() }

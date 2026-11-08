@@ -41,13 +41,17 @@ const (
 // backend is the machinery the media server casts with, bound to c.
 func (c *Config) backend() func(*mediav1.PlaybackSettings) cast.Caster {
 	ffmpegBinary, ffprobeBinary := c.Servers.Media.FFmpeg.Path, c.Servers.Media.FFmpeg.ProbePath
+	// The configuration was validated against the same names the catalog knows.
+	encoders, _ := ffmpeg.NewCatalog(ffmpegBinary, c.Servers.Media.FFmpeg.HardwareEncoders)
 	machinery := execute.Machinery{
-		Outputs:    output.Factory{progressive.Adapter{}, hlsoutput.Adapter{}},
-		FFmpegPath: ffmpegBinary,
-		Binary:     ffmpeg.Inspect(ffmpegBinary),
-		Encoders:   ffmpeg.Encoders(ffmpegBinary),
-		Probes:     probe.FFprobe(ffprobeBinary),
-		InputArgs:  formats.InputArgs,
+		Outputs:       output.Factory{progressive.Adapter{}, hlsoutput.Adapter{}},
+		FFmpegPath:    ffmpegBinary,
+		Binary:        ffmpeg.Inspect(ffmpegBinary),
+		Encoders:      encoders.Best,
+		Software:      encoders.Software,
+		RetireEncoder: encoders.Retire,
+		Probes:        probe.FFprobe(ffprobeBinary),
+		InputArgs:     formats.InputArgs,
 	}
 	resolverConfig, whisperConfig := c.Servers.Media.Resolver.Config, c.Servers.Media.Whisper
 	return func(asked *mediav1.PlaybackSettings) cast.Caster {
@@ -147,28 +151,31 @@ func announce(s *source.Stream) *source.Stream {
 	return &announced
 }
 
-func (k caster) Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, start time.Duration, turns recovery.Turns, seeks <-chan recovery.Seek) error {
+func (k caster) Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, start time.Duration, turns cast.Turns, seeks <-chan recovery.Seek) error {
 	maxBitrate := media.Bitrate(k.asked.GetMaxBitrate().GetBitsPerSecond())
 	run := execute.Cast{
-		Machinery:     k.machinery,
-		Timelines:     k.timelines,
-		Transcription: k.transcription,
-		Device:        device,
-		Publisher:     publisher,
-		Captions:      k.captions(k.asked.GetSubtitles()),
-		MaxHeight:     media.HeightCap(k.asked.GetMaxHeight()),
-		MaxBitrate:    maxBitrate,
-		Resolver:      k.resolver,
+		Machinery:      k.machinery,
+		Timelines:      k.timelines,
+		Transcription:  k.transcription,
+		Device:         device,
+		Publisher:      publisher,
+		Captions:       k.captions(k.asked.GetSubtitles()),
+		MaxHeight:      media.HeightCap(k.asked.GetMaxHeight()),
+		PreserveSource: k.asked.GetPreserveSource(),
+		MaxBitrate:     maxBitrate,
+		Resolver:       k.resolver,
+		Delivering:     turns.Delivering,
 	}
 	// The ranked streams, head first; the rest are what recovery switches to.
 	return recovery.Cast(ctx, recovery.Intent{
-		Candidates: streams,
-		Deadline:   readDeadline,
-		Delivery:   wire.FromDelivery(k.asked.GetDelivery()),
-		Ceiling:    maxBitrate,
-		Start:      start,
-		Turns:      turns,
-		Seeks:      seeks,
+		Candidates:     streams,
+		Deadline:       readDeadline,
+		Delivery:       wire.FromDelivery(k.asked.GetDelivery()),
+		Ceiling:        maxBitrate,
+		PreserveSource: k.asked.GetPreserveSource(),
+		Start:          start,
+		Turns:          turns,
+		Seeks:          seeks,
 	}, run, k.resolver)
 }
 
