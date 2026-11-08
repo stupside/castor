@@ -118,10 +118,10 @@ func TestFiniteEventStartsAtZeroAndKeepsEarlierFragmentsAfterGrowth(t *testing.T
 		}
 		return string(b)
 	}
-	first := "#EXTM3U\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:4,\nseg_00000.m4s\n"
+	first := "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:4,\nseg_00000.m4s\n"
 	write("stream.m3u8", first)
 	write("seg_00000.m4s", "original first fragment")
-	if got := get("stream.m3u8"); !strings.Contains(got, "#EXT-X-START:TIME-OFFSET=0,PRECISE=YES") || strings.Contains(got, "#EXT-X-ENDLIST") {
+	if got := get("stream.m3u8"); !strings.HasPrefix(got, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n#EXT-X-PLAYLIST-TYPE:EVENT\n") || strings.Contains(got, "#EXT-X-ENDLIST") {
 		t.Fatalf("initial playlist=%s", got)
 	}
 	write("stream.m3u8", first+"#EXTINF:4,\nseg_00001.m4s\n")
@@ -134,5 +134,12 @@ func TestFiniteEventStartsAtZeroAndKeepsEarlierFragmentsAfterGrowth(t *testing.T
 	write("stream.m3u8", first+"#EXT-X-ENDLIST\n")
 	if got := get("stream.m3u8"); !strings.Contains(got, "#EXT-X-ENDLIST") {
 		t.Fatalf("completed playlist=%s", got)
+	}
+}
+
+func TestAnEventWithoutAVersionStartsRightAfterItsHeader(t *testing.T) {
+	got := startAtBeginning("#EXTM3U\n#EXT-X-PLAYLIST-TYPE:EVENT\n")
+	if want := "#EXTM3U\n#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n#EXT-X-PLAYLIST-TYPE:EVENT\n"; got != want {
+		t.Errorf("playlist = %q, want %q", got, want)
 	}
 }

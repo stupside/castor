@@ -58,8 +58,18 @@ func (s *Segments) serveEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the event playlist is unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	playlist := "#EXTM3U\n#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n" + strings.TrimPrefix(body, "#EXTM3U\n")
-	s.answerPlaylist(w, r, s.store.rootPlaylist(), playlist)
+	s.answerPlaylist(w, r, s.store.rootPlaylist(), startAtBeginning(body))
+}
+
+// startAtBeginning tags an event to start at its first fragment, right after the version it states:
+// without the tag an AirPlay receiver joins an unfinished event near its newest fragment.
+func startAtBeginning(body string) string {
+	const start = "#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n"
+	rest := strings.TrimPrefix(body, "#EXTM3U\n")
+	if version, after, ok := strings.Cut(rest, "\n"); ok && strings.HasPrefix(version, "#EXT-X-VERSION:") {
+		return "#EXTM3U\n" + version + "\n" + start + after
+	}
+	return "#EXTM3U\n" + start + rest
 }
 
 func (s *Segments) playlist(name string) (string, error) {
