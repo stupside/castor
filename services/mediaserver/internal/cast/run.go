@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
@@ -35,8 +36,21 @@ func (c *cast) play(d *lend.Device) error {
 	return c.caster.Play(c.ctx, d, c.publisher, ready, c.start, c, c.seeks)
 }
 
-// seek moves the cast to at in its media, refused while no attempt plays it.
-func (c *cast) seek(at time.Duration) error {
+// seek moves the cast to at in its media, refused while no attempt plays it. An original file the
+// device fetches is sought by the device; any other stream is prepared again from at.
+func (c *cast) seek(ctx context.Context, at time.Duration) error {
+	if c.ctx.Err() != nil {
+		return errEnded
+	}
+	if d := c.device.Load(); d != nil {
+		err := d.Seek(ctx, at)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, lend.ErrNotNative) && !errors.Is(err, lend.ErrNotPlaying) {
+			slog.InfoContext(ctx, "the device did not seek within its stream, so castor prepares one from there", "at", at, "error", err)
+		}
+	}
 	accepted := make(chan error, 1)
 	select {
 	case c.seeks <- recovery.Seek{At: at, Accepted: accepted}:

@@ -129,7 +129,7 @@ A live source can require conversion to join discontinuous segments into one str
 
 ### Seeking
 
-A client seeks any cast through the API. Castor ends the attempt playing and starts the next one from the position asked, on the same link, so the TV reloads for a moment.
+A client seeks any cast through the API. When the TV plays the source's own file, fetched by the TV itself or forwarded unchanged, castor asks the TV to seek within it: prepared again from there, the file would be remuxed, and signaling only the file carries, such as Dolby Vision, would be lost. Otherwise, or when the TV cannot seek, castor ends the attempt playing and starts the next one from the position asked, on the same link, so the TV reloads for a moment.
 
 A DLNA TV can also seek by itself when castor serves it a single MPEG-TS stream, from a source with a known duration and no generated captions. Castor then reads the source again from the new position, at the same quality and rate, and serves it on the same URL.
 

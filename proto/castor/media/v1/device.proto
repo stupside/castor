@@ -258,6 +258,7 @@ message DeviceCommand {
       Pause pause = 4;
       Resume resume = 5;
       Position position = 6;
+      Seek seek = 7;
     }
   }
 
@@ -342,6 +343,14 @@ message DeviceCommand {
   message Resume {}
 
   message Position {}
+
+  // Seek moves the device within the stream it plays, from that stream's own start.
+  message Seek {
+    google.protobuf.Duration position = 1 [
+      (buf.validate.field).required = true,
+      (buf.validate.field).duration.gte = {}
+    ];
+  }
 
   message Cancel {
     string command_id = 1 [(buf.validate.field).string.min_len = 1];

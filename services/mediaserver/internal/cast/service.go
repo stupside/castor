@@ -112,12 +112,12 @@ func (s *Service) hold(ctx context.Context, id string, held bool) error {
 	return nil
 }
 
-func (s *Service) Seek(_ context.Context, req *castorv1.SeekRequest) (*castorv1.SeekResponse, error) {
+func (s *Service) Seek(ctx context.Context, req *castorv1.SeekRequest) (*castorv1.SeekResponse, error) {
 	c, err := s.find(req.GetCastId())
 	if err != nil {
 		return nil, err
 	}
-	switch err := c.seek(req.GetPosition().AsDuration()); {
+	switch err := c.seek(ctx, req.GetPosition().AsDuration()); {
 	case errors.Is(err, recovery.ErrNoPosition):
 		return nil, connect.NewError(connect.CodeOutOfRange, err)
 	case errors.Is(err, errEnded), errors.Is(err, lend.ErrNotPlaying):

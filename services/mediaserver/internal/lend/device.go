@@ -19,6 +19,9 @@ import (
 // ErrNotPlaying refuses a pause before the device took a stream.
 var ErrNotPlaying = errors.New("the device plays no stream yet")
 
+// ErrNotNative refuses a seek the device cannot make within the stream it plays, so castor prepares one from there.
+var ErrNotNative = errors.New("the device cannot seek within the stream it plays")
+
 // Holder is who holds the device paused; it plays while no one does.
 type Holder uint8
 
@@ -43,6 +46,8 @@ type Device struct {
 	begins, runtime time.Duration
 	at              time.Duration
 	paused          bool
+	// original is a stream the device fetches as the source's own file, which it seeks itself.
+	original bool
 	// askedAt is the last time anyone asked where the device plays, saidAt the last it answered.
 	askedAt, saidAt time.Time
 }
@@ -68,6 +73,7 @@ func (d *Device) Play(ctx context.Context, p execute.Playback) error {
 	defer d.mu.Unlock()
 	d.playing, d.holders, d.paused, d.stream = true, 0, false, d.stream+1
 	d.begins, d.runtime, d.saidAt = p.Begins, p.Stream.Length(), time.Time{}
+	_, d.original = p.Stream.(execute.Source)
 	return nil
 }
 
@@ -171,6 +177,29 @@ func (d *Device) Position(ctx context.Context) (at time.Duration, paused, ok boo
 	d.at, d.paused, d.saidAt = at, paused, time.Now()
 	d.publish()
 	return at, paused, true
+}
+
+// Seek has the device move to at within the original file it plays: prepared again from there, castor would
+// read and remux it, and the file's own signaling, such as Dolby Vision, would not reach the device.
+func (d *Device) Seek(ctx context.Context, at time.Duration) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.playing {
+		return ErrNotPlaying
+	}
+	within := at - d.begins
+	if !d.original || within < 0 || d.runtime > 0 && within > d.runtime {
+		return ErrNotNative
+	}
+	seek := &mediav1.DeviceCommand_Call{Operation: &mediav1.DeviceCommand_Call_Seek{Seek: &mediav1.DeviceCommand_Seek{Position: durationpb.New(within)}}}
+	if err := d.done(ctx, seek); err != nil {
+		return err
+	}
+	// What the device said before it moved is no longer where it plays.
+	d.stream++
+	d.at, d.saidAt = within, time.Now()
+	d.publish()
+	return nil
 }
 
 // Follow asks the device where it plays whenever nothing else has for a while, until ctx ends.
