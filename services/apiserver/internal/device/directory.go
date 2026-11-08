@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
 	"connectrpc.com/connect"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/settings"
 )
 
 // Discovery supplies device observations; the directory owns identity and cache rules.
@@ -71,11 +71,11 @@ func (d *Directory) Target(ctx context.Context, t *castorv1.Target) (Info, error
 }
 
 func requestedType(t castorv1.DeviceType) (Type, error) {
-	name, ok := strings.CutPrefix(t.String(), deviceTypePrefix)
-	if !ok || t == castorv1.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+	name := settings.EnumName(t)
+	if name == "" {
 		return "", fmt.Errorf("unknown device type: %v", t)
 	}
-	return Type(strings.ToLower(name)), nil
+	return Type(name), nil
 }
 
 // Connect opens target for one cast, which holds it to its end; a Play that finds it gone connects it again.

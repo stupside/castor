@@ -9,6 +9,7 @@ import (
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/gen/castor/v1/castorv1connect"
+	"github.com/stupside/castor/internal/settings"
 )
 
 // Device is the device the commands cast to: pinned at its host, or found by id or by name.
@@ -54,26 +55,15 @@ func Target(ctx context.Context, devices castorv1connect.DeviceServiceClient, d 
 	}
 }
 
-var deviceTypes = map[string]castorv1.DeviceType{
-	"dlna":       castorv1.DeviceType_DEVICE_TYPE_DLNA,
-	"chromecast": castorv1.DeviceType_DEVICE_TYPE_CHROMECAST,
-	"roku":       castorv1.DeviceType_DEVICE_TYPE_ROKU,
-}
-
 func configuredDeviceType(name string) (castorv1.DeviceType, error) {
-	kind, ok := deviceTypes[name]
+	kind, ok := settings.ParseEnum[castorv1.DeviceType](name)
 	if !ok {
-		return castorv1.DeviceType_DEVICE_TYPE_UNSPECIFIED, fmt.Errorf("unknown device type: %q", name)
+		return kind, fmt.Errorf("unknown device type: %q", name)
 	}
 	return kind, nil
 }
 
 // DeviceTypeName is the family name shown by scan and the device picker, also used in configuration.
 func DeviceTypeName(kind castorv1.DeviceType) string {
-	for name, k := range deviceTypes {
-		if k == kind {
-			return name
-		}
-	}
-	return "unknown"
+	return cmp.Or(settings.EnumName(kind), "unknown")
 }
