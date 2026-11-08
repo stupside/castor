@@ -58,6 +58,7 @@ var deviceTypes = map[string]castorv1.DeviceType{
 	"dlna":       castorv1.DeviceType_DEVICE_TYPE_DLNA,
 	"chromecast": castorv1.DeviceType_DEVICE_TYPE_CHROMECAST,
 	"roku":       castorv1.DeviceType_DEVICE_TYPE_ROKU,
+	"airplay":    castorv1.DeviceType_DEVICE_TYPE_AIRPLAY,
 }
 
 func configuredDeviceType(name string) (castorv1.DeviceType, error) {

@@ -10,6 +10,7 @@ import (
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/settings"
+	"github.com/stupside/castor/services/apiserver/internal/device/airplay"
 	"github.com/stupside/castor/services/apiserver/internal/device/roku"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -118,7 +119,8 @@ type NetworkConfig struct {
 
 // DevicesConfig is each device family's own settings.
 type DevicesConfig struct {
-	Roku roku.Config `yaml:"roku"`
+	Roku    roku.Config    `yaml:"roku"`
+	AirPlay airplay.Config `yaml:"airplay"`
 }
 
 func defaults() Config {

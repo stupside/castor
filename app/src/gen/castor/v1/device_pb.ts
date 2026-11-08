@@ -11,7 +11,110 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/device.proto.
  */
 export const file_castor_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiPAoPRGVzY3JpYmVSZXF1ZXN0EikKBnRhcmdldBgBIAEoCzIRLmNhc3Rvci52MS5UYXJnZXRCBrpIA8gBASJZChBEZXNjcmliZVJlc3BvbnNlEiUKCGZpZGVsaXR5GAEgASgOMhMuY2FzdG9yLnYxLkZpZGVsaXR5Eh4KFm9yaWdpbmFsX2NvbnRlbnRfdHlwZXMYAiADKAkiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiZAoGRGV2aWNlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSLwoEdHlwZRgDIAEoDjIVLmNhc3Rvci52MS5EZXZpY2VUeXBlQgq6SAeCAQQQASAAEg8KB2FkZHJlc3MYBCABKAkiuAEKBlRhcmdldBIcCglkZXZpY2VfaWQYASABKAlCB7pIBHICEAFIABIqCgZwaW5uZWQYAiABKAsyGC5jYXN0b3IudjEuVGFyZ2V0LlBpbm5lZEgAGlMKBlBpbm5lZBIvCgR0eXBlGAEgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASGAoHYWRkcmVzcxgCIAEoCUIHukgEcgIQAUIPCgZ0YXJnZXQSBbpIAggBKnYKCEZpZGVsaXR5EhgKFEZJREVMSVRZX1VOU1BFQ0lGSUVEEAASFgoSRklERUxJVFlfQ09OVkVSVEVEEAESHAoYRklERUxJVFlfT1JJR0lOQUxfVFJBQ0tTEAISGgoWRklERUxJVFlfT1JJR0lOQUxfRklMRRADKnEKCkRldmljZVR5cGUSGwoXREVWSUNFX1RZUEVfVU5TUEVDSUZJRUQQABIUChBERVZJQ0VfVFlQRV9ETE5BEAESGgoWREVWSUNFX1RZUEVfQ0hST01FQ0FTVBACEhQKEERFVklDRV9UWVBFX1JPS1UQAzKiAQoNRGV2aWNlU2VydmljZRJMCgtMaXN0RGV2aWNlcxIdLmNhc3Rvci52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHi5jYXN0b3IudjEuTGlzdERldmljZXNSZXNwb25zZRJDCghEZXNjcmliZRIaLmNhc3Rvci52MS5EZXNjcmliZVJlcXVlc3QaGy5jYXN0b3IudjEuRGVzY3JpYmVSZXNwb25zZWIGcHJvdG8z", [file_buf_validate_validate]);
+  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiQAoTU3RhcnRQYWlyaW5nUmVxdWVzdBIpCgZ0YXJnZXQYASABKAsyES5jYXN0b3IudjEuVGFyZ2V0Qga6SAPIAQEiKgoUU3RhcnRQYWlyaW5nUmVzcG9uc2USEgoKcGFpcmluZ19pZBgBIAEoCSJLChRGaW5pc2hQYWlyaW5nUmVxdWVzdBIbCgpwYWlyaW5nX2lkGAEgASgJQge6SARyAhABEhYKA3BpbhgCIAEoCUIJukgGcgQQARgQIhcKFUZpbmlzaFBhaXJpbmdSZXNwb25zZSIzChRDYW5jZWxQYWlyaW5nUmVxdWVzdBIbCgpwYWlyaW5nX2lkGAEgASgJQge6SARyAhABIhcKFUNhbmNlbFBhaXJpbmdSZXNwb25zZSI8Cg9EZXNjcmliZVJlcXVlc3QSKQoGdGFyZ2V0GAEgASgLMhEuY2FzdG9yLnYxLlRhcmdldEIGukgDyAEBIlkKEERlc2NyaWJlUmVzcG9uc2USJQoIZmlkZWxpdHkYASABKA4yEy5jYXN0b3IudjEuRmlkZWxpdHkSHgoWb3JpZ2luYWxfY29udGVudF90eXBlcxgCIAMoCSIUChJMaXN0RGV2aWNlc1JlcXVlc3QiOQoTTGlzdERldmljZXNSZXNwb25zZRIiCgdkZXZpY2VzGAEgAygLMhEuY2FzdG9yLnYxLkRldmljZSJkCgZEZXZpY2USCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgR0eXBlGAMgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASDwoHYWRkcmVzcxgEIAEoCSK4AQoGVGFyZ2V0EhwKCWRldmljZV9pZBgBIAEoCUIHukgEcgIQAUgAEioKBnBpbm5lZBgCIAEoCzIYLmNhc3Rvci52MS5UYXJnZXQuUGlubmVkSAAaUwoGUGlubmVkEi8KBHR5cGUYASABKA4yFS5jYXN0b3IudjEuRGV2aWNlVHlwZUIKukgHggEEEAEgABIYCgdhZGRyZXNzGAIgASgJQge6SARyAhABQg8KBnRhcmdldBIFukgCCAEqdgoIRmlkZWxpdHkSGAoURklERUxJVFlfVU5TUEVDSUZJRUQQABIWChJGSURFTElUWV9DT05WRVJURUQQARIcChhGSURFTElUWV9PUklHSU5BTF9UUkFDS1MQAhIaChZGSURFTElUWV9PUklHSU5BTF9GSUxFEAMqigEKCkRldmljZVR5cGUSGwoXREVWSUNFX1RZUEVfVU5TUEVDSUZJRUQQABIUChBERVZJQ0VfVFlQRV9ETE5BEAESGgoWREVWSUNFX1RZUEVfQ0hST01FQ0FTVBACEhQKEERFVklDRV9UWVBFX1JPS1UQAxIXChNERVZJQ0VfVFlQRV9BSVJQTEFZEAUymwMKDURldmljZVNlcnZpY2USTAoLTGlzdERldmljZXMSHS5jYXN0b3IudjEuTGlzdERldmljZXNSZXF1ZXN0Gh4uY2FzdG9yLnYxLkxpc3REZXZpY2VzUmVzcG9uc2USQwoIRGVzY3JpYmUSGi5jYXN0b3IudjEuRGVzY3JpYmVSZXF1ZXN0GhsuY2FzdG9yLnYxLkRlc2NyaWJlUmVzcG9uc2USTwoMU3RhcnRQYWlyaW5nEh4uY2FzdG9yLnYxLlN0YXJ0UGFpcmluZ1JlcXVlc3QaHy5jYXN0b3IudjEuU3RhcnRQYWlyaW5nUmVzcG9uc2USUgoNRmluaXNoUGFpcmluZxIfLmNhc3Rvci52MS5GaW5pc2hQYWlyaW5nUmVxdWVzdBogLmNhc3Rvci52MS5GaW5pc2hQYWlyaW5nUmVzcG9uc2USUgoNQ2FuY2VsUGFpcmluZxIfLmNhc3Rvci52MS5DYW5jZWxQYWlyaW5nUmVxdWVzdBogLmNhc3Rvci52MS5DYW5jZWxQYWlyaW5nUmVzcG9uc2ViBnByb3RvMw", [file_buf_validate_validate]);
+
+/**
+ * @generated from message castor.v1.StartPairingRequest
+ */
+export type StartPairingRequest = Message<"castor.v1.StartPairingRequest"> & {
+  /**
+   * @generated from field: castor.v1.Target target = 1;
+   */
+  target?: Target | undefined;
+};
+
+/**
+ * Describes the message castor.v1.StartPairingRequest.
+ * Use `create(StartPairingRequestSchema)` to create a new message.
+ */
+export const StartPairingRequestSchema: GenMessage<StartPairingRequest> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 0);
+
+/**
+ * @generated from message castor.v1.StartPairingResponse
+ */
+export type StartPairingResponse = Message<"castor.v1.StartPairingResponse"> & {
+  /**
+   * pairing_id names the pairing the device now shows a PIN for, until it is finished, cancelled or expires.
+   *
+   * @generated from field: string pairing_id = 1;
+   */
+  pairingId: string;
+};
+
+/**
+ * Describes the message castor.v1.StartPairingResponse.
+ * Use `create(StartPairingResponseSchema)` to create a new message.
+ */
+export const StartPairingResponseSchema: GenMessage<StartPairingResponse> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 1);
+
+/**
+ * @generated from message castor.v1.FinishPairingRequest
+ */
+export type FinishPairingRequest = Message<"castor.v1.FinishPairingRequest"> & {
+  /**
+   * @generated from field: string pairing_id = 1;
+   */
+  pairingId: string;
+
+  /**
+   * pin is the one the device shows, a string since it may begin with zero.
+   *
+   * @generated from field: string pin = 2;
+   */
+  pin: string;
+};
+
+/**
+ * Describes the message castor.v1.FinishPairingRequest.
+ * Use `create(FinishPairingRequestSchema)` to create a new message.
+ */
+export const FinishPairingRequestSchema: GenMessage<FinishPairingRequest> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 2);
+
+/**
+ * @generated from message castor.v1.FinishPairingResponse
+ */
+export type FinishPairingResponse = Message<"castor.v1.FinishPairingResponse"> & {
+};
+
+/**
+ * Describes the message castor.v1.FinishPairingResponse.
+ * Use `create(FinishPairingResponseSchema)` to create a new message.
+ */
+export const FinishPairingResponseSchema: GenMessage<FinishPairingResponse> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 3);
+
+/**
+ * @generated from message castor.v1.CancelPairingRequest
+ */
+export type CancelPairingRequest = Message<"castor.v1.CancelPairingRequest"> & {
+  /**
+   * @generated from field: string pairing_id = 1;
+   */
+  pairingId: string;
+};
+
+/**
+ * Describes the message castor.v1.CancelPairingRequest.
+ * Use `create(CancelPairingRequestSchema)` to create a new message.
+ */
+export const CancelPairingRequestSchema: GenMessage<CancelPairingRequest> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 4);
+
+/**
+ * @generated from message castor.v1.CancelPairingResponse
+ */
+export type CancelPairingResponse = Message<"castor.v1.CancelPairingResponse"> & {
+};
+
+/**
+ * Describes the message castor.v1.CancelPairingResponse.
+ * Use `create(CancelPairingResponseSchema)` to create a new message.
+ */
+export const CancelPairingResponseSchema: GenMessage<CancelPairingResponse> = /*@__PURE__*/
+  messageDesc(file_castor_v1_device, 5);
 
 /**
  * @generated from message castor.v1.DescribeRequest
@@ -28,7 +131,7 @@ export type DescribeRequest = Message<"castor.v1.DescribeRequest"> & {
  * Use `create(DescribeRequestSchema)` to create a new message.
  */
 export const DescribeRequestSchema: GenMessage<DescribeRequest> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 0);
+  messageDesc(file_castor_v1_device, 6);
 
 /**
  * @generated from message castor.v1.DescribeResponse
@@ -54,7 +157,7 @@ export type DescribeResponse = Message<"castor.v1.DescribeResponse"> & {
  * Use `create(DescribeResponseSchema)` to create a new message.
  */
 export const DescribeResponseSchema: GenMessage<DescribeResponse> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 1);
+  messageDesc(file_castor_v1_device, 7);
 
 /**
  * @generated from message castor.v1.ListDevicesRequest
@@ -67,7 +170,7 @@ export type ListDevicesRequest = Message<"castor.v1.ListDevicesRequest"> & {
  * Use `create(ListDevicesRequestSchema)` to create a new message.
  */
 export const ListDevicesRequestSchema: GenMessage<ListDevicesRequest> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 2);
+  messageDesc(file_castor_v1_device, 8);
 
 /**
  * @generated from message castor.v1.ListDevicesResponse
@@ -84,7 +187,7 @@ export type ListDevicesResponse = Message<"castor.v1.ListDevicesResponse"> & {
  * Use `create(ListDevicesResponseSchema)` to create a new message.
  */
 export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 3);
+  messageDesc(file_castor_v1_device, 9);
 
 /**
  * @generated from message castor.v1.Device
@@ -118,7 +221,7 @@ export type Device = Message<"castor.v1.Device"> & {
  * Use `create(DeviceSchema)` to create a new message.
  */
 export const DeviceSchema: GenMessage<Device> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 4);
+  messageDesc(file_castor_v1_device, 10);
 
 /**
  * Target is the device a cast plays on: one discovered, or one pinned where discovery cannot see.
@@ -149,7 +252,7 @@ export type Target = Message<"castor.v1.Target"> & {
  * Use `create(TargetSchema)` to create a new message.
  */
 export const TargetSchema: GenMessage<Target> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 5);
+  messageDesc(file_castor_v1_device, 11);
 
 /**
  * @generated from message castor.v1.Target.Pinned
@@ -175,7 +278,7 @@ export type Target_Pinned = Message<"castor.v1.Target.Pinned"> & {
  * Use `create(Target_PinnedSchema)` to create a new message.
  */
 export const Target_PinnedSchema: GenMessage<Target_Pinned> = /*@__PURE__*/
-  messageDesc(file_castor_v1_device, 5, 0);
+  messageDesc(file_castor_v1_device, 11, 0);
 
 /**
  * Fidelity is how much of the source the device is handed unchanged, least first.
@@ -239,6 +342,13 @@ export enum DeviceType {
    * @generated from enum value: DEVICE_TYPE_ROKU = 3;
    */
   ROKU = 3,
+
+  /**
+   * 4 is DEVICE_TYPE_FCAST, proposed in stupside/castor#84.
+   *
+   * @generated from enum value: DEVICE_TYPE_AIRPLAY = 5;
+   */
+  AIRPLAY = 5,
 }
 
 /**
@@ -272,6 +382,36 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof DescribeRequestSchema;
     output: typeof DescribeResponseSchema;
+  },
+  /**
+   * StartPairing asks a device that plays only for clients it paired with to show a PIN, which FinishPairing proves.
+   *
+   * @generated from rpc castor.v1.DeviceService.StartPairing
+   */
+  startPairing: {
+    methodKind: "unary";
+    input: typeof StartPairingRequestSchema;
+    output: typeof StartPairingResponseSchema;
+  },
+  /**
+   * FinishPairing proves the PIN the device shows, completing the pairing StartPairing began.
+   *
+   * @generated from rpc castor.v1.DeviceService.FinishPairing
+   */
+  finishPairing: {
+    methodKind: "unary";
+    input: typeof FinishPairingRequestSchema;
+    output: typeof FinishPairingResponseSchema;
+  },
+  /**
+   * CancelPairing abandons a pairing StartPairing began, so the device stops showing its PIN.
+   *
+   * @generated from rpc castor.v1.DeviceService.CancelPairing
+   */
+  cancelPairing: {
+    methodKind: "unary";
+    input: typeof CancelPairingRequestSchema;
+    output: typeof CancelPairingResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_castor_v1_device, 0);

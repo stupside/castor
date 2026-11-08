@@ -38,6 +38,15 @@ const (
 	DeviceServiceListDevicesProcedure = "/castor.v1.DeviceService/ListDevices"
 	// DeviceServiceDescribeProcedure is the fully-qualified name of the DeviceService's Describe RPC.
 	DeviceServiceDescribeProcedure = "/castor.v1.DeviceService/Describe"
+	// DeviceServiceStartPairingProcedure is the fully-qualified name of the DeviceService's
+	// StartPairing RPC.
+	DeviceServiceStartPairingProcedure = "/castor.v1.DeviceService/StartPairing"
+	// DeviceServiceFinishPairingProcedure is the fully-qualified name of the DeviceService's
+	// FinishPairing RPC.
+	DeviceServiceFinishPairingProcedure = "/castor.v1.DeviceService/FinishPairing"
+	// DeviceServiceCancelPairingProcedure is the fully-qualified name of the DeviceService's
+	// CancelPairing RPC.
+	DeviceServiceCancelPairingProcedure = "/castor.v1.DeviceService/CancelPairing"
 )
 
 // DeviceServiceClient is a client for the castor.v1.DeviceService service.
@@ -46,6 +55,12 @@ type DeviceServiceClient interface {
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
 	// Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
 	Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error)
+	// StartPairing asks a device that plays only for clients it paired with to show a PIN, which FinishPairing proves.
+	StartPairing(context.Context, *v1.StartPairingRequest) (*v1.StartPairingResponse, error)
+	// FinishPairing proves the PIN the device shows, completing the pairing StartPairing began.
+	FinishPairing(context.Context, *v1.FinishPairingRequest) (*v1.FinishPairingResponse, error)
+	// CancelPairing abandons a pairing StartPairing began, so the device stops showing its PIN.
+	CancelPairing(context.Context, *v1.CancelPairingRequest) (*v1.CancelPairingResponse, error)
 }
 
 // NewDeviceServiceClient constructs a client for the castor.v1.DeviceService service. By default,
@@ -71,13 +86,34 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("Describe")),
 			connect.WithClientOptions(opts...),
 		),
+		startPairing: connect.NewClient[v1.StartPairingRequest, v1.StartPairingResponse](
+			httpClient,
+			baseURL+DeviceServiceStartPairingProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("StartPairing")),
+			connect.WithClientOptions(opts...),
+		),
+		finishPairing: connect.NewClient[v1.FinishPairingRequest, v1.FinishPairingResponse](
+			httpClient,
+			baseURL+DeviceServiceFinishPairingProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("FinishPairing")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelPairing: connect.NewClient[v1.CancelPairingRequest, v1.CancelPairingResponse](
+			httpClient,
+			baseURL+DeviceServiceCancelPairingProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("CancelPairing")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // deviceServiceClient implements DeviceServiceClient.
 type deviceServiceClient struct {
-	listDevices *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
-	describe    *connect.Client[v1.DescribeRequest, v1.DescribeResponse]
+	listDevices   *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
+	describe      *connect.Client[v1.DescribeRequest, v1.DescribeResponse]
+	startPairing  *connect.Client[v1.StartPairingRequest, v1.StartPairingResponse]
+	finishPairing *connect.Client[v1.FinishPairingRequest, v1.FinishPairingResponse]
+	cancelPairing *connect.Client[v1.CancelPairingRequest, v1.CancelPairingResponse]
 }
 
 // ListDevices calls castor.v1.DeviceService.ListDevices.
@@ -98,12 +134,45 @@ func (c *deviceServiceClient) Describe(ctx context.Context, req *v1.DescribeRequ
 	return nil, err
 }
 
+// StartPairing calls castor.v1.DeviceService.StartPairing.
+func (c *deviceServiceClient) StartPairing(ctx context.Context, req *v1.StartPairingRequest) (*v1.StartPairingResponse, error) {
+	response, err := c.startPairing.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// FinishPairing calls castor.v1.DeviceService.FinishPairing.
+func (c *deviceServiceClient) FinishPairing(ctx context.Context, req *v1.FinishPairingRequest) (*v1.FinishPairingResponse, error) {
+	response, err := c.finishPairing.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// CancelPairing calls castor.v1.DeviceService.CancelPairing.
+func (c *deviceServiceClient) CancelPairing(ctx context.Context, req *v1.CancelPairingRequest) (*v1.CancelPairingResponse, error) {
+	response, err := c.cancelPairing.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // DeviceServiceHandler is an implementation of the castor.v1.DeviceService service.
 type DeviceServiceHandler interface {
 	// ListDevices discovers the devices this server reaches, within its network timeout.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
 	// Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
 	Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error)
+	// StartPairing asks a device that plays only for clients it paired with to show a PIN, which FinishPairing proves.
+	StartPairing(context.Context, *v1.StartPairingRequest) (*v1.StartPairingResponse, error)
+	// FinishPairing proves the PIN the device shows, completing the pairing StartPairing began.
+	FinishPairing(context.Context, *v1.FinishPairingRequest) (*v1.FinishPairingResponse, error)
+	// CancelPairing abandons a pairing StartPairing began, so the device stops showing its PIN.
+	CancelPairing(context.Context, *v1.CancelPairingRequest) (*v1.CancelPairingResponse, error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -125,12 +194,36 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("Describe")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceStartPairingHandler := connect.NewUnaryHandlerSimple(
+		DeviceServiceStartPairingProcedure,
+		svc.StartPairing,
+		connect.WithSchema(deviceServiceMethods.ByName("StartPairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceFinishPairingHandler := connect.NewUnaryHandlerSimple(
+		DeviceServiceFinishPairingProcedure,
+		svc.FinishPairing,
+		connect.WithSchema(deviceServiceMethods.ByName("FinishPairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceCancelPairingHandler := connect.NewUnaryHandlerSimple(
+		DeviceServiceCancelPairingProcedure,
+		svc.CancelPairing,
+		connect.WithSchema(deviceServiceMethods.ByName("CancelPairing")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/castor.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceListDevicesProcedure:
 			deviceServiceListDevicesHandler.ServeHTTP(w, r)
 		case DeviceServiceDescribeProcedure:
 			deviceServiceDescribeHandler.ServeHTTP(w, r)
+		case DeviceServiceStartPairingProcedure:
+			deviceServiceStartPairingHandler.ServeHTTP(w, r)
+		case DeviceServiceFinishPairingProcedure:
+			deviceServiceFinishPairingHandler.ServeHTTP(w, r)
+		case DeviceServiceCancelPairingProcedure:
+			deviceServiceCancelPairingHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -146,4 +239,16 @@ func (UnimplementedDeviceServiceHandler) ListDevices(context.Context, *v1.ListDe
 
 func (UnimplementedDeviceServiceHandler) Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.Describe is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) StartPairing(context.Context, *v1.StartPairingRequest) (*v1.StartPairingResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.StartPairing is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) FinishPairing(context.Context, *v1.FinishPairingRequest) (*v1.FinishPairingResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.FinishPairing is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) CancelPairing(context.Context, *v1.CancelPairingRequest) (*v1.CancelPairingResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.CancelPairing is not implemented"))
 }

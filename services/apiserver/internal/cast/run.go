@@ -76,6 +76,9 @@ func (s *Service) run(ctx context.Context, c *cast, target device.Info, asked *m
 		if _, busy := errors.AsType[*device.Busy](err); busy {
 			code = castorv1.FailureCode_FAILURE_CODE_PLAYBACK_FAILED
 		}
+		if errors.Is(err, device.ErrPairingRequired) {
+			code = castorv1.FailureCode_FAILURE_CODE_PAIRING_REQUIRED
+		}
 		return nil, &castFailure{code: code, err: fmt.Errorf("connecting to the device: %w", err)}
 	}
 	defer func() {

@@ -18,6 +18,18 @@ func (listedDevices) Describe(context.Context, *castorv1.DescribeRequest) (*cast
 	return &castorv1.DescribeResponse{}, nil
 }
 
+func (listedDevices) StartPairing(context.Context, *castorv1.StartPairingRequest) (*castorv1.StartPairingResponse, error) {
+	return &castorv1.StartPairingResponse{}, nil
+}
+
+func (listedDevices) FinishPairing(context.Context, *castorv1.FinishPairingRequest) (*castorv1.FinishPairingResponse, error) {
+	return &castorv1.FinishPairingResponse{}, nil
+}
+
+func (listedDevices) CancelPairing(context.Context, *castorv1.CancelPairingRequest) (*castorv1.CancelPairingResponse, error) {
+	return &castorv1.CancelPairingResponse{}, nil
+}
+
 func TestUnknownConfiguredDeviceTypesFailBeforeListingOrPinning(t *testing.T) {
 	for _, host := range []string{"", "10.0.0.9"} {
 		got, err := Target(t.Context(), nil, Device{Name: "Bedroom", Type: "other", Host: host})
@@ -63,5 +75,17 @@ func TestSharedNameIsAmbiguousNotFirstWins(t *testing.T) {
 	got, err := Target(t.Context(), devices, Device{Name: "TV", Type: "dlna"})
 	if got != nil || err == nil || !strings.Contains(err.Error(), "device.id") {
 		t.Errorf("Target = %v, %v, want an error naming device.id", got, err)
+	}
+}
+
+func TestEveryDeviceTypeTheContractNamesCanBeConfigured(t *testing.T) {
+	for number, name := range castorv1.DeviceType_name {
+		kind := castorv1.DeviceType(number)
+		if kind == castorv1.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+			continue
+		}
+		if got, err := configuredDeviceType(DeviceTypeName(kind)); err != nil || got != kind {
+			t.Errorf("%s has no device.type name, so scan lists it as unknown and no config can pin it", name)
+		}
 	}
 }

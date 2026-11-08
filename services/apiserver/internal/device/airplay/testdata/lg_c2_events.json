@@ -1,0 +1,1186 @@
+{
+ "source": "LG OLED42C24LA (webOS, AirPlay SDK 3.72) reports to a video v2 sender, 2026-11-08; item ids replaced by ITEM",
+ "scenarios": {
+  "file_plays_to_end": [
+   {
+    "reason": "ReasonAddToPlayQueue",
+    "itemCurrent": {
+     "uuid": "ITEM"
+    },
+    "type": "notification",
+    "name": "currentItemChanged"
+   },
+   {
+    "type": "playbackState",
+    "name": "loading"
+   },
+   {
+    "type": "playbackState",
+    "name": "loading"
+   },
+   {
+    "type": "notification",
+    "name": "playbackLikelyToKeepUp",
+    "value": false,
+    "itemCurrent": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "notification",
+    "name": "playbackLikelyToKeepUp",
+    "value": true,
+    "itemCurrent": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "playbackState",
+    "name": "playing",
+    "item": {
+     "uuid": "ITEM"
+    },
+    "params": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 0,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "isPlayingAtLive": false,
+     "forInterstitial": false
+    }
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 484,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 1
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 2492,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 2
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 4497,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 3
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 6504,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 4
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 8511,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 5
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 10517,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 6
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 12523,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 7
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 14530,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 8
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 16534,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 9
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 18540,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 10
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 20546,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 11
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 22552,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 24275,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 24275,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 12
+   },
+   {
+    "type": "notification",
+    "name": "itemPlayedToEnd",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "playbackState",
+    "name": "stopped",
+    "reason": "ended"
+   },
+   {
+    "info": {
+     "rate": 0,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": false,
+     "position": {
+      "value": 0,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 0,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 0,
+        "timescale": 0,
+        "flags": 17,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 679,
+     "decodedFrameCount": 0,
+     "playbackState": "stopped",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 13
+   },
+   {
+    "info": {
+     "rate": 0,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": false,
+     "position": {
+      "value": 0,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 0,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 0,
+        "timescale": 0,
+        "flags": 17,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [],
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 679,
+     "decodedFrameCount": 0,
+     "playbackState": "stopped",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 14
+   }
+  ],
+  "hls_plays": [
+   {
+    "reason": "ReasonAddToPlayQueue",
+    "itemCurrent": {
+     "uuid": "ITEM"
+    },
+    "type": "notification",
+    "name": "currentItemChanged"
+   },
+   {
+    "type": "notification",
+    "name": "selectedMediaArrayChanged",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "notification",
+    "name": "selectedMediaArrayChanged",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "notification",
+    "name": "seekableTimeRangesChanged",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "playbackState",
+    "name": "loading"
+   },
+   {
+    "type": "notification",
+    "name": "playbackLikelyToKeepUp",
+    "value": false,
+    "itemCurrent": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "position": {
+     "value": 0,
+     "timescale": 1000,
+     "flags": 1,
+     "epoch": 0
+    },
+    "type": "notification",
+    "name": "timeJumped",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "notification",
+    "name": "loadedTimeRangesChanged",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "notification",
+    "name": "playbackLikelyToKeepUp",
+    "value": true,
+    "itemCurrent": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "playbackState",
+    "name": "playing",
+    "item": {
+     "uuid": "ITEM"
+    },
+    "params": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 0,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 118814,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 118814,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 8042,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "timeToPauseBuffering": {
+      "value": 0,
+      "timescale": 0,
+      "flags": 0,
+      "epoch": 0
+     },
+     "timeToPausePlayback": {
+      "value": 0,
+      "timescale": 0,
+      "flags": 0,
+      "epoch": 0
+     },
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 0,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "isPlayingAtLive": false,
+     "forInterstitial": false
+    }
+   },
+   {
+    "type": "notification",
+    "name": "loadedTimeRangesChanged",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "notification",
+    "name": "loadedTimeRangesChanged",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "notification",
+    "name": "loadedTimeRangesChanged",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 750,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 118815,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 118815,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 32319,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "timeToPauseBuffering": {
+      "value": 0,
+      "timescale": 0,
+      "flags": 0,
+      "epoch": 0
+     },
+     "timeToPausePlayback": {
+      "value": 0,
+      "timescale": 0,
+      "flags": 0,
+      "epoch": 0
+     },
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 6,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 1
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 2752,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 118815,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 118815,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 32319,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "timeToPauseBuffering": {
+      "value": 0,
+      "timescale": 0,
+      "flags": 0,
+      "epoch": 0
+     },
+     "timeToPausePlayback": {
+      "value": 0,
+      "timescale": 0,
+      "flags": 0,
+      "epoch": 0
+     },
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 54,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 2
+   },
+   {
+    "info": {
+     "rate": 1,
+     "readyToPlay": true,
+     "playbackLikelyToKeepUp": true,
+     "position": {
+      "value": 4754,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "duration": {
+      "value": 118815,
+      "timescale": 1000,
+      "flags": 1,
+      "epoch": 0
+     },
+     "seekableTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 118815,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "loadedTimeRanges": [
+      {
+       "start": {
+        "value": 0,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       },
+       "duration": {
+        "value": 32319,
+        "timescale": 1000,
+        "flags": 1,
+        "epoch": 0
+       }
+      }
+     ],
+     "timeToPauseBuffering": {
+      "value": 0,
+      "timescale": 0,
+      "flags": 0,
+      "epoch": 0
+     },
+     "timeToPausePlayback": {
+      "value": 0,
+      "timescale": 0,
+      "flags": 0,
+      "epoch": 0
+     },
+     "droppedVideoFrames": 0,
+     "totalVideoFrames": 102,
+     "decodedFrameCount": 0,
+     "playbackState": "playing",
+     "interstitialInfo": {},
+     "item": {
+      "uuid": "ITEM"
+     }
+    },
+    "kind": "response",
+    "type": "playbackInfo",
+    "messageID": 3
+   }
+  ],
+  "refused": [
+   {
+    "type": "unhandledURL",
+    "kind": "request",
+    "request": {
+     "FCUP_Response_URL": "http://castor.example:8410/cast/stream.m3u8",
+     "FCUP_Response_IsContentKeyRequest": false,
+     "FCUP_Response_RequestID": 85375319,
+     "FCUP_Response_Headers": {
+      "User-Agent": "AirPlay/2.0 (App/80.141.0) MFi_AirPlay_Device"
+     }
+    },
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "type": "error",
+    "error": {
+     "domain": "",
+     "code": -60009
+    },
+    "uuid": "ITEM"
+   },
+   {
+    "type": "notification",
+    "name": "itemRemoved",
+    "item": {
+     "uuid": "ITEM"
+    }
+   },
+   {
+    "reason": "ReasonAdvanceDueToError",
+    "itemBefore": {
+     "uuid": "ITEM"
+    },
+    "type": "notification",
+    "name": "currentItemChanged"
+   }
+  ]
+ }
+}

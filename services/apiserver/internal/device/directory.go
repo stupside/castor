@@ -27,6 +27,8 @@ type Directory struct {
 	mu     sync.Mutex
 	seen   discoveries
 	leases map[string]*lease
+
+	pairings pairings
 }
 
 // NewDirectory lists devices from find and lends them through reach.

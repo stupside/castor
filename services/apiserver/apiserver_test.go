@@ -43,6 +43,8 @@ type family struct {
 	stops atomic.Int32
 	// unreachable is a device that answers no connection.
 	unreachable bool
+	// unpaired is a device that plays only for a client it paired with.
+	unpaired bool
 	// goneFirst is a device whose first connection is found gone at its first play.
 	goneFirst bool
 
@@ -68,6 +70,9 @@ func (*family) Locate(_ context.Context, address string) (string, error) { retur
 func (f *family) Connect(context.Context, device.Info) (device.Device, error) {
 	if f.unreachable {
 		return nil, errors.New("no answer from the device")
+	}
+	if f.unpaired {
+		return nil, fmt.Errorf("the TV asks castor to pair with it first: %w", device.ErrPairingRequired)
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -947,6 +952,17 @@ func TestAServerShuttingDownFailsItsCastsReleasingTheirDevicesAndTakesNoMore(t *
 	}
 	if _, err := c.casts.Cast(t.Context(), &castorv1.CastRequest{Target: onBedroom, Source: streamOf("https://cdn.example/direct")}); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Errorf("a cast asked of a server shutting down was met with %v, want unavailable", err)
+	}
+}
+
+func TestACastOnADeviceThatAsksForPairingFailsSoTheClientCanPair(t *testing.T) {
+	f := newFamily()
+	f.unpaired = true
+	c := serve(t, setup{media: newMedia(false), family: f})
+
+	w := watch(t, c, cast(t, c, streamOf("https://cdn.example/direct")))
+	if w.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_PAIRING_REQUIRED {
+		t.Errorf("the cast ended %v, want it failed as the device asks for pairing", w.ended)
 	}
 }
 
