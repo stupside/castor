@@ -51,11 +51,9 @@ type CastServiceClient interface {
 	Cast(context.Context, *v1.CastRequest) (*v1.CastResponse, error)
 	// Resolve is what Cast would play from a source, best first, without casting.
 	Resolve(context.Context, *v1.ResolveRequest) (*v1.ResolveResponse, error)
-	// Watch sends a cast's status now and on every change (changes close together may arrive as one), and Ended last; a stream cut before Ended is an error.
-	// A cast stays watchable for 5 minutes after its end.
-	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// Watch sends the status now and on every change, then Ended; a stream cut before Ended is an error.
+	// A cast stays watchable for 5 minutes after it ends.
 	Watch(context.Context, *v1.WatchRequest) (*connect.ServerStreamForClient[v1.WatchResponse], error)
-	// Stop ends a cast and returns at once.
 	Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error)
 	// ListCasts is the casts playing now, oldest first.
 	ListCasts(context.Context, *v1.ListCastsRequest) (*v1.ListCastsResponse, error)
@@ -161,11 +159,9 @@ type CastServiceHandler interface {
 	Cast(context.Context, *v1.CastRequest) (*v1.CastResponse, error)
 	// Resolve is what Cast would play from a source, best first, without casting.
 	Resolve(context.Context, *v1.ResolveRequest) (*v1.ResolveResponse, error)
-	// Watch sends a cast's status now and on every change (changes close together may arrive as one), and Ended last; a stream cut before Ended is an error.
-	// A cast stays watchable for 5 minutes after its end.
-	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// Watch sends the status now and on every change, then Ended; a stream cut before Ended is an error.
+	// A cast stays watchable for 5 minutes after it ends.
 	Watch(context.Context, *v1.WatchRequest, *connect.ServerStream[v1.WatchResponse]) error
-	// Stop ends a cast and returns at once.
 	Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error)
 	// ListCasts is the casts playing now, oldest first.
 	ListCasts(context.Context, *v1.ListCastsRequest) (*v1.ListCastsResponse, error)

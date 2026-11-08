@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/scraping/v1/scraping.proto.
  */
 export const file_castor_scraping_v1_scraping: GenFile = /*@__PURE__*/
-  fileDesc("CiFjYXN0b3Ivc2NyYXBpbmcvdjEvc2NyYXBpbmcucHJvdG8SEmNhc3Rvci5zY3JhcGluZy52MSKtAQoOUmVzb2x2ZVJlcXVlc3QSmgEKBHVybHMYASADKAlCiwG6SIcBkgGDAQgBEBAifboBdQoIdXJsLmh0dHASHG11c3QgYmUgYW4gaHR0cCBvciBodHRwcyBVUkwaS3RoaXMuaXNVcmkoKSAmJiAodGhpcy5zdGFydHNXaXRoKCdodHRwOi8vJykgfHwgdGhpcy5zdGFydHNXaXRoKCdodHRwczovLycpKXIDGIBAIksKD1Jlc29sdmVSZXNwb25zZRI4CgdzdHJlYW1zGAEgAygLMhouY2FzdG9yLnYxLlN0cmVhbUNhbmRpZGF0ZUILukgIkgEFCAEQwAwyZQoPU2NyYXBpbmdTZXJ2aWNlElIKB1Jlc29sdmUSIi5jYXN0b3Iuc2NyYXBpbmcudjEuUmVzb2x2ZVJlcXVlc3QaIy5jYXN0b3Iuc2NyYXBpbmcudjEuUmVzb2x2ZVJlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate, file_castor_v1_stream]);
+  fileDesc("CiFjYXN0b3Ivc2NyYXBpbmcvdjEvc2NyYXBpbmcucHJvdG8SEmNhc3Rvci5zY3JhcGluZy52MSJACg5SZXNvbHZlUmVxdWVzdBIuCgR1cmxzGAEgAygJQiC6SB2SARoIARAQIhRyEiiAQDIKXmh0dHBzPzovL4gBASJLCg9SZXNvbHZlUmVzcG9uc2USOAoHc3RyZWFtcxgBIAMoCzIaLmNhc3Rvci52MS5TdHJlYW1DYW5kaWRhdGVCC7pICJIBBQgBEMAMMmUKD1NjcmFwaW5nU2VydmljZRJSCgdSZXNvbHZlEiIuY2FzdG9yLnNjcmFwaW5nLnYxLlJlc29sdmVSZXF1ZXN0GiMuY2FzdG9yLnNjcmFwaW5nLnYxLlJlc29sdmVSZXNwb25zZWIGcHJvdG8z", [file_buf_validate_validate, file_castor_v1_stream]);
 
 /**
  * @generated from message castor.scraping.v1.ResolveRequest
@@ -50,7 +50,7 @@ export const ResolveResponseSchema: GenMessage<ResolveResponse> = /*@__PURE__*/
   messageDesc(file_castor_scraping_v1_scraping, 1);
 
 /**
- * ScrapingService resolves web pages into playable stream candidates.
+ * ScrapingService resolves web pages into stream candidates.
  *
  * @generated from service castor.scraping.v1.ScrapingService
  */

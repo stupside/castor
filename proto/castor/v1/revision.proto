@@ -4,7 +4,7 @@ package castor.v1;
 
 import "buf/validate/validate.proto";
 
-// Revision is a cast's latest change of plan, and why.
+// Revision is a cast's latest change of plan.
 message Revision {
   RecoveryAction action = 1 [(buf.validate.field).enum = {
     defined_only: true

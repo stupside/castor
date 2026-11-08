@@ -88,7 +88,7 @@ type CastRequest struct {
 	Source      *Source                `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
 	Preferences *Preferences           `protobuf:"bytes,3,opt,name=preferences,proto3" json:"preferences,omitempty"`
 	MediaInfo   *MediaInfo             `protobuf:"bytes,4,opt,name=media_info,json=mediaInfo,proto3" json:"media_info,omitempty"`
-	// start is the position in the media to begin at, the beginning when unset.
+	// start is where in the media to begin, the beginning when unset.
 	Start         *durationpb.Duration `protobuf:"bytes,5,opt,name=start,proto3" json:"start,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -159,7 +159,7 @@ func (x *CastRequest) GetStart() *durationpb.Duration {
 	return nil
 }
 
-// MediaInfo describes the selected movie or episode on the receiver's playback screen.
+// MediaInfo is what the device's playback screen shows.
 type MediaInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
@@ -229,9 +229,8 @@ func (x *MediaInfo) GetReleaseDate() string {
 }
 
 type CastResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// cast_id is opaque.
-	CastId        string `protobuf:"bytes,1,opt,name=cast_id,json=castId,proto3" json:"cast_id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CastId        string                 `protobuf:"bytes,1,opt,name=cast_id,json=castId,proto3" json:"cast_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -326,9 +325,8 @@ func (x *ResolveRequest) GetPreferences() *Preferences {
 }
 
 type ResolveResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// ranked is the order a cast tries the streams in, best first.
-	Ranked        []*RankedStream `protobuf:"bytes,1,rep,name=ranked,proto3" json:"ranked,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ranked        []*RankedStream        `protobuf:"bytes,1,rep,name=ranked,proto3" json:"ranked,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -370,7 +368,6 @@ func (x *ResolveResponse) GetRanked() []*RankedStream {
 	return nil
 }
 
-// Source is a direct stream, pages to resolve, or already-resolved candidates to rank.
 type Source struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Source:
@@ -469,16 +466,13 @@ func (*Source_Pages_) isSource_Source() {}
 
 func (*Source_Streams) isSource_Source() {}
 
-// Preferences are what one cast asks; each unset field takes the server's configuration.
+// Preferences override the server's configuration field by field.
 type Preferences struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Delivery *Delivery              `protobuf:"varint,1,opt,name=delivery,proto3,enum=castor.v1.Delivery,oneof" json:"delivery,omitempty"`
-	// max_height is the tallest picture the cast may show.
-	MaxHeight *uint32 `protobuf:"varint,2,opt,name=max_height,json=maxHeight,proto3,oneof" json:"max_height,omitempty"`
-	// Absent subtitles inherit the server's default; an explicit mode replaces it.
-	Subtitles *SubtitleSelection `protobuf:"bytes,3,opt,name=subtitles,proto3" json:"subtitles,omitempty"`
-	// Ordered audio languages to try before the source's default track; absent takes the server's default.
-	Audio         *AudioSelection `protobuf:"bytes,4,opt,name=audio,proto3" json:"audio,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Delivery      *Delivery              `protobuf:"varint,1,opt,name=delivery,proto3,enum=castor.v1.Delivery,oneof" json:"delivery,omitempty"`
+	MaxHeight     *uint32                `protobuf:"varint,2,opt,name=max_height,json=maxHeight,proto3,oneof" json:"max_height,omitempty"`
+	Subtitles     *SubtitleSelection     `protobuf:"bytes,3,opt,name=subtitles,proto3" json:"subtitles,omitempty"`
+	Audio         *AudioSelection        `protobuf:"bytes,4,opt,name=audio,proto3" json:"audio,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -542,8 +536,9 @@ func (x *Preferences) GetAudio() *AudioSelection {
 }
 
 type AudioSelection struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Languages     []string               `protobuf:"bytes,1,rep,name=languages,proto3" json:"languages,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// languages are tried in order before the source's default track.
+	Languages     []string `protobuf:"bytes,1,rep,name=languages,proto3" json:"languages,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -670,7 +665,7 @@ func (*SubtitleSelection_Preferences) isSubtitleSelection_Mode() {}
 type SubtitlePreferences struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Languages []string               `protobuf:"bytes,1,rep,name=languages,proto3" json:"languages,omitempty"`
-	// Generate captions with Whisper if the source has no usable caption in the selected language.
+	// transcribe_if_missing has Whisper caption a source with no caption in these languages.
 	TranscribeIfMissing bool `protobuf:"varint,2,opt,name=transcribe_if_missing,json=transcribeIfMissing,proto3" json:"transcribe_if_missing,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -846,7 +841,6 @@ func (*WatchResponse_Status) isWatchResponse_Update() {}
 
 func (*WatchResponse_Ended) isWatchResponse_Update() {}
 
-// CastStatus is where a cast stands, for people to read.
 type CastStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to State:
@@ -964,7 +958,7 @@ func (*CastStatus_Casting) isCastStatus_State() {}
 type MeasuringStatus struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Streams uint32                 `protobuf:"varint,1,opt,name=streams,proto3" json:"streams,omitempty"`
-	// Absent until ranking finishes; zero means no candidate was retained.
+	// castable is absent until ranking finishes.
 	Castable      *uint32 `protobuf:"varint,2,opt,name=castable,proto3,oneof" json:"castable,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1163,7 +1157,6 @@ type isEnded_Result interface {
 }
 
 type Ended_Completed struct {
-	// Completion means playback ended or the device accepted a direct hand-off.
 	Completed *emptypb.Empty `protobuf:"bytes,1,opt,name=completed,proto3,oneof"`
 }
 
@@ -1395,9 +1388,8 @@ func (x *ListCastsResponse) GetCasts() []*Cast {
 
 type Cast struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// id is opaque.
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// device is what the cast plays on; a pinned one has an empty id.
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// device has an empty id for a pinned target.
 	Device        *Device     `protobuf:"bytes,2,opt,name=device,proto3" json:"device,omitempty"`
 	Source        *Source     `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"`
 	Status        *CastStatus `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
@@ -1562,27 +1554,28 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\vpreferences\x18\x03 \x01(\v2\x16.castor.v1.PreferencesR\vpreferences\x123\n" +
 	"\n" +
 	"media_info\x18\x04 \x01(\v2\x14.castor.v1.MediaInfoR\tmediaInfo\x129\n" +
-	"\x05start\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\x05start\"\xa4\x01\n" +
+	"\x05start\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\x05start\"\xb6\x01\n" +
 	"\tMediaInfo\x12\x1e\n" +
 	"\x05title\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x02R\x05title\x12$\n" +
-	"\bsynopsis\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\bsynopsis\x12%\n" +
-	"\timage_url\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x80@R\bimageUrl\x12*\n" +
+	"\bsynopsis\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\bsynopsis\x127\n" +
+	"\timage_url\x18\x03 \x01(\tB\x1a\xbaH\x17\xd8\x01\x01r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\bimageUrl\x12*\n" +
 	"\frelease_date\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18\n" +
-	"R\vreleaseDate\"0\n" +
-	"\fCastResponse\x12 \n" +
-	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"}\n" +
+	"R\vreleaseDate\"2\n" +
+	"\fCastResponse\x12\"\n" +
+	"\acast_id\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01(@R\x06castId\"}\n" +
 	"\x0eResolveRequest\x121\n" +
 	"\x06source\x18\x01 \x01(\v2\x11.castor.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x128\n" +
 	"\vpreferences\x18\x02 \x01(\v2\x16.castor.v1.PreferencesR\vpreferences\"B\n" +
 	"\x0fResolveResponse\x12/\n" +
-	"\x06ranked\x18\x01 \x03(\v2\x17.castor.v1.RankedStreamR\x06ranked\"\xb9\x03\n" +
+	"\x06ranked\x18\x01 \x03(\v2\x17.castor.v1.RankedStreamR\x06ranked\"\xcb\x02\n" +
 	"\x06Source\x12+\n" +
 	"\x06stream\x18\x01 \x01(\v2\x11.castor.v1.StreamH\x00R\x06stream\x12/\n" +
 	"\x05pages\x18\x02 \x01(\v2\x17.castor.v1.Source.PagesH\x00R\x05pages\x12=\n" +
-	"\astreams\x18\x03 \x01(\v2!.castor.v1.Source.ResolvedStreamsH\x00R\astreams\x1a\xaa\x01\n" +
-	"\x05Pages\x12\xa0\x01\n" +
-	"\x04urls\x18\x01 \x03(\tB\x8b\x01\xbaH\x87\x01\x92\x01\x83\x01\b\x01\x10\x10\"}\xba\x01u\n" +
-	"\burl.http\x12\x1cmust be an http or https URL\x1aKthis.isUri() && (this.startsWith('http://') || this.startsWith('https://'))r\x03\x18\x80@R\x04urls\x1aT\n" +
+	"\astreams\x18\x03 \x01(\v2!.castor.v1.Source.ResolvedStreamsH\x00R\astreams\x1a=\n" +
+	"\x05Pages\x124\n" +
+	"\x04urls\x18\x01 \x03(\tB \xbaH\x1d\x92\x01\x1a\b\x01\x10\x10\"\x14r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\x04urls\x1aT\n" +
 	"\x0fResolvedStreams\x12A\n" +
 	"\astreams\x18\x01 \x03(\v2\x1a.castor.v1.StreamCandidateB\v\xbaH\b\x92\x01\x05\b\x01\x10\xc0\fR\astreamsB\x0f\n" +
 	"\x06source\x12\x05\xbaH\x02\b\x01\"\x85\x02\n" +
@@ -1603,9 +1596,9 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\x04mode\x12\x05\xbaH\x02\b\x01\"\x83\x01\n" +
 	"\x13SubtitlePreferences\x128\n" +
 	"\tlanguages\x18\x01 \x03(\tB\x1a\xbaH\x17\x92\x01\x14\b\x01\"\x10r\x0e2\f^[a-z]{2,3}$R\tlanguages\x122\n" +
-	"\x15transcribe_if_missing\x18\x02 \x01(\bR\x13transcribeIfMissing\"0\n" +
-	"\fWatchRequest\x12 \n" +
-	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"{\n" +
+	"\x15transcribe_if_missing\x18\x02 \x01(\bR\x13transcribeIfMissing\"2\n" +
+	"\fWatchRequest\x12\"\n" +
+	"\acast_id\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01(@R\x06castId\"{\n" +
 	"\rWatchResponse\x12/\n" +
 	"\x06status\x18\x01 \x01(\v2\x15.castor.v1.CastStatusH\x00R\x06status\x12(\n" +
 	"\x05ended\x18\x02 \x01(\v2\x10.castor.v1.EndedH\x00R\x05endedB\x0f\n" +
@@ -1638,9 +1631,9 @@ const file_castor_v1_cast_proto_rawDesc = "" +
 	"\aFailure\x126\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x16.castor.v1.FailureCodeB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04code\x12!\n" +
-	"\amessage\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\amessage\"/\n" +
-	"\vStopRequest\x12 \n" +
-	"\acast_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06castId\"\x0e\n" +
+	"\amessage\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\amessage\"1\n" +
+	"\vStopRequest\x12\"\n" +
+	"\acast_id\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01(@R\x06castId\"\x0e\n" +
 	"\fStopResponse\"\x12\n" +
 	"\x10ListCastsRequest\":\n" +
 	"\x11ListCastsResponse\x12%\n" +

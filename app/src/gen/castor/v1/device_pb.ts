@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/device.proto.
  */
 export const file_castor_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiZAoGRGV2aWNlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSLwoEdHlwZRgDIAEoDjIVLmNhc3Rvci52MS5EZXZpY2VUeXBlQgq6SAeCAQQQASAAEg8KB2FkZHJlc3MYBCABKAkiuAEKBlRhcmdldBIcCglkZXZpY2VfaWQYASABKAlCB7pIBHICEAFIABIqCgZwaW5uZWQYAiABKAsyGC5jYXN0b3IudjEuVGFyZ2V0LlBpbm5lZEgAGlMKBlBpbm5lZBIvCgR0eXBlGAEgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASGAoHYWRkcmVzcxgCIAEoCUIHukgEcgIQAUIPCgZ0YXJnZXQSBbpIAggBKnEKCkRldmljZVR5cGUSGwoXREVWSUNFX1RZUEVfVU5TUEVDSUZJRUQQABIUChBERVZJQ0VfVFlQRV9ETE5BEAESGgoWREVWSUNFX1RZUEVfQ0hST01FQ0FTVBACEhQKEERFVklDRV9UWVBFX1JPS1UQAzJdCg1EZXZpY2VTZXJ2aWNlEkwKC0xpc3REZXZpY2VzEh0uY2FzdG9yLnYxLkxpc3REZXZpY2VzUmVxdWVzdBoeLmNhc3Rvci52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate]);
+  fileDesc("ChZjYXN0b3IvdjEvZGV2aWNlLnByb3RvEgljYXN0b3IudjEiFAoSTGlzdERldmljZXNSZXF1ZXN0IjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLmNhc3Rvci52MS5EZXZpY2UiZAoGRGV2aWNlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSLwoEdHlwZRgDIAEoDjIVLmNhc3Rvci52MS5EZXZpY2VUeXBlQgq6SAeCAQQQASAAEg8KB2FkZHJlc3MYBCABKAkivgEKBlRhcmdldBIfCglkZXZpY2VfaWQYASABKAlCCrpIB3IFEAEogAJIABIqCgZwaW5uZWQYAiABKAsyGC5jYXN0b3IudjEuVGFyZ2V0LlBpbm5lZEgAGlYKBlBpbm5lZBIvCgR0eXBlGAEgASgOMhUuY2FzdG9yLnYxLkRldmljZVR5cGVCCrpIB4IBBBABIAASGwoHYWRkcmVzcxgCIAEoCUIKukgHcgUQASiAQEIPCgZ0YXJnZXQSBbpIAggBKnEKCkRldmljZVR5cGUSGwoXREVWSUNFX1RZUEVfVU5TUEVDSUZJRUQQABIUChBERVZJQ0VfVFlQRV9ETE5BEAESGgoWREVWSUNFX1RZUEVfQ0hST01FQ0FTVBACEhQKEERFVklDRV9UWVBFX1JPS1UQAzJdCg1EZXZpY2VTZXJ2aWNlEkwKC0xpc3REZXZpY2VzEh0uY2FzdG9yLnYxLkxpc3REZXZpY2VzUmVxdWVzdBoeLmNhc3Rvci52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate]);
 
 /**
  * @generated from message castor.v1.ListDevicesRequest
@@ -48,7 +48,7 @@ export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__P
  */
 export type Device = Message<"castor.v1.Device"> & {
   /**
-   * id is opaque and the same on every discovery; a cast's target names it.
+   * id is the same on every discovery.
    *
    * @generated from field: string id = 1;
    */
@@ -78,8 +78,6 @@ export const DeviceSchema: GenMessage<Device> = /*@__PURE__*/
   messageDesc(file_castor_v1_device, 2);
 
 /**
- * Target is the device a cast plays on: one discovered, or one pinned where discovery cannot see.
- *
  * @generated from message castor.v1.Target
  */
 export type Target = Message<"castor.v1.Target"> & {
@@ -109,18 +107,18 @@ export const TargetSchema: GenMessage<Target> = /*@__PURE__*/
   messageDesc(file_castor_v1_device, 3);
 
 /**
+ * Pinned is a device discovery cannot see.
+ *
  * @generated from message castor.v1.Target.Pinned
  */
 export type Target_Pinned = Message<"castor.v1.Target.Pinned"> & {
   /**
-   * type is the device's family, as Device.type reports it.
-   *
    * @generated from field: castor.v1.DeviceType type = 1;
    */
   type: DeviceType;
 
   /**
-   * address is a host, a host:port, or the URL the family answers at.
+   * address is a host, a host:port, or the URL the device answers at.
    *
    * @generated from field: string address = 2;
    */
@@ -166,8 +164,6 @@ export const DeviceTypeSchema: GenEnum<DeviceType> = /*@__PURE__*/
   enumDesc(file_castor_v1_device, 0);
 
 /**
- * DeviceService finds the devices on the network.
- *
  * @generated from service castor.v1.DeviceService
  */
 export const DeviceService: GenService<{

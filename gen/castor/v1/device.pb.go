@@ -156,7 +156,7 @@ func (x *ListDevicesResponse) GetDevices() []*Device {
 
 type Device struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// id is opaque and the same on every discovery; a cast's target names it.
+	// id is the same on every discovery.
 	Id            string     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string     `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Type          DeviceType `protobuf:"varint,3,opt,name=type,proto3,enum=castor.v1.DeviceType" json:"type,omitempty"`
@@ -223,7 +223,6 @@ func (x *Device) GetAddress() string {
 	return ""
 }
 
-// Target is the device a cast plays on: one discovered, or one pinned where discovery cannot see.
 type Target struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Target:
@@ -306,11 +305,11 @@ func (*Target_DeviceId) isTarget_Target() {}
 
 func (*Target_Pinned_) isTarget_Target() {}
 
+// Pinned is a device discovery cannot see.
 type Target_Pinned struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// type is the device's family, as Device.type reports it.
-	Type DeviceType `protobuf:"varint,1,opt,name=type,proto3,enum=castor.v1.DeviceType" json:"type,omitempty"`
-	// address is a host, a host:port, or the URL the family answers at.
+	Type  DeviceType             `protobuf:"varint,1,opt,name=type,proto3,enum=castor.v1.DeviceType" json:"type,omitempty"`
+	// address is a host, a host:port, or the URL the device answers at.
 	Address       string `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -373,14 +372,16 @@ const file_castor_v1_device_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x125\n" +
 	"\x04type\x18\x03 \x01(\x0e2\x15.castor.v1.DeviceTypeB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12\x18\n" +
-	"\aaddress\x18\x04 \x01(\tR\aaddress\"\xd9\x01\n" +
-	"\x06Target\x12&\n" +
-	"\tdevice_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01H\x00R\bdeviceId\x122\n" +
-	"\x06pinned\x18\x02 \x01(\v2\x18.castor.v1.Target.PinnedH\x00R\x06pinned\x1ab\n" +
+	"\aaddress\x18\x04 \x01(\tR\aaddress\"\xdf\x01\n" +
+	"\x06Target\x12)\n" +
+	"\tdevice_id\x18\x01 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01(\x80\x02H\x00R\bdeviceId\x122\n" +
+	"\x06pinned\x18\x02 \x01(\v2\x18.castor.v1.Target.PinnedH\x00R\x06pinned\x1ae\n" +
 	"\x06Pinned\x125\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x15.castor.v1.DeviceTypeB\n" +
-	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12!\n" +
-	"\aaddress\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aaddressB\x0f\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12$\n" +
+	"\aaddress\x18\x02 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01(\x80@R\aaddressB\x0f\n" +
 	"\x06target\x12\x05\xbaH\x02\b\x01*q\n" +
 	"\n" +
 	"DeviceType\x12\x1b\n" +

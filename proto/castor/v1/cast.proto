@@ -9,17 +9,14 @@ import "castor/v1/stream.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 
-// CastService plays video on devices.
 service CastService {
   // Cast starts playing a source on a device and returns at once; Watch follows it.
   rpc Cast(CastRequest) returns (CastResponse);
   // Resolve is what Cast would play from a source, best first, without casting.
   rpc Resolve(ResolveRequest) returns (ResolveResponse);
-  // Watch sends a cast's status now and on every change (changes close together may arrive as one), and Ended last; a stream cut before Ended is an error.
-  // A cast stays watchable for 5 minutes after its end.
-  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  // Watch sends the status now and on every change, then Ended; a stream cut before Ended is an error.
+  // A cast stays watchable for 5 minutes after it ends.
   rpc Watch(WatchRequest) returns (stream WatchResponse);
-  // Stop ends a cast and returns at once.
   rpc Stop(StopRequest) returns (StopResponse);
   // ListCasts is the casts playing now, oldest first.
   rpc ListCasts(ListCastsRequest) returns (ListCastsResponse);
@@ -30,21 +27,30 @@ message CastRequest {
   Source source = 2 [(buf.validate.field).required = true];
   Preferences preferences = 3;
   MediaInfo media_info = 4;
-  // start is the position in the media to begin at, the beginning when unset.
+  // start is where in the media to begin, the beginning when unset.
   google.protobuf.Duration start = 5 [(buf.validate.field).duration.gt = {}];
 }
 
-// MediaInfo describes the selected movie or episode on the receiver's playback screen.
+// MediaInfo is what the device's playback screen shows.
 message MediaInfo {
   string title = 1 [(buf.validate.field).string.max_len = 256];
   string synopsis = 2 [(buf.validate.field).string.max_len = 4096];
-  string image_url = 3 [(buf.validate.field).string.max_len = 8192];
+  string image_url = 3 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string = {
+      uri: true
+      pattern: "^https?://"
+      max_bytes: 8192
+    }
+  ];
   string release_date = 4 [(buf.validate.field).string.max_len = 10];
 }
 
 message CastResponse {
-  // cast_id is opaque.
-  string cast_id = 1 [(buf.validate.field).string.min_len = 1];
+  string cast_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 64
+  }];
 }
 
 message ResolveRequest {
@@ -53,11 +59,9 @@ message ResolveRequest {
 }
 
 message ResolveResponse {
-  // ranked is the order a cast tries the streams in, best first.
   repeated RankedStream ranked = 1;
 }
 
-// Source is a direct stream, pages to resolve, or already-resolved candidates to rank.
 message Source {
   oneof source {
     option (buf.validate.oneof).required = true;
@@ -67,41 +71,40 @@ message Source {
   }
 
   message Pages {
-    repeated string urls = 1 [
-      (buf.validate.field).repeated.min_items = 1,
-      (buf.validate.field).repeated.max_items = 16,
-      (buf.validate.field).repeated.items.string.max_len = 8192,
-      (buf.validate.field).repeated.items.cel = {
-        id: "url.http"
-        message: "must be an http or https URL"
-        expression: "this.isUri() && (this.startsWith('http://') || this.startsWith('https://'))"
+    repeated string urls = 1 [(buf.validate.field).repeated = {
+      min_items: 1
+      max_items: 16
+      items: {
+        string: {
+          uri: true
+          pattern: "^https?://"
+          max_bytes: 8192
+        }
       }
-    ];
+    }];
   }
 
   message ResolvedStreams {
-    repeated StreamCandidate streams = 1 [
-      (buf.validate.field).repeated.min_items = 1,
-      (buf.validate.field).repeated.max_items = 1600
-    ];
+    repeated StreamCandidate streams = 1 [(buf.validate.field).repeated = {
+      min_items: 1
+      max_items: 1600
+    }];
   }
 }
 
-// Preferences are what one cast asks; each unset field takes the server's configuration.
+// Preferences override the server's configuration field by field.
 message Preferences {
   optional Delivery delivery = 1 [(buf.validate.field).enum = {
     defined_only: true
     not_in: [0]
   }];
-  // max_height is the tallest picture the cast may show.
   optional uint32 max_height = 2 [(buf.validate.field).uint32.gte = 2];
-  // Absent subtitles inherit the server's default; an explicit mode replaces it.
   SubtitleSelection subtitles = 3;
-  // Ordered audio languages to try before the source's default track; absent takes the server's default.
   AudioSelection audio = 4;
 }
 
 message AudioSelection {
+  // languages are tried in order before the source's default track.
   repeated string languages = 1 [(buf.validate.field).repeated.items.string.pattern = "^[a-z]{2,3}$"];
 }
 
@@ -114,16 +117,21 @@ message SubtitleSelection {
 }
 
 message SubtitlePreferences {
-  repeated string languages = 1 [
-    (buf.validate.field).repeated.min_items = 1,
-    (buf.validate.field).repeated.items.string.pattern = "^[a-z]{2,3}$"
-  ];
-  // Generate captions with Whisper if the source has no usable caption in the selected language.
+  repeated string languages = 1 [(buf.validate.field).repeated = {
+    min_items: 1
+    items: {
+      string: {pattern: "^[a-z]{2,3}$"}
+    }
+  }];
+  // transcribe_if_missing has Whisper caption a source with no caption in these languages.
   bool transcribe_if_missing = 2;
 }
 
 message WatchRequest {
-  string cast_id = 1 [(buf.validate.field).string.min_len = 1];
+  string cast_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 64
+  }];
 }
 
 message WatchResponse {
@@ -134,7 +142,6 @@ message WatchResponse {
   }
 }
 
-// CastStatus is where a cast stands, for people to read.
 message CastStatus {
   oneof state {
     option (buf.validate.oneof).required = true;
@@ -147,7 +154,7 @@ message CastStatus {
 
 message MeasuringStatus {
   uint32 streams = 1;
-  // Absent until ranking finishes; zero means no candidate was retained.
+  // castable is absent until ranking finishes.
   optional uint32 castable = 2;
 }
 
@@ -161,7 +168,6 @@ message CastingStatus {
 message Ended {
   oneof result {
     option (buf.validate.oneof).required = true;
-    // Completion means playback ended or the device accepted a direct hand-off.
     google.protobuf.Empty completed = 1;
     google.protobuf.Empty stopped = 2;
     Failure failed = 3;
@@ -186,7 +192,10 @@ enum FailureCode {
 }
 
 message StopRequest {
-  string cast_id = 1 [(buf.validate.field).string.min_len = 1];
+  string cast_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 64
+  }];
 }
 
 message StopResponse {}
@@ -198,9 +207,8 @@ message ListCastsResponse {
 }
 
 message Cast {
-  // id is opaque.
   string id = 1;
-  // device is what the cast plays on; a pinned one has an empty id.
+  // device has an empty id for a pinned target.
   Device device = 2;
   Source source = 3;
   CastStatus status = 4;

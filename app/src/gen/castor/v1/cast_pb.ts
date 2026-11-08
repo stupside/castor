@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/cast.proto.
  */
 export const file_castor_v1_cast: GenFile = /*@__PURE__*/
-  fileDesc("ChRjYXN0b3IvdjEvY2FzdC5wcm90bxIJY2FzdG9yLnYxIu4BCgtDYXN0UmVxdWVzdBIpCgZ0YXJnZXQYASABKAsyES5jYXN0b3IudjEuVGFyZ2V0Qga6SAPIAQESKQoGc291cmNlGAIgASgLMhEuY2FzdG9yLnYxLlNvdXJjZUIGukgDyAEBEisKC3ByZWZlcmVuY2VzGAMgASgLMhYuY2FzdG9yLnYxLlByZWZlcmVuY2VzEigKCm1lZGlhX2luZm8YBCABKAsyFC5jYXN0b3IudjEuTWVkaWFJbmZvEjIKBXN0YXJ0GAUgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQgi6SAWqAQIqACJ8CglNZWRpYUluZm8SFwoFdGl0bGUYASABKAlCCLpIBXIDGIACEhoKCHN5bm9wc2lzGAIgASgJQgi6SAVyAxiAIBIbCglpbWFnZV91cmwYAyABKAlCCLpIBXIDGIBAEh0KDHJlbGVhc2VfZGF0ZRgEIAEoCUIHukgEcgIYCiIoCgxDYXN0UmVzcG9uc2USGAoHY2FzdF9pZBgBIAEoCUIHukgEcgIQASJoCg5SZXNvbHZlUmVxdWVzdBIpCgZzb3VyY2UYASABKAsyES5jYXN0b3IudjEuU291cmNlQga6SAPIAQESKwoLcHJlZmVyZW5jZXMYAiABKAsyFi5jYXN0b3IudjEuUHJlZmVyZW5jZXMiOgoPUmVzb2x2ZVJlc3BvbnNlEicKBnJhbmtlZBgBIAMoCzIXLmNhc3Rvci52MS5SYW5rZWRTdHJlYW0ikgMKBlNvdXJjZRIjCgZzdHJlYW0YASABKAsyES5jYXN0b3IudjEuU3RyZWFtSAASKAoFcGFnZXMYAiABKAsyFy5jYXN0b3IudjEuU291cmNlLlBhZ2VzSAASNAoHc3RyZWFtcxgDIAEoCzIhLmNhc3Rvci52MS5Tb3VyY2UuUmVzb2x2ZWRTdHJlYW1zSAAapAEKBVBhZ2VzEpoBCgR1cmxzGAEgAygJQosBukiHAZIBgwEIARAQIn26AXUKCHVybC5odHRwEhxtdXN0IGJlIGFuIGh0dHAgb3IgaHR0cHMgVVJMGkt0aGlzLmlzVXJpKCkgJiYgKHRoaXMuc3RhcnRzV2l0aCgnaHR0cDovLycpIHx8IHRoaXMuc3RhcnRzV2l0aCgnaHR0cHM6Ly8nKSlyAxiAQBpLCg9SZXNvbHZlZFN0cmVhbXMSOAoHc3RyZWFtcxgBIAMoCzIaLmNhc3Rvci52MS5TdHJlYW1DYW5kaWRhdGVCC7pICJIBBQgBEMAMQg8KBnNvdXJjZRIFukgCCAEi3gEKC1ByZWZlcmVuY2VzEjYKCGRlbGl2ZXJ5GAEgASgOMhMuY2FzdG9yLnYxLkRlbGl2ZXJ5Qgq6SAeCAQQQASAASACIAQESIAoKbWF4X2hlaWdodBgCIAEoDUIHukgEKgIoAkgBiAEBEi8KCXN1YnRpdGxlcxgDIAEoCzIcLmNhc3Rvci52MS5TdWJ0aXRsZVNlbGVjdGlvbhIoCgVhdWRpbxgEIAEoCzIZLmNhc3Rvci52MS5BdWRpb1NlbGVjdGlvbkILCglfZGVsaXZlcnlCDQoLX21heF9oZWlnaHQiPQoOQXVkaW9TZWxlY3Rpb24SKwoJbGFuZ3VhZ2VzGAEgAygJQhi6SBWSARIiEHIOMgxeW2Etel17MiwzfSQihQEKEVN1YnRpdGxlU2VsZWN0aW9uEioKCGRpc2FibGVkGAEgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASNQoLcHJlZmVyZW5jZXMYAiABKAsyHi5jYXN0b3IudjEuU3VidGl0bGVQcmVmZXJlbmNlc0gAQg0KBG1vZGUSBbpIAggBImMKE1N1YnRpdGxlUHJlZmVyZW5jZXMSLQoJbGFuZ3VhZ2VzGAEgAygJQhq6SBeSARQIASIQcg4yDF5bYS16XXsyLDN9JBIdChV0cmFuc2NyaWJlX2lmX21pc3NpbmcYAiABKAgiKAoMV2F0Y2hSZXF1ZXN0EhgKB2Nhc3RfaWQYASABKAlCB7pIBHICEAEibAoNV2F0Y2hSZXNwb25zZRInCgZzdGF0dXMYASABKAsyFS5jYXN0b3IudjEuQ2FzdFN0YXR1c0gAEiEKBWVuZGVkGAIgASgLMhAuY2FzdG9yLnYxLkVuZGVkSABCDwoGdXBkYXRlEgW6SAIIASLWAQoKQ2FzdFN0YXR1cxIsCgpjb25uZWN0aW5nGAEgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASLAoKZXh0cmFjdGluZxgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEi8KCW1lYXN1cmluZxgDIAEoCzIaLmNhc3Rvci52MS5NZWFzdXJpbmdTdGF0dXNIABIrCgdjYXN0aW5nGAQgASgLMhguY2FzdG9yLnYxLkNhc3RpbmdTdGF0dXNIAEIOCgVzdGF0ZRIFukgCCAEiRgoPTWVhc3VyaW5nU3RhdHVzEg8KB3N0cmVhbXMYASABKA0SFQoIY2FzdGFibGUYAiABKA1IAIgBAUILCglfY2FzdGFibGUicwoNQ2FzdGluZ1N0YXR1cxIPCgdzdHJlYW1zGAEgASgNEhAKCGNhc3RhYmxlGAIgASgNEhgKB2F0dGVtcHQYAyABKA1CB7pIBCoCKAESJQoIcmV2aXNpb24YBCABKAsyEy5jYXN0b3IudjEuUmV2aXNpb24ilgEKBUVuZGVkEisKCWNvbXBsZXRlZBgBIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEikKB3N0b3BwZWQYAiABKAsyFi5nb29nbGUucHJvdG9idWYuRW1wdHlIABIkCgZmYWlsZWQYAyABKAsyEi5jYXN0b3IudjEuRmFpbHVyZUgAQg8KBnJlc3VsdBIFukgCCAEiVQoHRmFpbHVyZRIwCgRjb2RlGAEgASgOMhYuY2FzdG9yLnYxLkZhaWx1cmVDb2RlQgq6SAeCAQQQASAAEhgKB21lc3NhZ2UYAiABKAlCB7pIBHICEAEiJwoLU3RvcFJlcXVlc3QSGAoHY2FzdF9pZBgBIAEoCUIHukgEcgIQASIOCgxTdG9wUmVzcG9uc2UiEgoQTGlzdENhc3RzUmVxdWVzdCIzChFMaXN0Q2FzdHNSZXNwb25zZRIeCgVjYXN0cxgBIAMoCzIPLmNhc3Rvci52MS5DYXN0In8KBENhc3QSCgoCaWQYASABKAkSIQoGZGV2aWNlGAIgASgLMhEuY2FzdG9yLnYxLkRldmljZRIhCgZzb3VyY2UYAyABKAsyES5jYXN0b3IudjEuU291cmNlEiUKBnN0YXR1cxgEIAEoCzIVLmNhc3Rvci52MS5DYXN0U3RhdHVzKtMBCgtGYWlsdXJlQ29kZRIcChhGQUlMVVJFX0NPREVfVU5TUEVDSUZJRUQQABIgChxGQUlMVVJFX0NPREVfUExBWUJBQ0tfRkFJTEVEEAESIwofRkFJTFVSRV9DT0RFX0RFVklDRV9VTlJFQUNIQUJMRRACEiIKHkZBSUxVUkVfQ09ERV9FWFRSQUNUSU9OX0ZBSUxFRBADEiAKHEZBSUxVUkVfQ09ERV9TRVJWRVJfU0hVVERPV04QBBIZChVGQUlMVVJFX0NPREVfSU5URVJOQUwQBTLHAgoLQ2FzdFNlcnZpY2USNwoEQ2FzdBIWLmNhc3Rvci52MS5DYXN0UmVxdWVzdBoXLmNhc3Rvci52MS5DYXN0UmVzcG9uc2USQAoHUmVzb2x2ZRIZLmNhc3Rvci52MS5SZXNvbHZlUmVxdWVzdBoaLmNhc3Rvci52MS5SZXNvbHZlUmVzcG9uc2USPAoFV2F0Y2gSFy5jYXN0b3IudjEuV2F0Y2hSZXF1ZXN0GhguY2FzdG9yLnYxLldhdGNoUmVzcG9uc2UwARI3CgRTdG9wEhYuY2FzdG9yLnYxLlN0b3BSZXF1ZXN0GhcuY2FzdG9yLnYxLlN0b3BSZXNwb25zZRJGCglMaXN0Q2FzdHMSGy5jYXN0b3IudjEuTGlzdENhc3RzUmVxdWVzdBocLmNhc3Rvci52MS5MaXN0Q2FzdHNSZXNwb25zZWIGcHJvdG8z", [file_buf_validate_validate, file_castor_v1_device, file_castor_v1_revision, file_castor_v1_stream, file_google_protobuf_duration, file_google_protobuf_empty]);
+  fileDesc("ChRjYXN0b3IvdjEvY2FzdC5wcm90bxIJY2FzdG9yLnYxIu4BCgtDYXN0UmVxdWVzdBIpCgZ0YXJnZXQYASABKAsyES5jYXN0b3IudjEuVGFyZ2V0Qga6SAPIAQESKQoGc291cmNlGAIgASgLMhEuY2FzdG9yLnYxLlNvdXJjZUIGukgDyAEBEisKC3ByZWZlcmVuY2VzGAMgASgLMhYuY2FzdG9yLnYxLlByZWZlcmVuY2VzEigKCm1lZGlhX2luZm8YBCABKAsyFC5jYXN0b3IudjEuTWVkaWFJbmZvEjIKBXN0YXJ0GAUgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQgi6SAWqAQIqACKOAQoJTWVkaWFJbmZvEhcKBXRpdGxlGAEgASgJQgi6SAVyAxiAAhIaCghzeW5vcHNpcxgCIAEoCUIIukgFcgMYgCASLQoJaW1hZ2VfdXJsGAMgASgJQhq6SBfYAQFyEiiAQDIKXmh0dHBzPzovL4gBARIdCgxyZWxlYXNlX2RhdGUYBCABKAlCB7pIBHICGAoiKgoMQ2FzdFJlc3BvbnNlEhoKB2Nhc3RfaWQYASABKAlCCbpIBnIEEAEoQCJoCg5SZXNvbHZlUmVxdWVzdBIpCgZzb3VyY2UYASABKAsyES5jYXN0b3IudjEuU291cmNlQga6SAPIAQESKwoLcHJlZmVyZW5jZXMYAiABKAsyFi5jYXN0b3IudjEuUHJlZmVyZW5jZXMiOgoPUmVzb2x2ZVJlc3BvbnNlEicKBnJhbmtlZBgBIAMoCzIXLmNhc3Rvci52MS5SYW5rZWRTdHJlYW0ipAIKBlNvdXJjZRIjCgZzdHJlYW0YASABKAsyES5jYXN0b3IudjEuU3RyZWFtSAASKAoFcGFnZXMYAiABKAsyFy5jYXN0b3IudjEuU291cmNlLlBhZ2VzSAASNAoHc3RyZWFtcxgDIAEoCzIhLmNhc3Rvci52MS5Tb3VyY2UuUmVzb2x2ZWRTdHJlYW1zSAAaNwoFUGFnZXMSLgoEdXJscxgBIAMoCUIgukgdkgEaCAEQECIUchIogEAyCl5odHRwcz86Ly+IAQEaSwoPUmVzb2x2ZWRTdHJlYW1zEjgKB3N0cmVhbXMYASADKAsyGi5jYXN0b3IudjEuU3RyZWFtQ2FuZGlkYXRlQgu6SAiSAQUIARDADEIPCgZzb3VyY2USBbpIAggBIt4BCgtQcmVmZXJlbmNlcxI2CghkZWxpdmVyeRgBIAEoDjITLmNhc3Rvci52MS5EZWxpdmVyeUIKukgHggEEEAEgAEgAiAEBEiAKCm1heF9oZWlnaHQYAiABKA1CB7pIBCoCKAJIAYgBARIvCglzdWJ0aXRsZXMYAyABKAsyHC5jYXN0b3IudjEuU3VidGl0bGVTZWxlY3Rpb24SKAoFYXVkaW8YBCABKAsyGS5jYXN0b3IudjEuQXVkaW9TZWxlY3Rpb25CCwoJX2RlbGl2ZXJ5Qg0KC19tYXhfaGVpZ2h0Ij0KDkF1ZGlvU2VsZWN0aW9uEisKCWxhbmd1YWdlcxgBIAMoCUIYukgVkgESIhByDjIMXlthLXpdezIsM30kIoUBChFTdWJ0aXRsZVNlbGVjdGlvbhIqCghkaXNhYmxlZBgBIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEjUKC3ByZWZlcmVuY2VzGAIgASgLMh4uY2FzdG9yLnYxLlN1YnRpdGxlUHJlZmVyZW5jZXNIAEINCgRtb2RlEgW6SAIIASJjChNTdWJ0aXRsZVByZWZlcmVuY2VzEi0KCWxhbmd1YWdlcxgBIAMoCUIaukgXkgEUCAEiEHIOMgxeW2Etel17MiwzfSQSHQoVdHJhbnNjcmliZV9pZl9taXNzaW5nGAIgASgIIioKDFdhdGNoUmVxdWVzdBIaCgdjYXN0X2lkGAEgASgJQgm6SAZyBBABKEAibAoNV2F0Y2hSZXNwb25zZRInCgZzdGF0dXMYASABKAsyFS5jYXN0b3IudjEuQ2FzdFN0YXR1c0gAEiEKBWVuZGVkGAIgASgLMhAuY2FzdG9yLnYxLkVuZGVkSABCDwoGdXBkYXRlEgW6SAIIASLWAQoKQ2FzdFN0YXR1cxIsCgpjb25uZWN0aW5nGAEgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SAASLAoKZXh0cmFjdGluZxgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEi8KCW1lYXN1cmluZxgDIAEoCzIaLmNhc3Rvci52MS5NZWFzdXJpbmdTdGF0dXNIABIrCgdjYXN0aW5nGAQgASgLMhguY2FzdG9yLnYxLkNhc3RpbmdTdGF0dXNIAEIOCgVzdGF0ZRIFukgCCAEiRgoPTWVhc3VyaW5nU3RhdHVzEg8KB3N0cmVhbXMYASABKA0SFQoIY2FzdGFibGUYAiABKA1IAIgBAUILCglfY2FzdGFibGUicwoNQ2FzdGluZ1N0YXR1cxIPCgdzdHJlYW1zGAEgASgNEhAKCGNhc3RhYmxlGAIgASgNEhgKB2F0dGVtcHQYAyABKA1CB7pIBCoCKAESJQoIcmV2aXNpb24YBCABKAsyEy5jYXN0b3IudjEuUmV2aXNpb24ilgEKBUVuZGVkEisKCWNvbXBsZXRlZBgBIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEikKB3N0b3BwZWQYAiABKAsyFi5nb29nbGUucHJvdG9idWYuRW1wdHlIABIkCgZmYWlsZWQYAyABKAsyEi5jYXN0b3IudjEuRmFpbHVyZUgAQg8KBnJlc3VsdBIFukgCCAEiVQoHRmFpbHVyZRIwCgRjb2RlGAEgASgOMhYuY2FzdG9yLnYxLkZhaWx1cmVDb2RlQgq6SAeCAQQQASAAEhgKB21lc3NhZ2UYAiABKAlCB7pIBHICEAEiKQoLU3RvcFJlcXVlc3QSGgoHY2FzdF9pZBgBIAEoCUIJukgGcgQQAShAIg4KDFN0b3BSZXNwb25zZSISChBMaXN0Q2FzdHNSZXF1ZXN0IjMKEUxpc3RDYXN0c1Jlc3BvbnNlEh4KBWNhc3RzGAEgAygLMg8uY2FzdG9yLnYxLkNhc3QifwoEQ2FzdBIKCgJpZBgBIAEoCRIhCgZkZXZpY2UYAiABKAsyES5jYXN0b3IudjEuRGV2aWNlEiEKBnNvdXJjZRgDIAEoCzIRLmNhc3Rvci52MS5Tb3VyY2USJQoGc3RhdHVzGAQgASgLMhUuY2FzdG9yLnYxLkNhc3RTdGF0dXMq0wEKC0ZhaWx1cmVDb2RlEhwKGEZBSUxVUkVfQ09ERV9VTlNQRUNJRklFRBAAEiAKHEZBSUxVUkVfQ09ERV9QTEFZQkFDS19GQUlMRUQQARIjCh9GQUlMVVJFX0NPREVfREVWSUNFX1VOUkVBQ0hBQkxFEAISIgoeRkFJTFVSRV9DT0RFX0VYVFJBQ1RJT05fRkFJTEVEEAMSIAocRkFJTFVSRV9DT0RFX1NFUlZFUl9TSFVURE9XThAEEhkKFUZBSUxVUkVfQ09ERV9JTlRFUk5BTBAFMscCCgtDYXN0U2VydmljZRI3CgRDYXN0EhYuY2FzdG9yLnYxLkNhc3RSZXF1ZXN0GhcuY2FzdG9yLnYxLkNhc3RSZXNwb25zZRJACgdSZXNvbHZlEhkuY2FzdG9yLnYxLlJlc29sdmVSZXF1ZXN0GhouY2FzdG9yLnYxLlJlc29sdmVSZXNwb25zZRI8CgVXYXRjaBIXLmNhc3Rvci52MS5XYXRjaFJlcXVlc3QaGC5jYXN0b3IudjEuV2F0Y2hSZXNwb25zZTABEjcKBFN0b3ASFi5jYXN0b3IudjEuU3RvcFJlcXVlc3QaFy5jYXN0b3IudjEuU3RvcFJlc3BvbnNlEkYKCUxpc3RDYXN0cxIbLmNhc3Rvci52MS5MaXN0Q2FzdHNSZXF1ZXN0GhwuY2FzdG9yLnYxLkxpc3RDYXN0c1Jlc3BvbnNlYgZwcm90bzM", [file_buf_validate_validate, file_castor_v1_device, file_castor_v1_revision, file_castor_v1_stream, file_google_protobuf_duration, file_google_protobuf_empty]);
 
 /**
  * @generated from message castor.v1.CastRequest
@@ -46,7 +46,7 @@ export type CastRequest = Message<"castor.v1.CastRequest"> & {
   mediaInfo?: MediaInfo | undefined;
 
   /**
-   * start is the position in the media to begin at, the beginning when unset.
+   * start is where in the media to begin, the beginning when unset.
    *
    * @generated from field: google.protobuf.Duration start = 5;
    */
@@ -61,7 +61,7 @@ export const CastRequestSchema: GenMessage<CastRequest> = /*@__PURE__*/
   messageDesc(file_castor_v1_cast, 0);
 
 /**
- * MediaInfo describes the selected movie or episode on the receiver's playback screen.
+ * MediaInfo is what the device's playback screen shows.
  *
  * @generated from message castor.v1.MediaInfo
  */
@@ -99,8 +99,6 @@ export const MediaInfoSchema: GenMessage<MediaInfo> = /*@__PURE__*/
  */
 export type CastResponse = Message<"castor.v1.CastResponse"> & {
   /**
-   * cast_id is opaque.
-   *
    * @generated from field: string cast_id = 1;
    */
   castId: string;
@@ -140,8 +138,6 @@ export const ResolveRequestSchema: GenMessage<ResolveRequest> = /*@__PURE__*/
  */
 export type ResolveResponse = Message<"castor.v1.ResolveResponse"> & {
   /**
-   * ranked is the order a cast tries the streams in, best first.
-   *
    * @generated from field: repeated castor.v1.RankedStream ranked = 1;
    */
   ranked: RankedStream[];
@@ -155,8 +151,6 @@ export const ResolveResponseSchema: GenMessage<ResolveResponse> = /*@__PURE__*/
   messageDesc(file_castor_v1_cast, 4);
 
 /**
- * Source is a direct stream, pages to resolve, or already-resolved candidates to rank.
- *
  * @generated from message castor.v1.Source
  */
 export type Source = Message<"castor.v1.Source"> & {
@@ -226,7 +220,7 @@ export const Source_ResolvedStreamsSchema: GenMessage<Source_ResolvedStreams> = 
   messageDesc(file_castor_v1_cast, 5, 1);
 
 /**
- * Preferences are what one cast asks; each unset field takes the server's configuration.
+ * Preferences override the server's configuration field by field.
  *
  * @generated from message castor.v1.Preferences
  */
@@ -237,22 +231,16 @@ export type Preferences = Message<"castor.v1.Preferences"> & {
   delivery?: Delivery | undefined;
 
   /**
-   * max_height is the tallest picture the cast may show.
-   *
    * @generated from field: optional uint32 max_height = 2;
    */
   maxHeight?: number | undefined;
 
   /**
-   * Absent subtitles inherit the server's default; an explicit mode replaces it.
-   *
    * @generated from field: castor.v1.SubtitleSelection subtitles = 3;
    */
   subtitles?: SubtitleSelection | undefined;
 
   /**
-   * Ordered audio languages to try before the source's default track; absent takes the server's default.
-   *
    * @generated from field: castor.v1.AudioSelection audio = 4;
    */
   audio?: AudioSelection | undefined;
@@ -270,6 +258,8 @@ export const PreferencesSchema: GenMessage<Preferences> = /*@__PURE__*/
  */
 export type AudioSelection = Message<"castor.v1.AudioSelection"> & {
   /**
+   * languages are tried in order before the source's default track.
+   *
    * @generated from field: repeated string languages = 1;
    */
   languages: string[];
@@ -321,7 +311,7 @@ export type SubtitlePreferences = Message<"castor.v1.SubtitlePreferences"> & {
   languages: string[];
 
   /**
-   * Generate captions with Whisper if the source has no usable caption in the selected language.
+   * transcribe_if_missing has Whisper caption a source with no caption in these languages.
    *
    * @generated from field: bool transcribe_if_missing = 2;
    */
@@ -382,8 +372,6 @@ export const WatchResponseSchema: GenMessage<WatchResponse> = /*@__PURE__*/
   messageDesc(file_castor_v1_cast, 11);
 
 /**
- * CastStatus is where a cast stands, for people to read.
- *
  * @generated from message castor.v1.CastStatus
  */
 export type CastStatus = Message<"castor.v1.CastStatus"> & {
@@ -434,7 +422,7 @@ export type MeasuringStatus = Message<"castor.v1.MeasuringStatus"> & {
   streams: number;
 
   /**
-   * Absent until ranking finishes; zero means no candidate was retained.
+   * castable is absent until ranking finishes.
    *
    * @generated from field: optional uint32 castable = 2;
    */
@@ -489,8 +477,6 @@ export type Ended = Message<"castor.v1.Ended"> & {
    */
   result: {
     /**
-     * Completion means playback ended or the device accepted a direct hand-off.
-     *
      * @generated from field: google.protobuf.Empty completed = 1;
      */
     value: Empty;
@@ -604,14 +590,12 @@ export const ListCastsResponseSchema: GenMessage<ListCastsResponse> = /*@__PURE_
  */
 export type Cast = Message<"castor.v1.Cast"> & {
   /**
-   * id is opaque.
-   *
    * @generated from field: string id = 1;
    */
   id: string;
 
   /**
-   * device is what the cast plays on; a pinned one has an empty id.
+   * device has an empty id for a pinned target.
    *
    * @generated from field: castor.v1.Device device = 2;
    */
@@ -677,8 +661,6 @@ export const FailureCodeSchema: GenEnum<FailureCode> = /*@__PURE__*/
   enumDesc(file_castor_v1_cast, 0);
 
 /**
- * CastService plays video on devices.
- *
  * @generated from service castor.v1.CastService
  */
 export const CastService: GenService<{
@@ -703,9 +685,8 @@ export const CastService: GenService<{
     output: typeof ResolveResponseSchema;
   },
   /**
-   * Watch sends a cast's status now and on every change (changes close together may arrive as one), and Ended last; a stream cut before Ended is an error.
-   * A cast stays watchable for 5 minutes after its end.
-   * buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+   * Watch sends the status now and on every change, then Ended; a stream cut before Ended is an error.
+   * A cast stays watchable for 5 minutes after it ends.
    *
    * @generated from rpc castor.v1.CastService.Watch
    */
@@ -715,8 +696,6 @@ export const CastService: GenService<{
     output: typeof WatchResponseSchema;
   },
   /**
-   * Stop ends a cast and returns at once.
-   *
    * @generated from rpc castor.v1.CastService.Stop
    */
   stop: {

@@ -25,13 +25,11 @@ const (
 )
 
 type StartRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// cast_id is the API server's id for the cast, the one every tier logs it under; devices fetch what the cast serves by it.
-	CastId string `protobuf:"bytes,1,opt,name=cast_id,json=castId,proto3" json:"cast_id,omitempty"`
-	// source is a direct stream or resolved candidates, never unresolved pages.
-	Source   *Source           `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
-	Settings *PlaybackSettings `protobuf:"bytes,3,opt,name=settings,proto3" json:"settings,omitempty"`
-	// start is the position in the media to begin at, the beginning when unset.
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	CastId   string                 `protobuf:"bytes,1,opt,name=cast_id,json=castId,proto3" json:"cast_id,omitempty"`
+	Source   *Source                `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	Settings *PlaybackSettings      `protobuf:"bytes,3,opt,name=settings,proto3" json:"settings,omitempty"`
+	// start is where in the media to begin, the beginning when unset.
 	Start         *durationpb.Duration `protobuf:"bytes,4,opt,name=start,proto3" json:"start,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -95,7 +93,7 @@ func (x *StartRequest) GetStart() *durationpb.Duration {
 	return nil
 }
 
-// PlaybackSettings is the complete policy resolved by API before media is called.
+// PlaybackSettings is the API server's preferences resolved against its configuration.
 type PlaybackSettings struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Delivery  v1.Delivery            `protobuf:"varint,1,opt,name=delivery,proto3,enum=castor.v1.Delivery" json:"delivery,omitempty"`
@@ -289,7 +287,7 @@ func (*StopResponse) Descriptor() ([]byte, []int) {
 	return file_castor_media_v1_cast_proto_rawDescGZIP(), []int{4}
 }
 
-// Source is a direct stream or extracted candidates to measure, rank, and play.
+// Source is a direct stream or extracted candidates, never pages.
 type Source struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Source:
@@ -425,17 +423,16 @@ const file_castor_media_v1_cast_proto_rawDesc = "" +
 	"\acast_id\x18\x01 \x01(\tB\x15\xbaH\x12r\x102\x0e^[A-Z2-7]{26}$R\x06castId\x127\n" +
 	"\x06source\x18\x02 \x01(\v2\x17.castor.media.v1.SourceB\x06\xbaH\x03\xc8\x01\x01R\x06source\x12E\n" +
 	"\bsettings\x18\x03 \x01(\v2!.castor.media.v1.PlaybackSettingsB\x06\xbaH\x03\xc8\x01\x01R\bsettings\x129\n" +
-	"\x05start\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\x05start\"\x86\x04\n" +
+	"\x05start\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\x05start\"\xb3\x03\n" +
 	"\x10PlaybackSettings\x12;\n" +
 	"\bdelivery\x18\x01 \x01(\x0e2\x13.castor.v1.DeliveryB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bdelivery\x12&\n" +
 	"\n" +
 	"max_height\x18\x02 \x01(\rB\a\xbaH\x04*\x02(\x02R\tmaxHeight\x12B\n" +
 	"\tsubtitles\x18\x03 \x01(\v2\x1c.castor.v1.SubtitleSelectionB\x06\xbaH\x03\xc8\x01\x01R\tsubtitles\x12/\n" +
-	"\x05audio\x18\x04 \x01(\v2\x19.castor.v1.AudioSelectionR\x05audio\x12\x97\x02\n" +
-	"\vmax_bitrate\x18\x05 \x01(\v2\x18.castor.media.v1.BitrateB\xdb\x01\xbaH\xd7\x01\xba\x01{\n" +
-	"\x11max_bitrate.floor\x12Emust be at least 1 Mbit/s, under which a picture is not worth sending\x1a\x1fthis.bits_per_second >= 1000000\xba\x01V\n" +
-	"\x13max_bitrate.ceiling\x12\x18must be at most 1 Tbit/s\x1a%this.bits_per_second <= 1000000000000R\n" +
+	"\x05audio\x18\x04 \x01(\v2\x19.castor.v1.AudioSelectionR\x05audio\x12\xc4\x01\n" +
+	"\vmax_bitrate\x18\x05 \x01(\v2\x18.castor.media.v1.BitrateB\x88\x01\xbaH\x84\x01\xba\x01\x80\x01\n" +
+	"\x11max_bitrate.range\x12!must be from 1 Mbit/s to 1 Tbit/s\x1aHthis.bits_per_second >= 1000000 && this.bits_per_second <= 1000000000000R\n" +
 	"maxBitrate\"\x0f\n" +
 	"\rStartResponse\"/\n" +
 	"\vStopRequest\x12 \n" +

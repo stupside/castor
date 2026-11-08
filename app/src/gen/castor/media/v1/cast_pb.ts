@@ -19,22 +19,18 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/media/v1/cast.proto.
  */
 export const file_castor_media_v1_cast: GenFile = /*@__PURE__*/
-  fileDesc("ChpjYXN0b3IvbWVkaWEvdjEvY2FzdC5wcm90bxIPY2FzdG9yLm1lZGlhLnYxItgBCgxTdGFydFJlcXVlc3QSJgoHY2FzdF9pZBgBIAEoCUIVukgSchAyDl5bQS1aMi03XXsyNn0kEi8KBnNvdXJjZRgCIAEoCzIXLmNhc3Rvci5tZWRpYS52MS5Tb3VyY2VCBrpIA8gBARI7CghzZXR0aW5ncxgDIAEoCzIhLmNhc3Rvci5tZWRpYS52MS5QbGF5YmFja1NldHRpbmdzQga6SAPIAQESMgoFc3RhcnQYBCABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CCLpIBaoBAioAItMDChBQbGF5YmFja1NldHRpbmdzEjEKCGRlbGl2ZXJ5GAEgASgOMhMuY2FzdG9yLnYxLkRlbGl2ZXJ5Qgq6SAeCAQQQASAAEhsKCm1heF9oZWlnaHQYAiABKA1CB7pIBCoCKAISNwoJc3VidGl0bGVzGAMgASgLMhwuY2FzdG9yLnYxLlN1YnRpdGxlU2VsZWN0aW9uQga6SAPIAQESKAoFYXVkaW8YBCABKAsyGS5jYXN0b3IudjEuQXVkaW9TZWxlY3Rpb24SiwIKC21heF9iaXRyYXRlGAUgASgLMhguY2FzdG9yLm1lZGlhLnYxLkJpdHJhdGVC2wG6SNcBugF7ChFtYXhfYml0cmF0ZS5mbG9vchJFbXVzdCBiZSBhdCBsZWFzdCAxIE1iaXQvcywgdW5kZXIgd2hpY2ggYSBwaWN0dXJlIGlzIG5vdCB3b3J0aCBzZW5kaW5nGh90aGlzLmJpdHNfcGVyX3NlY29uZCA+PSAxMDAwMDAwugFWChNtYXhfYml0cmF0ZS5jZWlsaW5nEhhtdXN0IGJlIGF0IG1vc3QgMSBUYml0L3MaJXRoaXMuYml0c19wZXJfc2Vjb25kIDw9IDEwMDAwMDAwMDAwMDAiDwoNU3RhcnRSZXNwb25zZSInCgtTdG9wUmVxdWVzdBIYCgdjYXN0X2lkGAEgASgJQge6SARyAhABIg4KDFN0b3BSZXNwb25zZSK3AQoGU291cmNlEiMKBnN0cmVhbRgBIAEoCzIRLmNhc3Rvci52MS5TdHJlYW1IABIyCgdzdHJlYW1zGAIgASgLMh8uY2FzdG9yLm1lZGlhLnYxLlNvdXJjZS5TdHJlYW1zSAAaQwoHU3RyZWFtcxI4CgdzdHJlYW1zGAEgAygLMhouY2FzdG9yLnYxLlN0cmVhbUNhbmRpZGF0ZUILukgIkgEFCAEQwAxCDwoGc291cmNlEgW6SAIIATLYAQoLQ2FzdFNlcnZpY2USRgoFU3RhcnQSHS5jYXN0b3IubWVkaWEudjEuU3RhcnRSZXF1ZXN0Gh4uY2FzdG9yLm1lZGlhLnYxLlN0YXJ0UmVzcG9uc2USQwoEU3RvcBIcLmNhc3Rvci5tZWRpYS52MS5TdG9wUmVxdWVzdBodLmNhc3Rvci5tZWRpYS52MS5TdG9wUmVzcG9uc2USPAoFV2F0Y2gSFy5jYXN0b3IudjEuV2F0Y2hSZXF1ZXN0GhguY2FzdG9yLnYxLldhdGNoUmVzcG9uc2UwAWIGcHJvdG8z", [file_buf_validate_validate, file_castor_media_v1_bitrate, file_castor_v1_cast, file_castor_v1_stream, file_google_protobuf_duration]);
+  fileDesc("ChpjYXN0b3IvbWVkaWEvdjEvY2FzdC5wcm90bxIPY2FzdG9yLm1lZGlhLnYxItgBCgxTdGFydFJlcXVlc3QSJgoHY2FzdF9pZBgBIAEoCUIVukgSchAyDl5bQS1aMi03XXsyNn0kEi8KBnNvdXJjZRgCIAEoCzIXLmNhc3Rvci5tZWRpYS52MS5Tb3VyY2VCBrpIA8gBARI7CghzZXR0aW5ncxgDIAEoCzIhLmNhc3Rvci5tZWRpYS52MS5QbGF5YmFja1NldHRpbmdzQga6SAPIAQESMgoFc3RhcnQYBCABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CCLpIBaoBAioAIoADChBQbGF5YmFja1NldHRpbmdzEjEKCGRlbGl2ZXJ5GAEgASgOMhMuY2FzdG9yLnYxLkRlbGl2ZXJ5Qgq6SAeCAQQQASAAEhsKCm1heF9oZWlnaHQYAiABKA1CB7pIBCoCKAISNwoJc3VidGl0bGVzGAMgASgLMhwuY2FzdG9yLnYxLlN1YnRpdGxlU2VsZWN0aW9uQga6SAPIAQESKAoFYXVkaW8YBCABKAsyGS5jYXN0b3IudjEuQXVkaW9TZWxlY3Rpb24SuAEKC21heF9iaXRyYXRlGAUgASgLMhguY2FzdG9yLm1lZGlhLnYxLkJpdHJhdGVCiAG6SIQBugGAAQoRbWF4X2JpdHJhdGUucmFuZ2USIW11c3QgYmUgZnJvbSAxIE1iaXQvcyB0byAxIFRiaXQvcxpIdGhpcy5iaXRzX3Blcl9zZWNvbmQgPj0gMTAwMDAwMCAmJiB0aGlzLmJpdHNfcGVyX3NlY29uZCA8PSAxMDAwMDAwMDAwMDAwIg8KDVN0YXJ0UmVzcG9uc2UiJwoLU3RvcFJlcXVlc3QSGAoHY2FzdF9pZBgBIAEoCUIHukgEcgIQASIOCgxTdG9wUmVzcG9uc2UitwEKBlNvdXJjZRIjCgZzdHJlYW0YASABKAsyES5jYXN0b3IudjEuU3RyZWFtSAASMgoHc3RyZWFtcxgCIAEoCzIfLmNhc3Rvci5tZWRpYS52MS5Tb3VyY2UuU3RyZWFtc0gAGkMKB1N0cmVhbXMSOAoHc3RyZWFtcxgBIAMoCzIaLmNhc3Rvci52MS5TdHJlYW1DYW5kaWRhdGVCC7pICJIBBQgBEMAMQg8KBnNvdXJjZRIFukgCCAEy2AEKC0Nhc3RTZXJ2aWNlEkYKBVN0YXJ0Eh0uY2FzdG9yLm1lZGlhLnYxLlN0YXJ0UmVxdWVzdBoeLmNhc3Rvci5tZWRpYS52MS5TdGFydFJlc3BvbnNlEkMKBFN0b3ASHC5jYXN0b3IubWVkaWEudjEuU3RvcFJlcXVlc3QaHS5jYXN0b3IubWVkaWEudjEuU3RvcFJlc3BvbnNlEjwKBVdhdGNoEhcuY2FzdG9yLnYxLldhdGNoUmVxdWVzdBoYLmNhc3Rvci52MS5XYXRjaFJlc3BvbnNlMAFiBnByb3RvMw", [file_buf_validate_validate, file_castor_media_v1_bitrate, file_castor_v1_cast, file_castor_v1_stream, file_google_protobuf_duration]);
 
 /**
  * @generated from message castor.media.v1.StartRequest
  */
 export type StartRequest = Message<"castor.media.v1.StartRequest"> & {
   /**
-   * cast_id is the API server's id for the cast, the one every tier logs it under; devices fetch what the cast serves by it.
-   *
    * @generated from field: string cast_id = 1;
    */
   castId: string;
 
   /**
-   * source is a direct stream or resolved candidates, never unresolved pages.
-   *
    * @generated from field: castor.media.v1.Source source = 2;
    */
   source?: Source | undefined;
@@ -45,7 +41,7 @@ export type StartRequest = Message<"castor.media.v1.StartRequest"> & {
   settings?: PlaybackSettings | undefined;
 
   /**
-   * start is the position in the media to begin at, the beginning when unset.
+   * start is where in the media to begin, the beginning when unset.
    *
    * @generated from field: google.protobuf.Duration start = 4;
    */
@@ -60,7 +56,7 @@ export const StartRequestSchema: GenMessage<StartRequest> = /*@__PURE__*/
   messageDesc(file_castor_media_v1_cast, 0);
 
 /**
- * PlaybackSettings is the complete policy resolved by API before media is called.
+ * PlaybackSettings is the API server's preferences resolved against its configuration.
  *
  * @generated from message castor.media.v1.PlaybackSettings
  */
@@ -144,7 +140,7 @@ export const StopResponseSchema: GenMessage<StopResponse> = /*@__PURE__*/
   messageDesc(file_castor_media_v1_cast, 4);
 
 /**
- * Source is a direct stream or extracted candidates to measure, rank, and play.
+ * Source is a direct stream or extracted candidates, never pages.
  *
  * @generated from message castor.media.v1.Source
  */
@@ -198,8 +194,6 @@ export const Source_StreamsSchema: GenMessage<Source_Streams> = /*@__PURE__*/
  */
 export const CastService: GenService<{
   /**
-   * Start begins a cast and returns at once; it plays once a device is lent to it through DeviceService.
-   *
    * @generated from rpc castor.media.v1.CastService.Start
    */
   start: {
@@ -208,8 +202,6 @@ export const CastService: GenService<{
     output: typeof StartResponseSchema;
   },
   /**
-   * Stop ends a cast and returns at once.
-   *
    * @generated from rpc castor.media.v1.CastService.Stop
    */
   stop: {
@@ -219,7 +211,6 @@ export const CastService: GenService<{
   },
   /**
    * Watch follows a cast without driving it, as the public CastService.Watch does.
-   * buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
    *
    * @generated from rpc castor.media.v1.CastService.Watch
    */

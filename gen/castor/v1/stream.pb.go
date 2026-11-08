@@ -77,7 +77,7 @@ const (
 	Delivery_DELIVERY_UNSPECIFIED Delivery = 0
 	// DELIVERY_AUTO lets the evidence decide between pass-through and serving.
 	Delivery_DELIVERY_AUTO Delivery = 1
-	// DELIVERY_SERVE refuses pass-through: the media server reads the source and serves the device.
+	// DELIVERY_SERVE never passes the source through: the media server serves the device.
 	Delivery_DELIVERY_SERVE Delivery = 2
 )
 
@@ -122,13 +122,12 @@ func (Delivery) EnumDescriptor() ([]byte, []int) {
 	return file_castor_v1_stream_proto_rawDescGZIP(), []int{1}
 }
 
-// Stream is one link to the media, with what fetching it needs.
 type Stream struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Url   string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
-	// headers are replayed on every fetch, as captured where the link was found.
+	// headers are sent on every fetch, as captured where the link was found.
 	Headers map[string]string `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// content_type is empty for a link given as is, which castor then identifies.
+	// content_type is empty when castor should identify the link itself.
 	ContentType   string `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -185,7 +184,6 @@ func (x *Stream) GetContentType() string {
 	return ""
 }
 
-// StreamCandidate pairs playback data with evidence from discovery.
 type StreamCandidate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Stream        *Stream                `protobuf:"bytes,1,opt,name=stream,proto3" json:"stream,omitempty"`
@@ -251,7 +249,7 @@ type RankedStream struct {
 	Url   string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	// bitrate is in bits per second, absent when neither measured nor declared.
 	Bitrate *uint64 `protobuf:"varint,2,opt,name=bitrate,proto3,oneof" json:"bitrate,omitempty"`
-	// last_resort marks a stream admitted without a measurement to back it.
+	// last_resort is a stream admitted without a measurement.
 	LastResort    bool `protobuf:"varint,3,opt,name=last_resort,json=lastResort,proto3" json:"last_resort,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -312,19 +310,19 @@ var File_castor_v1_stream_proto protoreflect.FileDescriptor
 
 const file_castor_v1_stream_proto_rawDesc = "" +
 	"\n" +
-	"\x16castor/v1/stream.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"\xd2\x02\n" +
-	"\x06Stream\x12\x93\x01\n" +
-	"\x03url\x18\x01 \x01(\tB\x80\x01\xbaH}\xba\x01u\n" +
-	"\burl.http\x12\x1cmust be an http or https URL\x1aKthis.isUri() && (this.startsWith('http://') || this.startsWith('https://'))r\x03\x18\x80@R\x03url\x12S\n" +
+	"\x16castor/v1/stream.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"\xe7\x01\n" +
+	"\x06Stream\x12)\n" +
+	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\x03url\x12S\n" +
 	"\aheaders\x18\x02 \x03(\v2\x1e.castor.v1.Stream.HeadersEntryB\x19\xbaH\x16\x9a\x01\x13\x10@\"\x05r\x03\xc0\x01\x01*\br\x06\xc8\x01\x00\xc0\x01\x02R\aheaders\x12!\n" +
 	"\fcontent_type\x18\x03 \x01(\tR\vcontentType\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc1\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb6\x01\n" +
 	"\x0fStreamCandidate\x121\n" +
-	"\x06stream\x18\x01 \x01(\v2\x11.castor.v1.StreamB\x06\xbaH\x03\xc8\x01\x01R\x06stream\x12\xc5\x01\n" +
-	"\vsource_page\x18\x02 \x01(\tB\xa3\x01\xbaH\x9f\x01\xba\x01\x96\x01\n" +
-	"\x10source_page.http\x12%must be empty or an http or https URL\x1a[this == '' || (this.isUri() && (this.startsWith('http://') || this.startsWith('https://')))r\x03\x18\x80@R\n" +
+	"\x06stream\x18\x01 \x01(\v2\x11.castor.v1.StreamB\x06\xbaH\x03\xc8\x01\x01R\x06stream\x12;\n" +
+	"\vsource_page\x18\x02 \x01(\tB\x1a\xbaH\x17\xd8\x01\x01r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\n" +
 	"sourcePage\x123\n" +
 	"\x06ladder\x18\x03 \x01(\x0e2\x11.castor.v1.LadderB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06ladder\"u\n" +
 	"\fRankedStream\x12\x10\n" +

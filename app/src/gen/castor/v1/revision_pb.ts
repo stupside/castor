@@ -14,7 +14,7 @@ export const file_castor_v1_revision: GenFile = /*@__PURE__*/
   fileDesc("ChhjYXN0b3IvdjEvcmV2aXNpb24ucHJvdG8SCWNhc3Rvci52MSJXCghSZXZpc2lvbhI1CgZhY3Rpb24YASABKA4yGS5jYXN0b3IudjEuUmVjb3ZlcnlBY3Rpb25CCrpIB4IBBBABIAASFAoDd2h5GAIgASgJQge6SARyAhABKtUBCg5SZWNvdmVyeUFjdGlvbhIfChtSRUNPVkVSWV9BQ1RJT05fVU5TUEVDSUZJRUQQABIkCiBSRUNPVkVSWV9BQ1RJT05fU1dJVENIX0NBTkRJREFURRABEh8KG1JFQ09WRVJZX0FDVElPTl9ERUNPREVfQVhJUxACEh4KGlJFQ09WRVJZX0FDVElPTl9SRUxBWF9SRUFEEAMSIQodUkVDT1ZFUllfQUNUSU9OX1NFUlZFX0lOU1RFQUQQBBIYChRSRUNPVkVSWV9BQ1RJT05fU1RBWRAFYgZwcm90bzM", [file_buf_validate_validate]);
 
 /**
- * Revision is a cast's latest change of plan, and why.
+ * Revision is a cast's latest change of plan.
  *
  * @generated from message castor.v1.Revision
  */

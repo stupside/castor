@@ -10,26 +10,21 @@ import "google/protobuf/duration.proto";
 
 // CastService starts, stops and follows casts.
 service CastService {
-  // Start begins a cast and returns at once; it plays once a device is lent to it through DeviceService.
   rpc Start(StartRequest) returns (StartResponse);
-  // Stop ends a cast and returns at once.
   rpc Stop(StopRequest) returns (StopResponse);
   // Watch follows a cast without driving it, as the public CastService.Watch does.
-  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
   rpc Watch(castor.v1.WatchRequest) returns (stream castor.v1.WatchResponse);
 }
 
 message StartRequest {
-  // cast_id is the API server's id for the cast, the one every tier logs it under; devices fetch what the cast serves by it.
   string cast_id = 1 [(buf.validate.field).string.pattern = "^[A-Z2-7]{26}$"];
-  // source is a direct stream or resolved candidates, never unresolved pages.
   Source source = 2 [(buf.validate.field).required = true];
   PlaybackSettings settings = 3 [(buf.validate.field).required = true];
-  // start is the position in the media to begin at, the beginning when unset.
+  // start is where in the media to begin, the beginning when unset.
   google.protobuf.Duration start = 4 [(buf.validate.field).duration.gt = {}];
 }
 
-// PlaybackSettings is the complete policy resolved by API before media is called.
+// PlaybackSettings is the API server's preferences resolved against its configuration.
 message PlaybackSettings {
   castor.v1.Delivery delivery = 1 [(buf.validate.field).enum = {
     defined_only: true
@@ -39,18 +34,11 @@ message PlaybackSettings {
   castor.v1.SubtitleSelection subtitles = 3 [(buf.validate.field).required = true];
   castor.v1.AudioSelection audio = 4;
   // max_bitrate is the most the cast asks of the device's link, absent for no ceiling.
-  Bitrate max_bitrate = 5 [
-    (buf.validate.field).cel = {
-      id: "max_bitrate.floor"
-      message: "must be at least 1 Mbit/s, under which a picture is not worth sending"
-      expression: "this.bits_per_second >= 1000000"
-    },
-    (buf.validate.field).cel = {
-      id: "max_bitrate.ceiling"
-      message: "must be at most 1 Tbit/s"
-      expression: "this.bits_per_second <= 1000000000000"
-    }
-  ];
+  Bitrate max_bitrate = 5 [(buf.validate.field).cel = {
+    id: "max_bitrate.range"
+    message: "must be from 1 Mbit/s to 1 Tbit/s"
+    expression: "this.bits_per_second >= 1000000 && this.bits_per_second <= 1000000000000"
+  }];
 }
 
 message StartResponse {}
@@ -61,7 +49,7 @@ message StopRequest {
 
 message StopResponse {}
 
-// Source is a direct stream or extracted candidates to measure, rank, and play.
+// Source is a direct stream or extracted candidates, never pages.
 message Source {
   oneof source {
     option (buf.validate.oneof).required = true;
@@ -69,9 +57,9 @@ message Source {
     Streams streams = 2;
   }
   message Streams {
-    repeated castor.v1.StreamCandidate streams = 1 [
-      (buf.validate.field).repeated.min_items = 1,
-      (buf.validate.field).repeated.max_items = 1600
-    ];
+    repeated castor.v1.StreamCandidate streams = 1 [(buf.validate.field).repeated = {
+      min_items: 1
+      max_items: 1600
+    }];
   }
 }

@@ -11,11 +11,9 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/stream.proto.
  */
 export const file_castor_v1_stream: GenFile = /*@__PURE__*/
-  fileDesc("ChZjYXN0b3IvdjEvc3RyZWFtLnByb3RvEgljYXN0b3IudjEiqwIKBlN0cmVhbRKOAQoDdXJsGAEgASgJQoABukh9ugF1Cgh1cmwuaHR0cBIcbXVzdCBiZSBhbiBodHRwIG9yIGh0dHBzIFVSTBpLdGhpcy5pc1VyaSgpICYmICh0aGlzLnN0YXJ0c1dpdGgoJ2h0dHA6Ly8nKSB8fCB0aGlzLnN0YXJ0c1dpdGgoJ2h0dHBzOi8vJykpcgMYgEASSgoHaGVhZGVycxgCIAMoCzIeLmNhc3Rvci52MS5TdHJlYW0uSGVhZGVyc0VudHJ5Qhm6SBaaARMQQCIFcgPAAQEqCHIGyAEAwAECEhQKDGNvbnRlbnRfdHlwZRgDIAEoCRouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKlAgoPU3RyZWFtQ2FuZGlkYXRlEikKBnN0cmVhbRgBIAEoCzIRLmNhc3Rvci52MS5TdHJlYW1CBrpIA8gBARK5AQoLc291cmNlX3BhZ2UYAiABKAlCowG6SJ8BugGWAQoQc291cmNlX3BhZ2UuaHR0cBIlbXVzdCBiZSBlbXB0eSBvciBhbiBodHRwIG9yIGh0dHBzIFVSTBpbdGhpcyA9PSAnJyB8fCAodGhpcy5pc1VyaSgpICYmICh0aGlzLnN0YXJ0c1dpdGgoJ2h0dHA6Ly8nKSB8fCB0aGlzLnN0YXJ0c1dpdGgoJ2h0dHBzOi8vJykpKXIDGIBAEisKBmxhZGRlchgDIAEoDjIRLmNhc3Rvci52MS5MYWRkZXJCCLpIBYIBAhABIlsKDFJhbmtlZFN0cmVhbRILCgN1cmwYASABKAkSHQoHYml0cmF0ZRgCIAEoBEIHukgEMgIgAEgAiAEBEhMKC2xhc3RfcmVzb3J0GAMgASgIQgoKCF9iaXRyYXRlKkoKBkxhZGRlchIWChJMQURERVJfVU5TUEVDSUZJRUQQABIXChNMQURERVJfTVVMVElWQVJJQU5UEAESDwoLTEFEREVSX1NPTEUQAipLCghEZWxpdmVyeRIYChRERUxJVkVSWV9VTlNQRUNJRklFRBAAEhEKDURFTElWRVJZX0FVVE8QARISCg5ERUxJVkVSWV9TRVJWRRACYgZwcm90bzM", [file_buf_validate_validate]);
+  fileDesc("ChZjYXN0b3IvdjEvc3RyZWFtLnByb3RvEgljYXN0b3IudjEiwAEKBlN0cmVhbRIkCgN1cmwYASABKAlCF7pIFHISKIBAMgpeaHR0cHM/Oi8viAEBEkoKB2hlYWRlcnMYAiADKAsyHi5jYXN0b3IudjEuU3RyZWFtLkhlYWRlcnNFbnRyeUIZukgWmgETEEAiBXIDwAEBKghyBsgBAMABAhIUCgxjb250ZW50X3R5cGUYAyABKAkaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEimgEKD1N0cmVhbUNhbmRpZGF0ZRIpCgZzdHJlYW0YASABKAsyES5jYXN0b3IudjEuU3RyZWFtQga6SAPIAQESLwoLc291cmNlX3BhZ2UYAiABKAlCGrpIF9gBAXISKIBAMgpeaHR0cHM/Oi8viAEBEisKBmxhZGRlchgDIAEoDjIRLmNhc3Rvci52MS5MYWRkZXJCCLpIBYIBAhABIlsKDFJhbmtlZFN0cmVhbRILCgN1cmwYASABKAkSHQoHYml0cmF0ZRgCIAEoBEIHukgEMgIgAEgAiAEBEhMKC2xhc3RfcmVzb3J0GAMgASgIQgoKCF9iaXRyYXRlKkoKBkxhZGRlchIWChJMQURERVJfVU5TUEVDSUZJRUQQABIXChNMQURERVJfTVVMVElWQVJJQU5UEAESDwoLTEFEREVSX1NPTEUQAipLCghEZWxpdmVyeRIYChRERUxJVkVSWV9VTlNQRUNJRklFRBAAEhEKDURFTElWRVJZX0FVVE8QARISCg5ERUxJVkVSWV9TRVJWRRACYgZwcm90bzM", [file_buf_validate_validate]);
 
 /**
- * Stream is one link to the media, with what fetching it needs.
- *
  * @generated from message castor.v1.Stream
  */
 export type Stream = Message<"castor.v1.Stream"> & {
@@ -25,14 +23,14 @@ export type Stream = Message<"castor.v1.Stream"> & {
   url: string;
 
   /**
-   * headers are replayed on every fetch, as captured where the link was found.
+   * headers are sent on every fetch, as captured where the link was found.
    *
    * @generated from field: map<string, string> headers = 2;
    */
   headers: { [key: string]: string };
 
   /**
-   * content_type is empty for a link given as is, which castor then identifies.
+   * content_type is empty when castor should identify the link itself.
    *
    * @generated from field: string content_type = 3;
    */
@@ -47,8 +45,6 @@ export const StreamSchema: GenMessage<Stream> = /*@__PURE__*/
   messageDesc(file_castor_v1_stream, 0);
 
 /**
- * StreamCandidate pairs playback data with evidence from discovery.
- *
  * @generated from message castor.v1.StreamCandidate
  */
 export type StreamCandidate = Message<"castor.v1.StreamCandidate"> & {
@@ -92,7 +88,7 @@ export type RankedStream = Message<"castor.v1.RankedStream"> & {
   bitrate?: bigint | undefined;
 
   /**
-   * last_resort marks a stream admitted without a measurement to back it.
+   * last_resort is a stream admitted without a measurement.
    *
    * @generated from field: bool last_resort = 3;
    */
@@ -149,7 +145,7 @@ export enum Delivery {
   AUTO = 1,
 
   /**
-   * DELIVERY_SERVE refuses pass-through: the media server reads the source and serves the device.
+   * DELIVERY_SERVE never passes the source through: the media server serves the device.
    *
    * @generated from enum value: DELIVERY_SERVE = 2;
    */

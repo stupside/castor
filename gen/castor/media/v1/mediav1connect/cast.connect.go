@@ -44,12 +44,9 @@ const (
 
 // CastServiceClient is a client for the castor.media.v1.CastService service.
 type CastServiceClient interface {
-	// Start begins a cast and returns at once; it plays once a device is lent to it through DeviceService.
 	Start(context.Context, *v1.StartRequest) (*v1.StartResponse, error)
-	// Stop ends a cast and returns at once.
 	Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error)
 	// Watch follows a cast without driving it, as the public CastService.Watch does.
-	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
 	Watch(context.Context, *v11.WatchRequest) (*connect.ServerStreamForClient[v11.WatchResponse], error)
 }
 
@@ -117,12 +114,9 @@ func (c *castServiceClient) Watch(ctx context.Context, req *v11.WatchRequest) (*
 
 // CastServiceHandler is an implementation of the castor.media.v1.CastService service.
 type CastServiceHandler interface {
-	// Start begins a cast and returns at once; it plays once a device is lent to it through DeviceService.
 	Start(context.Context, *v1.StartRequest) (*v1.StartResponse, error)
-	// Stop ends a cast and returns at once.
 	Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error)
 	// Watch follows a cast without driving it, as the public CastService.Watch does.
-	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
 	Watch(context.Context, *v11.WatchRequest, *connect.ServerStream[v11.WatchResponse]) error
 }
 

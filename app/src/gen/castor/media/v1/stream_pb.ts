@@ -44,8 +44,6 @@ export const RankRequestSchema: GenMessage<RankRequest> = /*@__PURE__*/
  */
 export type RankResponse = Message<"castor.media.v1.RankResponse"> & {
   /**
-   * ranked is the order a cast walks the streams in, best first.
-   *
    * @generated from field: repeated castor.v1.RankedStream ranked = 1;
    */
   ranked: RankedStream[];

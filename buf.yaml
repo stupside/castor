@@ -6,6 +6,11 @@ deps:
 lint:
   use:
     - STANDARD
+  ignore_only:
+    # The media CastService takes the public cast messages as they are.
+    RPC_REQUEST_RESPONSE_UNIQUE:
+      - proto/castor/media/v1/cast.proto
+      - proto/castor/v1/cast.proto
 breaking:
   use:
     - FILE
