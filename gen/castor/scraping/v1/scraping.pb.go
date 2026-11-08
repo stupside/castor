@@ -115,10 +115,10 @@ var File_castor_scraping_v1_scraping_proto protoreflect.FileDescriptor
 
 const file_castor_scraping_v1_scraping_proto_rawDesc = "" +
 	"\n" +
-	"!castor/scraping/v1/scraping.proto\x12\x12castor.scraping.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16castor/v1/stream.proto\"\xb3\x01\n" +
-	"\x0eResolveRequest\x12\xa0\x01\n" +
-	"\x04urls\x18\x01 \x03(\tB\x8b\x01\xbaH\x87\x01\x92\x01\x83\x01\b\x01\x10\x10\"}\xba\x01u\n" +
-	"\burl.http\x12\x1cmust be an http or https URL\x1aKthis.isUri() && (this.startsWith('http://') || this.startsWith('https://'))r\x03\x18\x80@R\x04urls\"T\n" +
+	"!castor/scraping/v1/scraping.proto\x12\x12castor.scraping.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16castor/v1/stream.proto\"F\n" +
+	"\x0eResolveRequest\x124\n" +
+	"\x04urls\x18\x01 \x03(\tB \xbaH\x1d\x92\x01\x1a\b\x01\x10\x10\"\x14r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\x04urls\"T\n" +
 	"\x0fResolveResponse\x12A\n" +
 	"\astreams\x18\x01 \x03(\v2\x1a.castor.v1.StreamCandidateB\v\xbaH\b\x92\x01\x05\b\x01\x10\xc0\fR\astreams2e\n" +
 	"\x0fScrapingService\x12R\n" +

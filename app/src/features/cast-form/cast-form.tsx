@@ -1,111 +1,266 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Scene } from "@/components/scene";
-import { Bubble } from "@/components/bubble";
+import * as stylex from "@stylexjs/stylex";
+import { useSearchParams } from "next/navigation";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/button";
-import type { Mood } from "@/components/castor-logo";
-import { Tv } from "@/components/tv";
-import { DeviceType, type Device } from "@/gen/castor/v1/device_pb";
-import { RefreshDevices } from "@/features/devices/refresh-devices";
-import { PinnedTargetPicker, type PinnedTarget } from "./pinned-target-picker";
-import { PlaybackOptions } from "./playback-options";
+import { Card } from "@/components/card";
+import { Choice, Field, Input, Segmented, Switch } from "@/components/field";
+import { Icon } from "@/components/icon";
+import { Row, Stack } from "@/components/layout";
+import { Notice } from "@/components/notice";
+import { Skeleton } from "@/components/skeleton";
+import { Select } from "@/components/select";
+import { media, space } from "@/components/tokens.stylex";
+import type { Source, SubtitleSelection } from "@/gen/castor/v1/cast_pb";
+import { DeviceType, DeviceTypeSchema } from "@/gen/castor/v1/device_pb";
+import { Delivery, DeliverySchema } from "@/gen/castor/v1/stream_pb";
+import { deviceName, deviceTypes } from "@/features/casts/labels";
+import { DevicesOffline, LiveBadge } from "@/features/devices/device-list";
+import { useDevices } from "@/features/devices/use-devices";
 import { submitAction } from "./actions";
 
-const kinds = [["pages", "A video page"], ["stream", "A direct media URL"]] as const;
-const deviceTypes: Record<DeviceType, string> = {
-  [DeviceType.UNSPECIFIED]: "Screen",
-  [DeviceType.DLNA]: "DLNA",
-  [DeviceType.CHROMECAST]: "Chromecast",
-  [DeviceType.ROKU]: "Roku",
-  [DeviceType.AIRPLAY]: "AirPlay",
-};
+const kinds = [
+  {
+    value: "pages",
+    label: "Video page",
+    field: "Page URL",
+    name: "source.pages.urls",
+    hint: "Castor finds the video on the page.",
+  },
+  {
+    value: "stream",
+    label: "Media URL",
+    field: "Media URL",
+    name: "source.stream.url",
+    hint: "A direct link to the media, played as it is.",
+  },
+] as const satisfies readonly {
+  value: NonNullable<Source["source"]["case"]>;
+  label: string;
+  field: string;
+  name: string;
+  hint: string;
+}[];
 
-export function CastForm({ devices, devicesError, casts }: { devices: Device[]; devicesError?: string; casts: React.ReactNode }) {
+const pinnedTypes = Object.values(DeviceType)
+  .filter(
+    (type): type is DeviceType =>
+      typeof type === "number" && type !== DeviceType.UNSPECIFIED,
+  )
+  .map((type) => ({
+    value: DeviceTypeSchema.value[type].name,
+    label: deviceTypes[type],
+  }));
+
+const deliveries = [
+  { value: "", label: "Server default" },
+  { value: DeliverySchema.value[Delivery.AUTO].name, label: "Automatic" },
+  {
+    value: DeliverySchema.value[Delivery.SERVE].name,
+    label: "Relay through castor",
+  },
+];
+
+const heights = [
+  { value: "", label: "Server default" },
+  { value: "480", label: "480p" },
+  { value: "720", label: "720p" },
+  { value: "1080", label: "1080p" },
+  { value: "2160", label: "2160p (4K)" },
+];
+
+const subtitleModes = [
+  { value: "", label: "Server default" },
+  { value: "disabled", label: "Off" },
+  { value: "preferences", label: "Choose a language" },
+] as const satisfies readonly {
+  value: "" | NonNullable<SubtitleSelection["mode"]["case"]>;
+  label: string;
+}[];
+
+const languageHint = "Two or three letters, such as en or fra.";
+
+const languageInput = {
+  maxLength: 3,
+  autoCapitalize: "none",
+  spellCheck: false,
+  onInput: (e: React.FormEvent<HTMLInputElement>) => {
+    e.currentTarget.value = e.currentTarget.value.toLowerCase();
+  },
+} as const;
+
+// Inputs are named by their CastRequest path; the server alone validates (noValidate).
+export function CastForm() {
   const [state, action, pending] = useActionState(submitAction, {});
-  const [deviceId, setDeviceId] = useState<string | null | undefined>(devices.length === 1 ? devices[0].id : undefined);
-  const [pinned, setPinned] = useState<PinnedTarget | null>(null);
-  const [showPinned, setShowPinned] = useState(false);
-  const [kind, setKind] = useState<(typeof kinds)[number][0]>("pages");
-  const [draft, setDraft] = useState("");
-  const [sent, setSent] = useState<string>();
-  const end = useRef<HTMLDivElement>(null);
-  const device = devices.find((d) => d.id === deviceId);
-  const deviceName = (d: Device) => devices.some((other) => other.id !== d.id && other.name === d.name && other.type === d.type)
-    ? `${d.name} (${d.address})` : d.name;
-  if (deviceId === undefined && devices.length === 1 && !pinned && !showPinned) setDeviceId(devices[0].id);
-  if (deviceId && !device && !pinned) {
-    setDeviceId(null);
-    setSent(undefined);
-  }
-  const selectedName = pinned ? `${deviceTypes[pinned.type]} at ${pinned.address}` : device && deviceName(device);
-  const targetKey = pinned ? `pinned:${pinned.type}:${pinned.address}` : device ? `device:${device.id}` : "";
-  const link = draft.trim();
-  let validUrl = false;
-  try {
-    const url = new URL(link);
-    validUrl = /^https?:\/\//i.test(link) && (url.protocol === "https:" || url.protocol === "http:") && !!url.hostname && !/\s/.test(link);
-  } catch { /* Keep the editor available until the URL is complete. */ }
-  const stage = !selectedName ? 1 : !sent ? 2 : 3;
-  const error = state.targetKey === targetKey && state.kind === kind && state.url === sent ? state.error : undefined;
+  const values = state.values ?? {};
+  const named = (name: string) => ({ name, defaultValue: values[name] });
+  const { devices, error } = useDevices();
+  // A device id, or "pinned" for an address discovery can't see.
+  const [target, setTarget] = useState(useSearchParams().get("device") ?? "");
+  if (target === "" && devices?.length === 1) setTarget(devices[0].id);
+  const [kind, setKind] = useState<(typeof kinds)[number]["value"]>(
+    kinds.find((k) => values[k.name])?.value ?? "pages",
+  );
+  const link = kinds.find((k) => k.value === kind) ?? kinds[0];
+  const [subtitles, setSubtitles] = useState(
+    values["preferences.subtitles"] ?? "",
+  );
+  const pinned = target === "pinned";
 
-  useEffect(() => {
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    end.current?.scrollIntoView({ behavior: reducedMotion ? "instant" : "smooth", block: "nearest" });
-  }, [stage, pending, state]);
+  return (
+    <form action={action} noValidate aria-busy={pending} sx={styles.form}>
+      <Card
+        title="Device"
+        description="Where the video plays."
+        actions={<LiveBadge devices={devices} error={error} />}
+      >
+        <Stack>
+          {error && <DevicesOffline error={error} />}
+          <div role="radiogroup" aria-label="Device" sx={styles.choices}>
+            {!devices && <Skeleton height="62px" />}
+            {devices?.map((device) => (
+              <Choice
+                key={device.id}
+                name="target.deviceId"
+                value={device.id}
+                checked={target === device.id}
+                onChange={() => setTarget(device.id)}
+                leading={<Icon name="device" />}
+                title={deviceName(device)}
+                meta={`${deviceTypes[device.type]} · ${device.address}`}
+              />
+            ))}
+            <Choice
+              name="target.deviceId"
+              value=""
+              checked={pinned}
+              onChange={() => setTarget("pinned")}
+              leading={<Icon name="plus" />}
+              title="Another address"
+              meta="A device discovery can’t see"
+            />
+          </div>
+          {pinned && (
+            <div sx={styles.pair}>
+              <Field label="Type">
+                <Select
+                  options={pinnedTypes}
+                  {...named("target.pinned.type")}
+                />
+              </Field>
+              <Field
+                label="Address"
+                hint="An IP address or host name, or a DLNA description URL."
+              >
+                <Input
+                  {...named("target.pinned.address")}
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="192.168.1.20"
+                />
+              </Field>
+            </div>
+          )}
+        </Stack>
+      </Card>
 
+      <Card title="Source" description="What to play.">
+        <Stack>
+          <Segmented
+            name="kind"
+            label="Kind of link"
+            options={kinds}
+            value={kind}
+            onChange={setKind}
+          />
+          <Field label={link.field} hint={link.hint}>
+            <Input
+              {...named(link.name)}
+              type="url"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="https://"
+            />
+          </Field>
+        </Stack>
+      </Card>
 
-  const mood: Mood = error && !pending && stage === 3 ? "oops" : pending ? "think" : stage === 3 ? "cheer" : stage === 2 && link ? (validUrl ? "cheer" : "think") : "happy";
-  const send = () => { if (validUrl) setSent(link.replace(/^https?:/i, (scheme) => scheme.toLowerCase())); };
-  const paste = async () => {
-    try { setDraft(await navigator.clipboard.readText()); } catch { /* clipboard blocked: pasting by hand still works */ }
-  };
-
-  return <Scene screen={pending ? "loading" : "idle"} title={<>Send anything.<br /><span className="text-peach">Watch anywhere.</span></>} mood={mood}>
-    <div className="flex max-w-md flex-col gap-3">
-      <Bubble>{devicesError ? `I couldn’t check the screens: ${devicesError}. Try refreshing or enter an address.` : !devices.length ? "I can’t see any screens. Turn a TV on, refresh, or enter its address." : devices.length === 1 && device && !pinned ? `Hi! I found ${device.name}. What are we watching?` : "Hi! Which screen shall we send something to?"}</Bubble>
-      <RefreshDevices disabled={pending} />
-      {devices.length > 0 && stage === 1 && <div className="flex animate-rise flex-wrap justify-end gap-2">
-        {devices.map((d) => <Button variant="choice" type="button" key={d.id} onClick={() => { setDeviceId(d.id); setPinned(null); setShowPinned(false); }}><Tv className="size-4" />{deviceName(d)}<span className="text-[10px] uppercase opacity-70">{deviceTypes[d.type] ?? "Screen"}</span></Button>)}
-      </div>}
-      {stage === 1 && showPinned && <PinnedTargetPicker onSelect={(target) => { setPinned(target); setShowPinned(false); }} onCancel={() => setShowPinned(false)} />}
-      {!showPinned && !pinned && <button type="button" disabled={pending} onClick={() => { setDeviceId(null); setPinned(null); setSent(undefined); setShowPinned(true); }} className="self-end text-xs font-bold text-peach underline disabled:opacity-40">Enter a screen address</button>}
-
-      {selectedName && <>
-        {(devices.length > 1 || pinned) && <Bubble me>{selectedName} <button type="button" disabled={pending} onClick={() => { setDeviceId(null); setPinned(null); setSent(undefined); setShowPinned(false); }} className="ml-2 text-xs font-bold underline opacity-80 disabled:opacity-40">change</button></Bubble>}
-        {(devices.length > 1 || pinned) && <Bubble>Nice choice! What are we watching?</Bubble>}
-      </>}
-
-      {stage === 2 && <form onSubmit={(e) => { e.preventDefault(); send(); }} className="animate-rise space-y-3">
-        <div role="radiogroup" aria-label="Kind of link" className="flex flex-wrap justify-end gap-2">
-          {kinds.map(([k, label]) => <button type="button" role="radio" aria-checked={kind === k} key={k} onClick={() => setKind(k)} className={`rounded-full border-2 px-3.5 py-1 text-xs font-extrabold transition ${kind === k ? "border-ember bg-ember text-white" : "border-white/25 text-white/70 hover:border-ember hover:text-ember"}`}>{label}</button>)}
+      <Card
+        title="Playback"
+        description="A field left on Server default keeps the API server’s setting."
+      >
+        <div sx={styles.pair}>
+          <Field
+            label="Delivery"
+            hint="Automatic passes compatible media through; a relay encodes, on a hardware encoder when one works."
+          >
+            <Select options={deliveries} {...named("preferences.delivery")} />
+          </Field>
+          <Field label="Maximum height">
+            <Select options={heights} {...named("preferences.maxHeight")} />
+          </Field>
+          <Field label="Audio language" hint={languageHint}>
+            <Input
+              {...named("preferences.audio.languages")}
+              {...languageInput}
+              placeholder="Server default"
+            />
+          </Field>
+          <Field label="Subtitles">
+            <Select
+              name="preferences.subtitles"
+              options={subtitleModes}
+              value={subtitles}
+              onChange={(e) => setSubtitles(e.target.value)}
+            />
+          </Field>
+          {subtitles === "preferences" && (
+            <>
+              <Field label="Subtitle language" hint={languageHint}>
+                <Input
+                  {...named("preferences.subtitles.preferences.languages")}
+                  {...languageInput}
+                  placeholder="en"
+                />
+              </Field>
+              <Switch
+                sx={styles.switch}
+                name="preferences.subtitles.preferences.transcribeIfMissing"
+                label="Generate subtitles if the source has none"
+                defaultChecked={
+                  values[
+                    "preferences.subtitles.preferences.transcribeIfMissing"
+                  ] === "on"
+                }
+              />
+            </>
+          )}
         </div>
-        <div className={`flex items-center gap-2 rounded-full border-2 bg-black/35 py-1.5 pl-5 pr-1.5 backdrop-blur-md transition ${link && !validUrl ? "border-ember" : validUrl ? "border-reed" : "border-white/20 focus-within:border-ember"}`}>
-          <input type="url" required autoFocus value={draft} aria-label="Video link" autoCapitalize="none" spellCheck={false} placeholder="Paste a link: https://" aria-invalid={!!link && !validUrl} onChange={(e) => setDraft(e.target.value)}
-            className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] font-semibold text-[#fffaf2] outline-none focus-visible:outline-none placeholder:font-medium placeholder:text-muted/60" />
-          {!draft && <button type="button" onClick={paste} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-extrabold text-cream hover:bg-white/20">Paste</button>}
-          <Button variant="send" type="submit" disabled={!validUrl} aria-label="Send"><span aria-hidden>↑</span></Button>
-        </div>
-        {link && !validUrl && <p role="status" className="pl-4 text-xs font-bold text-ember">Use a complete http:// or https:// link, without spaces.</p>}
-      </form>}
+      </Card>
 
-      {sent && <>
-        <Bubble me><span className="block max-w-[16rem] truncate">{sent}</span><button type="button" disabled={pending} onClick={() => setSent(undefined)} className="text-xs font-bold underline opacity-80 disabled:opacity-40">edit</button></Bubble>
-        <Bubble>Mmm, tasty link! Ready when you are.</Bubble>
-      </>}
-
-      {stage === 3 && <form action={action} className="animate-rise" aria-busy={pending}>
-        <input type="hidden" name="targetKind" value={pinned ? "pinned" : "discovered"} /><input type="hidden" name="targetKey" value={targetKey} />
-        <input type="hidden" name="deviceId" value={device?.id ?? ""} /><input type="hidden" name="deviceType" value={pinned?.type ?? ""} /><input type="hidden" name="address" value={pinned?.address ?? ""} />
-        <input type="hidden" name="kind" value={kind} /><input type="hidden" name="url" value={sent} />
-        <div className="mb-3"><PlaybackOptions /></div>
-        <Button variant="wide" disabled={pending}>{pending ? "Starting…" : error ? "Try again" : "Start casting"}</Button>
-      </form>}
-
-      {pending && <Bubble>Gnawing a path to {selectedName}<span className="ml-1 inline-flex gap-0.5" aria-hidden>{[0, 1, 2].map((i) => <span key={i} className="animate-swim" style={{ animationDelay: `${i * 150}ms` }}>.</span>)}</span></Bubble>}
-      {error && !pending && stage === 3 && <div role="alert"><Bubble>Oops, I dropped it: {error}</Bubble></div>}
-      <div ref={end} />
-    </div>
-    {casts}
-  </Scene>;
+      {state.error && <Notice tone="danger">{state.error}</Notice>}
+      <Row>
+        <Button variant="primary" icon="cast" loading={pending}>
+          {pending ? "Starting…" : "Start cast"}
+        </Button>
+      </Row>
+    </form>
+  );
 }
+
+const styles = stylex.create({
+  form: { display: "grid", gap: space.lg, maxWidth: 760 },
+  choices: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+    gap: space.sm,
+  },
+  pair: {
+    display: "grid",
+    gridTemplateColumns: { default: "1fr", [media.wide]: "1fr 1fr" },
+    alignItems: "start",
+    gap: space.lg,
+  },
+  switch: { alignSelf: "end", minHeight: 40, display: "flex" },
+});

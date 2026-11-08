@@ -84,7 +84,7 @@ func (RecoveryAction) EnumDescriptor() ([]byte, []int) {
 	return file_castor_v1_revision_proto_rawDescGZIP(), []int{0}
 }
 
-// Revision is a cast's latest change of plan, and why.
+// Revision is a cast's latest change of plan.
 type Revision struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Action        RecoveryAction         `protobuf:"varint,1,opt,name=action,proto3,enum=castor.v1.RecoveryAction" json:"action,omitempty"`

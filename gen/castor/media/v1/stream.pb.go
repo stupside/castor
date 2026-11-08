@@ -76,9 +76,8 @@ func (x *RankRequest) GetSettings() *PlaybackSettings {
 }
 
 type RankResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// ranked is the order a cast walks the streams in, best first.
-	Ranked        []*v1.RankedStream `protobuf:"bytes,1,rep,name=ranked,proto3" json:"ranked,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ranked        []*v1.RankedStream     `protobuf:"bytes,1,rep,name=ranked,proto3" json:"ranked,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

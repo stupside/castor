@@ -88,12 +88,15 @@ type Playback struct {
 	URL      *url.URL
 	Captions []media.Caption
 	Stream   Stream
-	// Start is where in the cast's media the stream begins.
-	Start time.Duration
+	// Begins is where in the media the stream starts.
+	Begins time.Duration
 }
 
 // Stream is how what the device plays reaches it: a Source, a Served stream or a Playlist.
-type Stream interface{ stream() }
+type Stream interface {
+	// Length is how long the stream runs from where it begins, zero where the source declared none.
+	Length() time.Duration
+}
 
 // Source is the source itself, fetched from its own server, which alone knows how it seeks.
 type Source struct {
@@ -120,9 +123,14 @@ type Playlist struct {
 	Runtime time.Duration
 }
 
-func (Source) stream()   {}
-func (Served) stream()   {}
-func (Playlist) stream() {}
+func (s Source) Length() time.Duration   { return s.Runtime }
+func (p Playlist) Length() time.Duration { return p.Runtime }
+func (s Served) Length() time.Duration {
+	if s.Runtime == nil {
+		return 0
+	}
+	return s.Runtime.Length
+}
 
 func (s Source) LogValue() slog.Value {
 	return slog.GroupValue(slog.String("kind", "source"), slog.String("content_type", s.ContentType), slog.Duration("runtime", s.Runtime))

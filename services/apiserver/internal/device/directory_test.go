@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -13,6 +15,7 @@ import (
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/gen/castor/v1/castorv1connect"
 )
 
 func directoryWithFamilies(reach Registry) *Directory {
@@ -126,7 +129,7 @@ func TestDiscoveryCacheExpiresWithoutReleasingActiveOwnership(t *testing.T) {
 			t.Fatalf("cache grew to %d", len(d.seen))
 		}
 		target := Info{Type: "push", ID: "owned", Address: "192.0.2.1"}
-		l := newLease(d)
+		l := newLease(d, "")
 		if err := l.claimKeys(target, []string{endpoint(target)}); err != nil {
 			t.Fatal(err)
 		}
@@ -135,9 +138,27 @@ func TestDiscoveryCacheExpiresWithoutReleasingActiveOwnership(t *testing.T) {
 		if len(d.seen) != 0 {
 			t.Fatal("discovery cache did not expire")
 		}
-		if err := newLease(d).claimKeys(target, []string{endpoint(target)}); err == nil {
+		if err := newLease(d, "").claimKeys(target, []string{endpoint(target)}); err == nil {
 			t.Fatal("cache expiration released active lease")
 		}
 		l.release()
 	})
+}
+
+func TestWatchingDevicesFailsWhenItsFirstDiscoveryDoes(t *testing.T) {
+	d := NewDirectory(Registry{Timeout: time.Second}, func(context.Context) ([]Info, error) {
+		return nil, errors.New("no multicast interface")
+	})
+	mux := http.NewServeMux()
+	mux.Handle(castorv1connect.NewDeviceServiceHandler(d))
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	stream, err := castorv1connect.NewDeviceServiceClient(srv.Client(), srv.URL).WatchDevices(t.Context(), &castorv1.WatchDevicesRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	if stream.Receive() || connect.CodeOf(stream.Err()) != connect.CodeUnavailable {
+		t.Errorf("first sent %v (%v), want the stream to fail unavailable rather than list no device", stream.Msg().GetDevices(), stream.Err())
+	}
 }

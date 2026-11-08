@@ -27,6 +27,7 @@ require (
 	github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-00010101000000-000000000000
 	github.com/go-playground/validator/v10 v10.30.5
 	github.com/go-viper/mapstructure/v2 v2.5.0
+	github.com/godbus/dbus/v5 v5.2.4
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/huin/goupnp v1.3.0
 	github.com/icholy/digest v1.2.0

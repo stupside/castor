@@ -9,13 +9,13 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-// resumedDevice keeps the playback it was handed.
-type resumedDevice struct {
+// handingDevice keeps the playback it was handed.
+type handingDevice struct {
 	fakeDevice
 	handed Playback
 }
 
-func (d *resumedDevice) Play(_ context.Context, p Playback) error {
+func (d *handingDevice) Play(_ context.Context, p Playback) error {
 	d.handed = p
 	return nil
 }
@@ -27,11 +27,11 @@ func TestAResumedStreamTellsTheDeviceWhereItBegins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dev := &resumedDevice{}
+	dev := &handingDevice{}
 	if err := ready.play(t.Context(), dev); err != nil {
 		t.Fatal(err)
 	}
-	if dev.handed.Start != 15*time.Second {
-		t.Fatalf("the device was told the stream begins at %v, want 15s, where the attempt resumed", dev.handed.Start)
+	if dev.handed.Begins != 15*time.Second {
+		t.Fatalf("the device was told the stream begins at %v, want 15s, where the attempt resumed", dev.handed.Begins)
 	}
 }

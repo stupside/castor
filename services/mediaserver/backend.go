@@ -91,19 +91,18 @@ func transcription(cfg whisper.Config, selection *castorv1.SubtitleSelection) fu
 	}
 }
 
-// transcriptLanguage follows the selected audio when its language is declared.
-// Without that fact, the first subtitle preference is the explicit best guess.
+// transcriptLanguage is the declared audio language, else the first subtitle preference, in Whisper's ISO 639-1.
 func transcriptLanguage(preferred []string, audioLanguage string) string {
 	if audioLanguage != "" {
 		for _, language := range preferred {
 			if source.SameLanguage(audioLanguage, language) {
-				return language
+				return source.Primary(language)
 			}
 		}
 		return ""
 	}
 	if len(preferred) > 0 {
-		return preferred[0]
+		return source.Primary(preferred[0])
 	}
 	return ""
 }
@@ -148,7 +147,7 @@ func announce(s *source.Stream) *source.Stream {
 	return &announced
 }
 
-func (k caster) Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, start time.Duration, turns cast.Turns) error {
+func (k caster) Play(ctx context.Context, device execute.Device, publisher output.Publisher, streams []*source.Stream, start time.Duration, turns cast.Turns, seeks <-chan recovery.Seek) error {
 	maxBitrate := media.Bitrate(k.asked.GetMaxBitrate().GetBitsPerSecond())
 	run := execute.Cast{
 		Machinery:      k.machinery,
@@ -172,6 +171,7 @@ func (k caster) Play(ctx context.Context, device execute.Device, publisher outpu
 		PreserveSource: k.asked.GetPreserveSource(),
 		Start:          start,
 		Turns:          turns,
+		Seeks:          seeks,
 	}, run, k.resolver)
 }
 

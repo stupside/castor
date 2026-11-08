@@ -2,8 +2,11 @@ package cast
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+
+	"connectrpc.com/connect"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
@@ -16,6 +19,10 @@ func (devices listedDevices) ListDevices(context.Context, *castorv1.ListDevicesR
 
 func (listedDevices) Describe(context.Context, *castorv1.DescribeRequest) (*castorv1.DescribeResponse, error) {
 	return &castorv1.DescribeResponse{}, nil
+}
+
+func (listedDevices) WatchDevices(context.Context, *castorv1.WatchDevicesRequest) (*connect.ServerStreamForClient[castorv1.WatchDevicesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("not watched here"))
 }
 
 func (listedDevices) StartPairing(context.Context, *castorv1.StartPairingRequest) (*castorv1.StartPairingResponse, error) {

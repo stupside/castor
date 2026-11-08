@@ -34,7 +34,10 @@ func TestADryRunOfALinkNeedsNoConfigAndNoServerWhicheverSideTheFlagIsTyped(t *te
 	}
 }
 
-type scanDevices struct{ called bool }
+type scanDevices struct {
+	castorv1connect.UnimplementedDeviceServiceHandler
+	called bool
+}
 
 func (s *scanDevices) ListDevices(context.Context, *castorv1.ListDevicesRequest) (*castorv1.ListDevicesResponse, error) {
 	s.called = true

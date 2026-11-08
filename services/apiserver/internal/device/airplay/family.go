@@ -55,8 +55,26 @@ func (Family) Capabilities(context.Context, device.Info) (*mediav1.Capabilities,
 	return capabilities(), nil
 }
 
-// Locate passes the address straight through, Connect already accepting both of its forms.
-func (Family) Locate(_ context.Context, address string) (string, error) { return address, nil }
+// Locate names a pinned device as discovery does, so both lease the same endpoint.
+func (Family) Locate(_ context.Context, address string) (string, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return address, nil
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil {
+		return "", fmt.Errorf("port %q: %w", port, err)
+	}
+	return named(host, n), nil
+}
+
+// named is a host, with its port only where it is not AirPlay's default.
+func named(host string, port int) string {
+	if port > 0 && port != defaultPort {
+		return net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	return host
+}
 
 // describe reads what a receiver says of itself before any pairing: its /info, else an AirPlay 1 receiver's /server-info.
 func describe(ctx context.Context, l *link, info device.Info) (receiver, error) {
@@ -242,10 +260,7 @@ func announced(entry *zeroconf.ServiceEntry) (device.Info, bool) {
 	default:
 		return device.Info{}, false
 	}
-	address := host
-	if entry.Port > 0 && entry.Port != defaultPort {
-		address = net.JoinHostPort(host, strconv.Itoa(entry.Port))
-	}
+	address := named(host, entry.Port)
 	return device.Info{ID: receiverKey(txt["deviceid"]), Name: unescapeLabel(entry.Instance), Type: familyType, Address: address}, true
 }
 

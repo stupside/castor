@@ -36,6 +36,9 @@ const (
 	// DeviceServiceListDevicesProcedure is the fully-qualified name of the DeviceService's ListDevices
 	// RPC.
 	DeviceServiceListDevicesProcedure = "/castor.v1.DeviceService/ListDevices"
+	// DeviceServiceWatchDevicesProcedure is the fully-qualified name of the DeviceService's
+	// WatchDevices RPC.
+	DeviceServiceWatchDevicesProcedure = "/castor.v1.DeviceService/WatchDevices"
 	// DeviceServiceDescribeProcedure is the fully-qualified name of the DeviceService's Describe RPC.
 	DeviceServiceDescribeProcedure = "/castor.v1.DeviceService/Describe"
 	// DeviceServiceStartPairingProcedure is the fully-qualified name of the DeviceService's
@@ -53,6 +56,8 @@ const (
 type DeviceServiceClient interface {
 	// ListDevices discovers the devices this server reaches, within its network timeout.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
+	// WatchDevices sends the devices now, then the whole list again whenever one appears or stops answering.
+	WatchDevices(context.Context, *v1.WatchDevicesRequest) (*connect.ServerStreamForClient[v1.WatchDevicesResponse], error)
 	// Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
 	Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error)
 	// StartPairing asks a device that plays only for clients it paired with to show a PIN, which FinishPairing proves.
@@ -78,6 +83,12 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+DeviceServiceListDevicesProcedure,
 			connect.WithSchema(deviceServiceMethods.ByName("ListDevices")),
+			connect.WithClientOptions(opts...),
+		),
+		watchDevices: connect.NewClient[v1.WatchDevicesRequest, v1.WatchDevicesResponse](
+			httpClient,
+			baseURL+DeviceServiceWatchDevicesProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("WatchDevices")),
 			connect.WithClientOptions(opts...),
 		),
 		describe: connect.NewClient[v1.DescribeRequest, v1.DescribeResponse](
@@ -110,6 +121,7 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 // deviceServiceClient implements DeviceServiceClient.
 type deviceServiceClient struct {
 	listDevices   *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
+	watchDevices  *connect.Client[v1.WatchDevicesRequest, v1.WatchDevicesResponse]
 	describe      *connect.Client[v1.DescribeRequest, v1.DescribeResponse]
 	startPairing  *connect.Client[v1.StartPairingRequest, v1.StartPairingResponse]
 	finishPairing *connect.Client[v1.FinishPairingRequest, v1.FinishPairingResponse]
@@ -123,6 +135,11 @@ func (c *deviceServiceClient) ListDevices(ctx context.Context, req *v1.ListDevic
 		return response.Msg, err
 	}
 	return nil, err
+}
+
+// WatchDevices calls castor.v1.DeviceService.WatchDevices.
+func (c *deviceServiceClient) WatchDevices(ctx context.Context, req *v1.WatchDevicesRequest) (*connect.ServerStreamForClient[v1.WatchDevicesResponse], error) {
+	return c.watchDevices.CallServerStream(ctx, connect.NewRequest(req))
 }
 
 // Describe calls castor.v1.DeviceService.Describe.
@@ -165,6 +182,8 @@ func (c *deviceServiceClient) CancelPairing(ctx context.Context, req *v1.CancelP
 type DeviceServiceHandler interface {
 	// ListDevices discovers the devices this server reaches, within its network timeout.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
+	// WatchDevices sends the devices now, then the whole list again whenever one appears or stops answering.
+	WatchDevices(context.Context, *v1.WatchDevicesRequest, *connect.ServerStream[v1.WatchDevicesResponse]) error
 	// Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
 	Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error)
 	// StartPairing asks a device that plays only for clients it paired with to show a PIN, which FinishPairing proves.
@@ -186,6 +205,12 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		DeviceServiceListDevicesProcedure,
 		svc.ListDevices,
 		connect.WithSchema(deviceServiceMethods.ByName("ListDevices")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceWatchDevicesHandler := connect.NewServerStreamHandlerSimple(
+		DeviceServiceWatchDevicesProcedure,
+		svc.WatchDevices,
+		connect.WithSchema(deviceServiceMethods.ByName("WatchDevices")),
 		connect.WithHandlerOptions(opts...),
 	)
 	deviceServiceDescribeHandler := connect.NewUnaryHandlerSimple(
@@ -216,6 +241,8 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		switch r.URL.Path {
 		case DeviceServiceListDevicesProcedure:
 			deviceServiceListDevicesHandler.ServeHTTP(w, r)
+		case DeviceServiceWatchDevicesProcedure:
+			deviceServiceWatchDevicesHandler.ServeHTTP(w, r)
 		case DeviceServiceDescribeProcedure:
 			deviceServiceDescribeHandler.ServeHTTP(w, r)
 		case DeviceServiceStartPairingProcedure:
@@ -235,6 +262,10 @@ type UnimplementedDeviceServiceHandler struct{}
 
 func (UnimplementedDeviceServiceHandler) ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.ListDevices is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) WatchDevices(context.Context, *v1.WatchDevicesRequest, *connect.ServerStream[v1.WatchDevicesResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.WatchDevices is not implemented"))
 }
 
 func (UnimplementedDeviceServiceHandler) Describe(context.Context, *v1.DescribeRequest) (*v1.DescribeResponse, error) {

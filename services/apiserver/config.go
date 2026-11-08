@@ -74,7 +74,7 @@ func (c *SubtitleConfig) UnmarshalText(value []byte) error {
 type Delivery castorv1.Delivery
 
 func (d *Delivery) UnmarshalText(text []byte) error {
-	v, ok := castorv1.Delivery_value["DELIVERY_"+strings.ToUpper(string(text))]
+	v, ok := settings.ParseEnum[castorv1.Delivery](string(text))
 	if !ok {
 		return fmt.Errorf("unknown delivery %q", text)
 	}

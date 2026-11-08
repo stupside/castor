@@ -335,3 +335,26 @@ func TestARendererThatTakesANewStreamOnlyOnceStoppedIsStoppedFirst(t *testing.T)
 		t.Fatalf("actions %v, want %v", actions, want)
 	}
 }
+
+func TestAStopRefusedWithNothingLoadedHasNothingToStop(t *testing.T) {
+	for state, refused := range map[string]bool{"NO_MEDIA_PRESENT": false, "STOPPED": false, "PLAYING": true} {
+		client := soap.NewSOAPClient(url.URL{Scheme: "http", Host: "192.0.2.10", Path: "/control"})
+		client.HTTPClient.Transport = actionTransport(func(r *http.Request) (*http.Response, error) {
+			stop := false
+			for name, values := range r.Header {
+				stop = stop || strings.EqualFold(name, "SOAPAction") && len(values) > 0 && strings.HasSuffix(strings.Trim(values[0], `"`), "#Stop")
+			}
+			if stop {
+				// LG's answer to Stop while it holds no stream.
+				body := `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><s:Fault><faultcode>s:Client</faultcode><faultstring>UPnPError</faultstring><detail><UPnPError xmlns="urn:schemas-upnp-org:control-1-0"><errorCode>701</errorCode><errorDescription>Transition not available</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>`
+				return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body))}, nil
+			}
+			body := `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:GetTransportInfoResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><CurrentTransportState>` + state + `</CurrentTransportState><CurrentTransportStatus>OK</CurrentTransportStatus></u:GetTransportInfoResponse></s:Body></s:Envelope>`
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+		})
+		s := &session{transport: goupnp.ServiceClient{SOAPClient: client, Service: &goupnp.Service{ServiceType: "urn:schemas-upnp-org:service:AVTransport:1"}}}
+		if err := s.Stop(t.Context()); (err != nil) != refused || refused && !upnpError(err, transitionUnavailable) {
+			t.Errorf("Stop while %s = %v, want a refusal %v", state, err, refused)
+		}
+	}
+}

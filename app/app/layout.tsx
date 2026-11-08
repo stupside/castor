@@ -1,20 +1,39 @@
-import { authorize } from "@/lib/authorize";
+import * as stylex from "@stylexjs/stylex";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Work_Sans } from "next/font/google";
+import { Toaster } from "@/components/toast";
+import { color, font } from "@/components/tokens.stylex";
+import { authorize } from "@/lib/authorize";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "Castor" };
+export const metadata: Metadata = {
+  title: { default: "Castor", template: "%s · Castor" },
+};
+
+const workSans = Work_Sans({
+  subsets: ["latin"],
+  variable: "--font-work-sans",
+});
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   await authorize();
   return (
-    <html lang="en">
-      <body className="bg-[#1b1d1a] antialiased **:[button,a,summary]:cursor-pointer **:[button:disabled]:cursor-not-allowed motion-reduce:**:animate-none motion-reduce:**:transition-none">
-        <header className="absolute inset-x-0 top-0 z-20 px-6 pt-6 sm:px-10 lg:px-16">
-          <Link href="/" className="text-xl font-extrabold tracking-[-0.04em] text-[#fffaf2]">castor</Link>
-        </header>
-        <main>{children}</main>
+    <html lang="en" className={workSans.variable}>
+      <body sx={styles.body}>
+        {children}
+        <Toaster />
       </body>
     </html>
   );
 }
+
+const styles = stylex.create({
+  body: {
+    backgroundColor: color.canvas,
+    color: color.ink,
+    fontFamily: font.sans,
+    fontSize: 14,
+    lineHeight: 1.5,
+    "::selection": { backgroundColor: color.muzzle },
+  },
+});
