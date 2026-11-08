@@ -121,7 +121,7 @@ func TestConcurrentLeaseAdmission(t *testing.T) {
 	}
 }
 func TestCanonicalEndpoints(t *testing.T) {
-	for _, pair := range [][2]string{{"10.0.0.1", "http://10.0.0.1:8060/"}, {"[fe80::1%en0]:8060", "http://[fe80::1%25en0]:8060/query"}} {
+	for _, pair := range [][2]string{{"http://10.0.0.1/description.xml", "http://10.0.0.1:80/"}, {"[fe80::1%en0]:8060", "http://[fe80::1%25en0]:8060/query"}} {
 		if endpoint(Info{Type: "roku", Address: pair[0]}) != endpoint(Info{Type: "roku", Address: pair[1]}) {
 			t.Errorf("aliases differ: %v", pair)
 		}

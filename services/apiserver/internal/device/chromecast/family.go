@@ -52,9 +52,25 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 	return dev, nil
 }
 
-// Locate passes the address straight through, Connect already accepting both of its forms.
+// Locate names a pinned device as discovery does, so both lease the same endpoint.
 func (Family) Locate(_ context.Context, address string) (string, error) {
-	return address, nil
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return address, nil
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil {
+		return "", fmt.Errorf("port %q: %w", port, err)
+	}
+	return named(host, n), nil
+}
+
+// named is a host, with its port only where it is not the cast port.
+func named(host string, port int) string {
+	if port > 0 && port != castPort {
+		return net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	return host
 }
 
 // Discover browses mDNS (_googlecast._tcp) until ctx expires.
@@ -107,10 +123,7 @@ func infoOnInterface(entry castdns.CastEntry, zone string) (device.Info, bool) {
 		return device.Info{}, false
 	}
 
-	address := host
-	if entry.Port > 0 && entry.Port != castPort {
-		address = net.JoinHostPort(host, strconv.Itoa(entry.Port))
-	}
+	address := named(host, entry.Port)
 
 	return device.Info{
 		ID:      cmp.Or(entry.UUID, address),
