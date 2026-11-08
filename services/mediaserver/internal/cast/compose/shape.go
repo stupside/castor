@@ -38,7 +38,8 @@ const (
 	DeliveryServe DeliveryPreference = "serve"
 )
 
-// handoff is a device that fetches for itself and plays the source as it is, within the ceiling.
+// handoff is a device that fetches for itself and plays the source as it is, within the ceiling; a Native
+// cast leaves a trial device to judge the tracks, so an HDR or Dolby Vision original reaches it unchanged.
 func (s Shape) handoff() bool {
 	primary, ok := s.Program.PrimaryInput()
 	if !ok || s.Delivery == DeliveryServe {
@@ -46,7 +47,7 @@ func (s Shape) handoff() bool {
 	}
 	probe, measured := s.Program.Measurement()
 	return s.Device.SelfFetch && s.Program.SelfFetchable() && measured &&
-		s.Device.CanPlaySourceIn(primary.ContentType, probe) && s.withinCeiling(probe)
+		s.Device.CanHandOff(primary.ContentType, probe, s.PreserveSource) && s.withinCeiling(probe)
 }
 
 // forwards is a Native source castor may forward unchanged: one finished file the device plays as it is, within the ceiling.

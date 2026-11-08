@@ -52,18 +52,16 @@ func (d *Directory) Describe(ctx context.Context, req *castorv1.DescribeRequest)
 }
 
 // Fidelity is what a Native cast keeps of a source whose tracks caps state nothing about. It mirrors the
-// media server's composition: only a device that cannot fetch for itself, and leaves tracks to its own
-// verdict, is forwarded the source file in any container it names.
+// media server's composition: a device that leaves tracks to its own verdict is forwarded the source file,
+// or handed it where it fetches for itself, in any container it names.
 func Fidelity(caps *mediav1.Capabilities) *castorv1.DescribeResponse {
 	if !caps.GetNativePlaybackTrial() {
 		return &castorv1.DescribeResponse{Fidelity: castorv1.Fidelity_FIDELITY_CONVERTED}
 	}
 	var originals []string
-	if !caps.GetSelfFetch() {
-		for _, f := range caps.GetFormats() {
-			if mime := progressiveMIME(f.GetProgressive().GetContainer()); mime != "" && !slices.Contains(originals, mime) {
-				originals = append(originals, mime)
-			}
+	for _, f := range caps.GetFormats() {
+		if mime := progressiveMIME(f.GetProgressive().GetContainer()); mime != "" && !slices.Contains(originals, mime) {
+			originals = append(originals, mime)
 		}
 	}
 	if len(originals) == 0 {

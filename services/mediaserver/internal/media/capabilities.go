@@ -178,6 +178,19 @@ func (c Capabilities) CanPlaySourceIn(container string, p ProbeInfo) bool {
 	return c.CanPlayIn(container, p)
 }
 
+// CanHandOff reports whether a self-fetching device may be pointed at the source itself. A Native trial
+// leaves the tracks, HDR included, to the receiver's verdict as a forwarded original does; an HLS source's
+// observed segment envelope still has to be one the device names.
+func (c Capabilities) CanHandOff(container string, p ProbeInfo, preserve bool) bool {
+	if !preserve || !c.NativePlaybackTrial {
+		return c.CanPlaySourceIn(container, p)
+	}
+	return (p.HasVideo() || p.HasAudio()) && slices.ContainsFunc(c.Formats, func(f FormatSupport) bool {
+		return f.Transport.ContentType() == container &&
+			(container != HLS || !p.SourceUnwrapped || slices.Contains(f.ExtraSegments, HLSExtraSegmentTIKTIKPX))
+	})
+}
+
 // AcceptsOriginal reports whether the device may be given the source file itself. A Native trial
 // leaves the tracks to the device's verdict, so only the container has to be one it names.
 func (c Capabilities) AcceptsOriginal(container string, p ProbeInfo, preserve bool) bool {

@@ -75,6 +75,43 @@ func TestAHandoffOnlyWhenEverythingChecks(t *testing.T) {
 	}
 }
 
+func TestANativeOriginalReachesATrialReceiverAsItIs(t *testing.T) {
+	trial := media.Capabilities{SelfFetch: true, NativePlaybackTrial: true, Formats: []media.FormatSupport{
+		{Transport: media.TransportHLS, Video: media.VideoSupport{Codec: media.CodecH264}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}},
+		{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}},
+	}}
+	dolbyVision := media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoBitDepth: 10, VideoHDR: true, VideoHeight: 1608, AudioCodec: media.CodecAAC, AudioChannels: 2}
+	for _, tt := range []struct {
+		name        string
+		contentType string
+		probe       media.ProbeInfo
+		preserve    bool
+		want        bool
+	}{
+		{"a Native Dolby Vision file is handed to the receiver, which judges it", media.MP4, dolbyVision, true, true},
+		{"an Optimized HDR source is still served", media.MP4, dolbyVision, false, false},
+		{"a container the receiver never named is served", media.MKV, dolbyVision, true, false},
+		{"a Native HLS source with an envelope the receiver never named stays local", media.HLS, func() media.ProbeInfo { p := dolbyVision; p.SourceUnwrapped = true; return p }(), true, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			program, err := media.NewProgram(media.Program{
+				Inputs:     []media.Input{{ID: media.PrimaryInputID, URL: &url.URL{Scheme: "https", Host: "cdn.example", Path: "/media"}, ContentType: tt.contentType}},
+				Tracks:     []media.TrackRef{{Input: media.PrimaryInputID, Kind: media.TrackVideo, Optional: true}, {Input: media.PrimaryInputID, Kind: media.TrackAudio, Optional: true}},
+				ClockInput: media.PrimaryInputID,
+				EndPolicy:  media.EndAtLongest,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			program.SetMeasurement(tt.probe)
+			shape := Shape{Device: trial, Program: program, Height: tt.probe.VideoHeight, PreserveSource: tt.preserve}
+			if got := shape.handoff(); got != tt.want {
+				t.Errorf("handoff() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCastorForwardsOnlyAFinishedFileTheDeviceMayPlay(t *testing.T) {
 	// A renderer naming Matroska without codecs, like an LG webOS DLNA sink.
 	trial := media.Capabilities{NativePlaybackTrial: true, Formats: []media.FormatSupport{
