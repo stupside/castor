@@ -1,18 +1,17 @@
-import type { CastStatus, Ended } from "@/gen/castor/v1/cast_pb";
+import type { CastStatusValid, EndedValid } from "@/gen/castor/v1/cast_pb";
 
 type WatchState =
-  | { phase: "watching"; status?: CastStatus }
-  | { phase: "ended"; status?: CastStatus; ended: Ended }
-  | { phase: "lost"; status?: CastStatus; error: string };
+  | { phase: "watching"; status?: CastStatusValid }
+  | { phase: "ended"; status?: CastStatusValid; ended: EndedValid }
+  | { phase: "lost"; status?: CastStatusValid; error: string };
 
 type WatchEvent =
   | { type: "restart" }
-  | { type: "status"; status: CastStatus }
-  | { type: "ended"; ended: Ended }
+  | { type: "status"; status: CastStatusValid }
+  | { type: "ended"; ended: EndedValid }
   | { type: "lost"; error: string };
 
-// Completion is terminal until an explicit reconnect. Keep the last progress
-// snapshot for rendering, but never combine completion with a transport failure.
+// Ended is terminal until a restart; a later failure never overrides it.
 export function watchState(state: WatchState, event: WatchEvent): WatchState {
   if (event.type === "restart") return { phase: "watching" };
   if (state.phase !== "watching") return state;

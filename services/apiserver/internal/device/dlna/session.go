@@ -263,7 +263,14 @@ func (s *session) transportInfo(ctx context.Context) (transportInfo, error) {
 
 // Stop ends whatever the device is playing.
 func (s *session) Stop(ctx context.Context) error {
-	if err := s.action(ctx, "Stop", &struct{ InstanceID string }{"0"}); err != nil {
+	err := s.action(ctx, "Stop", &struct{ InstanceID string }{"0"})
+	// LG's renderer refuses Stop with nothing loaded, which leaves nothing to stop.
+	if upnpError(err, transitionUnavailable) {
+		if state := s.state(ctx); state == "STOPPED" || state == "NO_MEDIA_PRESENT" {
+			return nil
+		}
+	}
+	if err != nil {
 		return fmt.Errorf("stopping playback: %w", err)
 	}
 	return nil

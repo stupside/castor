@@ -385,6 +385,40 @@ func TestAPlayingCastWhoseSourceGaveOutResumesOnTheNextLinkWhereItGotTo(t *testi
 	}
 }
 
+func TestASeekRunsTheNextAttemptFromWhereTheViewerMovedTheCast(t *testing.T) {
+	head := link(t, "https://cdn.example/one.m3u8")
+	seeks := make(chan Seek)
+	in := Intent{Turns: unheard{}, Candidates: []*source.Stream{head}, Deadline: 30 * time.Second, Seeks: seeks}
+	var seen []Attempt
+	run := runnerFunc(func(ctx context.Context, a Attempt) Outcome {
+		seen = append(seen, a)
+		if len(seen) > 1 {
+			return delivered
+		}
+		// The first attempt plays until the viewer moves it.
+		<-ctx.Done()
+		return Outcome{Err: context.Cause(ctx), Evidence: Evidence{Reached: health.Playing, Cancelled: true}}
+	})
+	cast := make(chan error, 1)
+	go func() { cast <- Cast(t.Context(), in, run, publishing(head, ladder(), source.Rendition{})) }()
+
+	accepted := make(chan error, 1)
+	seeks <- Seek{At: 3 * time.Hour, Accepted: accepted}
+	if err := <-accepted; !errors.Is(err, ErrNoPosition) {
+		t.Errorf("seeking past the two hours of media: %v, want no such position", err)
+	}
+	seeks <- Seek{At: 40 * time.Minute, Accepted: accepted}
+	if err := <-accepted; err != nil {
+		t.Fatalf("seeking within the media: %v", err)
+	}
+	if err := <-cast; err != nil {
+		t.Fatalf("cast: %v", err)
+	}
+	if len(seen) != 2 || seen[1].Program.Start != 40*time.Minute || seen[1].Try != 2 {
+		t.Errorf("ran %d attempts, the last from %s on try %d; want a second from 40m", len(seen), seen[len(seen)-1].Program.Start, seen[len(seen)-1].Try)
+	}
+}
+
 func TestResumesAccumulateAcrossAttempts(t *testing.T) {
 	in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8", "https://other.example/two.m3u8"), Deadline: 30 * time.Second}
 	run := &scriptedRunner{outcomes: []Outcome{starvedAt(100 * time.Second), starvedAt(50 * time.Second), delivered}}

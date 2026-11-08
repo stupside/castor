@@ -121,7 +121,7 @@ func TestConcurrentLeaseAdmission(t *testing.T) {
 	}
 }
 func TestCanonicalEndpoints(t *testing.T) {
-	for _, pair := range [][2]string{{"10.0.0.1", "http://10.0.0.1:8060/"}, {"[fe80::1%en0]:8060", "http://[fe80::1%25en0]:8060/query"}} {
+	for _, pair := range [][2]string{{"http://10.0.0.1/description.xml", "http://10.0.0.1:80/"}, {"[fe80::1%en0]:8060", "http://[fe80::1%25en0]:8060/query"}} {
 		if endpoint(Info{Type: "roku", Address: pair[0]}) != endpoint(Info{Type: "roku", Address: pair[1]}) {
 			t.Errorf("aliases differ: %v", pair)
 		}
@@ -143,7 +143,7 @@ func TestLeaseHeldUntilFailedCleanupFinishes(t *testing.T) {
 	d := directoryWithFamilies(Registry{})
 	target := Info{Type: "push", Address: "192.0.2.1"}
 	dev := &closingDevice{started: make(chan struct{}), finish: make(chan struct{})}
-	l := newLease(d)
+	l := newLease(d, "")
 	l.device = dev
 	if err := l.claimKeys(target, []string{endpoint(target)}); err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestLeaseHeldUntilFailedCleanupFinishes(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- l.Close() }()
 	<-dev.started
-	next := newLease(d)
+	next := newLease(d, "")
 	if err := next.claimKeys(target, []string{endpoint(target)}); err == nil {
 		t.Fatal("lease released before cleanup finished")
 	}
@@ -210,7 +210,7 @@ func TestPinnedKnownIdentitySurvivesAddressChange(t *testing.T) {
 }
 
 func TestCanceledCommandDoesNotWaitForAnotherLeaseCommand(t *testing.T) {
-	l := newLease(nil)
+	l := newLease(nil, "")
 	l.device = idle{}
 	if err := l.commands.Acquire(t.Context(), 1); err != nil {
 		t.Fatal(err)
@@ -247,7 +247,7 @@ func (d *cancelOnCloseDevice) Close() error { close(d.closed); return nil }
 func TestLeaseCloseCancelsOwnedCommandsBeforeFinalCleanup(t *testing.T) {
 	dir := directoryWithFamilies(Registry{})
 	dev := &cancelOnCloseDevice{started: make(chan struct{}), closed: make(chan struct{})}
-	l := newLease(dir)
+	l := newLease(dir, "")
 	l.device = dev
 	result := make(chan error, 1)
 	go func() { result <- l.Pause(t.Context()) }()
@@ -295,7 +295,7 @@ func (d *observedDevice) Close() error { close(d.closed); return nil }
 func TestLeaseCloseCancelsAndJoinsObservers(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		dev := &observedDevice{started: make(chan struct{}), canceled: make(chan struct{}), release: make(chan struct{}), closed: make(chan struct{})}
-		l := newLease(directoryWithFamilies(Registry{}))
+		l := newLease(directoryWithFamilies(Registry{}), "")
 		l.device = dev
 		result := make(chan error, 1)
 		go func() { result <- l.AwaitEnd(t.Context()) }()

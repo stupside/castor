@@ -17,7 +17,7 @@ import (
 
 // Client is the media server's services, as the API server uses them.
 type Client struct {
-	casts   mediav1connect.CastServiceClient
+	Casts   mediav1connect.CastServiceClient
 	devices mediav1connect.DeviceServiceClient
 	streams mediav1connect.StreamServiceClient
 }
@@ -26,7 +26,7 @@ type Client struct {
 func New(client *http.Client, baseURL string) *Client {
 	valid := transport.Options()
 	return &Client{
-		casts:   mediav1connect.NewCastServiceClient(client, baseURL, valid),
+		Casts:   mediav1connect.NewCastServiceClient(client, baseURL, valid),
 		devices: mediav1connect.NewDeviceServiceClient(client, baseURL, valid),
 		streams: mediav1connect.NewStreamServiceClient(client, baseURL, valid),
 	}
@@ -38,12 +38,7 @@ func (c *Client) Start(ctx context.Context, id string, source *mediav1.Source, a
 	if start > 0 {
 		req.Start = durationpb.New(start)
 	}
-	_, err := c.casts.Start(ctx, req)
-	return err
-}
-
-func (c *Client) Stop(ctx context.Context, id string) error {
-	_, err := c.casts.Stop(ctx, &mediav1.StopRequest{CastId: id})
+	_, err := c.Casts.Start(ctx, req)
 	return err
 }
 
@@ -58,7 +53,7 @@ func (c *Client) Rank(ctx context.Context, source *mediav1.Source, asked *mediav
 
 // Watch follows cast id to its end, handing status every status, and returns how it ended.
 func (c *Client) Watch(ctx context.Context, id string, status func(*castorv1.CastStatus)) (*castorv1.Ended, error) {
-	stream, err := c.casts.Watch(ctx, &castorv1.WatchRequest{CastId: id})
+	stream, err := c.Casts.Watch(ctx, &castorv1.WatchRequest{CastId: id})
 	if err != nil {
 		return nil, err
 	}

@@ -12,6 +12,7 @@ import (
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/settings"
 )
 
 // Type names a device family in configuration and inside the registry.
@@ -30,14 +31,6 @@ func (p Playback) Container() mediav1.Container {
 		return mediav1.Container_CONTAINER_HLS
 	}
 	return cmp.Or(p.Play.GetSource().GetContainer(), p.Play.GetProgressive().GetContainer())
-}
-
-// Start is where in the cast's media the stream begins, else where the cast asked to begin.
-func (p Playback) Start(asked time.Duration) time.Duration {
-	if start := p.Play.GetStart(); start != nil {
-		return start.AsDuration()
-	}
-	return asked
 }
 
 // Duration is the stream's runtime, zero where the source declared none.
@@ -115,12 +108,11 @@ func (i Info) Public() *castorv1.Device {
 	return &castorv1.Device{Id: i.id(), Name: i.Name, Type: i.Type.public(), Address: i.Address}
 }
 
-// public is the contract's name for t, which spells it as the enum's name without its prefix.
+// public is the contract's name for t.
 func (t Type) public() castorv1.DeviceType {
-	return castorv1.DeviceType(castorv1.DeviceType_value[deviceTypePrefix+strings.ToUpper(string(t))])
+	kind, _ := settings.ParseEnum[castorv1.DeviceType](string(t))
+	return kind
 }
-
-const deviceTypePrefix = "DEVICE_TYPE_"
 
 // WithPort completes a bare host, bracketed or not, with a family's default port.
 func WithPort(address, port string) string {

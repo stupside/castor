@@ -41,7 +41,7 @@ const (
 
 // DeviceServiceClient is a client for the castor.media.v1.DeviceService service.
 type DeviceServiceClient interface {
-	// Drive lends the Device: a cast takes one, starts once it is lent, and plays on once its lender leaves.
+	// Drive lends a device for the whole cast, which starts once lent and plays on if its lender leaves.
 	Drive(context.Context, *v1.DriveRequest) (*connect.ServerStreamForClient[v1.DriveResponse], error)
 	Answer(context.Context, *v1.AnswerRequest) (*v1.AnswerResponse, error)
 }
@@ -94,7 +94,7 @@ func (c *deviceServiceClient) Answer(ctx context.Context, req *v1.AnswerRequest)
 
 // DeviceServiceHandler is an implementation of the castor.media.v1.DeviceService service.
 type DeviceServiceHandler interface {
-	// Drive lends the Device: a cast takes one, starts once it is lent, and plays on once its lender leaves.
+	// Drive lends a device for the whole cast, which starts once lent and plays on if its lender leaves.
 	Drive(context.Context, *v1.DriveRequest, *connect.ServerStream[v1.DriveResponse]) error
 	Answer(context.Context, *v1.AnswerRequest) (*v1.AnswerResponse, error)
 }

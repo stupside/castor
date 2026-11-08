@@ -24,7 +24,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// CaptionFormat is how a caption track is written.
 type CaptionFormat int32
 
 const (
@@ -74,7 +73,6 @@ func (CaptionFormat) EnumDescriptor() ([]byte, []int) {
 	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{0}
 }
 
-// Container is how a stream is packaged, as a device takes it.
 type Container int32
 
 const (
@@ -446,10 +444,8 @@ type DeviceCommand_Play_Runtime_Seek int32
 
 const (
 	DeviceCommand_Play_Runtime_SEEK_UNSPECIFIED DeviceCommand_Play_Runtime_Seek = 0
-	// SEEK_START serves the stream from its start only.
-	DeviceCommand_Play_Runtime_SEEK_START DeviceCommand_Play_Runtime_Seek = 1
-	// SEEK_TIME serves it from any time asked for within duration.
-	DeviceCommand_Play_Runtime_SEEK_TIME DeviceCommand_Play_Runtime_Seek = 2
+	DeviceCommand_Play_Runtime_SEEK_START       DeviceCommand_Play_Runtime_Seek = 1
+	DeviceCommand_Play_Runtime_SEEK_TIME        DeviceCommand_Play_Runtime_Seek = 2
 )
 
 // Enum value maps for DeviceCommand_Play_Runtime_Seek.
@@ -494,10 +490,9 @@ func (DeviceCommand_Play_Runtime_Seek) EnumDescriptor() ([]byte, []int) {
 }
 
 type DriveRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	CastId string                 `protobuf:"bytes,1,opt,name=cast_id,json=castId,proto3" json:"cast_id,omitempty"`
-	// capabilities are the lent device's, read once its lender has connected to it for the whole cast.
-	Capabilities  *Capabilities `protobuf:"bytes,2,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CastId        string                 `protobuf:"bytes,1,opt,name=cast_id,json=castId,proto3" json:"cast_id,omitempty"`
+	Capabilities  *Capabilities          `protobuf:"bytes,2,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -740,14 +735,13 @@ func (*AnswerResponse) Descriptor() ([]byte, []int) {
 	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{3}
 }
 
-// Capabilities is what a device decodes natively and how it takes a stream.
 type Capabilities struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Atomic playback envelopes in preference order; the first is the default.
+	// formats are in preference order; the first is the default.
 	Formats      []*FormatSupport `protobuf:"bytes,1,rep,name=formats,proto3" json:"formats,omitempty"`
 	Provenance   string           `protobuf:"bytes,2,opt,name=provenance,proto3" json:"provenance,omitempty"`
 	Deinterlaces bool             `protobuf:"varint,3,opt,name=deinterlaces,proto3" json:"deinterlaces,omitempty"`
-	// self_fetch is whether the device fetches a stream URL itself, rather than only playing what it is served.
+	// self_fetch is a device that can fetch the source itself.
 	SelfFetch bool `protobuf:"varint,5,opt,name=self_fetch,json=selfFetch,proto3" json:"self_fetch,omitempty"`
 	// A preserve_source cast may try measured original tracks in an admitted
 	// transport when model/firmware codec support is unknown. The receiver's
@@ -835,7 +829,7 @@ type FormatSupport struct {
 	//	*FormatSupport_Audio
 	//	*FormatSupport_Av
 	Tracks isFormatSupport_Tracks `protobuf_oneof:"tracks"`
-	// Complete subtitle documents fetched separately from media.
+	// captions are whole documents fetched apart from the media.
 	Captions      []CaptionFormat `protobuf:"varint,6,rep,packed,name=captions,proto3,enum=castor.media.v1.CaptionFormat" json:"captions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1081,10 +1075,8 @@ func (x *ProgressiveSupport) GetServedHeaders() map[string]string {
 }
 
 type HLSSupport struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Subtitle rendition playlists refreshed alongside the media playlist.
-	Subtitles HLSSupport_Subtitles `protobuf:"varint,1,opt,name=subtitles,proto3,enum=castor.media.v1.HLSSupport_Subtitles" json:"subtitles,omitempty"`
-	// Nonstandard segment formats accepted in addition to ordinary HLS segments.
+	state               protoimpl.MessageState          `protogen:"open.v1"`
+	Subtitles           HLSSupport_Subtitles            `protobuf:"varint,1,opt,name=subtitles,proto3,enum=castor.media.v1.HLSSupport_Subtitles" json:"subtitles,omitempty"`
 	ExtraSegmentFormats []HLSSupport_ExtraSegmentFormat `protobuf:"varint,2,rep,packed,name=extra_segment_formats,json=extraSegmentFormats,proto3,enum=castor.media.v1.HLSSupport_ExtraSegmentFormat" json:"extra_segment_formats,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -1435,7 +1427,6 @@ func (x *AudioSupport) GetMaxChannels() uint32 {
 	return 0
 }
 
-// DeviceCommand is one call a cast makes on the device lent to it.
 type DeviceCommand struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Command:
@@ -1511,7 +1502,7 @@ type DeviceCommand_Call_ struct {
 }
 
 type DeviceCommand_Cancel_ struct {
-	// Cancellation identifies an existing call and is never answered.
+	// cancel is never answered.
 	Cancel *DeviceCommand_Cancel `protobuf:"bytes,2,opt,name=cancel,proto3,oneof"`
 }
 
@@ -1519,7 +1510,6 @@ func (*DeviceCommand_Call_) isDeviceCommand_Command() {}
 
 func (*DeviceCommand_Cancel_) isDeviceCommand_Command() {}
 
-// DeviceError is a device's failure, typed where the cast's recovery reads its kind.
 type DeviceError struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Error:
@@ -1638,12 +1628,11 @@ func (*AnswerRequest_Done) Descriptor() ([]byte, []int) {
 	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{2, 0}
 }
 
-// Position answers a Position call; a device that cannot say where it has played to answers done.
+// Position answers a Position call; a device that cannot tell answers done.
 type AnswerRequest_Position struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	At    *durationpb.Duration   `protobuf:"bytes,1,opt,name=at,proto3" json:"at,omitempty"`
-	// paused is the device's viewer holding playback at.
-	Paused        bool `protobuf:"varint,2,opt,name=paused,proto3" json:"paused,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	At            *durationpb.Duration   `protobuf:"bytes,1,opt,name=at,proto3" json:"at,omitempty"`
+	Paused        bool                   `protobuf:"varint,2,opt,name=paused,proto3" json:"paused,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1702,6 +1691,7 @@ type DeviceCommand_Call struct {
 	//	*DeviceCommand_Call_Pause
 	//	*DeviceCommand_Call_Resume
 	//	*DeviceCommand_Call_Position
+	//	*DeviceCommand_Call_Seek
 	Operation     isDeviceCommand_Call_Operation `protobuf_oneof:"operation"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1796,6 +1786,15 @@ func (x *DeviceCommand_Call) GetPosition() *DeviceCommand_Position {
 	return nil
 }
 
+func (x *DeviceCommand_Call) GetSeek() *DeviceCommand_Seek {
+	if x != nil {
+		if x, ok := x.Operation.(*DeviceCommand_Call_Seek); ok {
+			return x.Seek
+		}
+	}
+	return nil
+}
+
 type isDeviceCommand_Call_Operation interface {
 	isDeviceCommand_Call_Operation()
 }
@@ -1820,6 +1819,10 @@ type DeviceCommand_Call_Position struct {
 	Position *DeviceCommand_Position `protobuf:"bytes,6,opt,name=position,proto3,oneof"`
 }
 
+type DeviceCommand_Call_Seek struct {
+	Seek *DeviceCommand_Seek `protobuf:"bytes,7,opt,name=seek,proto3,oneof"`
+}
+
 func (*DeviceCommand_Call_Play) isDeviceCommand_Call_Operation() {}
 
 func (*DeviceCommand_Call_AwaitEnd) isDeviceCommand_Call_Operation() {}
@@ -1830,9 +1833,10 @@ func (*DeviceCommand_Call_Resume) isDeviceCommand_Call_Operation() {}
 
 func (*DeviceCommand_Call_Position) isDeviceCommand_Call_Operation() {}
 
+func (*DeviceCommand_Call_Seek) isDeviceCommand_Call_Operation() {}
+
 type DeviceCommand_Play struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// url is what the device fetches: the source itself, or what the media server serves it.
+	state    protoimpl.MessageState   `protogen:"open.v1"`
 	Url      string                   `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	Captions []*DeviceCommand_Caption `protobuf:"bytes,3,rep,name=captions,proto3" json:"captions,omitempty"`
 	// Types that are valid to be assigned to Stream:
@@ -1840,9 +1844,7 @@ type DeviceCommand_Play struct {
 	//	*DeviceCommand_Play_Source_
 	//	*DeviceCommand_Play_Progressive_
 	//	*DeviceCommand_Play_Playlist_
-	Stream isDeviceCommand_Play_Stream `protobuf_oneof:"stream"`
-	// start is where in the cast's media the stream begins, its own position zero: a revision resumes a cast further on.
-	Start         *durationpb.Duration `protobuf:"bytes,9,opt,name=start,proto3" json:"start,omitempty"`
+	Stream        isDeviceCommand_Play_Stream `protobuf_oneof:"stream"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1925,13 +1927,6 @@ func (x *DeviceCommand_Play) GetPlaylist() *DeviceCommand_Play_Playlist {
 	return nil
 }
 
-func (x *DeviceCommand_Play) GetStart() *durationpb.Duration {
-	if x != nil {
-		return x.Start
-	}
-	return nil
-}
-
 type isDeviceCommand_Play_Stream interface {
 	isDeviceCommand_Play_Stream()
 }
@@ -1954,16 +1949,14 @@ func (*DeviceCommand_Play_Progressive_) isDeviceCommand_Play_Stream() {}
 
 func (*DeviceCommand_Play_Playlist_) isDeviceCommand_Play_Stream() {}
 
-// Caption is a text track the device shows over the stream; its url is fetched like the stream's.
 type DeviceCommand_Caption struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	Url    string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	Format CaptionFormat          `protobuf:"varint,2,opt,name=format,proto3,enum=castor.media.v1.CaptionFormat" json:"format,omitempty"`
-	// language is the ISO 639 code the track is tagged with, empty when untagged.
-	Language string `protobuf:"bytes,3,opt,name=language,proto3" json:"language,omitempty"`
-	Name     string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	// default is shown without the viewer choosing it.
-	Default       bool `protobuf:"varint,5,opt,name=default,proto3" json:"default,omitempty"`
+	// language is the tag as the source gave it, empty when untagged.
+	Language      string `protobuf:"bytes,3,opt,name=language,proto3" json:"language,omitempty"`
+	Name          string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	Default       bool   `protobuf:"varint,5,opt,name=default,proto3" json:"default,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2177,6 +2170,51 @@ func (*DeviceCommand_Position) Descriptor() ([]byte, []int) {
 	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{14, 6}
 }
 
+// Seek moves the device within the stream it plays, from that stream's own start.
+type DeviceCommand_Seek struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Position      *durationpb.Duration   `protobuf:"bytes,1,opt,name=position,proto3" json:"position,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeviceCommand_Seek) Reset() {
+	*x = DeviceCommand_Seek{}
+	mi := &file_castor_media_v1_device_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeviceCommand_Seek) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeviceCommand_Seek) ProtoMessage() {}
+
+func (x *DeviceCommand_Seek) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_media_v1_device_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeviceCommand_Seek.ProtoReflect.Descriptor instead.
+func (*DeviceCommand_Seek) Descriptor() ([]byte, []int) {
+	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{14, 7}
+}
+
+func (x *DeviceCommand_Seek) GetPosition() *durationpb.Duration {
+	if x != nil {
+		return x.Position
+	}
+	return nil
+}
+
 type DeviceCommand_Cancel struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CommandId     string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
@@ -2186,7 +2224,7 @@ type DeviceCommand_Cancel struct {
 
 func (x *DeviceCommand_Cancel) Reset() {
 	*x = DeviceCommand_Cancel{}
-	mi := &file_castor_media_v1_device_proto_msgTypes[26]
+	mi := &file_castor_media_v1_device_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2198,7 +2236,7 @@ func (x *DeviceCommand_Cancel) String() string {
 func (*DeviceCommand_Cancel) ProtoMessage() {}
 
 func (x *DeviceCommand_Cancel) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_device_proto_msgTypes[26]
+	mi := &file_castor_media_v1_device_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2211,7 +2249,7 @@ func (x *DeviceCommand_Cancel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceCommand_Cancel.ProtoReflect.Descriptor instead.
 func (*DeviceCommand_Cancel) Descriptor() ([]byte, []int) {
-	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{14, 7}
+	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{14, 8}
 }
 
 func (x *DeviceCommand_Cancel) GetCommandId() string {
@@ -2221,19 +2259,18 @@ func (x *DeviceCommand_Cancel) GetCommandId() string {
 	return ""
 }
 
-// Source is the source itself, fetched from its own server, which alone knows how it seeks.
+// Source is fetched from its own server, which alone knows how it seeks.
 type DeviceCommand_Play_Source struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	Container Container              `protobuf:"varint,1,opt,name=container,proto3,enum=castor.media.v1.Container" json:"container,omitempty"`
-	// duration is unset where the source declared none.
-	Duration      *durationpb.Duration `protobuf:"bytes,2,opt,name=duration,proto3" json:"duration,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Container     Container              `protobuf:"varint,1,opt,name=container,proto3,enum=castor.media.v1.Container" json:"container,omitempty"`
+	Duration      *durationpb.Duration   `protobuf:"bytes,2,opt,name=duration,proto3" json:"duration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeviceCommand_Play_Source) Reset() {
 	*x = DeviceCommand_Play_Source{}
-	mi := &file_castor_media_v1_device_proto_msgTypes[27]
+	mi := &file_castor_media_v1_device_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2245,7 +2282,7 @@ func (x *DeviceCommand_Play_Source) String() string {
 func (*DeviceCommand_Play_Source) ProtoMessage() {}
 
 func (x *DeviceCommand_Play_Source) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_device_proto_msgTypes[27]
+	mi := &file_castor_media_v1_device_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2275,11 +2312,10 @@ func (x *DeviceCommand_Play_Source) GetDuration() *durationpb.Duration {
 	return nil
 }
 
-// Progressive is one stream the media server serves.
 type DeviceCommand_Play_Progressive struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Container Container              `protobuf:"varint,1,opt,name=container,proto3,enum=castor.media.v1.Container" json:"container,omitempty"`
-	// runtime is unset where the source declared none, and such a stream is served from its start only.
+	// runtime is absent for a stream served from its start only.
 	Runtime       *DeviceCommand_Play_Runtime `protobuf:"bytes,2,opt,name=runtime,proto3" json:"runtime,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2287,7 +2323,7 @@ type DeviceCommand_Play_Progressive struct {
 
 func (x *DeviceCommand_Play_Progressive) Reset() {
 	*x = DeviceCommand_Play_Progressive{}
-	mi := &file_castor_media_v1_device_proto_msgTypes[28]
+	mi := &file_castor_media_v1_device_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2299,7 +2335,7 @@ func (x *DeviceCommand_Play_Progressive) String() string {
 func (*DeviceCommand_Play_Progressive) ProtoMessage() {}
 
 func (x *DeviceCommand_Play_Progressive) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_device_proto_msgTypes[28]
+	mi := &file_castor_media_v1_device_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2329,7 +2365,6 @@ func (x *DeviceCommand_Play_Progressive) GetRuntime() *DeviceCommand_Play_Runtim
 	return nil
 }
 
-// Runtime is a served stream's length from where it begins, and how the media server serves it within.
 type DeviceCommand_Play_Runtime struct {
 	state         protoimpl.MessageState          `protogen:"open.v1"`
 	Duration      *durationpb.Duration            `protobuf:"bytes,1,opt,name=duration,proto3" json:"duration,omitempty"`
@@ -2340,7 +2375,7 @@ type DeviceCommand_Play_Runtime struct {
 
 func (x *DeviceCommand_Play_Runtime) Reset() {
 	*x = DeviceCommand_Play_Runtime{}
-	mi := &file_castor_media_v1_device_proto_msgTypes[29]
+	mi := &file_castor_media_v1_device_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2352,7 +2387,7 @@ func (x *DeviceCommand_Play_Runtime) String() string {
 func (*DeviceCommand_Play_Runtime) ProtoMessage() {}
 
 func (x *DeviceCommand_Play_Runtime) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_device_proto_msgTypes[29]
+	mi := &file_castor_media_v1_device_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2382,18 +2417,16 @@ func (x *DeviceCommand_Play_Runtime) GetSeek() DeviceCommand_Play_Runtime_Seek {
 	return DeviceCommand_Play_Runtime_SEEK_UNSPECIFIED
 }
 
-// Playlist is an HLS playlist the media server serves, which the device seeks within by its segments.
 type DeviceCommand_Play_Playlist struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// duration is unset where the source declared none.
-	Duration      *durationpb.Duration `protobuf:"bytes,1,opt,name=duration,proto3" json:"duration,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Duration      *durationpb.Duration   `protobuf:"bytes,1,opt,name=duration,proto3" json:"duration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeviceCommand_Play_Playlist) Reset() {
 	*x = DeviceCommand_Play_Playlist{}
-	mi := &file_castor_media_v1_device_proto_msgTypes[30]
+	mi := &file_castor_media_v1_device_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2405,7 +2438,7 @@ func (x *DeviceCommand_Play_Playlist) String() string {
 func (*DeviceCommand_Play_Playlist) ProtoMessage() {}
 
 func (x *DeviceCommand_Play_Playlist) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_device_proto_msgTypes[30]
+	mi := &file_castor_media_v1_device_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2428,20 +2461,18 @@ func (x *DeviceCommand_Play_Playlist) GetDuration() *durationpb.Duration {
 	return nil
 }
 
-// Gone is a device established unreachable.
 type DeviceError_Gone struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// device names the device that went.
-	Device        string `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
-	Observed      string `protobuf:"bytes,2,opt,name=observed,proto3" json:"observed,omitempty"`
-	Cause         string `protobuf:"bytes,3,opt,name=cause,proto3" json:"cause,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Device        string                 `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
+	Observed      string                 `protobuf:"bytes,2,opt,name=observed,proto3" json:"observed,omitempty"`
+	Cause         string                 `protobuf:"bytes,3,opt,name=cause,proto3" json:"cause,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeviceError_Gone) Reset() {
 	*x = DeviceError_Gone{}
-	mi := &file_castor_media_v1_device_proto_msgTypes[31]
+	mi := &file_castor_media_v1_device_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2453,7 +2484,7 @@ func (x *DeviceError_Gone) String() string {
 func (*DeviceError_Gone) ProtoMessage() {}
 
 func (x *DeviceError_Gone) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_device_proto_msgTypes[31]
+	mi := &file_castor_media_v1_device_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2503,7 +2534,7 @@ var file_castor_media_v1_device_proto_extTypes = []protoimpl.ExtensionInfo{
 
 // Extension fields to descriptorpb.EnumValueOptions.
 var (
-	// mime is the content type a container is served and named as, on both sides of the contract.
+	// mime is the content type a container is served as.
 	//
 	// optional string mime = 51000;
 	E_Mime = &file_castor_media_v1_device_proto_extTypes[0]
@@ -2605,26 +2636,26 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\fAudioSupport\x12=\n" +
 	"\x05codec\x18\x01 \x01(\x0e2\x1b.castor.media.v1.AudioCodecB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x05codec\x12!\n" +
-	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\xd8\x10\n" +
+	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\xbf\x0f\n" +
 	"\rDeviceCommand\x129\n" +
 	"\x04call\x18\x01 \x01(\v2#.castor.media.v1.DeviceCommand.CallH\x00R\x04call\x12?\n" +
-	"\x06cancel\x18\x02 \x01(\v2%.castor.media.v1.DeviceCommand.CancelH\x00R\x06cancel\x1a\xfc\x02\n" +
+	"\x06cancel\x18\x02 \x01(\v2%.castor.media.v1.DeviceCommand.CancelH\x00R\x06cancel\x1a\xb7\x03\n" +
 	"\x04Call\x12\x17\n" +
 	"\x02id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x02id\x129\n" +
 	"\x04play\x18\x02 \x01(\v2#.castor.media.v1.DeviceCommand.PlayH\x00R\x04play\x12F\n" +
 	"\tawait_end\x18\x03 \x01(\v2'.castor.media.v1.DeviceCommand.AwaitEndH\x00R\bawaitEnd\x12<\n" +
 	"\x05pause\x18\x04 \x01(\v2$.castor.media.v1.DeviceCommand.PauseH\x00R\x05pause\x12?\n" +
 	"\x06resume\x18\x05 \x01(\v2%.castor.media.v1.DeviceCommand.ResumeH\x00R\x06resume\x12E\n" +
-	"\bposition\x18\x06 \x01(\v2'.castor.media.v1.DeviceCommand.PositionH\x00R\bpositionB\x12\n" +
-	"\toperation\x12\x05\xbaH\x02\b\x01\x1a\xa3\t\n" +
-	"\x04Play\x12\x99\x01\n" +
-	"\x03url\x18\x01 \x01(\tB\x86\x01\xbaH\x82\x01\xba\x01z\n" +
-	"\rplay.url.http\x12\x1cmust be an http or https URL\x1aKthis.isUri() && (this.startsWith('http://') || this.startsWith('https://'))r\x03\x18\x80@R\x03url\x12B\n" +
+	"\bposition\x18\x06 \x01(\v2'.castor.media.v1.DeviceCommand.PositionH\x00R\bposition\x129\n" +
+	"\x04seek\x18\a \x01(\v2#.castor.media.v1.DeviceCommand.SeekH\x00R\x04seekB\x12\n" +
+	"\toperation\x12\x05\xbaH\x02\b\x01\x1a\xf7\a\n" +
+	"\x04Play\x12)\n" +
+	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\x03url\x12B\n" +
 	"\bcaptions\x18\x03 \x03(\v2&.castor.media.v1.DeviceCommand.CaptionR\bcaptions\x12D\n" +
 	"\x06source\x18\x06 \x01(\v2*.castor.media.v1.DeviceCommand.Play.SourceH\x00R\x06source\x12S\n" +
 	"\vprogressive\x18\a \x01(\v2/.castor.media.v1.DeviceCommand.Play.ProgressiveH\x00R\vprogressive\x12J\n" +
-	"\bplaylist\x18\b \x01(\v2,.castor.media.v1.DeviceCommand.Play.PlaylistH\x00R\bplaylist\x129\n" +
-	"\x05start\x18\t \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x05start\x1a\x8f\x01\n" +
+	"\bplaylist\x18\b \x01(\v2,.castor.media.v1.DeviceCommand.Play.PlaylistH\x00R\bplaylist\x1a\x8f\x01\n" +
 	"\x06Source\x12D\n" +
 	"\tcontainer\x18\x01 \x01(\x0e2\x1a.castor.media.v1.ContainerB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\tcontainer\x12?\n" +
@@ -2643,10 +2674,10 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\tSEEK_TIME\x10\x02\x1aK\n" +
 	"\bPlaylist\x12?\n" +
 	"\bduration\x18\x01 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\bdurationB\x0f\n" +
-	"\x06stream\x12\x05\xbaH\x02\b\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\tcontainerR\bdurationR\x04seek\x1a\xb6\x02\n" +
-	"\aCaption\x12\x9c\x01\n" +
-	"\x03url\x18\x01 \x01(\tB\x89\x01\xbaH\x85\x01\xba\x01}\n" +
-	"\x10caption.url.http\x12\x1cmust be an http or https URL\x1aKthis.isUri() && (this.startsWith('http://') || this.startsWith('https://'))r\x03\x18\x80@R\x03url\x12B\n" +
+	"\x06stream\x12\x05\xbaH\x02\b\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\tcontainerR\bdurationR\x04seek\x1a\xc2\x01\n" +
+	"\aCaption\x12)\n" +
+	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
+	"^https?://\x88\x01\x01R\x03url\x12B\n" +
 	"\x06format\x18\x02 \x01(\x0e2\x1e.castor.media.v1.CaptionFormatB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x06format\x12\x1a\n" +
 	"\blanguage\x18\x03 \x01(\tR\blanguage\x12\x12\n" +
@@ -2657,7 +2688,9 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\x05Pause\x1a\b\n" +
 	"\x06Resume\x1a\n" +
 	"\n" +
-	"\bPosition\x1a0\n" +
+	"\bPosition\x1aJ\n" +
+	"\x04Seek\x12B\n" +
+	"\bposition\x18\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x022\x00R\bposition\x1a0\n" +
 	"\x06Cancel\x12&\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\tcommandIdB\x10\n" +
@@ -2710,7 +2743,7 @@ func file_castor_media_v1_device_proto_rawDescGZIP() []byte {
 }
 
 var file_castor_media_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
-var file_castor_media_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_castor_media_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_castor_media_v1_device_proto_goTypes = []any{
 	(CaptionFormat)(0),                     // 0: castor.media.v1.CaptionFormat
 	(Container)(0),                         // 1: castor.media.v1.Container
@@ -2747,14 +2780,15 @@ var file_castor_media_v1_device_proto_goTypes = []any{
 	(*DeviceCommand_Pause)(nil),            // 32: castor.media.v1.DeviceCommand.Pause
 	(*DeviceCommand_Resume)(nil),           // 33: castor.media.v1.DeviceCommand.Resume
 	(*DeviceCommand_Position)(nil),         // 34: castor.media.v1.DeviceCommand.Position
-	(*DeviceCommand_Cancel)(nil),           // 35: castor.media.v1.DeviceCommand.Cancel
-	(*DeviceCommand_Play_Source)(nil),      // 36: castor.media.v1.DeviceCommand.Play.Source
-	(*DeviceCommand_Play_Progressive)(nil), // 37: castor.media.v1.DeviceCommand.Play.Progressive
-	(*DeviceCommand_Play_Runtime)(nil),     // 38: castor.media.v1.DeviceCommand.Play.Runtime
-	(*DeviceCommand_Play_Playlist)(nil),    // 39: castor.media.v1.DeviceCommand.Play.Playlist
-	(*DeviceError_Gone)(nil),               // 40: castor.media.v1.DeviceError.Gone
-	(*durationpb.Duration)(nil),            // 41: google.protobuf.Duration
-	(*descriptorpb.EnumValueOptions)(nil),  // 42: google.protobuf.EnumValueOptions
+	(*DeviceCommand_Seek)(nil),             // 35: castor.media.v1.DeviceCommand.Seek
+	(*DeviceCommand_Cancel)(nil),           // 36: castor.media.v1.DeviceCommand.Cancel
+	(*DeviceCommand_Play_Source)(nil),      // 37: castor.media.v1.DeviceCommand.Play.Source
+	(*DeviceCommand_Play_Progressive)(nil), // 38: castor.media.v1.DeviceCommand.Play.Progressive
+	(*DeviceCommand_Play_Runtime)(nil),     // 39: castor.media.v1.DeviceCommand.Play.Runtime
+	(*DeviceCommand_Play_Playlist)(nil),    // 40: castor.media.v1.DeviceCommand.Play.Playlist
+	(*DeviceError_Gone)(nil),               // 41: castor.media.v1.DeviceError.Gone
+	(*durationpb.Duration)(nil),            // 42: google.protobuf.Duration
+	(*descriptorpb.EnumValueOptions)(nil),  // 43: google.protobuf.EnumValueOptions
 }
 var file_castor_media_v1_device_proto_depIdxs = []int32{
 	13, // 0: castor.media.v1.DriveRequest.capabilities:type_name -> castor.media.v1.Capabilities
@@ -2782,37 +2816,38 @@ var file_castor_media_v1_device_proto_depIdxs = []int32{
 	7,  // 22: castor.media.v1.HEVCSupport.profiles:type_name -> castor.media.v1.HEVCSupport.Profile
 	2,  // 23: castor.media.v1.AudioSupport.codec:type_name -> castor.media.v1.AudioCodec
 	28, // 24: castor.media.v1.DeviceCommand.call:type_name -> castor.media.v1.DeviceCommand.Call
-	35, // 25: castor.media.v1.DeviceCommand.cancel:type_name -> castor.media.v1.DeviceCommand.Cancel
-	40, // 26: castor.media.v1.DeviceError.gone:type_name -> castor.media.v1.DeviceError.Gone
-	41, // 27: castor.media.v1.AnswerRequest.Position.at:type_name -> google.protobuf.Duration
+	36, // 25: castor.media.v1.DeviceCommand.cancel:type_name -> castor.media.v1.DeviceCommand.Cancel
+	41, // 26: castor.media.v1.DeviceError.gone:type_name -> castor.media.v1.DeviceError.Gone
+	42, // 27: castor.media.v1.AnswerRequest.Position.at:type_name -> google.protobuf.Duration
 	29, // 28: castor.media.v1.DeviceCommand.Call.play:type_name -> castor.media.v1.DeviceCommand.Play
 	31, // 29: castor.media.v1.DeviceCommand.Call.await_end:type_name -> castor.media.v1.DeviceCommand.AwaitEnd
 	32, // 30: castor.media.v1.DeviceCommand.Call.pause:type_name -> castor.media.v1.DeviceCommand.Pause
 	33, // 31: castor.media.v1.DeviceCommand.Call.resume:type_name -> castor.media.v1.DeviceCommand.Resume
 	34, // 32: castor.media.v1.DeviceCommand.Call.position:type_name -> castor.media.v1.DeviceCommand.Position
-	30, // 33: castor.media.v1.DeviceCommand.Play.captions:type_name -> castor.media.v1.DeviceCommand.Caption
-	36, // 34: castor.media.v1.DeviceCommand.Play.source:type_name -> castor.media.v1.DeviceCommand.Play.Source
-	37, // 35: castor.media.v1.DeviceCommand.Play.progressive:type_name -> castor.media.v1.DeviceCommand.Play.Progressive
-	39, // 36: castor.media.v1.DeviceCommand.Play.playlist:type_name -> castor.media.v1.DeviceCommand.Play.Playlist
-	41, // 37: castor.media.v1.DeviceCommand.Play.start:type_name -> google.protobuf.Duration
+	35, // 33: castor.media.v1.DeviceCommand.Call.seek:type_name -> castor.media.v1.DeviceCommand.Seek
+	30, // 34: castor.media.v1.DeviceCommand.Play.captions:type_name -> castor.media.v1.DeviceCommand.Caption
+	37, // 35: castor.media.v1.DeviceCommand.Play.source:type_name -> castor.media.v1.DeviceCommand.Play.Source
+	38, // 36: castor.media.v1.DeviceCommand.Play.progressive:type_name -> castor.media.v1.DeviceCommand.Play.Progressive
+	40, // 37: castor.media.v1.DeviceCommand.Play.playlist:type_name -> castor.media.v1.DeviceCommand.Play.Playlist
 	0,  // 38: castor.media.v1.DeviceCommand.Caption.format:type_name -> castor.media.v1.CaptionFormat
-	1,  // 39: castor.media.v1.DeviceCommand.Play.Source.container:type_name -> castor.media.v1.Container
-	41, // 40: castor.media.v1.DeviceCommand.Play.Source.duration:type_name -> google.protobuf.Duration
-	1,  // 41: castor.media.v1.DeviceCommand.Play.Progressive.container:type_name -> castor.media.v1.Container
-	38, // 42: castor.media.v1.DeviceCommand.Play.Progressive.runtime:type_name -> castor.media.v1.DeviceCommand.Play.Runtime
-	41, // 43: castor.media.v1.DeviceCommand.Play.Runtime.duration:type_name -> google.protobuf.Duration
-	8,  // 44: castor.media.v1.DeviceCommand.Play.Runtime.seek:type_name -> castor.media.v1.DeviceCommand.Play.Runtime.Seek
-	41, // 45: castor.media.v1.DeviceCommand.Play.Playlist.duration:type_name -> google.protobuf.Duration
-	42, // 46: castor.media.v1.mime:extendee -> google.protobuf.EnumValueOptions
-	9,  // 47: castor.media.v1.DeviceService.Drive:input_type -> castor.media.v1.DriveRequest
-	11, // 48: castor.media.v1.DeviceService.Answer:input_type -> castor.media.v1.AnswerRequest
-	10, // 49: castor.media.v1.DeviceService.Drive:output_type -> castor.media.v1.DriveResponse
-	12, // 50: castor.media.v1.DeviceService.Answer:output_type -> castor.media.v1.AnswerResponse
-	49, // [49:51] is the sub-list for method output_type
-	47, // [47:49] is the sub-list for method input_type
-	47, // [47:47] is the sub-list for extension type_name
-	46, // [46:47] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	42, // 39: castor.media.v1.DeviceCommand.Seek.position:type_name -> google.protobuf.Duration
+	1,  // 40: castor.media.v1.DeviceCommand.Play.Source.container:type_name -> castor.media.v1.Container
+	42, // 41: castor.media.v1.DeviceCommand.Play.Source.duration:type_name -> google.protobuf.Duration
+	1,  // 42: castor.media.v1.DeviceCommand.Play.Progressive.container:type_name -> castor.media.v1.Container
+	39, // 43: castor.media.v1.DeviceCommand.Play.Progressive.runtime:type_name -> castor.media.v1.DeviceCommand.Play.Runtime
+	42, // 44: castor.media.v1.DeviceCommand.Play.Runtime.duration:type_name -> google.protobuf.Duration
+	8,  // 45: castor.media.v1.DeviceCommand.Play.Runtime.seek:type_name -> castor.media.v1.DeviceCommand.Play.Runtime.Seek
+	42, // 46: castor.media.v1.DeviceCommand.Play.Playlist.duration:type_name -> google.protobuf.Duration
+	43, // 47: castor.media.v1.mime:extendee -> google.protobuf.EnumValueOptions
+	9,  // 48: castor.media.v1.DeviceService.Drive:input_type -> castor.media.v1.DriveRequest
+	11, // 49: castor.media.v1.DeviceService.Answer:input_type -> castor.media.v1.AnswerRequest
+	10, // 50: castor.media.v1.DeviceService.Drive:output_type -> castor.media.v1.DriveResponse
+	12, // 51: castor.media.v1.DeviceService.Answer:output_type -> castor.media.v1.AnswerResponse
+	50, // [50:52] is the sub-list for method output_type
+	48, // [48:50] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	47, // [47:48] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_castor_media_v1_device_proto_init() }
@@ -2851,6 +2886,7 @@ func file_castor_media_v1_device_proto_init() {
 		(*DeviceCommand_Call_Pause)(nil),
 		(*DeviceCommand_Call_Resume)(nil),
 		(*DeviceCommand_Call_Position)(nil),
+		(*DeviceCommand_Call_Seek)(nil),
 	}
 	file_castor_media_v1_device_proto_msgTypes[20].OneofWrappers = []any{
 		(*DeviceCommand_Play_Source_)(nil),
@@ -2863,7 +2899,7 @@ func file_castor_media_v1_device_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_media_v1_device_proto_rawDesc), len(file_castor_media_v1_device_proto_rawDesc)),
 			NumEnums:      9,
-			NumMessages:   32,
+			NumMessages:   33,
 			NumExtensions: 1,
 			NumServices:   1,
 		},

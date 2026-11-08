@@ -4,17 +4,13 @@ package castor.v1;
 
 import "buf/validate/validate.proto";
 
-// Stream is one link to the media, with what fetching it needs.
 message Stream {
-  string url = 1 [
-    (buf.validate.field).string.max_len = 8192,
-    (buf.validate.field).cel = {
-      id: "url.http"
-      message: "must be an http or https URL"
-      expression: "this.isUri() && (this.startsWith('http://') || this.startsWith('https://'))"
-    }
-  ];
-  // headers are replayed on every fetch, as captured where the link was found.
+  string url = 1 [(buf.validate.field).string = {
+    uri: true
+    pattern: "^https?://"
+    max_bytes: 8192
+  }];
+  // headers are sent on every fetch, as captured where the link was found.
   map<string, string> headers = 2 [(buf.validate.field).map = {
     max_pairs: 64
     keys: {
@@ -27,19 +23,35 @@ message Stream {
       }
     }
   }];
-  // content_type is empty for a link given as is, which castor then identifies.
+  // content_type is empty when castor should identify the link itself.
   string content_type = 3;
+  // captions are fetched with the stream's headers; one in a language the cast asks for is shown.
+  repeated Caption captions = 4 [(buf.validate.field).repeated.max_items = 64];
 }
 
-// StreamCandidate pairs playback data with evidence from discovery.
+// Caption is a WebVTT document, or an HLS playlist of them.
+message Caption {
+  string url = 1 [(buf.validate.field).string = {
+    uri: true
+    pattern: "^https?://"
+    max_bytes: 8192
+  }];
+  // language is empty for an untagged track.
+  string language = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^[a-z]{2,3}$"
+  ];
+  string name = 3 [(buf.validate.field).string.max_len = 256];
+}
+
 message StreamCandidate {
   Stream stream = 1 [(buf.validate.field).required = true];
   string source_page = 2 [
-    (buf.validate.field).string.max_len = 8192,
-    (buf.validate.field).cel = {
-      id: "source_page.http"
-      message: "must be empty or an http or https URL"
-      expression: "this == '' || (this.isUri() && (this.startsWith('http://') || this.startsWith('https://')))"
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string = {
+      uri: true
+      pattern: "^https?://"
+      max_bytes: 8192
     }
   ];
   Ladder ladder = 3 [(buf.validate.field).enum.defined_only = true];
@@ -55,7 +67,7 @@ enum Delivery {
   DELIVERY_UNSPECIFIED = 0;
   // DELIVERY_AUTO lets the evidence decide between pass-through and serving.
   DELIVERY_AUTO = 1;
-  // DELIVERY_SERVE refuses pass-through: the media server reads the source and serves the device.
+  // DELIVERY_SERVE never passes the source through: the media server serves the device.
   DELIVERY_SERVE = 2;
 }
 
@@ -63,6 +75,6 @@ message RankedStream {
   string url = 1;
   // bitrate is in bits per second, absent when neither measured nor declared.
   optional uint64 bitrate = 2 [(buf.validate.field).uint64.gt = 0];
-  // last_resort marks a stream admitted without a measurement to back it.
+  // last_resort is a stream admitted without a measurement.
   bool last_resort = 3;
 }

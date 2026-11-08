@@ -7,8 +7,10 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
+// HeadEvery is how often a playing device is asked where it plays.
+const HeadEvery = 5 * time.Second
+
 const (
-	headEvery  = 5 * time.Second
 	paceSpan   = 30 * time.Second
 	stallBelow = 0.9
 	keepsAbove = 0.97
@@ -47,7 +49,7 @@ func (p *playTrail) measure(ctx context.Context, now time.Time, paused bool) (fl
 		p.restart()
 		return 0, false
 	}
-	if now.Sub(p.polled) >= headEvery {
+	if now.Sub(p.polled) >= HeadEvery {
 		p.polled = now
 		p.poll(ctx, now)
 	}
@@ -58,7 +60,7 @@ func (p *playTrail) measure(ctx context.Context, now time.Time, paused bool) (fl
 }
 
 func (p *playTrail) poll(ctx context.Context, now time.Time) {
-	ctx, cancel := context.WithTimeout(ctx, headEvery)
+	ctx, cancel := context.WithTimeout(ctx, HeadEvery)
 	defer cancel()
 	position, held, ok := p.source.Position(ctx)
 	if !ok {

@@ -73,7 +73,7 @@ func (e *engine) Measure(_ context.Context, stream *source.Stream) (*source.Stre
 	return stream, nil
 }
 
-func (e *engine) Play(ctx context.Context, device execute.Device, l output.Publisher, streams []*source.Stream, _ time.Duration, turns cast.Turns) error {
+func (e *engine) Play(ctx context.Context, device execute.Device, l output.Publisher, streams []*source.Stream, _ time.Duration, turns cast.Turns, _ <-chan recovery.Seek) error {
 	// This fake skips probing: its playable fixtures are MPEG-TS, as the lent device advertises.
 	for _, stream := range streams {
 		stream.ContentType = media.MPEGTS
@@ -190,7 +190,7 @@ func candidatesOf(urls ...string) *mediav1.Source {
 	for _, raw := range urls {
 		streams = append(streams, &castorv1.StreamCandidate{Stream: &castorv1.Stream{Url: raw, Headers: map[string]string{"Referer": "https://page.example/"}}})
 	}
-	return &mediav1.Source{Source: &mediav1.Source_Streams_{Streams: &mediav1.Source_Streams{Streams: streams}}}
+	return &mediav1.Source{Source: &mediav1.Source_Streams{Streams: &castorv1.Source_ResolvedStreams{Streams: streams}}}
 }
 
 func start(t *testing.T, c server, source *mediav1.Source) string {
@@ -429,7 +429,7 @@ func TestResolvedCandidatesWaitForTheirDeviceAlreadyMeasuring(t *testing.T) {
 	if got := statusOf(t, c, id); got.GetMeasuring() == nil || got.GetMeasuring().Castable != nil {
 		t.Fatalf("resolved candidates showed %v while waiting for a device, want measuring", got)
 	}
-	if _, err := c.casts.Stop(t.Context(), &mediav1.StopRequest{CastId: id}); err != nil {
+	if _, err := c.casts.Stop(t.Context(), &castorv1.StopRequest{CastId: id}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -610,7 +610,7 @@ func TestACastHasOneDeviceAndPlaysOnWhenItsLenderLeaves(t *testing.T) {
 		t.Fatal("the cast ended with the lender of its device")
 	case <-time.After(300 * time.Millisecond):
 	}
-	if _, err := c.casts.Stop(t.Context(), &mediav1.StopRequest{CastId: id}); err != nil {
+	if _, err := c.casts.Stop(t.Context(), &castorv1.StopRequest{CastId: id}); err != nil {
 		t.Fatal(err)
 	}
 	if got := <-w; got.ended.GetStopped() == nil {

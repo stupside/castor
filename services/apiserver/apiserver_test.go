@@ -19,6 +19,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -40,7 +41,8 @@ type family struct {
 	closed   chan int
 	devices  []device.Info
 	// stops counts the stops the device was sent.
-	stops atomic.Int32
+	stops  atomic.Int32
+	silent atomic.Bool
 	// unreachable is a device that answers no connection.
 	unreachable bool
 	// goneFirst is a device whose first connection is found gone at its first play.
@@ -57,6 +59,9 @@ var bedroom = device.Info{ID: "uuid-1", Name: "Bedroom", Type: "dlna", Address: 
 func (*family) Type() device.Type { return bedroom.Type }
 
 func (f *family) Discover(context.Context) []device.Info {
+	if f.silent.Load() {
+		return nil
+	}
 	if len(f.devices) > 0 {
 		return f.devices
 	}
@@ -124,8 +129,10 @@ type media struct {
 	asked   chan *mediav1.PlaybackSettings
 	sources chan *mediav1.Source
 	// stopped closes once a stop reaches a cast.
-	stopped chan struct{}
-	stop    func()
+	stopped    chan struct{}
+	stop       func()
+	sought     chan *castorv1.SeekRequest
+	controlled chan string
 
 	mu    sync.Mutex
 	casts map[string]*mediaCast
@@ -133,7 +140,36 @@ type media struct {
 
 func newMedia(held bool) *media {
 	stopped := make(chan struct{})
-	return &media{held: held, asked: make(chan *mediav1.PlaybackSettings, 8), sources: make(chan *mediav1.Source, 8), stopped: stopped, stop: sync.OnceFunc(func() { close(stopped) }), casts: map[string]*mediaCast{}}
+	return &media{held: held, asked: make(chan *mediav1.PlaybackSettings, 8), sources: make(chan *mediav1.Source, 8), stopped: stopped, stop: sync.OnceFunc(func() { close(stopped) }), sought: make(chan *castorv1.SeekRequest, 4), controlled: make(chan string, 4), casts: map[string]*mediaCast{}}
+}
+
+const runtime = 2 * time.Hour
+
+func (m *media) Pause(_ context.Context, req *castorv1.PauseRequest) (*castorv1.PauseResponse, error) {
+	if _, err := m.find(req.GetCastId()); err != nil {
+		return nil, err
+	}
+	m.controlled <- "pause " + req.GetCastId()
+	return &castorv1.PauseResponse{}, nil
+}
+
+func (m *media) Resume(_ context.Context, req *castorv1.ResumeRequest) (*castorv1.ResumeResponse, error) {
+	if _, err := m.find(req.GetCastId()); err != nil {
+		return nil, err
+	}
+	m.controlled <- "resume " + req.GetCastId()
+	return &castorv1.ResumeResponse{}, nil
+}
+
+func (m *media) Seek(_ context.Context, req *castorv1.SeekRequest) (*castorv1.SeekResponse, error) {
+	if _, err := m.find(req.GetCastId()); err != nil {
+		return nil, err
+	}
+	if req.GetPosition().AsDuration() >= runtime {
+		return nil, connect.NewError(connect.CodeOutOfRange, fmt.Errorf("the media has no position %s", req.GetPosition().AsDuration()))
+	}
+	m.sought <- req
+	return &castorv1.SeekResponse{}, nil
 }
 
 // ranked reverses candidates, so a handoff proves the media server chose the order.
@@ -177,14 +213,14 @@ func (m *media) find(id string) (*mediaCast, error) {
 }
 
 // Stop ends the cast stopped.
-func (m *media) Stop(_ context.Context, req *mediav1.StopRequest) (*mediav1.StopResponse, error) {
+func (m *media) Stop(_ context.Context, req *castorv1.StopRequest) (*castorv1.StopResponse, error) {
 	c, err := m.find(req.GetCastId())
 	if err != nil {
 		return nil, err
 	}
 	m.stop()
 	c.end(&castorv1.Ended{Result: &castorv1.Ended_Stopped{Stopped: &emptypb.Empty{}}})
-	return &mediav1.StopResponse{}, nil
+	return &castorv1.StopResponse{}, nil
 }
 
 func (m *media) Watch(ctx context.Context, req *castorv1.WatchRequest, out *connect.ServerStream[castorv1.WatchResponse]) error {
@@ -846,6 +882,112 @@ func TestAStoppedCastReleasesItsDeviceAndIsNoLongerListed(t *testing.T) {
 	})
 }
 
+func TestCastingOnABusyDeviceReplacesTheCastPlayingThere(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFamily()
+		c := serve(t, setup{media: newMedia(true), family: f})
+
+		first := cast(t, c, streamOf("https://cdn.example/first"))
+		<-f.played
+		second := cast(t, c, streamOf("https://cdn.example/second"))
+		if closed := <-f.closed; closed != 1 {
+			t.Errorf("connection %d closed first, want the replaced cast's", closed)
+		}
+		if got := <-f.played; got != "https://cdn.example/second" {
+			t.Errorf("the device then played %q, want the new cast's stream", got)
+		}
+		if w := watch(t, c, first); w.ended.GetStopped() == nil {
+			t.Errorf("the replaced cast ended %v, want stopped", w.ended)
+		}
+		listed, err := c.casts.ListCasts(t.Context(), &castorv1.ListCastsRequest{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := listed.GetCasts(); len(got) != 1 || got[0].GetId() != second {
+			t.Errorf("listed %v, want only the new cast", got)
+		}
+	})
+}
+
+func TestPauseAndResumeReachTheMediaServersCast(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, m := newFamily(), newMedia(true)
+		c := serve(t, setup{media: m, family: f})
+
+		id := cast(t, c, streamOf("https://cdn.example/direct"))
+		<-f.played
+		synctest.Wait()
+		if _, err := c.casts.Pause(t.Context(), &castorv1.PauseRequest{CastId: id}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.casts.Resume(t.Context(), &castorv1.ResumeRequest{CastId: id}); err != nil {
+			t.Fatal(err)
+		}
+		if got := []string{<-m.controlled, <-m.controlled}; !slices.Equal(got, []string{"pause " + id, "resume " + id}) {
+			t.Errorf("the media server was asked %v, want the cast paused then resumed", got)
+		}
+	})
+}
+
+func TestSeekMovesTheCastWithinItsMedia(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, m := newFamily(), newMedia(true)
+		c := serve(t, setup{media: m, family: f})
+
+		id := cast(t, c, streamOf("https://cdn.example/direct"))
+		<-f.played
+		synctest.Wait()
+		if _, err := c.casts.Seek(t.Context(), &castorv1.SeekRequest{CastId: id, Position: durationpb.New(90 * time.Minute)}); err != nil {
+			t.Fatal(err)
+		}
+		if got := <-m.sought; got.GetCastId() != id || got.GetPosition().AsDuration() != 90*time.Minute {
+			t.Errorf("the media server was asked %v, want the cast moved to 1h30m", got)
+		}
+		_, err := c.casts.Seek(t.Context(), &castorv1.SeekRequest{CastId: id, Position: durationpb.New(runtime)})
+		if connect.CodeOf(err) != connect.CodeOutOfRange {
+			t.Errorf("seeking past the media's end: %v, want out of range", err)
+		}
+	})
+}
+
+func TestAnEndedCastIsNeitherPausedNorMoved(t *testing.T) {
+	f := newFamily()
+	c := serve(t, setup{media: newMedia(false), family: f})
+
+	id := cast(t, c, streamOf("https://cdn.example/direct"))
+	if w := watch(t, c, id); w.ended.GetCompleted() == nil {
+		t.Fatalf("the cast ended %v, want completed", w.ended)
+	}
+	_, err := c.casts.Pause(t.Context(), &castorv1.PauseRequest{CastId: id})
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("pausing an ended cast: %v, want failed precondition", err)
+	}
+	_, err = c.casts.Seek(t.Context(), &castorv1.SeekRequest{CastId: id, Position: durationpb.New(time.Minute)})
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("seeking an ended cast: %v, want failed precondition", err)
+	}
+}
+
+func TestWatchingDevicesSendsTheListAgainOnceADeviceStopsAnswering(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFamily()
+		c := serve(t, setup{media: newMedia(true), family: f})
+
+		stream, err := c.devices.WatchDevices(t.Context(), &castorv1.WatchDevicesRequest{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stream.Close()
+		if !stream.Receive() || len(stream.Msg().GetDevices()) != 1 || stream.Msg().GetDevices()[0].GetId() != "dlna:uuid-1" {
+			t.Fatalf("first sent %v (%v), want the bedroom", stream.Msg().GetDevices(), stream.Err())
+		}
+		f.silent.Store(true)
+		if !stream.Receive() || len(stream.Msg().GetDevices()) != 0 {
+			t.Errorf("then sent %v (%v), want no device once the bedroom stopped answering", stream.Msg().GetDevices(), stream.Err())
+		}
+	})
+}
+
 func TestCastsAreListedOldestFirstWithoutTheHeadersTheirStreamsWereFoundWith(t *testing.T) {
 	f := newFamily()
 	f.devices = []device.Info{bedroom, {ID: "uuid-2", Name: "Living room", Type: "dlna", Address: "10.0.0.10"}}
@@ -1280,10 +1422,9 @@ func TestReplacementWaitsForOldSessionAndIgnoresStaleStop(t *testing.T) {
 			t.Fatal(err)
 		}
 		<-stopping
-		busy := cast(t, c, streamOf("https://cdn.example/too-early"))
-		if w := watch(t, c, busy); w.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_PLAYBACK_FAILED {
-			t.Fatalf("overlapping cast accepted: %v", w.ended)
-		}
+		// The replacement waits for the first cast to let the device go.
+		next := cast(t, c, streamOf("https://cdn.example/next"))
+		synctest.Wait()
 		if f.connections() != 1 {
 			t.Fatal("replacement connected before old session joined")
 		}
@@ -1294,7 +1435,6 @@ func TestReplacementWaitsForOldSessionAndIgnoresStaleStop(t *testing.T) {
 		if closed := <-f.closed; closed != 1 {
 			t.Fatalf("closed connection %d, want first", closed)
 		}
-		next := cast(t, c, streamOf("https://cdn.example/next"))
 		if played := <-f.played; played != "https://cdn.example/next" {
 			t.Fatalf("replacement played %q", played)
 		}

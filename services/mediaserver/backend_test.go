@@ -53,6 +53,8 @@ func TestTranscriptionUsesThePreferredLanguageOfTheSelectedAudio(t *testing.T) {
 		{[]string{"fr", "en"}, "fr-FR", "fr"},
 		{[]string{"fr", "en"}, "de", ""},
 		{[]string{"fr", "en"}, "", "fr"},
+		{[]string{"fre", "eng"}, "fra", "fr"},
+		{[]string{"ger"}, "", "de"},
 	} {
 		if got := transcriptLanguage(tc.preferred, tc.audio); got != tc.want {
 			t.Errorf("preferred=%v audio=%q: got %q, want %q", tc.preferred, tc.audio, got, tc.want)
