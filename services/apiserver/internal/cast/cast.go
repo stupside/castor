@@ -22,6 +22,8 @@ type cast struct {
 	// stop ends the cast; its cause is why, errStopped when asked.
 	stop context.CancelCauseFunc
 	now  *latest.Value[view]
+	// done closes once the cast ended and let its device go.
+	done chan struct{}
 }
 
 // view is a cast at one moment.
@@ -35,7 +37,8 @@ func newCast(id string, device *castorv1.Device, req *castorv1.CastRequest, stop
 		id: id, device: device,
 		source: proto.CloneOf(req.GetSource()), mediaInfo: proto.CloneOf(req.GetMediaInfo()), start: req.GetStart().AsDuration(),
 		started: time.Now(), stop: stop,
-		now: latest.New(view{status: &castorv1.CastStatus{State: &castorv1.CastStatus_Connecting{Connecting: &emptypb.Empty{}}}}),
+		now:  latest.New(view{status: &castorv1.CastStatus{State: &castorv1.CastStatus_Connecting{Connecting: &emptypb.Empty{}}}}),
+		done: make(chan struct{}),
 	}
 }
 

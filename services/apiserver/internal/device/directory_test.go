@@ -129,7 +129,7 @@ func TestDiscoveryCacheExpiresWithoutReleasingActiveOwnership(t *testing.T) {
 			t.Fatalf("cache grew to %d", len(d.seen))
 		}
 		target := Info{Type: "push", ID: "owned", Address: "192.0.2.1"}
-		l := newLease(d)
+		l := newLease(d, "")
 		if err := l.claimKeys(target, []string{endpoint(target)}); err != nil {
 			t.Fatal(err)
 		}
@@ -138,7 +138,7 @@ func TestDiscoveryCacheExpiresWithoutReleasingActiveOwnership(t *testing.T) {
 		if len(d.seen) != 0 {
 			t.Fatal("discovery cache did not expire")
 		}
-		if err := newLease(d).claimKeys(target, []string{endpoint(target)}); err == nil {
+		if err := newLease(d, "").claimKeys(target, []string{endpoint(target)}); err == nil {
 			t.Fatal("cache expiration released active lease")
 		}
 		l.release()

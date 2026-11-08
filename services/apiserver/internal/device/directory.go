@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/castid"
 	"github.com/stupside/castor/internal/settings"
 )
 
@@ -151,7 +152,8 @@ func (d *Directory) Connect(ctx context.Context, target Info) (Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := newLease(d)
+	owner, _ := castid.From(ctx)
+	l := newLease(d, owner)
 	if err := l.claimResolved(ctx, resolved); err != nil {
 		return nil, err
 	}

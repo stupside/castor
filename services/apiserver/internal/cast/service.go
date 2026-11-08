@@ -93,8 +93,7 @@ func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv
 	id := castid.New()
 	run, stop := context.WithCancelCause(castid.With(telemetry.WithTrace(s.ctx, ctx), id))
 	c := newCast(id, target.Public(), req, stop)
-	done := make(chan struct{})
-	if err := s.casts.Add(c.id, c, done); err != nil {
+	if err := s.casts.Add(c.id, c, c.done); err != nil {
 		stop(nil)
 		if errors.Is(err, registry.ErrCapacity) {
 			return nil, connect.NewError(connect.CodeResourceExhausted, err)
@@ -102,7 +101,7 @@ func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv
 		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
 	}
 	go func() {
-		defer close(done)
+		defer close(c.done)
 		defer stop(nil)
 		defer awake.Hold()()
 		ended := s.play(run, c, target, asked)

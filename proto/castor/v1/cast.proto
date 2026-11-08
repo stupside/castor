@@ -10,7 +10,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 
 service CastService {
-  // Cast starts playing a source on a device and returns at once; Watch follows it.
+  // Cast returns at once; casting to a device that plays another cast stops that one first.
   rpc Cast(CastRequest) returns (CastResponse);
   // Resolve is what Cast would play from a source, best first, without casting.
   rpc Resolve(ResolveRequest) returns (ResolveResponse);

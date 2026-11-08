@@ -53,7 +53,7 @@ const (
 
 // CastServiceClient is a client for the castor.v1.CastService service.
 type CastServiceClient interface {
-	// Cast starts playing a source on a device and returns at once; Watch follows it.
+	// Cast returns at once; casting to a device that plays another cast stops that one first.
 	Cast(context.Context, *v1.CastRequest) (*v1.CastResponse, error)
 	// Resolve is what Cast would play from a source, best first, without casting.
 	Resolve(context.Context, *v1.ResolveRequest) (*v1.ResolveResponse, error)
@@ -213,7 +213,7 @@ func (c *castServiceClient) Seek(ctx context.Context, req *v1.SeekRequest) (*v1.
 
 // CastServiceHandler is an implementation of the castor.v1.CastService service.
 type CastServiceHandler interface {
-	// Cast starts playing a source on a device and returns at once; Watch follows it.
+	// Cast returns at once; casting to a device that plays another cast stops that one first.
 	Cast(context.Context, *v1.CastRequest) (*v1.CastResponse, error)
 	// Resolve is what Cast would play from a source, best first, without casting.
 	Resolve(context.Context, *v1.ResolveRequest) (*v1.ResolveResponse, error)

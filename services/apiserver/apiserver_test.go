@@ -882,6 +882,33 @@ func TestAStoppedCastReleasesItsDeviceAndIsNoLongerListed(t *testing.T) {
 	})
 }
 
+func TestCastingOnABusyDeviceReplacesTheCastPlayingThere(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFamily()
+		c := serve(t, setup{media: newMedia(true), family: f})
+
+		first := cast(t, c, streamOf("https://cdn.example/first"))
+		<-f.played
+		second := cast(t, c, streamOf("https://cdn.example/second"))
+		if closed := <-f.closed; closed != 1 {
+			t.Errorf("connection %d closed first, want the replaced cast's", closed)
+		}
+		if got := <-f.played; got != "https://cdn.example/second" {
+			t.Errorf("the device then played %q, want the new cast's stream", got)
+		}
+		if w := watch(t, c, first); w.ended.GetStopped() == nil {
+			t.Errorf("the replaced cast ended %v, want stopped", w.ended)
+		}
+		listed, err := c.casts.ListCasts(t.Context(), &castorv1.ListCastsRequest{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := listed.GetCasts(); len(got) != 1 || got[0].GetId() != second {
+			t.Errorf("listed %v, want only the new cast", got)
+		}
+	})
+}
+
 func TestPauseAndResumeReachTheMediaServersCast(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f, m := newFamily(), newMedia(true)
@@ -1395,10 +1422,9 @@ func TestReplacementWaitsForOldSessionAndIgnoresStaleStop(t *testing.T) {
 			t.Fatal(err)
 		}
 		<-stopping
-		busy := cast(t, c, streamOf("https://cdn.example/too-early"))
-		if w := watch(t, c, busy); w.ended.GetFailed().GetCode() != castorv1.FailureCode_FAILURE_CODE_PLAYBACK_FAILED {
-			t.Fatalf("overlapping cast accepted: %v", w.ended)
-		}
+		// The replacement waits for the first cast to let the device go.
+		next := cast(t, c, streamOf("https://cdn.example/next"))
+		synctest.Wait()
 		if f.connections() != 1 {
 			t.Fatal("replacement connected before old session joined")
 		}
@@ -1409,7 +1435,6 @@ func TestReplacementWaitsForOldSessionAndIgnoresStaleStop(t *testing.T) {
 		if closed := <-f.closed; closed != 1 {
 			t.Fatalf("closed connection %d, want first", closed)
 		}
-		next := cast(t, c, streamOf("https://cdn.example/next"))
 		if played := <-f.played; played != "https://cdn.example/next" {
 			t.Fatalf("replacement played %q", played)
 		}

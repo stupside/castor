@@ -170,7 +170,13 @@ API runs where it can reach the TVs, scraping where Chrome is installed, and med
 - Clients set `servers.api.url` and `servers.api.token`.
 - Standalone servers listen on all interfaces, so use HTTPS outside a trusted network.
 
-The API lists devices and starts, stops and watches casts through [Connect contracts](proto/castor/v1), for example:
+The API is all a client needs, through [Connect contracts](proto/castor/v1):
+
+1. `ListDevices` finds the TVs, or `WatchDevices` follows them as they come and go.
+2. `Cast` plays a source on one. A TV plays one cast, so casting to a busy one replaces its cast.
+3. `Watch` follows the cast: its state, then where the TV plays, then how it ended.
+4. `Pause`, `Resume` and `Seek` act as the TV's remote would.
+5. `Stop` ends it.
 
 ```sh
 curl -X POST http://localhost:8411/castor.v1.DeviceService/ListDevices \

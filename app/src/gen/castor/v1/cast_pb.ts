@@ -800,7 +800,7 @@ export const FailureCodeSchema: GenEnum<FailureCode> = /*@__PURE__*/
  */
 export const CastService: GenService<{
   /**
-   * Cast starts playing a source on a device and returns at once; Watch follows it.
+   * Cast returns at once; casting to a device that plays another cast stops that one first.
    *
    * @generated from rpc castor.v1.CastService.Cast
    */
