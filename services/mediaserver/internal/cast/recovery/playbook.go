@@ -100,6 +100,10 @@ func fallBack(left *Attempt, f *fault, led *ledger) revision {
 
 // revisable is an attempt that failed before playing and can change; once playing, only one that can resume where it got to.
 func revisable(o Outcome) bool {
+	// A hardware encoder that failed on its own can be replaced by software, before playback or from where the viewer got to.
+	if o.Evidence.HardwareEncoder != "" {
+		return true
+	}
 	if o.Evidence.Reached >= health.Playing {
 		switch o.Evidence.Verdict {
 		case health.Starved, health.Stalled, health.Outranked:

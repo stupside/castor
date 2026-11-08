@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -59,5 +60,15 @@ func TestHDRToneMappingBoundsTheFramesItActuallyProcesses(t *testing.T) {
 				t.Fatalf("expected bounded linear-light frames and %s BT.709 SDR output\n%s", tt.want, out)
 			}
 		})
+	}
+}
+
+func TestAPictureFromATimeIsSelectedBeforeEveryOtherFilter(t *testing.T) {
+	got := videoFilters(codec.VideoEncode{From: 1500 * time.Millisecond, Deinterlace: true, MaxFrameRate: 30})
+	if len(got) < 3 || got[0] != "select='gte(t,1.500000)'" {
+		t.Fatalf("filters %v, want the selection first", got)
+	}
+	if got := videoFilters(codec.VideoEncode{MaxFrameRate: 30}); len(got) != 1 || strings.HasPrefix(got[0], "select") {
+		t.Fatalf("filters %v, want no selection where the picture begins with the read", got)
 	}
 }

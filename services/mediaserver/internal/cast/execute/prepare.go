@@ -8,6 +8,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"slices"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/compose"
@@ -205,13 +209,62 @@ type hardwareFailed struct {
 func (e *hardwareFailed) Error() string { return fmt.Sprintf("%s: %v", e.encoder, e.err) }
 func (e *hardwareFailed) Unwrap() error { return e.err }
 
-// blameHardware names the hardware video encoder a delivery failed under; cancellation blames nothing.
+// blameHardware names the hardware video encoder a delivery failed under; cancellation blames nothing, and neither
+// does a producer that only went silent, which a source that stopped delivering explains as well.
 func blameHardware(opts encodePlan, err error) error {
 	venc, ok := opts.Video.Encode()
 	if !ok || !venc.Encoder.Hardware || errors.Is(err, context.Canceled) {
 		return err
 	}
+	if fault, ok := errors.AsType[*health.Fault](err); ok && (fault.Kind == health.Stalled || fault.Kind == health.Undeliverable) {
+		return err
+	}
 	return &hardwareFailed{encoder: venc.Encoder.Name, err: err}
+}
+
+// encoderFailed names the hardware video encoder that ended a delivery with errors of its own, crashed or hung, with where the viewer had got to;
+// any other encoder that hung is a stall to recover from there, and a delivery that ended any other way is left as it ended.
+func (c *coordinator) encoderFailed(err error, opts encodePlan, made health.Producer) error {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return err
+	}
+	var seen health.Vitals
+	if o := c.observer.Load(); o != nil {
+		seen = o.Latest()
+	}
+	_, hung := errors.AsType[*encoderHung](err)
+	if venc, ok := opts.Video.Encode(); ok && venc.Encoder.Hardware && (hung || failedItself(venc.Encoder.Name, made.Evidence()) || crashed(err)) {
+		return &hardwareFailed{encoder: venc.Encoder.Name, err: &health.Fault{Kind: health.Dead, Revise: true, Subject: "the encoder", Vitals: seen, Err: err}}
+	}
+	if hung {
+		return &health.Fault{Kind: health.Stalled, Revise: true, Subject: "the encoder", Vitals: seen, Err: err}
+	}
+	return err
+}
+
+// failedItself is a log with errors from the encoder named name, not from the input it read or the muxer it fed.
+func failedItself(name string, lines []string) bool {
+	return slices.ContainsFunc(lines, func(line string) bool {
+		return (strings.Contains(line, "] [error] ") || strings.Contains(line, "] [fatal] ")) &&
+			(strings.HasPrefix(line, "["+name+" @") || strings.Contains(line, "[enc:"+name+" @"))
+	})
+}
+
+// crashed is an ffmpeg that died of its own fault, an abort or a bad memory access, not one stopped from outside.
+func crashed(err error) bool {
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) {
+		return false
+	}
+	ws, ok := exit.Sys().(syscall.WaitStatus)
+	if !ok || !ws.Signaled() {
+		return false
+	}
+	switch ws.Signal() {
+	case syscall.SIGABRT, syscall.SIGSEGV, syscall.SIGBUS, syscall.SIGILL, syscall.SIGFPE:
+		return true
+	}
+	return false
 }
 
 // prepare is the work directory and the program with its followed timelines, which a cast castor serves starts from.

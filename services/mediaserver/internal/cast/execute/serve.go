@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/splice"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 
@@ -149,10 +150,18 @@ func (s *preparation) produceOnce(f feed, encoderOpts encoding.EncodeOptions, pr
 		step = burn.Writer(s.ctx)
 	}
 	var tail io.ReadCloser
+	var unread func() int64
 	if f.buffered != nil {
-		var err error
-		if tail, err = f.buffered.reader.spool.TailAt(s.ctx, 0); err != nil {
+		buffer, err := f.buffered.reader.spool.TailAt(s.ctx, 0)
+		if err != nil {
 			return nil, err
+		}
+		counted := &countedInput{ReadCloser: buffer}
+		tail = counted
+		// Only an output castor reads tells an encoder that makes nothing from one castor is not asking.
+		if encoderOpts.Format.Tuning.Output == ffmpeg.StdoutPipe {
+			spool := f.buffered.reader.spool
+			unread = func() int64 { return spool.Size() - counted.took.Load() }
 		}
 	}
 	proc, err := s.startEncoder(encoderOpts, tail, step, dir)
@@ -162,7 +171,7 @@ func (s *preparation) produceOnce(f feed, encoderOpts encoding.EncodeOptions, pr
 		}
 		return nil, err
 	}
-	production := startProduction(s.ctx, proc, tail, prepared.Write)
+	production := startProduction(s.ctx, proc, tail, unread, prepared.Write)
 	s.releases.worker(production.stop, func() error {
 		<-production.Done()
 		return production.Err()
@@ -261,15 +270,23 @@ const (
 )
 
 func (s *preparation) stageSpec(opts encodePlan, dir string, rungs *ladder) stageSpec {
-	return stageSpec{
-		plan: func(src *pull, ceiling media.Bitrate) (encoding.EncodeOptions, error) {
+	planWith := func(encoders codec.Encoders) func(*pull, media.Bitrate) (encoding.EncodeOptions, error) {
+		return func(src *pull, ceiling media.Bitrate) (encoding.EncodeOptions, error) {
 			facts := s.bufferedFacts(src)
-			decided, err := s.decide(opts.delivery.Capabilities, opts.delivery.Plan.Format(), facts, "", false, ceiling, carried(opts.EncodeOptions))
+			decided, err := s.decide(opts.delivery.Capabilities, opts.delivery.Plan, facts, "", false, ceiling, carried(opts.EncodeOptions), encoders)
 			if err != nil {
 				return encoding.EncodeOptions{}, err
 			}
 			return encoding.EncodeOptions{Input: encoding.FromPipe(opts.delivery.Plan.Pace(false)), Format: opts.delivery.Plan.EncoderFormat(), Probe: facts.probe, Video: decided.Video, Audio: decided.Audio, KeepTimeline: true}, nil
-		},
+		}
+	}
+	var soft func(*pull, media.Bitrate) (encoding.EncodeOptions, error)
+	if s.Software != nil {
+		soft = planWith(s.Software)
+	}
+	return stageSpec{
+		plan: planWith(s.encoders()),
+		soft: soft, retire: s.RetireEncoder,
 		probe: func(src *pull) media.ProbeInfo { return s.bufferedFacts(src).probe },
 		spawn: func(next encoding.EncodeOptions, from io.Reader) (*ffmpeg.Process, error) {
 			return s.startEncoder(next, from, nil, dir)
@@ -300,6 +317,7 @@ func (s *preparation) produceChain(f feed, opts encodePlan, encoderOpts encoding
 	handed := func() int64 { n, _ := audience.Handed(); return n }
 	spec := s.stageSpec(opts, dir, rungs)
 	chain := startStages(s.ctx, reader, newStage(proc, in, reader, encoderOpts), 0, handed, spec, prepared.Write)
+	chain.ceiling.Store(int64(s.MaxBitrate))
 	s.releases.worker(chain.stop, func() error {
 		<-chain.Done()
 		return chain.Err()

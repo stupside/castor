@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -62,8 +64,33 @@ func encodesVideo(in Inputs) bool {
 	return hasPicture(in) && len(refuse(videoRefusals, in)) > 0
 }
 
-// decideVideo plans the picture within what the ceiling leaves after sound.
+// decideVideo plans the picture within what the ceiling leaves after sound, in software where a clock-cut delivery needs keyframes the chosen encoder cannot place.
 func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[VideoEncode], []Reason, error) {
+	track, refused, err := planVideo(ctx, in, sound)
+	venc, encodes := track.Encode()
+	if err != nil || !encodes || !in.KeyframesOnClock || !venc.Encoder.GOPKeyframes || wholeRate(in.Probe.VideoFrameRate, venc.MaxFrameRate) {
+		return track, refused, err
+	}
+	if in.Software == nil {
+		return Track[VideoEncode]{}, refused, fmt.Errorf("%s cannot key this delivery's clock at %v fps, and no software encoder can stand in", venc.Encoder.Name, in.Probe.VideoFrameRate)
+	}
+	slog.DebugContext(ctx, "encoder skipped: this delivery cuts on the clock", "encoder", venc.Encoder.Name, "source_frame_rate", in.Probe.VideoFrameRate)
+	in.Encoders, in.Software = in.Software, nil
+	return planVideo(ctx, in, sound)
+}
+
+// wholeRate is frames reaching the encoder at a whole number a second: the source's own rate under the cap, the fps filter's cap at or above it; an unmeasured source promises neither.
+func wholeRate(source, limit float64) bool {
+	switch {
+	case source <= 0:
+		return false
+	case limit > 0 && source >= limit:
+		return limit == math.Trunc(limit)
+	}
+	return source == math.Trunc(source)
+}
+
+func planVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[VideoEncode], []Reason, error) {
 	if !hasPicture(in) {
 		return OmitVideo(), nil, nil
 	}

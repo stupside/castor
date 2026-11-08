@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/stupside/castor/internal/machine"
@@ -56,6 +57,8 @@ type Observer struct {
 	floored bool
 	// said is why a cast was last found not lifted, so it is said once for as long as it holds.
 	said string
+	// last is the latest reading, for whoever must say where the viewer got to when something else ends the cast.
+	last atomic.Pointer[Vitals]
 }
 
 func Observe(m Monitor) *Observer {
@@ -93,6 +96,7 @@ func (o *Observer) Next(ctx context.Context) (d Decision, err error) {
 		if err != nil {
 			return Complete, err
 		}
+		o.last.Store(&h)
 		r, act, err := judge(t.m.Phase, h)
 		if err != nil {
 			return Complete, err
@@ -154,6 +158,14 @@ func (o *Observer) explain(ctx context.Context, h Vitals) {
 
 // Target is the rate a ChangeRate asks the cast to weigh, zero for as the source does.
 func (o *Observer) Target() media.Bitrate { return o.pending.to }
+
+// Latest is the last reading of the cast, zero before the first; safe to call while Next runs.
+func (o *Observer) Latest() Vitals {
+	if h := o.last.Load(); h != nil {
+		return *h
+	}
+	return Vitals{}
+}
 
 // Applied records how a Pause or Resume went, so a refused pause never counts as held.
 func (o *Observer) Applied(ctx context.Context, decision Decision, commandErr error) error {

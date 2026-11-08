@@ -36,6 +36,10 @@ func toneMapFilter(venc codec.VideoEncode) string {
 // videoFilters is a re-encode's -vf chain, in the order the frames pass through it.
 func videoFilters(venc codec.VideoEncode) []string {
 	var filters []string
+	if venc.From > 0 {
+		// First, so no later filter spends work on, or holds state from, a frame that is not sent.
+		filters = append(filters, fmt.Sprintf("select='gte(t,%s)'", strconv.FormatFloat(venc.From.Seconds(), 'f', 6, 64)))
+	}
 	if venc.Deinterlace {
 		filters = append(filters, "bwdif=mode=send_frame")
 	}

@@ -35,7 +35,7 @@ const (
 	deviceRefused
 	// producedNothing is a delivery that ended without an artifact to fetch.
 	producedNothing
-	// hardwareFailed is a hardware video encoder whose output never validated.
+	// hardwareFailed is a hardware video encoder that failed on its own: its output never validated, or it died with errors of its own.
 	hardwareFailed
 	// outranked is a cast that played well on a link another outranks.
 	outranked
@@ -127,7 +127,7 @@ var classes = []classRule{{
 	kind: deviceRefused,
 }, {
 	// Ahead of blaming the delivery: the same failure in software is a different fault.
-	why:  "the hardware encoder failed before its first output",
+	why:  "the hardware encoder failed",
 	when: func(e Evidence) bool { return e.HardwareEncoder != "" },
 	kind: hardwareFailed,
 }, {

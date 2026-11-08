@@ -81,7 +81,7 @@ type Evidence struct {
 	// Handoff is a device pointed at the source itself rather than at what castor serves.
 	Handoff bool
 
-	// HardwareEncoder names a hardware video encoder whose output never validated, empty otherwise.
+	// HardwareEncoder names a hardware video encoder that failed on its own, empty otherwise.
 	HardwareEncoder string
 
 	// TimelineErr is a source whose timeline castor must keep and could not read when the read was set up.

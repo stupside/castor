@@ -38,6 +38,10 @@ type Inputs struct {
 	BurnIn  string
 	// Encoders is the host's encoder lookup; required.
 	Encoders Encoders
+	// KeyframesOnClock is a delivery cut on the clock rather than at keyframes, so every keyframe must fall on the encode's interval.
+	KeyframesOnClock bool
+	// Software is the host's software encoder lookup, which keys any rate on the clock.
+	Software Encoders
 }
 
 // Plan is the complete codec plan for an FFmpeg encode; Refusals explain why it is not a copy.

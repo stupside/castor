@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/stupside/castor/internal/machine"
@@ -164,7 +165,7 @@ type coordinator struct {
 	device     Device
 	delivering func(media.Delivery)
 	// retire is called once software played what a failed hardware encoder could not; nil otherwise.
-	retire func()
+	retire     func()
 	maxBitrate media.Bitrate
 	climb      time.Duration
 	inspect    func() (inspectedPresentation, error)
@@ -194,7 +195,9 @@ type coordinator struct {
 	made       context.Context
 	unmade     context.CancelFunc
 	stopHealth context.CancelFunc
-	stopDrain  context.CancelFunc
+	// observer judges the playing cast, and knows where the viewer got to; nil before it plays.
+	observer  atomic.Pointer[health.Observer]
+	stopDrain context.CancelFunc
 }
 
 func newCoordinator(parent context.Context, c Cast, a recovery.Attempt) *coordinator {
@@ -399,8 +402,8 @@ func (c *coordinator) watchProduction() {
 		return
 	}
 	c.made, c.unmade = context.WithCancel(c.ctx)
-	made := c.made
-	c.launchUntil(made, productionFinished, func() error { return ended(made, d.output) })
+	made, opts := c.made, c.planned.options
+	c.launchUntil(made, productionFinished, func() error { return c.encoderFailed(ended(made, d.output), opts, d.output) })
 	if f := c.presentation.feed; f.buffered != nil && d.output != f.buffered.reader {
 		c.launchUntil(made, productionFinished, func() error { return ended(made, f.buffered.reader) })
 	}
@@ -455,10 +458,11 @@ func (c *coordinator) watchHealth(d *delivery) {
 	if aud == nil {
 		return
 	}
-	monitor := playingMonitor(c.presentation.feed, *d, aud, c.maxBitrate, c.climb, c.device)
+	observer := health.Observe(playingMonitor(c.presentation.feed, *d, aud, c.maxBitrate, c.climb, c.device))
+	c.observer.Store(observer)
 	watching, stop := context.WithCancel(c.ctx)
 	c.stopHealth = stop
-	c.launchUntil(watching, healthEnded, func() error { return observeHealth(watching, monitor, c.device, d.rate) })
+	c.launchUntil(watching, healthEnded, func() error { return observeHealth(watching, observer, c.device, d.rate) })
 }
 
 func (c *coordinator) watchSeeks(d *delivery) {

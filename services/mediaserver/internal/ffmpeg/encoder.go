@@ -23,7 +23,8 @@ type Encoder struct {
 	Filters  []string    // appended to the -vf chain: e.g. the GPU upload
 	Flags    []string    // encoder-specific -c:v flags: preset, pix_fmt, GOP
 
-	// GOPKeyframes ignores forced keyframes: only the -g length places them.
+	// GOPKeyframes ignores forced keyframes: only the -g length places them, counted in frames of the rate truncated
+	// to a whole number, so a fractional rate (23.976) drifts them off the clock.
 	GOPKeyframes bool
 	// AverageRate honors -b:v alone: no VBV ceiling and no constant-quality target.
 	AverageRate bool

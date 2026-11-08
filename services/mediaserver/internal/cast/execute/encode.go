@@ -14,7 +14,6 @@ import (
 	"github.com/stupside/castor/internal/telemetry"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
-	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/container"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/fetch"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
@@ -78,7 +77,7 @@ func (s *preparation) encode(f feed, burn burnRenderer) (encodePlan, error) {
 		if err != nil {
 			return encodePlan{}, err
 		}
-		decided, err := s.decide(selected.Capabilities, into, facts, burnIn, f.spliced(), s.MaxBitrate, "")
+		decided, err := s.decide(selected.Capabilities, selected.Plan, facts, burnIn, f.spliced(), s.MaxBitrate, "", s.encoders())
 		if err != nil {
 			planningErr = errors.Join(planningErr, fmt.Errorf("%s: %w", into.ContentType, err))
 			continue
@@ -111,9 +110,10 @@ func (s *preparation) bufferedFacts(src *pull) facts {
 	return measure(s.ctx, "the local buffer this encode reads", s.Probes.File(src.spool.ProbePath()))
 }
 
-func (s *preparation) decide(caps media.Capabilities, into container.Format, facts facts, burnIn string, spliced bool, ceiling media.Bitrate, keepAudio media.Codec) (codec.Plan, error) {
+// decide plans the encode with encoders, the attempt's own lookup unless a failed hardware encoder asks for software.
+func (s *preparation) decide(caps media.Capabilities, delivery output.Plan, facts facts, burnIn string, spliced bool, ceiling media.Bitrate, keepAudio media.Codec, encoders codec.Encoders) (codec.Plan, error) {
 	decided, err := codec.Served(s.ctx, codec.Inputs{
-		Caps: caps, Probe: facts.probe, Measured: facts.measured, Into: into, MaxHeight: s.MaxHeight,
+		Caps: caps, Probe: facts.probe, Measured: facts.measured, Into: delivery.Format(), MaxHeight: s.MaxHeight,
 		PreserveSource: s.PreserveSource,
 		// A playlist's own bit_rate is not the media's, so the rate its rung declares stands in.
 		MaxBitrate: ceiling, Rate: cmp.Or(media.Bitrate(facts.probe.BitRate), s.attempt.Rendition.Bitrate),
@@ -121,7 +121,10 @@ func (s *preparation) decide(caps media.Capabilities, into container.Format, fac
 		// Attempt's evidence: axis a reader already died copying not handed to second process to copy again.
 		Decode:   s.attempt.Decode,
 		BurnIn:   burnIn,
-		Encoders: s.encoders(),
+		Encoders: encoders,
+		// The encoder's own format may cut where the delivery's would not.
+		KeyframesOnClock: delivery.EncoderFormat().Tuning.ClockCuts,
+		Software:         s.Software,
 	})
 	if err != nil {
 		return codec.Plan{}, fmt.Errorf("planning media: %w", err)

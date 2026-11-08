@@ -76,8 +76,7 @@ type playbackControl interface {
 
 // observeHealth applies each decision synchronously in the same worker that
 // reports it to the observer. The health FSM itself has no device dependency.
-func observeHealth(ctx context.Context, m health.Monitor, device playbackControl, rate switchable) error {
-	observer := health.Observe(m)
+func observeHealth(ctx context.Context, observer *health.Observer, device playbackControl, rate switchable) error {
 	for {
 		decision, err := observer.Next(ctx)
 		if err != nil || decision == health.Complete {

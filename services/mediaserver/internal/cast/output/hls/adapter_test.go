@@ -41,3 +41,26 @@ func TestFiniteHLSKeepsEarlierSegmentsAvailableForSeeking(t *testing.T) {
 		t.Fatalf("finite remux is paced as a rolling live window: %+v", pace)
 	}
 }
+
+func TestOnlyGeneratedCaptionsCutTheEncodeOnTheClock(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		captions *output.Captions
+		runtime  time.Duration
+		want     bool
+	}{
+		{name: "captions fragment the encode every four seconds", captions: &output.Captions{Cues: &subtitle.Cues{}}, want: true},
+		{name: "a rolling playlist cuts at keyframes"},
+		{name: "a finite playlist cuts at keyframes", runtime: 2 * time.Hour},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, ok := (Adapter{}).Select(media.FormatSupport{Transport: media.TransportHLSWebVTT}, tt.captions, tt.runtime)
+			if !ok {
+				t.Fatal("supported envelope refused")
+			}
+			if got := plan.EncoderFormat().Tuning.ClockCuts; got != tt.want {
+				t.Fatalf("ClockCuts = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

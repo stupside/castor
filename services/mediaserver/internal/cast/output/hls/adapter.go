@@ -71,6 +71,7 @@ func (p hlsPlan) EncoderFormat() container.Format {
 	f.Tuning.MovFlags = []string{"delay_moov", "default_base_moof"}
 	micros := strconv.FormatInt(CaptionSegmentDuration.Microseconds(), 10)
 	f.Tuning.Args = []string{"-frag_duration", micros, "-min_frag_duration", micros}
+	f.Tuning.ClockCuts = true
 	return f
 }
 

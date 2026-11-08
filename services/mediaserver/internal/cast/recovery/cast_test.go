@@ -161,6 +161,45 @@ func TestOnlyADeviceHandedWhatItFetchesItselfIsServedInstead(t *testing.T) {
 	}
 }
 
+func TestAHardwareEncoderThatNeverMadeValidOutputIsRetriedInSoftware(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"an encoder that would not start", errors.New("h264_nvenc: validating encoded output: context deadline exceeded")},
+		{"an encoder that ended with nothing playable", &health.Fault{Kind: health.Dead, Subject: "the stream output", Revise: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8"), Deadline: 30 * time.Second}
+			failed := Outcome{Err: tc.err, Evidence: Evidence{Reached: health.Opening, HardwareEncoder: "h264_nvenc"}}
+			run := &scriptedRunner{outcomes: []Outcome{failed, delivered}}
+			if err := Cast(t.Context(), in, run, &fakeProgram{}); err != nil || len(run.seen) != 2 {
+				t.Fatalf("Cast error = %v after %d attempts, want a second attempt to deliver", err, len(run.seen))
+			}
+			if next := run.seen[1]; !next.SoftwareVideo || next.candidate != 0 {
+				t.Fatalf("second attempt = candidate %d, software %v; want the same link in software", next.candidate, next.SoftwareVideo)
+			}
+		})
+	}
+}
+
+func TestAHardwareEncoderThatDiesWhilePlayingIsReplacedBySoftwareWhereTheViewerWas(t *testing.T) {
+	in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8"), Deadline: 30 * time.Second}
+	died := &health.Fault{Kind: health.Dead, Revise: true, Subject: "the encoder", Err: errors.New("exit status 187")}
+	failed := Outcome{Err: died, Evidence: Evidence{Reached: health.Playing, Began: 40 * time.Second, Verdict: health.Dead, HardwareEncoder: "h264_mediacodec"}}
+	run := &scriptedRunner{outcomes: []Outcome{failed, delivered}}
+	if err := Cast(t.Context(), in, run, &fakeProgram{}); err != nil || len(run.seen) != 2 {
+		t.Fatalf("Cast error = %v after %d attempts, want a second attempt to deliver", err, len(run.seen))
+	}
+	next := run.seen[1]
+	if !next.SoftwareVideo || next.FailedEncoder != "h264_mediacodec" {
+		t.Fatalf("second attempt software %v after %q, want software after h264_mediacodec", next.SoftwareVideo, next.FailedEncoder)
+	}
+	if next.Program.Start != 40*time.Second {
+		t.Fatalf("second attempt starts at %v, want 40s where the viewer was", next.Program.Start)
+	}
+}
+
 func TestUnreadableLinksAreMovedPastInRankOrder(t *testing.T) {
 	in := Intent{Turns: unheard{}, Candidates: candidates(t,
 		"https://cdn.example/expired.m3u8",
