@@ -192,7 +192,7 @@ func (r *playbackRun) Play(ctx context.Context, media device.Playback) error {
 	case <-ctx.Done():
 		return context.Cause(ctx)
 	}
-	err := r.playAt(ctx, media, r.base)
+	err := r.playAt(ctx, media, media.Start(r.base))
 	if err == nil && r.paused {
 		err = r.Device.Pause(ctx)
 	}

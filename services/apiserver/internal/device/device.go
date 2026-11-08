@@ -32,6 +32,14 @@ func (p Playback) Container() mediav1.Container {
 	return cmp.Or(p.Play.GetSource().GetContainer(), p.Play.GetProgressive().GetContainer())
 }
 
+// Start is where in the cast's media the stream begins, else where the cast asked to begin.
+func (p Playback) Start(asked time.Duration) time.Duration {
+	if start := p.Play.GetStart(); start != nil {
+		return start.AsDuration()
+	}
+	return asked
+}
+
 // Duration is the stream's runtime, zero where the source declared none.
 func (p Playback) Duration() time.Duration {
 	return cmp.Or(p.Play.GetSource().GetDuration(), p.Play.GetProgressive().GetRuntime().GetDuration(), p.Play.GetPlaylist().GetDuration()).AsDuration()
