@@ -1,16 +1,33 @@
 "use client";
 
-import { useActionState } from "react";
-import { Button, type Variant } from "@/components/button";
+import { useState, useTransition } from "react";
+import { Button } from "@/components/button";
+import { toast } from "@/components/toast";
 import { stopAction } from "./actions";
 
-export function StopButton({ castId, variant = "stop" }: { castId: string; variant?: Variant }) {
-  const [state, action, pending] = useActionState(stopAction.bind(null, castId), {});
-  return <form action={action} className="max-w-xs space-y-2">
-    <Button variant={variant} disabled={pending || state.stopped} aria-busy={pending}>
-      {pending ? "Stopping…" : state.stopped ? "Stop requested" : "Stop"}
+export function StopButton({ castId, size }: { castId: string; size?: "sm" }) {
+  const [pending, startTransition] = useTransition();
+  const [stopped, setStopped] = useState(false);
+  return (
+    <Button
+      variant="danger"
+      size={size}
+      icon="stop"
+      loading={pending}
+      disabled={stopped}
+      onClick={() =>
+        startTransition(async () => {
+          const error = await stopAction(castId);
+          if (error) {
+            toast(`Couldn’t stop: ${error}`, "danger");
+          } else {
+            setStopped(true);
+            toast("Stop sent. The cast ends in a moment.", "success");
+          }
+        })
+      }
+    >
+      {stopped ? "Stopping" : "Stop"}
     </Button>
-    {state.error && <p role="alert" className="text-xs font-semibold text-red-300">Couldn’t stop: {state.error}</p>}
-    {state.stopped && <span role="status" className="sr-only">Stop requested. Waiting for the cast to end.</span>}
-  </form>;
+  );
 }

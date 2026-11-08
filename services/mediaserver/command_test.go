@@ -14,8 +14,8 @@ import (
 	"connectrpc.com/grpchealth"
 	"github.com/urfave/cli/v3"
 
-	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/gen/castor/media/v1/mediav1connect"
+	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/transport"
 )
 
@@ -24,7 +24,7 @@ func TestAServerWithATokenAnswersOnlyThoseCarryingItButHealthChecksAndDevices(t 
 	ts := httptest.NewServer(onePort(srv, "secret"))
 	t.Cleanup(ts.Close)
 
-	stop := &mediav1.StopRequest{CastId: "none"}
+	stop := &castorv1.StopRequest{CastId: "none"}
 	for _, tc := range []struct {
 		name   string
 		client *http.Client

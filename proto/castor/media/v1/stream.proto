@@ -17,6 +17,5 @@ message RankRequest {
 }
 
 message RankResponse {
-  // ranked is the order a cast walks the streams in, best first.
   repeated castor.v1.RankedStream ranked = 1;
 }

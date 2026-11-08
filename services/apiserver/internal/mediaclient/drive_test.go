@@ -26,6 +26,7 @@ import (
 
 // media is the media server at its contract: its one cast plays commands on the lent device, each once the last is answered, then ends.
 type media struct {
+	mediav1connect.UnimplementedCastServiceHandler
 	commands []*mediav1.DeviceCommand
 	// lent is the capabilities the cast was lent its device with.
 	lent chan *mediav1.Capabilities
@@ -41,8 +42,8 @@ func (*media) Start(context.Context, *mediav1.StartRequest) (*mediav1.StartRespo
 	return &mediav1.StartResponse{}, nil
 }
 
-func (*media) Stop(context.Context, *mediav1.StopRequest) (*mediav1.StopResponse, error) {
-	return &mediav1.StopResponse{}, nil
+func (*media) Stop(context.Context, *castorv1.StopRequest) (*castorv1.StopResponse, error) {
+	return &castorv1.StopResponse{}, nil
 }
 
 // Watch shows the cast casting, then how its device answered: ended, or failed by the device.

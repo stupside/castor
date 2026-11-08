@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -54,6 +55,8 @@ func (r *Resolver) Resolve(ctx context.Context, stream *Stream, chosen Rendition
 	if drm := resolved.Origin.Protection; drm != "" {
 		return resolved, fmt.Errorf("the source is protected by DRM (%s), which castor cannot decrypt", drm)
 	}
+	// Captions given with the link come before those the source publishes.
+	resolved.Rendition.Captions = slices.Concat(stream.Captions, resolved.Rendition.Captions)
 	if selected := resolved.Rendition.AudioLanguage; selected != "" && len(r.env.AudioLanguages) > 0 {
 		matched := false
 		for _, preferred := range r.env.AudioLanguages {

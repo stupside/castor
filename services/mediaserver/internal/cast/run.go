@@ -4,19 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/awake"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/lend"
-	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-// run finds the source's streams, readies them and casts them on the lent device, then ends with how that went.
-func (c *cast) run(caps media.Capabilities) {
-	c.end(eventEnd, outcome(c.ctx, c.play(caps)))
+// run finds the source's streams, readies them and casts them on d, then ends with how that went.
+func (c *cast) run(d *lend.Device) {
+	defer awake.Hold()()
+	go d.Follow(c.ctx)
+	c.end(eventEnd, outcome(c.ctx, c.play(d)))
 }
 
-func (c *cast) play(caps media.Capabilities) error {
+func (c *cast) play(d *lend.Device) error {
 	streams, err := c.source.streams()
 	if err != nil {
 		return err
@@ -27,8 +30,27 @@ func (c *cast) play(caps media.Capabilities) error {
 		return err
 	}
 	c.fire(eventRank, func(next *view) { next.status.GetMeasuring().Castable = new(uint32(len(ready))) })
-	device := lend.NewDevice(c.line, caps, func() { c.cancel(lend.ErrLenderLeft) })
-	return c.caster.Play(c.ctx, device, c.publisher, ready, c.start, c)
+	return c.caster.Play(c.ctx, d, c.publisher, ready, c.start, c, c.seeks)
+}
+
+// seek moves the cast to at in its media, refused while no attempt plays it.
+func (c *cast) seek(at time.Duration) error {
+	accepted := make(chan error, 1)
+	select {
+	case c.seeks <- recovery.Seek{At: at, Accepted: accepted}:
+	default:
+		if c.ctx.Err() != nil {
+			return errEnded
+		}
+		return lend.ErrNotPlaying
+	}
+	if err := <-accepted; err != nil {
+		return err
+	}
+	if d := c.device.Load(); d != nil {
+		d.Reload()
+	}
+	return nil
 }
 
 // outcome preserves failures discovered while joining a canceled cast.

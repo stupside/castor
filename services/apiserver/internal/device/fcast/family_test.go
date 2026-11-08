@@ -76,3 +76,16 @@ func TestAnInstanceIsReadAsDNSWritesIt(t *testing.T) {
 		}
 	}
 }
+
+func TestAPinnedAddressIsNamedAsDiscoveryNamesIt(t *testing.T) {
+	for pinned, want := range map[string]string{
+		"192.168.1.5:46899": "192.168.1.5",
+		"192.168.1.5:46900": "192.168.1.5:46900",
+		"192.168.1.5":       "192.168.1.5",
+		"[fe80::1]:46899":   "fe80::1",
+	} {
+		if got, err := (Family{}).Locate(t.Context(), pinned); err != nil || got != want {
+			t.Errorf("Locate(%q) = %q, %v; want %q", pinned, got, err, want)
+		}
+	}
+}

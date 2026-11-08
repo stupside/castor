@@ -28,6 +28,9 @@ type Stream struct {
 	Headers http.Header
 	// ContentType is one of media's content types, never a server's raw MIME type; "" until something names it.
 	ContentType string
+
+	// Captions are text tracks given with the link, beside any its source publishes.
+	Captions []Caption
 }
 
 // MeasuredContentType reconciles the announced format with the probe's shared

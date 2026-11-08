@@ -36,12 +36,17 @@ const (
 	// DeviceServiceListDevicesProcedure is the fully-qualified name of the DeviceService's ListDevices
 	// RPC.
 	DeviceServiceListDevicesProcedure = "/castor.v1.DeviceService/ListDevices"
+	// DeviceServiceWatchDevicesProcedure is the fully-qualified name of the DeviceService's
+	// WatchDevices RPC.
+	DeviceServiceWatchDevicesProcedure = "/castor.v1.DeviceService/WatchDevices"
 )
 
 // DeviceServiceClient is a client for the castor.v1.DeviceService service.
 type DeviceServiceClient interface {
 	// ListDevices discovers the devices this server reaches, within its network timeout.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
+	// WatchDevices sends the devices now, then the whole list again whenever one appears or stops answering.
+	WatchDevices(context.Context, *v1.WatchDevicesRequest) (*connect.ServerStreamForClient[v1.WatchDevicesResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the castor.v1.DeviceService service. By default,
@@ -61,12 +66,19 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("ListDevices")),
 			connect.WithClientOptions(opts...),
 		),
+		watchDevices: connect.NewClient[v1.WatchDevicesRequest, v1.WatchDevicesResponse](
+			httpClient,
+			baseURL+DeviceServiceWatchDevicesProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("WatchDevices")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // deviceServiceClient implements DeviceServiceClient.
 type deviceServiceClient struct {
-	listDevices *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
+	listDevices  *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
+	watchDevices *connect.Client[v1.WatchDevicesRequest, v1.WatchDevicesResponse]
 }
 
 // ListDevices calls castor.v1.DeviceService.ListDevices.
@@ -78,10 +90,17 @@ func (c *deviceServiceClient) ListDevices(ctx context.Context, req *v1.ListDevic
 	return nil, err
 }
 
+// WatchDevices calls castor.v1.DeviceService.WatchDevices.
+func (c *deviceServiceClient) WatchDevices(ctx context.Context, req *v1.WatchDevicesRequest) (*connect.ServerStreamForClient[v1.WatchDevicesResponse], error) {
+	return c.watchDevices.CallServerStream(ctx, connect.NewRequest(req))
+}
+
 // DeviceServiceHandler is an implementation of the castor.v1.DeviceService service.
 type DeviceServiceHandler interface {
 	// ListDevices discovers the devices this server reaches, within its network timeout.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
+	// WatchDevices sends the devices now, then the whole list again whenever one appears or stops answering.
+	WatchDevices(context.Context, *v1.WatchDevicesRequest, *connect.ServerStream[v1.WatchDevicesResponse]) error
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -97,10 +116,18 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("ListDevices")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceWatchDevicesHandler := connect.NewServerStreamHandlerSimple(
+		DeviceServiceWatchDevicesProcedure,
+		svc.WatchDevices,
+		connect.WithSchema(deviceServiceMethods.ByName("WatchDevices")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/castor.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceListDevicesProcedure:
 			deviceServiceListDevicesHandler.ServeHTTP(w, r)
+		case DeviceServiceWatchDevicesProcedure:
+			deviceServiceWatchDevicesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -112,4 +139,8 @@ type UnimplementedDeviceServiceHandler struct{}
 
 func (UnimplementedDeviceServiceHandler) ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.ListDevices is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) WatchDevices(context.Context, *v1.WatchDevicesRequest, *connect.ServerStream[v1.WatchDevicesResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.DeviceService.WatchDevices is not implemented"))
 }

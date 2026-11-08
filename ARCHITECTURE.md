@@ -115,9 +115,11 @@ Language beats picture: a worse picture in your language wins over a better one 
 - A paused TV can stop reading for as long as it likes; only the health watch decides a TV is gone.
 - Nothing carries over between casts: each starts at your `max_bitrate`, which covers picture and sound together.
 
-### Seeking on a DLNA TV
+### Seeking
 
-A DLNA TV can seek when castor serves it a single MPEG-TS stream, from a source with a known duration and no generated captions. Castor then reads the source again from the new position, at the same quality and rate, and serves it on the same URL.
+A client seeks any cast through the API. Castor ends the attempt playing and starts the next one from the position asked, on the same link, so the TV reloads for a moment.
+
+A DLNA TV can also seek by itself when castor serves it a single MPEG-TS stream, from a source with a known duration and no generated captions. Castor then reads the source again from the new position, at the same quality and rate, and serves it on the same URL.
 
 ### Changing the stream mid-play
 
@@ -168,13 +170,21 @@ API runs where it can reach the TVs, scraping where Chrome is installed, and med
 - Clients set `servers.api.url` and `servers.api.token`.
 - Standalone servers listen on all interfaces, so use HTTPS outside a trusted network.
 
-The API lists devices and starts, stops and watches casts through [Connect contracts](proto/castor/v1), for example:
+The API is all a client needs, through [Connect contracts](proto/castor/v1):
+
+1. `ListDevices` finds the TVs, or `WatchDevices` follows them as they come and go.
+2. `Cast` plays a source on one. A TV plays one cast, so casting to a busy one replaces its cast.
+3. `Watch` follows the cast: its state, then where the TV plays, then how it ended.
+4. `Pause`, `Resume` and `Seek` act as the TV's remote would.
+5. `Stop` ends it.
 
 ```sh
 curl -X POST http://localhost:8411/castor.v1.DeviceService/ListDevices \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{}'
 ```
+
+A stream can carry its own text tracks (`Stream.captions`); castor shows one in a language the cast asks for, as it shows an HLS source's.
 
 The [Compose stack](docker-compose.yml) runs all three with host networking ([how to start it](README.md#the-whole-stack)). A media container on a bridged network needs `-p 8410:8410` and a TV-reachable `servers.media.advertise`. Image tags are `latest` (stable), `canary` (preview) or a pinned `vX.Y.Z`.
 

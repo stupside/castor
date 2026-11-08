@@ -1,21 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useTransition } from "react";
+import { useEffect, useEffectEvent, useTransition } from "react";
 
-export function AutoRefresh({ everyMs = 10000 }: { everyMs?: number }) {
+export function AutoRefresh() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const refresh = useEffectEvent(() => {
+    if (!document.hidden && !pending) startTransition(() => router.refresh());
+  });
   useEffect(() => {
-    const refresh = () => {
-      if (!document.hidden && !pending) startTransition(() => router.refresh());
-    };
-    const id = setInterval(refresh, everyMs);
+    const id = setInterval(refresh, 10_000);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [router, everyMs, pending]);
+  }, []);
   return null;
 }

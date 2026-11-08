@@ -6,16 +6,15 @@ import "buf/validate/validate.proto";
 import "google/protobuf/descriptor.proto";
 import "google/protobuf/duration.proto";
 
-// DeviceService lends a device to a cast: its lender holds it for the whole cast, playing what the cast asks through Drive and answering through Answer.
+// DeviceService lends a device to a cast: Drive streams the commands, Answer returns their results.
 service DeviceService {
-  // Drive lends the Device: a cast takes one, starts once it is lent, and plays on once its lender leaves.
+  // Drive lends a device for the whole cast, which starts once lent and plays on if its lender leaves.
   rpc Drive(DriveRequest) returns (stream DriveResponse);
   rpc Answer(AnswerRequest) returns (AnswerResponse);
 }
 
 message DriveRequest {
   string cast_id = 1 [(buf.validate.field).string.min_len = 1];
-  // capabilities are the lent device's, read once its lender has connected to it for the whole cast.
   Capabilities capabilities = 2 [(buf.validate.field).required = true];
 }
 
@@ -35,22 +34,20 @@ message AnswerRequest {
 
   message Done {}
 
-  // Position answers a Position call; a device that cannot say where it has played to answers done.
+  // Position answers a Position call; a device that cannot tell answers done.
   message Position {
     google.protobuf.Duration at = 1 [
       (buf.validate.field).required = true,
       (buf.validate.field).duration.gte = {}
     ];
-    // paused is the device's viewer holding playback at.
     bool paused = 2;
   }
 }
 
 message AnswerResponse {}
 
-// Capabilities is what a device decodes natively and how it takes a stream.
 message Capabilities {
-  // Atomic playback envelopes in preference order; the first is the default.
+  // formats are in preference order; the first is the default.
   repeated FormatSupport formats = 1 [(buf.validate.field).repeated = {
     min_items: 1
     max_items: 128
@@ -59,7 +56,7 @@ message Capabilities {
   bool deinterlaces = 3;
   reserved 4;
   reserved "served_headers";
-  // self_fetch is whether the device fetches a stream URL itself, rather than only playing what it is served.
+  // self_fetch is a device that can fetch the source itself.
   bool self_fetch = 5;
 }
 
@@ -75,7 +72,7 @@ message FormatSupport {
     AudioSupport audio = 4;
     AVSupport av = 5;
   }
-  // Complete subtitle documents fetched separately from media.
+  // captions are whole documents fetched apart from the media.
   repeated CaptionFormat captions = 6 [(buf.validate.field).repeated.items.enum = {
     defined_only: true
     not_in: [0]
@@ -120,13 +117,11 @@ message HLSSupport {
     SUBTITLES_UNSPECIFIED = 0;
     SUBTITLES_WEBVTT = 1;
   }
-  // Subtitle rendition playlists refreshed alongside the media playlist.
   Subtitles subtitles = 1 [(buf.validate.field).enum.defined_only = true];
   enum ExtraSegmentFormat {
     EXTRA_SEGMENT_FORMAT_UNSPECIFIED = 0;
     EXTRA_SEGMENT_FORMAT_TIKTIKPX = 1; // PNG/gzip/MPEG-TS envelope
   }
-  // Nonstandard segment formats accepted in addition to ordinary HLS segments.
   repeated ExtraSegmentFormat extra_segment_formats = 2 [(buf.validate.field).repeated = {
     max_items: 16
     unique: true
@@ -213,14 +208,12 @@ message AudioSupport {
   uint32 max_channels = 2;
 }
 
-// CaptionFormat is how a caption track is written.
 enum CaptionFormat {
   CAPTION_FORMAT_UNSPECIFIED = 0;
   CAPTION_FORMAT_VTT = 1;
   CAPTION_FORMAT_SRT = 2;
 }
 
-// Container is how a stream is packaged, as a device takes it.
 enum Container {
   CONTAINER_UNSPECIFIED = 0;
   CONTAINER_MP4 = 1 [(mime) = "video/mp4"];
@@ -231,7 +224,7 @@ enum Container {
 }
 
 extend google.protobuf.EnumValueOptions {
-  // mime is the content type a container is served and named as, on both sides of the contract.
+  // mime is the content type a container is served as.
   string mime = 51000;
 }
 
@@ -244,12 +237,11 @@ enum AudioCodec {
   AUDIO_CODEC_VORBIS = 5;
 }
 
-// DeviceCommand is one call a cast makes on the device lent to it.
 message DeviceCommand {
   oneof command {
     option (buf.validate.oneof).required = true;
     Call call = 1;
-    // Cancellation identifies an existing call and is never answered.
+    // cancel is never answered.
     Cancel cancel = 2;
   }
 
@@ -266,15 +258,11 @@ message DeviceCommand {
   }
 
   message Play {
-    // url is what the device fetches: the source itself, or what the media server serves it.
-    string url = 1 [
-      (buf.validate.field).string.max_len = 8192,
-      (buf.validate.field).cel = {
-        id: "play.url.http"
-        message: "must be an http or https URL"
-        expression: "this.isUri() && (this.startsWith('http://') || this.startsWith('https://'))"
-      }
-    ];
+    string url = 1 [(buf.validate.field).string = {
+      uri: true
+      pattern: "^https?://"
+      max_bytes: 8192
+    }];
     repeated Caption captions = 3;
     oneof stream {
       option (buf.validate.oneof).required = true;
@@ -285,17 +273,15 @@ message DeviceCommand {
     reserved 2, 4, 5;
     reserved "container", "duration", "seek";
 
-    // Source is the source itself, fetched from its own server, which alone knows how it seeks.
+    // Source is fetched from its own server, which alone knows how it seeks.
     message Source {
       Container container = 1 [(buf.validate.field).enum = {
         defined_only: true
         not_in: [0]
       }];
-      // duration is unset where the source declared none.
       google.protobuf.Duration duration = 2 [(buf.validate.field).duration.gt = {}];
     }
 
-    // Progressive is one stream the media server serves.
     message Progressive {
       Container container = 1 [(buf.validate.field).enum = {
         defined_only: true
@@ -304,17 +290,14 @@ message DeviceCommand {
           3
         ]
       }];
-      // runtime is unset where the source declared none, and such a stream is served from its start only.
+      // runtime is absent for a stream served from its start only.
       Runtime runtime = 2;
     }
 
-    // Runtime is a served stream's length from where it begins, and how the media server serves it within.
     message Runtime {
       enum Seek {
         SEEK_UNSPECIFIED = 0;
-        // SEEK_START serves the stream from its start only.
         SEEK_START = 1;
-        // SEEK_TIME serves it from any time asked for within duration.
         SEEK_TIME = 2;
       }
       google.protobuf.Duration duration = 1 [
@@ -327,31 +310,24 @@ message DeviceCommand {
       }];
     }
 
-    // Playlist is an HLS playlist the media server serves, which the device seeks within by its segments.
     message Playlist {
-      // duration is unset where the source declared none.
       google.protobuf.Duration duration = 1 [(buf.validate.field).duration.gt = {}];
     }
   }
 
-  // Caption is a text track the device shows over the stream; its url is fetched like the stream's.
   message Caption {
-    string url = 1 [
-      (buf.validate.field).string.max_len = 8192,
-      (buf.validate.field).cel = {
-        id: "caption.url.http"
-        message: "must be an http or https URL"
-        expression: "this.isUri() && (this.startsWith('http://') || this.startsWith('https://'))"
-      }
-    ];
+    string url = 1 [(buf.validate.field).string = {
+      uri: true
+      pattern: "^https?://"
+      max_bytes: 8192
+    }];
     CaptionFormat format = 2 [(buf.validate.field).enum = {
       defined_only: true
       not_in: [0]
     }];
-    // language is the ISO 639 code the track is tagged with, empty when untagged.
+    // language is the tag as the source gave it, empty when untagged.
     string language = 3;
     string name = 4;
-    // default is shown without the viewer choosing it.
     bool default = 5;
   }
 
@@ -368,7 +344,6 @@ message DeviceCommand {
   }
 }
 
-// DeviceError is a device's failure, typed where the cast's recovery reads its kind.
 message DeviceError {
   oneof error {
     option (buf.validate.oneof).required = true;
@@ -376,9 +351,7 @@ message DeviceError {
     Gone gone = 2;
   }
 
-  // Gone is a device established unreachable.
   message Gone {
-    // device names the device that went.
     string device = 1;
     string observed = 2;
     string cause = 3;

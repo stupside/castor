@@ -43,22 +43,30 @@ const (
 	CastServiceStopProcedure = "/castor.v1.CastService/Stop"
 	// CastServiceListCastsProcedure is the fully-qualified name of the CastService's ListCasts RPC.
 	CastServiceListCastsProcedure = "/castor.v1.CastService/ListCasts"
+	// CastServicePauseProcedure is the fully-qualified name of the CastService's Pause RPC.
+	CastServicePauseProcedure = "/castor.v1.CastService/Pause"
+	// CastServiceResumeProcedure is the fully-qualified name of the CastService's Resume RPC.
+	CastServiceResumeProcedure = "/castor.v1.CastService/Resume"
+	// CastServiceSeekProcedure is the fully-qualified name of the CastService's Seek RPC.
+	CastServiceSeekProcedure = "/castor.v1.CastService/Seek"
 )
 
 // CastServiceClient is a client for the castor.v1.CastService service.
 type CastServiceClient interface {
-	// Cast starts playing a source on a device and returns at once; Watch follows it.
+	// Cast returns at once; casting to a device that plays another cast stops that one first.
 	Cast(context.Context, *v1.CastRequest) (*v1.CastResponse, error)
 	// Resolve is what Cast would play from a source, best first, without casting.
 	Resolve(context.Context, *v1.ResolveRequest) (*v1.ResolveResponse, error)
-	// Watch sends a cast's status now and on every change (changes close together may arrive as one), and Ended last; a stream cut before Ended is an error.
-	// A cast stays watchable for 5 minutes after its end.
-	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// Watch sends the status now and on every change, then Ended; a stream cut before Ended is an error.
+	// A cast stays watchable for 5 minutes after it ends.
 	Watch(context.Context, *v1.WatchRequest) (*connect.ServerStreamForClient[v1.WatchResponse], error)
-	// Stop ends a cast and returns at once.
 	Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error)
 	// ListCasts is the casts playing now, oldest first.
 	ListCasts(context.Context, *v1.ListCastsRequest) (*v1.ListCastsResponse, error)
+	Pause(context.Context, *v1.PauseRequest) (*v1.PauseResponse, error)
+	// Resume ends a Pause; a device castor holds while its stream catches up plays once it has.
+	Resume(context.Context, *v1.ResumeRequest) (*v1.ResumeResponse, error)
+	Seek(context.Context, *v1.SeekRequest) (*v1.SeekResponse, error)
 }
 
 // NewCastServiceClient constructs a client for the castor.v1.CastService service. By default, it
@@ -102,6 +110,24 @@ func NewCastServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(castServiceMethods.ByName("ListCasts")),
 			connect.WithClientOptions(opts...),
 		),
+		pause: connect.NewClient[v1.PauseRequest, v1.PauseResponse](
+			httpClient,
+			baseURL+CastServicePauseProcedure,
+			connect.WithSchema(castServiceMethods.ByName("Pause")),
+			connect.WithClientOptions(opts...),
+		),
+		resume: connect.NewClient[v1.ResumeRequest, v1.ResumeResponse](
+			httpClient,
+			baseURL+CastServiceResumeProcedure,
+			connect.WithSchema(castServiceMethods.ByName("Resume")),
+			connect.WithClientOptions(opts...),
+		),
+		seek: connect.NewClient[v1.SeekRequest, v1.SeekResponse](
+			httpClient,
+			baseURL+CastServiceSeekProcedure,
+			connect.WithSchema(castServiceMethods.ByName("Seek")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -112,6 +138,9 @@ type castServiceClient struct {
 	watch     *connect.Client[v1.WatchRequest, v1.WatchResponse]
 	stop      *connect.Client[v1.StopRequest, v1.StopResponse]
 	listCasts *connect.Client[v1.ListCastsRequest, v1.ListCastsResponse]
+	pause     *connect.Client[v1.PauseRequest, v1.PauseResponse]
+	resume    *connect.Client[v1.ResumeRequest, v1.ResumeResponse]
+	seek      *connect.Client[v1.SeekRequest, v1.SeekResponse]
 }
 
 // Cast calls castor.v1.CastService.Cast.
@@ -155,20 +184,49 @@ func (c *castServiceClient) ListCasts(ctx context.Context, req *v1.ListCastsRequ
 	return nil, err
 }
 
+// Pause calls castor.v1.CastService.Pause.
+func (c *castServiceClient) Pause(ctx context.Context, req *v1.PauseRequest) (*v1.PauseResponse, error) {
+	response, err := c.pause.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// Resume calls castor.v1.CastService.Resume.
+func (c *castServiceClient) Resume(ctx context.Context, req *v1.ResumeRequest) (*v1.ResumeResponse, error) {
+	response, err := c.resume.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// Seek calls castor.v1.CastService.Seek.
+func (c *castServiceClient) Seek(ctx context.Context, req *v1.SeekRequest) (*v1.SeekResponse, error) {
+	response, err := c.seek.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // CastServiceHandler is an implementation of the castor.v1.CastService service.
 type CastServiceHandler interface {
-	// Cast starts playing a source on a device and returns at once; Watch follows it.
+	// Cast returns at once; casting to a device that plays another cast stops that one first.
 	Cast(context.Context, *v1.CastRequest) (*v1.CastResponse, error)
 	// Resolve is what Cast would play from a source, best first, without casting.
 	Resolve(context.Context, *v1.ResolveRequest) (*v1.ResolveResponse, error)
-	// Watch sends a cast's status now and on every change (changes close together may arrive as one), and Ended last; a stream cut before Ended is an error.
-	// A cast stays watchable for 5 minutes after its end.
-	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// Watch sends the status now and on every change, then Ended; a stream cut before Ended is an error.
+	// A cast stays watchable for 5 minutes after it ends.
 	Watch(context.Context, *v1.WatchRequest, *connect.ServerStream[v1.WatchResponse]) error
-	// Stop ends a cast and returns at once.
 	Stop(context.Context, *v1.StopRequest) (*v1.StopResponse, error)
 	// ListCasts is the casts playing now, oldest first.
 	ListCasts(context.Context, *v1.ListCastsRequest) (*v1.ListCastsResponse, error)
+	Pause(context.Context, *v1.PauseRequest) (*v1.PauseResponse, error)
+	// Resume ends a Pause; a device castor holds while its stream catches up plays once it has.
+	Resume(context.Context, *v1.ResumeRequest) (*v1.ResumeResponse, error)
+	Seek(context.Context, *v1.SeekRequest) (*v1.SeekResponse, error)
 }
 
 // NewCastServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -208,6 +266,24 @@ func NewCastServiceHandler(svc CastServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(castServiceMethods.ByName("ListCasts")),
 		connect.WithHandlerOptions(opts...),
 	)
+	castServicePauseHandler := connect.NewUnaryHandlerSimple(
+		CastServicePauseProcedure,
+		svc.Pause,
+		connect.WithSchema(castServiceMethods.ByName("Pause")),
+		connect.WithHandlerOptions(opts...),
+	)
+	castServiceResumeHandler := connect.NewUnaryHandlerSimple(
+		CastServiceResumeProcedure,
+		svc.Resume,
+		connect.WithSchema(castServiceMethods.ByName("Resume")),
+		connect.WithHandlerOptions(opts...),
+	)
+	castServiceSeekHandler := connect.NewUnaryHandlerSimple(
+		CastServiceSeekProcedure,
+		svc.Seek,
+		connect.WithSchema(castServiceMethods.ByName("Seek")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/castor.v1.CastService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CastServiceCastProcedure:
@@ -220,6 +296,12 @@ func NewCastServiceHandler(svc CastServiceHandler, opts ...connect.HandlerOption
 			castServiceStopHandler.ServeHTTP(w, r)
 		case CastServiceListCastsProcedure:
 			castServiceListCastsHandler.ServeHTTP(w, r)
+		case CastServicePauseProcedure:
+			castServicePauseHandler.ServeHTTP(w, r)
+		case CastServiceResumeProcedure:
+			castServiceResumeHandler.ServeHTTP(w, r)
+		case CastServiceSeekProcedure:
+			castServiceSeekHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -247,4 +329,16 @@ func (UnimplementedCastServiceHandler) Stop(context.Context, *v1.StopRequest) (*
 
 func (UnimplementedCastServiceHandler) ListCasts(context.Context, *v1.ListCastsRequest) (*v1.ListCastsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.CastService.ListCasts is not implemented"))
+}
+
+func (UnimplementedCastServiceHandler) Pause(context.Context, *v1.PauseRequest) (*v1.PauseResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.CastService.Pause is not implemented"))
+}
+
+func (UnimplementedCastServiceHandler) Resume(context.Context, *v1.ResumeRequest) (*v1.ResumeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.CastService.Resume is not implemented"))
+}
+
+func (UnimplementedCastServiceHandler) Seek(context.Context, *v1.SeekRequest) (*v1.SeekResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("castor.v1.CastService.Seek is not implemented"))
 }

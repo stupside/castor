@@ -157,9 +157,89 @@ func (x *ListDevicesResponse) GetDevices() []*Device {
 	return nil
 }
 
+type WatchDevicesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchDevicesRequest) Reset() {
+	*x = WatchDevicesRequest{}
+	mi := &file_castor_v1_device_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchDevicesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchDevicesRequest) ProtoMessage() {}
+
+func (x *WatchDevicesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchDevicesRequest.ProtoReflect.Descriptor instead.
+func (*WatchDevicesRequest) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{2}
+}
+
+type WatchDevicesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Devices       []*Device              `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchDevicesResponse) Reset() {
+	*x = WatchDevicesResponse{}
+	mi := &file_castor_v1_device_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchDevicesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchDevicesResponse) ProtoMessage() {}
+
+func (x *WatchDevicesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchDevicesResponse.ProtoReflect.Descriptor instead.
+func (*WatchDevicesResponse) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *WatchDevicesResponse) GetDevices() []*Device {
+	if x != nil {
+		return x.Devices
+	}
+	return nil
+}
+
 type Device struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// id is opaque and the same on every discovery; a cast's target names it.
+	// id is the same on every discovery.
 	Id            string     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string     `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Type          DeviceType `protobuf:"varint,3,opt,name=type,proto3,enum=castor.v1.DeviceType" json:"type,omitempty"`
@@ -170,7 +250,7 @@ type Device struct {
 
 func (x *Device) Reset() {
 	*x = Device{}
-	mi := &file_castor_v1_device_proto_msgTypes[2]
+	mi := &file_castor_v1_device_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -182,7 +262,7 @@ func (x *Device) String() string {
 func (*Device) ProtoMessage() {}
 
 func (x *Device) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[2]
+	mi := &file_castor_v1_device_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -195,7 +275,7 @@ func (x *Device) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Device.ProtoReflect.Descriptor instead.
 func (*Device) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{2}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Device) GetId() string {
@@ -226,7 +306,6 @@ func (x *Device) GetAddress() string {
 	return ""
 }
 
-// Target is the device a cast plays on: one discovered, or one pinned where discovery cannot see.
 type Target struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Target:
@@ -240,7 +319,7 @@ type Target struct {
 
 func (x *Target) Reset() {
 	*x = Target{}
-	mi := &file_castor_v1_device_proto_msgTypes[3]
+	mi := &file_castor_v1_device_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -252,7 +331,7 @@ func (x *Target) String() string {
 func (*Target) ProtoMessage() {}
 
 func (x *Target) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[3]
+	mi := &file_castor_v1_device_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -265,7 +344,7 @@ func (x *Target) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Target.ProtoReflect.Descriptor instead.
 func (*Target) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{3}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Target) GetTarget() isTarget_Target {
@@ -309,11 +388,11 @@ func (*Target_DeviceId) isTarget_Target() {}
 
 func (*Target_Pinned_) isTarget_Target() {}
 
+// Pinned is a device discovery cannot see.
 type Target_Pinned struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// type is the device's family, as Device.type reports it.
-	Type DeviceType `protobuf:"varint,1,opt,name=type,proto3,enum=castor.v1.DeviceType" json:"type,omitempty"`
-	// address is a host, a host:port, or the URL the family answers at.
+	Type  DeviceType             `protobuf:"varint,1,opt,name=type,proto3,enum=castor.v1.DeviceType" json:"type,omitempty"`
+	// address is a host, a host:port, or the URL the device answers at.
 	Address       string `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -321,7 +400,7 @@ type Target_Pinned struct {
 
 func (x *Target_Pinned) Reset() {
 	*x = Target_Pinned{}
-	mi := &file_castor_v1_device_proto_msgTypes[4]
+	mi := &file_castor_v1_device_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -333,7 +412,7 @@ func (x *Target_Pinned) String() string {
 func (*Target_Pinned) ProtoMessage() {}
 
 func (x *Target_Pinned) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[4]
+	mi := &file_castor_v1_device_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -346,7 +425,7 @@ func (x *Target_Pinned) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Target_Pinned.ProtoReflect.Descriptor instead.
 func (*Target_Pinned) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{3, 0}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{5, 0}
 }
 
 func (x *Target_Pinned) GetType() DeviceType {
@@ -370,20 +449,25 @@ const file_castor_v1_device_proto_rawDesc = "" +
 	"\x16castor/v1/device.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"\x14\n" +
 	"\x12ListDevicesRequest\"B\n" +
 	"\x13ListDevicesResponse\x12+\n" +
+	"\adevices\x18\x01 \x03(\v2\x11.castor.v1.DeviceR\adevices\"\x15\n" +
+	"\x13WatchDevicesRequest\"C\n" +
+	"\x14WatchDevicesResponse\x12+\n" +
 	"\adevices\x18\x01 \x03(\v2\x11.castor.v1.DeviceR\adevices\"}\n" +
 	"\x06Device\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x125\n" +
 	"\x04type\x18\x03 \x01(\x0e2\x15.castor.v1.DeviceTypeB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12\x18\n" +
-	"\aaddress\x18\x04 \x01(\tR\aaddress\"\xd9\x01\n" +
-	"\x06Target\x12&\n" +
-	"\tdevice_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01H\x00R\bdeviceId\x122\n" +
-	"\x06pinned\x18\x02 \x01(\v2\x18.castor.v1.Target.PinnedH\x00R\x06pinned\x1ab\n" +
+	"\aaddress\x18\x04 \x01(\tR\aaddress\"\xdf\x01\n" +
+	"\x06Target\x12)\n" +
+	"\tdevice_id\x18\x01 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01(\x80\x02H\x00R\bdeviceId\x122\n" +
+	"\x06pinned\x18\x02 \x01(\v2\x18.castor.v1.Target.PinnedH\x00R\x06pinned\x1ae\n" +
 	"\x06Pinned\x125\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x15.castor.v1.DeviceTypeB\n" +
-	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12!\n" +
-	"\aaddress\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aaddressB\x0f\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12$\n" +
+	"\aaddress\x18\x02 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01(\x80@R\aaddressB\x0f\n" +
 	"\x06target\x12\x05\xbaH\x02\b\x01*\x88\x01\n" +
 	"\n" +
 	"DeviceType\x12\x1b\n" +
@@ -391,9 +475,10 @@ const file_castor_v1_device_proto_rawDesc = "" +
 	"\x10DEVICE_TYPE_DLNA\x10\x01\x12\x1a\n" +
 	"\x16DEVICE_TYPE_CHROMECAST\x10\x02\x12\x14\n" +
 	"\x10DEVICE_TYPE_ROKU\x10\x03\x12\x15\n" +
-	"\x11DEVICE_TYPE_FCAST\x10\x042]\n" +
+	"\x11DEVICE_TYPE_FCAST\x10\x042\xb0\x01\n" +
 	"\rDeviceService\x12L\n" +
-	"\vListDevices\x12\x1d.castor.v1.ListDevicesRequest\x1a\x1e.castor.v1.ListDevicesResponseB\x94\x01\n" +
+	"\vListDevices\x12\x1d.castor.v1.ListDevicesRequest\x1a\x1e.castor.v1.ListDevicesResponse\x12Q\n" +
+	"\fWatchDevices\x12\x1e.castor.v1.WatchDevicesRequest\x1a\x1f.castor.v1.WatchDevicesResponse0\x01B\x94\x01\n" +
 	"\rcom.castor.v1B\vDeviceProtoP\x01Z1github.com/stupside/castor/gen/castor/v1;castorv1\xa2\x02\x03CXX\xaa\x02\tCastor.V1\xca\x02\tCastor\\V1\xe2\x02\x15Castor\\V1\\GPBMetadata\xea\x02\n" +
 	"Castor::V1b\x06proto3"
 
@@ -410,27 +495,32 @@ func file_castor_v1_device_proto_rawDescGZIP() []byte {
 }
 
 var file_castor_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_castor_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_castor_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_castor_v1_device_proto_goTypes = []any{
-	(DeviceType)(0),             // 0: castor.v1.DeviceType
-	(*ListDevicesRequest)(nil),  // 1: castor.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil), // 2: castor.v1.ListDevicesResponse
-	(*Device)(nil),              // 3: castor.v1.Device
-	(*Target)(nil),              // 4: castor.v1.Target
-	(*Target_Pinned)(nil),       // 5: castor.v1.Target.Pinned
+	(DeviceType)(0),              // 0: castor.v1.DeviceType
+	(*ListDevicesRequest)(nil),   // 1: castor.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil),  // 2: castor.v1.ListDevicesResponse
+	(*WatchDevicesRequest)(nil),  // 3: castor.v1.WatchDevicesRequest
+	(*WatchDevicesResponse)(nil), // 4: castor.v1.WatchDevicesResponse
+	(*Device)(nil),               // 5: castor.v1.Device
+	(*Target)(nil),               // 6: castor.v1.Target
+	(*Target_Pinned)(nil),        // 7: castor.v1.Target.Pinned
 }
 var file_castor_v1_device_proto_depIdxs = []int32{
-	3, // 0: castor.v1.ListDevicesResponse.devices:type_name -> castor.v1.Device
-	0, // 1: castor.v1.Device.type:type_name -> castor.v1.DeviceType
-	5, // 2: castor.v1.Target.pinned:type_name -> castor.v1.Target.Pinned
-	0, // 3: castor.v1.Target.Pinned.type:type_name -> castor.v1.DeviceType
-	1, // 4: castor.v1.DeviceService.ListDevices:input_type -> castor.v1.ListDevicesRequest
-	2, // 5: castor.v1.DeviceService.ListDevices:output_type -> castor.v1.ListDevicesResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	5, // 0: castor.v1.ListDevicesResponse.devices:type_name -> castor.v1.Device
+	5, // 1: castor.v1.WatchDevicesResponse.devices:type_name -> castor.v1.Device
+	0, // 2: castor.v1.Device.type:type_name -> castor.v1.DeviceType
+	7, // 3: castor.v1.Target.pinned:type_name -> castor.v1.Target.Pinned
+	0, // 4: castor.v1.Target.Pinned.type:type_name -> castor.v1.DeviceType
+	1, // 5: castor.v1.DeviceService.ListDevices:input_type -> castor.v1.ListDevicesRequest
+	3, // 6: castor.v1.DeviceService.WatchDevices:input_type -> castor.v1.WatchDevicesRequest
+	2, // 7: castor.v1.DeviceService.ListDevices:output_type -> castor.v1.ListDevicesResponse
+	4, // 8: castor.v1.DeviceService.WatchDevices:output_type -> castor.v1.WatchDevicesResponse
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_castor_v1_device_proto_init() }
@@ -438,7 +528,7 @@ func file_castor_v1_device_proto_init() {
 	if File_castor_v1_device_proto != nil {
 		return
 	}
-	file_castor_v1_device_proto_msgTypes[3].OneofWrappers = []any{
+	file_castor_v1_device_proto_msgTypes[5].OneofWrappers = []any{
 		(*Target_DeviceId)(nil),
 		(*Target_Pinned_)(nil),
 	}
@@ -448,7 +538,7 @@ func file_castor_v1_device_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_v1_device_proto_rawDesc), len(file_castor_v1_device_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

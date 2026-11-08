@@ -42,9 +42,25 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 	return open(ctx, conn, cmp.Or(info.Name, info.Address))
 }
 
-// Locate passes the address straight through, Connect already accepting both of its forms.
+// Locate names a pinned device as discovery does, so both lease the same endpoint.
 func (Family) Locate(_ context.Context, address string) (string, error) {
-	return address, nil
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return address, nil
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil {
+		return "", fmt.Errorf("port %q: %w", port, err)
+	}
+	return named(host, n), nil
+}
+
+// named is a host, with its port only where it is not FCast's default.
+func named(host string, port int) string {
+	if port > 0 && port != defaultPort {
+		return net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	return host
 }
 
 // Discover browses mDNS (_fcast._tcp) until ctx expires.
@@ -104,10 +120,7 @@ func infoOnInterface(entry *zeroconf.ServiceEntry, zone string) (device.Info, bo
 		return device.Info{}, false
 	}
 
-	address := host
-	if entry.Port > 0 && entry.Port != defaultPort {
-		address = net.JoinHostPort(host, strconv.Itoa(entry.Port))
-	}
+	address := named(host, entry.Port)
 
 	name := unescapeLabel(entry.Instance)
 	return device.Info{ID: name + "@" + address, Name: name, Type: familyType, Address: address}, true
