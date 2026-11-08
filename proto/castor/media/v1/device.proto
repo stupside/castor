@@ -286,6 +286,8 @@ message DeviceCommand {
       Progressive progressive = 7;
       Playlist playlist = 8;
     }
+    // start is where in the cast's media the stream begins, its own position zero: a revision resumes a cast further on.
+    google.protobuf.Duration start = 9 [(buf.validate.field).duration.gte = {}];
     reserved 2, 4, 5;
     reserved "container", "duration", "seek";
 

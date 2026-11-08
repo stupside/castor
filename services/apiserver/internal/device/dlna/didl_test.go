@@ -27,9 +27,9 @@ func TestADeviceIsAnnouncedTheProfileItNamedAndHowCastorServesTheStream(t *testi
 		play      *mediav1.DeviceCommand_Play
 		want      string
 	}{
-		// A stream castor does not serve is announced as the device's own sink entry describes it.
-		{mediav1.Container_CONTAINER_MPEGTS, devicetest.Source(mediav1.Container_CONTAINER_MPEGTS), "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO;DLNA.ORG_OP=01;DLNA.ORG_CI=0"},
-		{mediav1.Container_CONTAINER_MP4, devicetest.Source(mediav1.Container_CONTAINER_MP4), "http-get:*:video/mp4:*"},
+		// A source the media server forwards is announced in the device's own profile, seekable by its bytes.
+		{mediav1.Container_CONTAINER_MPEGTS, devicetest.Source(mediav1.Container_CONTAINER_MPEGTS), "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO;DLNA.ORG_OP=01" + flags},
+		{mediav1.Container_CONTAINER_MP4, devicetest.Source(mediav1.Container_CONTAINER_MP4), "http-get:*:video/mp4:DLNA.ORG_OP=01" + flags},
 		{mediav1.Container_CONTAINER_MPEGTS, devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, 0, 0), "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO;DLNA.ORG_OP=00" + flags},
 		{mediav1.Container_CONTAINER_MPEGTS, devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, time.Hour, from), "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO;DLNA.ORG_OP=00" + flags},
 		{mediav1.Container_CONTAINER_MPEGTS, devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, time.Hour, timed), "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO;DLNA.ORG_OP=10" + flags},

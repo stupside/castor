@@ -23,11 +23,15 @@ func (s *session) Position(ctx context.Context) (device.Playhead, error) {
 	if err != nil || at == 0 && !s.ticked.Load() {
 		return device.Playhead{}, device.ErrNoPosition
 	}
-	s.ticked.Store(true)
 	info, err := s.transportInfo(ctx)
 	if err != nil {
 		return device.Playhead{}, fmt.Errorf("reading the transport state: %w", err)
 	}
+	// A stopped renderer answers 0:00:00, or where it stopped, which is not where anything plays.
+	if info.CurrentTransportState == "STOPPED" || info.CurrentTransportState == "NO_MEDIA_PRESENT" {
+		return device.Playhead{}, device.ErrNoPosition
+	}
+	s.ticked.Store(true)
 	return device.Playhead{At: at, Paused: info.CurrentTransportState == "PAUSED_PLAYBACK"}, nil
 }
 

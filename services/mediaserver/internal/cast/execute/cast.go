@@ -92,6 +92,8 @@ type Playback struct {
 	URL      *url.URL
 	Captions []media.Caption
 	Stream   Stream
+	// Start is where in the cast's media the stream begins.
+	Start time.Duration
 }
 
 // Stream is how what the device plays reaches it: a Source, a Served stream or a Playlist.
