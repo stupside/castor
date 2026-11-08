@@ -43,8 +43,10 @@ type playbackRun struct {
 	head            device.Playhead
 }
 
+// canReload is a stream castor makes, of known length, which it can prepare again from elsewhere in the media.
+// A source the device plays as it is stays with the device's own seek: prepared again, it would be converted.
 func (p *playback) canReload(loaded *loadedPlayback) bool {
-	return p.reload && p.requests != nil && loaded != nil && loaded.media.Play.GetPlaylist() != nil
+	return p.requests != nil && loaded != nil && loaded.duration > 0 && loaded.media.Play.GetSource() == nil
 }
 
 func (p *playback) seek(ctx context.Context, at time.Duration) (err error) {

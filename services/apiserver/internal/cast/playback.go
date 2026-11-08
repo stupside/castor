@@ -23,7 +23,6 @@ type playback struct {
 	watch    sync.Mutex
 	changed  chan struct{}
 	requests chan *playbackSeek
-	reload   bool
 }
 
 type loadedPlayback struct {
@@ -152,6 +151,9 @@ func (s *Service) Control(ctx context.Context, req *castorv1.ControlRequest) (*c
 		err = p.seek(ctx, at)
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("a playback control action is required"))
+	}
+	if errors.Is(err, device.ErrUnsupportedControl) {
+		return nil, connect.NewError(connect.CodeUnimplemented, err)
 	}
 	if err != nil {
 		return nil, err

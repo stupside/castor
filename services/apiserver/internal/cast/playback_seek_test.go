@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/services/apiserver/internal/device"
 	"github.com/stupside/castor/services/apiserver/internal/device/devicetest"
@@ -23,6 +24,7 @@ type sourcePlayer struct {
 	plays, seeks int
 	fail         bool
 	resetSeek    bool
+	refuseSeek   bool
 	seekPaused   bool
 	end          chan struct{}
 }
@@ -50,6 +52,9 @@ func (d *sourcePlayer) Seek(_ context.Context, at time.Duration) error {
 	defer d.mu.Unlock()
 	d.seeks++
 	d.seekPaused = d.head.Paused
+	if d.refuseSeek {
+		return errors.New("UPnPError 501: Action Failed")
+	}
 	if d.resetSeek {
 		d.head.At = 0
 		return errors.New("receiver acknowledged seek but returned to the portion's start")
@@ -169,7 +174,7 @@ func sourceSeekFixture(t *testing.T, prepare func(context.Context, time.Duration
 	s, c, _, stop := playbackFixture(t)
 	ctx := c.playback.Load().lifetime
 	d := &sourcePlayer{}
-	p := &playback{Device: d, lifetime: ctx, reload: true, requests: make(chan *playbackSeek)}
+	p := &playback{Device: d, lifetime: ctx, requests: make(chan *playbackSeek)}
 	c.playback.Store(p)
 	started := make(chan time.Duration, 8)
 	done := make(chan playbackResult, 1)
@@ -330,5 +335,97 @@ func TestARefusedReplacementLoadRestoresThePreviousPublication(t *testing.T) {
 	r, err := s.Playback(t.Context(), &castorv1.PlaybackRequest{CastId: c.id})
 	if err != nil || r.GetPlayback().GetPosition().AsDuration() != 20*time.Second || !r.GetPlayback().GetPaused() {
 		t.Fatalf("restored state=%v, %v", r, err)
+	}
+}
+
+// servedSeekFixture is a cast whose stream begins at start in the media, on a device whose own seek fails as refuse says.
+// source has the device play the source itself rather than a stream castor serves.
+func servedSeekFixture(t *testing.T, start time.Duration, refuse, source bool) (*Service, *cast, *sourcePlayer, chan time.Duration) {
+	t.Helper()
+	s, c, _, stop := playbackFixture(t)
+	ctx := c.playback.Load().lifetime
+	d := &sourcePlayer{refuseSeek: refuse}
+	p := &playback{Device: d, lifetime: ctx, requests: make(chan *playbackSeek)}
+	c.playback.Store(p)
+	started := make(chan time.Duration, 8)
+	done := make(chan playbackResult, 1)
+	run := func(ctx context.Context, id string, at time.Duration, player device.Device, show func(*castorv1.CastStatus)) (*castorv1.Ended, error) {
+		play := devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, 2*time.Hour-at, mediav1.DeviceCommand_Play_Runtime_SEEK_TIME)
+		if source {
+			play = devicetest.Source(mediav1.Container_CONTAINER_MKV)
+			play.GetSource().Duration = durationpb.New(2 * time.Hour)
+		}
+		play.Start = durationpb.New(at)
+		u, _ := url.Parse("http://fixture.test/" + id + "/stream.ts")
+		if err := player.Play(ctx, device.Playback{URL: u, Play: play}); err != nil {
+			return nil, err
+		}
+		started <- at
+		<-ctx.Done()
+		return &castorv1.Ended{Result: &castorv1.Ended_Stopped{Stopped: &emptypb.Empty{}}}, nil
+	}
+	go func() { ended, err := p.drive(ctx, c.id, start, c.show, run); done <- playbackResult{ended, err} }()
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("initial stream did not start")
+	}
+	t.Cleanup(func() {
+		stop(context.Canceled)
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Error("stream workers outlived their cast")
+		}
+	})
+	return s, c, d, started
+}
+
+func TestASeekTheDeviceRefusesIsPreparedFromThePositionAsked(t *testing.T) {
+	s, c, d, started := servedSeekFixture(t, 0, true, false)
+	r, err := seekSource(t, s, c, 20*time.Second)
+	if err != nil || r.GetPlayback().GetPosition().AsDuration() != 20*time.Second || r.GetPlayback().GetDuration().AsDuration() != 2*time.Hour {
+		t.Fatalf("seek the device refused = %v, %v; want the stream prepared again at 20s", r, err)
+	}
+	if at := <-started; at != 20*time.Second {
+		t.Fatalf("stream prepared at %v, want 20s", at)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.seeks != 1 || d.plays != 2 {
+		t.Fatalf("device seeks=%d plays=%d, want its own seek tried once, then a new stream", d.seeks, d.plays)
+	}
+}
+
+func TestASeekBeforeWhereTheStreamBeginsIsPreparedFromThere(t *testing.T) {
+	s, c, d, started := servedSeekFixture(t, 34*time.Second, false, false)
+	r, err := seekSource(t, s, c, 20*time.Second)
+	if err != nil || r.GetPlayback().GetPosition().AsDuration() != 20*time.Second || r.GetPlayback().GetDuration().AsDuration() != 2*time.Hour {
+		t.Fatalf("seek before the stream's start = %v, %v; want the stream prepared again at 20s", r, err)
+	}
+	if at := <-started; at != 20*time.Second {
+		t.Fatalf("stream prepared at %v, want 20s", at)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.seeks != 0 {
+		t.Fatalf("the device was asked to seek %d times into a stream that does not hold the position", d.seeks)
+	}
+}
+
+func TestASourceTheDeviceCannotSeekIsNotConvertedToSeekIt(t *testing.T) {
+	s, c, d, started := servedSeekFixture(t, 0, true, true)
+	if r, err := seekSource(t, s, c, 20*time.Second); err == nil {
+		t.Fatalf("seek the device refused on its own source = %v; want the refusal, not a conversion", r)
+	}
+	select {
+	case at := <-started:
+		t.Fatalf("the source was prepared again at %v", at)
+	default:
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.plays != 1 {
+		t.Fatalf("the device was handed %d streams, want only the source", d.plays)
 	}
 }
