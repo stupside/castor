@@ -25,6 +25,23 @@ message Stream {
   }];
   // content_type is empty when castor should identify the link itself.
   string content_type = 3;
+  // captions are fetched with the stream's headers; one in a language the cast asks for is shown.
+  repeated Caption captions = 4 [(buf.validate.field).repeated.max_items = 64];
+}
+
+// Caption is a WebVTT document, or an HLS playlist of them.
+message Caption {
+  string url = 1 [(buf.validate.field).string = {
+    uri: true
+    pattern: "^https?://"
+    max_bytes: 8192
+  }];
+  // language is empty for an untagged track.
+  string language = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^[a-z]{2,3}$"
+  ];
+  string name = 3 [(buf.validate.field).string.max_len = 256];
 }
 
 message StreamCandidate {

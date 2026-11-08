@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file castor/v1/stream.proto.
  */
 export const file_castor_v1_stream: GenFile = /*@__PURE__*/
-  fileDesc("ChZjYXN0b3IvdjEvc3RyZWFtLnByb3RvEgljYXN0b3IudjEiwAEKBlN0cmVhbRIkCgN1cmwYASABKAlCF7pIFHISKIBAMgpeaHR0cHM/Oi8viAEBEkoKB2hlYWRlcnMYAiADKAsyHi5jYXN0b3IudjEuU3RyZWFtLkhlYWRlcnNFbnRyeUIZukgWmgETEEAiBXIDwAEBKghyBsgBAMABAhIUCgxjb250ZW50X3R5cGUYAyABKAkaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEimgEKD1N0cmVhbUNhbmRpZGF0ZRIpCgZzdHJlYW0YASABKAsyES5jYXN0b3IudjEuU3RyZWFtQga6SAPIAQESLwoLc291cmNlX3BhZ2UYAiABKAlCGrpIF9gBAXISKIBAMgpeaHR0cHM/Oi8viAEBEisKBmxhZGRlchgDIAEoDjIRLmNhc3Rvci52MS5MYWRkZXJCCLpIBYIBAhABIlsKDFJhbmtlZFN0cmVhbRILCgN1cmwYASABKAkSHQoHYml0cmF0ZRgCIAEoBEIHukgEMgIgAEgAiAEBEhMKC2xhc3RfcmVzb3J0GAMgASgIQgoKCF9iaXRyYXRlKkoKBkxhZGRlchIWChJMQURERVJfVU5TUEVDSUZJRUQQABIXChNMQURERVJfTVVMVElWQVJJQU5UEAESDwoLTEFEREVSX1NPTEUQAipLCghEZWxpdmVyeRIYChRERUxJVkVSWV9VTlNQRUNJRklFRBAAEhEKDURFTElWRVJZX0FVVE8QARISCg5ERUxJVkVSWV9TRVJWRRACYgZwcm90bzM", [file_buf_validate_validate]);
+  fileDesc("ChZjYXN0b3IvdjEvc3RyZWFtLnByb3RvEgljYXN0b3IudjEi8AEKBlN0cmVhbRIkCgN1cmwYASABKAlCF7pIFHISKIBAMgpeaHR0cHM/Oi8viAEBEkoKB2hlYWRlcnMYAiADKAsyHi5jYXN0b3IudjEuU3RyZWFtLkhlYWRlcnNFbnRyeUIZukgWmgETEEAiBXIDwAEBKghyBsgBAMABAhIUCgxjb250ZW50X3R5cGUYAyABKAkSLgoIY2FwdGlvbnMYBCADKAsyEi5jYXN0b3IudjEuQ2FwdGlvbkIIukgFkgECEEAaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEicQoHQ2FwdGlvbhIkCgN1cmwYASABKAlCF7pIFHISKIBAMgpeaHR0cHM/Oi8viAEBEigKCGxhbmd1YWdlGAIgASgJQha6SBPYAQFyDjIMXlthLXpdezIsM30kEhYKBG5hbWUYAyABKAlCCLpIBXIDGIACIpoBCg9TdHJlYW1DYW5kaWRhdGUSKQoGc3RyZWFtGAEgASgLMhEuY2FzdG9yLnYxLlN0cmVhbUIGukgDyAEBEi8KC3NvdXJjZV9wYWdlGAIgASgJQhq6SBfYAQFyEiiAQDIKXmh0dHBzPzovL4gBARIrCgZsYWRkZXIYAyABKA4yES5jYXN0b3IudjEuTGFkZGVyQgi6SAWCAQIQASJbCgxSYW5rZWRTdHJlYW0SCwoDdXJsGAEgASgJEh0KB2JpdHJhdGUYAiABKARCB7pIBDICIABIAIgBARITCgtsYXN0X3Jlc29ydBgDIAEoCEIKCghfYml0cmF0ZSpKCgZMYWRkZXISFgoSTEFEREVSX1VOU1BFQ0lGSUVEEAASFwoTTEFEREVSX01VTFRJVkFSSUFOVBABEg8KC0xBRERFUl9TT0xFEAIqSwoIRGVsaXZlcnkSGAoUREVMSVZFUllfVU5TUEVDSUZJRUQQABIRCg1ERUxJVkVSWV9BVVRPEAESEgoOREVMSVZFUllfU0VSVkUQAmIGcHJvdG8z", [file_buf_validate_validate]);
 
 /**
  * @generated from message castor.v1.Stream
@@ -35,6 +35,13 @@ export type Stream = Message<"castor.v1.Stream"> & {
    * @generated from field: string content_type = 3;
    */
   contentType: string;
+
+  /**
+   * captions are fetched with the stream's headers; one in a language the cast asks for is shown.
+   *
+   * @generated from field: repeated castor.v1.Caption captions = 4;
+   */
+  captions: Caption[];
 };
 
 /**
@@ -43,6 +50,37 @@ export type Stream = Message<"castor.v1.Stream"> & {
  */
 export const StreamSchema: GenMessage<Stream> = /*@__PURE__*/
   messageDesc(file_castor_v1_stream, 0);
+
+/**
+ * Caption is a WebVTT document, or an HLS playlist of them.
+ *
+ * @generated from message castor.v1.Caption
+ */
+export type Caption = Message<"castor.v1.Caption"> & {
+  /**
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * language is empty for an untagged track.
+   *
+   * @generated from field: string language = 2;
+   */
+  language: string;
+
+  /**
+   * @generated from field: string name = 3;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message castor.v1.Caption.
+ * Use `create(CaptionSchema)` to create a new message.
+ */
+export const CaptionSchema: GenMessage<Caption> = /*@__PURE__*/
+  messageDesc(file_castor_v1_stream, 1);
 
 /**
  * @generated from message castor.v1.StreamCandidate
@@ -69,7 +107,7 @@ export type StreamCandidate = Message<"castor.v1.StreamCandidate"> & {
  * Use `create(StreamCandidateSchema)` to create a new message.
  */
 export const StreamCandidateSchema: GenMessage<StreamCandidate> = /*@__PURE__*/
-  messageDesc(file_castor_v1_stream, 1);
+  messageDesc(file_castor_v1_stream, 2);
 
 /**
  * @generated from message castor.v1.RankedStream
@@ -100,7 +138,7 @@ export type RankedStream = Message<"castor.v1.RankedStream"> & {
  * Use `create(RankedStreamSchema)` to create a new message.
  */
 export const RankedStreamSchema: GenMessage<RankedStream> = /*@__PURE__*/
-  messageDesc(file_castor_v1_stream, 2);
+  messageDesc(file_castor_v1_stream, 3);
 
 /**
  * @generated from enum castor.v1.Ladder

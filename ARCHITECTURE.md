@@ -176,6 +176,8 @@ curl -X POST http://localhost:8411/castor.v1.DeviceService/ListDevices \
   -H 'Content-Type: application/json' -d '{}'
 ```
 
+A stream can carry its own text tracks (`Stream.captions`); castor shows one in a language the cast asks for, as it shows an HLS source's.
+
 The [Compose stack](docker-compose.yml) runs all three with host networking ([how to start it](README.md#the-whole-stack)). A media container on a bridged network needs `-p 8410:8410` and a TV-reachable `servers.media.advertise`. Image tags are `latest` (stable), `canary` (preview) or a pinned `vX.Y.Z`.
 
 Each service has its own bearer token. Health checks and the TV-facing `/media` routes are open; published streams use random paths. Replay headers reach media but never appear in public cast listings. See [SECURITY.md](SECURITY.md).
