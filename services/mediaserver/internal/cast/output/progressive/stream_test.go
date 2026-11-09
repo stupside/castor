@@ -207,8 +207,9 @@ func TestASpoolAnotherWritesIsServedWithoutBeingOwned(t *testing.T) {
 		if got := read(t, whole, half); !bytes.Equal(got, body[:half]) {
 			t.Error("a client of a spool still being written was not served it from byte 0")
 		}
-		if resp := get(t, srv, fmt.Sprintf("bytes=%d-", half)); resp.StatusCode != http.StatusOK {
-			t.Errorf("a range asked while the writer runs answered %d, want the 200 replay", resp.StatusCode)
+		ranged := get(t, srv, fmt.Sprintf("bytes=%d-", half/2))
+		if ranged.StatusCode != http.StatusOK {
+			t.Errorf("a range asked while the writer runs answered %d, want the 200 replay", ranged.StatusCode)
 		}
 
 		if _, err := sp.Write(body[half:]); err != nil {
@@ -218,6 +219,10 @@ func TestASpoolAnotherWritesIsServedWithoutBeingOwned(t *testing.T) {
 		close(drained)
 		if got, err := io.ReadAll(whole.Body); err != nil || !bytes.Equal(got, body[half:]) {
 			t.Errorf("the replaying client got %d more bytes (%v), want the rest the writer added", len(got), err)
+		}
+		// A player takes where a response ends for the stream's end.
+		if got, err := io.ReadAll(ranged.Body); err != nil || !bytes.Equal(got, body) {
+			t.Errorf("the client that asked a range while the writer ran got %d bytes (%v), want all %d from byte 0", len(got), err, len(body))
 		}
 		resumed := get(t, srv, fmt.Sprintf("bytes=%d-", half))
 		if resumed.StatusCode != http.StatusPartialContent {

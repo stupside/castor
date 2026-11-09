@@ -268,7 +268,7 @@ func (s *Stream) resume(rangeHeader string) (served, string) {
 	total, final := s.snapshot()
 	switch {
 	case !final:
-		return refuse("the producer is still running, so no response can state where this stream ends")
+		return refuse("the producer is still running, and a player takes a 206 ending at the bytes made so far for the stream's end")
 	case start >= total:
 		return served{code: http.StatusRequestedRangeNotSatisfiable, total: total}, ""
 	case end >= 0:
