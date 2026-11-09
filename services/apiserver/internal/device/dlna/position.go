@@ -23,12 +23,15 @@ func (s *session) Position(ctx context.Context) (device.Playhead, error) {
 	if err != nil || at == 0 && !s.ticked.Load() {
 		return device.Playhead{}, device.ErrNoPosition
 	}
-	s.ticked.Store(true)
 	info, err := s.transportInfo(ctx)
 	if err != nil {
 		return device.Playhead{}, fmt.Errorf("reading the transport state: %w", err)
 	}
-	return device.Playhead{At: at, Paused: info.CurrentTransportState == "PAUSED_PLAYBACK"}, nil
+	if info.CurrentTransportState.idle() {
+		return device.Playhead{}, device.ErrNoPosition
+	}
+	s.ticked.Store(true)
+	return device.Playhead{At: at, Paused: info.CurrentTransportState == statePaused}, nil
 }
 
 // parseClock reads H+:MM:SS[.F+], the clock AVTransport states positions in.

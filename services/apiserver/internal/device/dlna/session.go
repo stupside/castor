@@ -27,7 +27,7 @@ type session struct {
 	caps      *mediav1.Capabilities
 	// sinks is how the device names each container it accepts.
 	sinks map[mediav1.Container]sinkEntry
-	// ticked is a playhead seen to move, before which a 0:00:00 says nothing.
+	// ticked is a playhead seen to move since the last Play, before which a 0:00:00 says nothing.
 	ticked atomic.Bool
 }
 
@@ -69,11 +69,18 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 		CurrentURI         string
 		CurrentURIMetaData string
 	}{"0", playback.URL.String(), metadata}
-	if err := retryTransportLocked(ctx, func() error {
-		return s.action(ctx, "SetAVTransportURI", setURI)
-	}); err != nil {
+	set := func() error {
+		return retryTransportLocked(ctx, func() error { return s.action(ctx, "SetAVTransportURI", setURI) })
+	}
+	err = set()
+	// A renderer may refuse a new stream while paused, so it is stopped first.
+	if upnpError(err, transitionUnavailable) && s.Stop(ctx) == nil {
+		err = set()
+	}
+	if err != nil {
 		return fmt.Errorf("setting transport URI: %w", err)
 	}
+	s.ticked.Store(false)
 
 	play := &struct {
 		InstanceID string
@@ -99,7 +106,7 @@ func (s *session) playingStream(ctx context.Context, streamURL *url.URL) bool {
 	ctx, cancel := context.WithTimeout(ctx, actionTimeout)
 	defer cancel()
 	info, err := s.transportInfo(ctx)
-	if err != nil || info.CurrentTransportState != "PLAYING" {
+	if err != nil || info.CurrentTransportState != statePlaying {
 		return false
 	}
 	var response struct{ CurrentURI string }
@@ -152,9 +159,17 @@ func retryTransportLocked(ctx context.Context, do func() error) error {
 	return err
 }
 
-func isTransportLocked(err error) bool {
+// AVTransport error codes.
+const (
+	transitionUnavailable = 701
+	transportLocked       = 705
+)
+
+func isTransportLocked(err error) bool { return upnpError(err, transportLocked) }
+
+func upnpError(err error, code int) bool {
 	fault, ok := errors.AsType[*soap.SOAPFaultError](err)
-	return ok && fault.Detail.UPnPError.Errorcode == 705
+	return ok && fault.Detail.UPnPError.Errorcode == code
 }
 
 // action performs a SOAP action namespaced to the service version the device published.
@@ -175,6 +190,24 @@ const transportQuery = "GetTransportInfo"
 // idlePolls is how many polls in a row a device may sit stopped with nothing playing before it is taken to have refused the stream.
 const idlePolls = 15
 
+// transportState is AVTransport's TransportState.
+type transportState string
+
+const (
+	statePlaying   transportState = "PLAYING"
+	statePaused    transportState = "PAUSED_PLAYBACK"
+	stateRecording transportState = "RECORDING"
+	stateStopped   transportState = "STOPPED"
+	stateNoMedia   transportState = "NO_MEDIA_PRESENT"
+)
+
+func (t transportState) active() bool {
+	return t == statePlaying || t == statePaused || t == stateRecording
+}
+
+// idle is a renderer holding no stream.
+func (t transportState) idle() bool { return t == stateStopped || t == stateNoMedia }
+
 // transportWatch holds the one thing that ends a cast from the device's side.
 type transportWatch struct {
 	active bool
@@ -182,12 +215,12 @@ type transportWatch struct {
 }
 
 // observe reports whether the cast is over: the device stopped after playing, or never played at all.
-func (w *transportWatch) observe(state string) bool {
-	switch state {
-	case "PLAYING", "PAUSED_PLAYBACK", "RECORDING":
+func (w *transportWatch) observe(state transportState) bool {
+	switch {
+	case state.active():
 		w.active = true
 		w.idle = 0
-	case "STOPPED", "NO_MEDIA_PRESENT":
+	case state.idle():
 		w.idle++
 		return w.active || w.refused()
 	default:
@@ -226,7 +259,7 @@ func awaitTransportEnd(ctx context.Context, name string, poll func(context.Conte
 }
 
 type transportInfo struct {
-	CurrentTransportState  string
+	CurrentTransportState  transportState
 	CurrentTransportStatus string
 }
 
@@ -239,7 +272,16 @@ func (s *session) transportInfo(ctx context.Context) (transportInfo, error) {
 
 // Stop ends whatever the device is playing.
 func (s *session) Stop(ctx context.Context) error {
-	if err := s.action(ctx, "Stop", &struct{ InstanceID string }{"0"}); err != nil {
+	err := s.action(ctx, "Stop", &struct{ InstanceID string }{"0"})
+	// A renderer may refuse Stop while it holds nothing, which is stopped already.
+	if upnpError(err, transitionUnavailable) {
+		ctx, cancel := context.WithTimeout(ctx, actionTimeout)
+		defer cancel()
+		if info, _ := s.transportInfo(ctx); info.CurrentTransportState.idle() {
+			return nil
+		}
+	}
+	if err != nil {
 		return fmt.Errorf("stopping playback: %w", err)
 	}
 	return nil
