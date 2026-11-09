@@ -115,6 +115,10 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 		ct, cok := containerFromMIME(mime)
 		video := videoFromProfile(mime, pn)
 		a, aok := audioFromProfile(mime, pn)
+		if cok && video == nil && mime == device.MIME(ct) && !strings.Contains(pn, "DLNA.ORG_PN=") {
+			// A container named by its contract MIME and no profile plays the family default.
+			video, a, aok = device.H264Support(), mediav1.AudioCodec_AUDIO_CODEC_AAC, true
+		}
 		// A separate audio-only profile says nothing about this video container.
 		if !cok || video == nil || !aok {
 			if cok {

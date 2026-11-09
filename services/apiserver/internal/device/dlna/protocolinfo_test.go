@@ -9,6 +9,8 @@ import (
 
 	"buf.build/go/protovalidate"
 	"github.com/huin/goupnp"
+	"google.golang.org/protobuf/proto"
+
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 )
 
@@ -85,6 +87,44 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 	// A sink without a usable video tuple leaves negotiation to the fallback.
 	if got, _ := parseSinkProtocolInfo("garbage,http-get:*:audio/mpeg:*"); len(got.Formats) != 0 {
 		t.Errorf("unusable sink should yield no video, got %v", got.Formats)
+	}
+}
+
+// lgC2Sink is an LG OLED42C24LA's video sink; only its CIF baseline MP4 row names codecs.
+const lgC2Sink = "http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_BL_CIF15_AAC_520,http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=MPEG_TS_HD_KO," +
+	"http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_NA_T,http-get:*:video/x-ms-wmv:*,http-get:*:video/mpeg:*," +
+	"http-get:*:video/mp4:*,http-get:*:video/x-matroska:*,http-get:*:video/mp2t:*,http-get:*:video/x-msvideo:*"
+
+func TestAContainerNamedWithoutAProfilePlaysTheFamilyDefault(t *testing.T) {
+	caps, sinks := parseSinkProtocolInfo(lgC2Sink)
+	fallback, _ := fallbackCaps()
+	if len(caps.Formats) == 0 || !proto.Equal(caps.Formats[0], fallback.Formats[0]) {
+		t.Fatalf("first format = %v, want the MPEG-TS family default %v", caps.Formats, fallback.Formats[0])
+	}
+	if !slices.ContainsFunc(caps.Formats, func(f *mediav1.FormatSupport) bool {
+		return f.GetProgressive().GetContainer() == mediav1.ProgressiveSupport_CONTAINER_MP4 &&
+			slices.Contains(f.GetAv().GetVideo().GetH264().GetProfiles(), mediav1.H264Support_PROFILE_HIGH)
+	}) {
+		t.Errorf("formats %v: a profile-less MP4 row must admit High H.264, not only the CIF baseline profile", caps.Formats)
+	}
+	// The stream must not claim the CIF profile.
+	if got := sinks[mediav1.Container_CONTAINER_MP4]; got.features != "*" {
+		t.Errorf("MP4 sink entry = %+v, want no DLNA profile", got)
+	}
+	if got := sinks[mediav1.Container_CONTAINER_MPEGTS]; got != (sinkEntry{mime: "video/mp2t", features: "*"}) {
+		t.Errorf("MPEG-TS sink entry = %+v, want the renderer's own profile-less row", got)
+	}
+}
+
+func TestOnlyCastorsOwnContainerWithoutAProfileImpliesTheDefault(t *testing.T) {
+	for name, sink := range map[string]string{
+		"a profile naming another codec":   "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=MPEG_TS_HD_KO",
+		"192-byte timestamped MPEG-TS":     "http-get:*:video/vnd.dlna.mpeg-tts:*",
+		"a container castor does not make": "http-get:*:video/x-matroska:*",
+	} {
+		if got, _ := parseSinkProtocolInfo(sink); len(got.Formats) != 0 {
+			t.Errorf("%s yielded %v, want nothing castor makes", name, got.Formats)
+		}
 	}
 }
 
