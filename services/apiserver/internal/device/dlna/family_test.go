@@ -34,6 +34,21 @@ func TestFindServiceReachesAVersion3OnlyDevice(t *testing.T) {
 	}
 }
 
+func TestATypedPortIsNotWhereSSDPIsAsked(t *testing.T) {
+	for typed, want := range map[string]string{
+		"192.0.2.10":      "192.0.2.10:1900",
+		"192.0.2.10:1534": "192.0.2.10:1900",
+		"tv.local:9197":   "tv.local:1900",
+		"fe80::1":         "[fe80::1]:1900",
+		"[fe80::1]:1534":  "[fe80::1]:1900",
+		"fe80::1%en0":     "[fe80::1%en0]:1900",
+	} {
+		if got := ssdpTarget(typed); got != want {
+			t.Errorf("ssdpTarget(%q) = %q, want %q", typed, got, want)
+		}
+	}
+}
+
 func TestCancellingSSDPSearchInterruptsTheRead(t *testing.T) {
 	peer, err := net.ListenPacket("udp4", "127.0.0.1:0")
 	if err != nil {
