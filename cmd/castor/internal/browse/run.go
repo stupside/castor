@@ -102,6 +102,10 @@ type Selection struct {
 
 // pickTitle runs the browser until a title is chosen, or the operator leaves without one.
 func pickTitle(ctx context.Context, client Catalog, badge string, ask bool) (Selection, bool, error) {
+	// bubbletea's kill path races its input reader when started on a done context.
+	if err := ctx.Err(); err != nil {
+		return Selection{}, false, err
+	}
 	m := newModel(ctx, client, badge)
 	m.ask = ask
 	final, err := tea.NewProgram(m, tea.WithContext(ctx)).Run()
