@@ -22,14 +22,11 @@ func scaleFilter(maxHeight media.HeightCap) string {
 // toneMap maps a PQ or HLG picture to BT.709 SDR in linear light.
 const toneMap = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
 
-// videoFilters is a re-encode's -vf chain, in the order the frames pass through it.
+// videoFilters is a re-encode's -vf chain in frame order, shrinking frames before the float RGB tone map.
 func videoFilters(venc codec.VideoEncode) []string {
 	var filters []string
 	if venc.Deinterlace {
 		filters = append(filters, "bwdif=mode=send_frame")
-	}
-	if venc.ToneMap {
-		filters = append(filters, toneMap)
 	}
 	if venc.MaxFrameRate > 0 {
 		filters = append(filters, fmt.Sprintf("fps='min(source_fps,%s)'", strconv.FormatFloat(venc.MaxFrameRate, 'f', -1, 64)))
@@ -38,6 +35,9 @@ func videoFilters(venc codec.VideoEncode) []string {
 		filters = append(filters, fmt.Sprintf("scale=w='min(iw,%d)':h='min(ih,%d)':force_original_aspect_ratio=decrease:force_divisible_by=2", venc.MaxWidth, int(venc.MaxHeight)&^1))
 	} else if f := scaleFilter(venc.MaxHeight); f != "" {
 		filters = append(filters, f)
+	}
+	if venc.ToneMap {
+		filters = append(filters, toneMap)
 	}
 	if venc.SubtitleTextFile != "" {
 		filters = append(filters, drawtextFilter(venc.SubtitleTextFile))
