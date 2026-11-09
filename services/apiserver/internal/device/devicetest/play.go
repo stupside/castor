@@ -22,7 +22,7 @@ func Served(c mediav1.Container, runtime time.Duration, seek mediav1.DeviceComma
 	return &mediav1.DeviceCommand_Play{Stream: &mediav1.DeviceCommand_Play_Progressive_{Progressive: served}}
 }
 
-// Playlist is a play of an HLS playlist the media server serves.
-func Playlist() *mediav1.DeviceCommand_Play {
-	return &mediav1.DeviceCommand_Play{Stream: &mediav1.DeviceCommand_Play_Playlist_{Playlist: &mediav1.DeviceCommand_Play_Playlist{}}}
+// Playlist is a play of an HLS playlist the media server serves, cut into segments.
+func Playlist(segments mediav1.Container) *mediav1.DeviceCommand_Play {
+	return &mediav1.DeviceCommand_Play{Stream: &mediav1.DeviceCommand_Play_Playlist_{Playlist: &mediav1.DeviceCommand_Play_Playlist{Segments: segments}}}
 }

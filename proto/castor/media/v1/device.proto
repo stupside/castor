@@ -310,8 +310,16 @@ message DeviceCommand {
       }];
     }
 
+    // Playlist is an HLS playlist the media server makes.
     message Playlist {
       google.protobuf.Duration duration = 1 [(buf.validate.field).duration.gt = {}];
+      // segments is the container the playlist is cut into.
+      Container segments = 2 [(buf.validate.field).enum = {
+        in: [
+          1,
+          2
+        ]
+      }];
     }
   }
 

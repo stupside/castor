@@ -100,7 +100,7 @@ func TestAPlayIsRefusedAStreamItsKindCannotHold(t *testing.T) {
 			t.Errorf("a play of %s was accepted", name)
 		}
 	}
-	for _, play := range []*mediav1.DeviceCommand_Play{devicetest.Source(mediav1.Container_CONTAINER_HLS), devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, time.Hour, timed), devicetest.Playlist()} {
+	for _, play := range []*mediav1.DeviceCommand_Play{devicetest.Source(mediav1.Container_CONTAINER_HLS), devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, time.Hour, timed), devicetest.Playlist(mediav1.Container_CONTAINER_MP4)} {
 		play.Url = "http://192.0.2.1/stream"
 		if err := protovalidate.Validate(play); err != nil {
 			t.Errorf("a play of %v was refused: %v", play, err)

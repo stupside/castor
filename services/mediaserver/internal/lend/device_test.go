@@ -19,6 +19,7 @@ import (
 // remote is a device that says it plays at, paused when its own remote paused it, and records every press it takes.
 type remote struct {
 	presses []string
+	plays   []*mediav1.DeviceCommand_Play
 	heads   []*castorv1.Playhead
 	paused  bool
 }
@@ -37,9 +38,10 @@ func (r *remote) device(t *testing.T, at time.Duration) *Device {
 			}
 			call := cmd.GetCall()
 			answer := &mediav1.AnswerRequest{CommandId: call.GetId(), Answer: &mediav1.AnswerRequest_Done_{Done: &mediav1.AnswerRequest_Done{}}}
-			switch call.GetOperation().(type) {
+			switch op := call.GetOperation().(type) {
 			case *mediav1.DeviceCommand_Call_Play:
 				r.presses = append(r.presses, "play")
+				r.plays = append(r.plays, op.Play)
 			case *mediav1.DeviceCommand_Call_Pause:
 				r.presses = append(r.presses, "pause")
 			case *mediav1.DeviceCommand_Call_Resume:
@@ -112,6 +114,19 @@ func TestThePlayheadIsInTheWholeMediaNotTheStreamHanded(t *testing.T) {
 		}
 		if head := r.heads[0]; head.GetPosition().AsDuration() != 90*time.Second || head.GetDuration().AsDuration() != 91*time.Minute || !head.GetPaused() {
 			t.Errorf("playhead %v, want 1m30s into 1h31m, paused by the viewer", head)
+		}
+	})
+}
+
+func TestAPlaylistTellsTheDeviceWhatItIsCutInto(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := &remote{}
+		d := r.device(t, 0)
+		if err := d.Play(t.Context(), execute.Playback{URL: &url.URL{Scheme: "http", Host: "castor"}, Stream: execute.Playlist{Segments: media.MP4}}); err != nil {
+			t.Fatal(err)
+		}
+		if got := r.plays[0].GetPlaylist().GetSegments(); got != mediav1.Container_CONTAINER_MP4 {
+			t.Errorf("segments = %v, want MP4", got)
 		}
 	})
 }

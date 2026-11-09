@@ -28,7 +28,7 @@ type hlsPlan struct{ captions *output.Captions }
 
 func format() container.Format {
 	return container.Format{
-		ContentType: media.HLS, Extension: ".m3u8", Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand,
+		ContentType: media.HLS, Extension: ".m3u8", Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand, Segments: media.MP4,
 		Tuning: container.Tuning{Args: []string{
 			"-hls_time", strconv.FormatFloat(CaptionSegmentDuration.Seconds(), 'f', -1, 64),
 			"-hls_list_size", strconv.Itoa(captionWindowSegments),

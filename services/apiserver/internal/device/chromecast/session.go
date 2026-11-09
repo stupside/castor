@@ -66,6 +66,10 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 		load.Media.Metadata.Images = []castmedia.Image{{URL: imageURL}}
 	}
 	load.Media.Tracks, load.ActiveTrackIds = textTracks(playback.Play.GetCaptions())
+	if playback.Play.GetPlaylist().GetSegments() == mediav1.Container_CONTAINER_MP4 {
+		// The receiver's HLS player takes segments for MPEG-TS unless told otherwise.
+		load.Media.HLSSegmentFormat, load.Media.HLSVideoSegmentFormat = "fmp4", "fmp4"
+	}
 	reply, err := s.ch.request(ctx, transport, nsMedia, load)
 	if err == nil {
 		err = loadVerdict(reply, stream)
@@ -91,7 +95,9 @@ type loadCommand struct {
 
 type mediaItem struct {
 	castmedia.MediaItem
-	Tracks []track `json:"tracks,omitempty"`
+	Tracks                []track `json:"tracks,omitempty"`
+	HLSSegmentFormat      string  `json:"hlsSegmentFormat,omitempty"`
+	HLSVideoSegmentFormat string  `json:"hlsVideoSegmentFormat,omitempty"`
 }
 
 type track struct {

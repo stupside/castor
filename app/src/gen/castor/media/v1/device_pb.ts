@@ -1139,6 +1139,8 @@ export const DeviceCommand_Play_Runtime_SeekSchema: GenEnum<DeviceCommand_Play_R
   enumDesc(file_castor_media_v1_device, 14, 1, 2, 0);
 
 /**
+ * Playlist is an HLS playlist the media server makes, of fragmented MP4 segments.
+ *
  * @generated from message castor.media.v1.DeviceCommand.Play.Playlist
  */
 export type DeviceCommand_Play_Playlist = Message<"castor.media.v1.DeviceCommand.Play.Playlist"> & {

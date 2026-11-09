@@ -2345,9 +2345,12 @@ func (x *DeviceCommand_Play_Runtime) GetSeek() DeviceCommand_Play_Runtime_Seek {
 	return DeviceCommand_Play_Runtime_SEEK_UNSPECIFIED
 }
 
+// Playlist is an HLS playlist the media server makes.
 type DeviceCommand_Play_Playlist struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Duration      *durationpb.Duration   `protobuf:"bytes,1,opt,name=duration,proto3" json:"duration,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Duration *durationpb.Duration   `protobuf:"bytes,1,opt,name=duration,proto3" json:"duration,omitempty"`
+	// segments is the container the playlist is cut into.
+	Segments      Container `protobuf:"varint,2,opt,name=segments,proto3,enum=castor.media.v1.Container" json:"segments,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2387,6 +2390,13 @@ func (x *DeviceCommand_Play_Playlist) GetDuration() *durationpb.Duration {
 		return x.Duration
 	}
 	return nil
+}
+
+func (x *DeviceCommand_Play_Playlist) GetSegments() Container {
+	if x != nil {
+		return x.Segments
+	}
+	return Container_CONTAINER_UNSPECIFIED
 }
 
 type DeviceError_Gone struct {
@@ -2563,7 +2573,7 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\fAudioSupport\x12=\n" +
 	"\x05codec\x18\x01 \x01(\x0e2\x1b.castor.media.v1.AudioCodecB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x05codec\x12!\n" +
-	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\xb8\x0e\n" +
+	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\xfd\x0e\n" +
 	"\rDeviceCommand\x129\n" +
 	"\x04call\x18\x01 \x01(\v2#.castor.media.v1.DeviceCommand.CallH\x00R\x04call\x12?\n" +
 	"\x06cancel\x18\x02 \x01(\v2%.castor.media.v1.DeviceCommand.CancelH\x00R\x06cancel\x1a\xfc\x02\n" +
@@ -2574,7 +2584,7 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\x05pause\x18\x04 \x01(\v2$.castor.media.v1.DeviceCommand.PauseH\x00R\x05pause\x12?\n" +
 	"\x06resume\x18\x05 \x01(\v2%.castor.media.v1.DeviceCommand.ResumeH\x00R\x06resume\x12E\n" +
 	"\bposition\x18\x06 \x01(\v2'.castor.media.v1.DeviceCommand.PositionH\x00R\bpositionB\x12\n" +
-	"\toperation\x12\x05\xbaH\x02\b\x01\x1a\xf7\a\n" +
+	"\toperation\x12\x05\xbaH\x02\b\x01\x1a\xbc\b\n" +
 	"\x04Play\x12)\n" +
 	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
 	"^https?://\x88\x01\x01R\x03url\x12B\n" +
@@ -2597,9 +2607,11 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\x10SEEK_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"SEEK_START\x10\x01\x12\r\n" +
-	"\tSEEK_TIME\x10\x02\x1aK\n" +
+	"\tSEEK_TIME\x10\x02\x1a\x8f\x01\n" +
 	"\bPlaylist\x12?\n" +
-	"\bduration\x18\x01 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\bdurationB\x0f\n" +
+	"\bduration\x18\x01 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\bduration\x12B\n" +
+	"\bsegments\x18\x02 \x01(\x0e2\x1a.castor.media.v1.ContainerB\n" +
+	"\xbaH\a\x82\x01\x04\x18\x01\x18\x02R\bsegmentsB\x0f\n" +
 	"\x06stream\x12\x05\xbaH\x02\b\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\tcontainerR\bdurationR\x04seek\x1a\xc2\x01\n" +
 	"\aCaption\x12)\n" +
 	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
@@ -2759,16 +2771,17 @@ var file_castor_media_v1_device_proto_depIdxs = []int32{
 	41, // 42: castor.media.v1.DeviceCommand.Play.Runtime.duration:type_name -> google.protobuf.Duration
 	8,  // 43: castor.media.v1.DeviceCommand.Play.Runtime.seek:type_name -> castor.media.v1.DeviceCommand.Play.Runtime.Seek
 	41, // 44: castor.media.v1.DeviceCommand.Play.Playlist.duration:type_name -> google.protobuf.Duration
-	42, // 45: castor.media.v1.mime:extendee -> google.protobuf.EnumValueOptions
-	9,  // 46: castor.media.v1.DeviceService.Drive:input_type -> castor.media.v1.DriveRequest
-	11, // 47: castor.media.v1.DeviceService.Answer:input_type -> castor.media.v1.AnswerRequest
-	10, // 48: castor.media.v1.DeviceService.Drive:output_type -> castor.media.v1.DriveResponse
-	12, // 49: castor.media.v1.DeviceService.Answer:output_type -> castor.media.v1.AnswerResponse
-	48, // [48:50] is the sub-list for method output_type
-	46, // [46:48] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	45, // [45:46] is the sub-list for extension extendee
-	0,  // [0:45] is the sub-list for field type_name
+	1,  // 45: castor.media.v1.DeviceCommand.Play.Playlist.segments:type_name -> castor.media.v1.Container
+	42, // 46: castor.media.v1.mime:extendee -> google.protobuf.EnumValueOptions
+	9,  // 47: castor.media.v1.DeviceService.Drive:input_type -> castor.media.v1.DriveRequest
+	11, // 48: castor.media.v1.DeviceService.Answer:input_type -> castor.media.v1.AnswerRequest
+	10, // 49: castor.media.v1.DeviceService.Drive:output_type -> castor.media.v1.DriveResponse
+	12, // 50: castor.media.v1.DeviceService.Answer:output_type -> castor.media.v1.AnswerResponse
+	49, // [49:51] is the sub-list for method output_type
+	47, // [47:49] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	46, // [46:47] is the sub-list for extension extendee
+	0,  // [0:46] is the sub-list for field type_name
 }
 
 func init() { file_castor_media_v1_device_proto_init() }

@@ -26,6 +26,8 @@ type Format struct {
 	Framing media.Framing
 	// Tuning: fixed options (not codec-dependent); on row to avoid silent drops.
 	Tuning Tuning
+	// Segments is the content type a segmented delivery is cut into.
+	Segments string
 }
 
 // Tuning is the fixed output configuration of one muxer.
