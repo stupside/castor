@@ -86,9 +86,23 @@ type Evidence struct {
 
 	Undelivered error
 
+	// EncodeErr is the delivery's encode failing on its own: its encoder exited, or made what the device refused.
+	EncodeErr error
+
+	// Hardware is the failed encode's picture made on hardware.
+	Hardware bool
+
 	// DeviceGone is what an unplugged, crashed or switched-off device looks like from here.
 	DeviceGone *media.Gone
 
 	// Lines is the retained stderr of the party being blamed. No rule DECIDES on it: prose is not a contract.
 	Lines []string
+}
+
+// speaker is whose stderr Lines holds: the encoder's where its own failure brought them.
+func (e Evidence) speaker() string {
+	if e.EncodeErr != nil {
+		return "the encoder"
+	}
+	return "the reader"
 }

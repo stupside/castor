@@ -71,7 +71,7 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 	if len(refused) == 0 {
 		return CopyVideo(), nil, nil
 	}
-	host := func(c media.Codec) (ffmpeg.Encoder, bool) { return in.Encoders(ctx, c) }
+	host := func(c media.Codec) (ffmpeg.Encoder, bool) { return in.Encoders(ctx, c, in.Software) }
 	enc, t, ok := selectVideoEncoder(in.Caps, host)
 	if !ok {
 		if ceilingOnly(refused) {

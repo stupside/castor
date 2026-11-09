@@ -13,10 +13,20 @@ import (
 func ValidateOutput(ctx context.Context, prober media.Prober, caps media.Capabilities, contentType string, expected media.TrackRequirements, done <-chan struct{}) error {
 	return validateTracks(ctx, prober, expected, done, func(measured media.ProbeInfo) error {
 		if !caps.CanPlayIn(contentType, measured) {
-			return fmt.Errorf("encoded output does not satisfy receiver capabilities: video=%s profile=%s level=%d audio=%s", measured.VideoCodec, measured.VideoProfile, measured.VideoLevel, measured.AudioCodec)
+			return &Mismatch{Refused: caps.Refused(contentType, measured), measured: measured}
 		}
 		return nil
 	})
+}
+
+// Mismatch is an output the receiver cannot play; Refused names the halves it refuses.
+type Mismatch struct {
+	Refused  media.Axes
+	measured media.ProbeInfo
+}
+
+func (m *Mismatch) Error() string {
+	return fmt.Sprintf("encoded output does not satisfy receiver capabilities: video=%s profile=%s level=%d audio=%s", m.measured.VideoCodec, m.measured.VideoProfile, m.measured.VideoLevel, m.measured.AudioCodec)
 }
 
 // ValidateTracks checks that a growing read still carries the tracks measured at its source.

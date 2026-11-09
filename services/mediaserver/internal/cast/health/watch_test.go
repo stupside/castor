@@ -692,7 +692,7 @@ func TestADeviceThatSeeksIsMeasuredFromWhereItAsked(t *testing.T) {
 		if after.began != 20*time.Minute || after.intakeKnown || after.headKnown && after.head < 20*time.Minute || after.played > 2*time.Second {
 			t.Errorf("right after the seek: began %v, intake known %t, head %v (known %t), played %v; want the measures started over at 20m", after.began, after.intakeKnown, after.head, after.headKnown, after.played)
 		}
-		if got := after.Reached(); got < 20*time.Minute || got > 20*time.Minute+2*time.Second {
+		if got, _ := after.Reached(); got < 20*time.Minute || got > 20*time.Minute+2*time.Second {
 			t.Errorf("reached %v right after the seek, want about 20m", got)
 		}
 		for range 10 {
@@ -807,3 +807,52 @@ func TestADeviceThatSeeksBackToWhereItBeganIsMeasuredAfresh(t *testing.T) {
 		}
 	})
 }
+
+// An encoder castor feeds is judged by what it makes, not by the read ahead of it.
+func TestAnEncoderFedButMakingNothingIsWedged(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		fed  bool
+		// making is what the delivery makes as time passes.
+		making func(time.Duration) media.Progress
+		want   bool
+	}{
+		{"fed and silent", true, func(time.Duration) media.Progress { return media.Progress{Position: 30 * time.Second, Bytes: 1 << 20} }, true},
+		{"held back by its device and silent", false, func(time.Duration) media.Progress { return media.Progress{Position: 30 * time.Second, Bytes: 1 << 20} }, false},
+		{"fed and making", true, func(d time.Duration) media.Progress { return media.Progress{Position: d, Bytes: int64(d)} }, false},
+		{"fed and making bytes between the keyframes its position is counted at", true, func(d time.Duration) media.Progress {
+			return media.Progress{Position: 30 * time.Second, Bytes: int64(d)}
+		}, false},
+		{"fed and making media it states no bytes of", true, func(d time.Duration) media.Progress { return media.Progress{Position: d} }, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				start := time.Now()
+				read := &pacedProducer{done: make(chan struct{}), start: start, made: func(d time.Duration) time.Duration { return 2 * d }}
+				delivery := makingFor{start: start, making: tt.making}
+				ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+				defer cancel()
+				err := watchFixture(ctx, Monitor{
+					Subject: "the playing cast", Phase: Playing, Holdable: true,
+					Producer: read, Telemetry: read, Served: delivery, Fed: func() bool { return tt.fed },
+				})
+				fault, wedged := errors.AsType[*Fault](err)
+				if wedged = wedged && fault.Kind == Wedged; wedged != tt.want {
+					t.Fatalf("Watch = %v, want wedged %t", err, tt.want)
+				}
+				if waited := time.Since(start); wedged && (waited <= Warmup || waited > Warmup+time.Second) {
+					t.Errorf("wedged after %v, want just past the warmup", waited)
+				}
+			})
+		})
+	}
+}
+
+// makingFor is a delivery making what making says for the time since start.
+type makingFor struct {
+	start  time.Time
+	making func(time.Duration) media.Progress
+}
+
+func (m makingFor) Progress() media.Progress { return m.making(time.Since(m.start)) }
+func (makingFor) Err() error                 { return nil }

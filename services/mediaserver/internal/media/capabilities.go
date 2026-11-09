@@ -181,6 +181,24 @@ func (c Capabilities) CanPlayIn(container string, p ProbeInfo) bool {
 	})
 }
 
+// Refused is the halves of p no format in container plays, both where only their pairing fails.
+func (c Capabilities) Refused(container string, p ProbeInfo) Axes {
+	if c.CanPlayIn(container, p) {
+		return Axes{}
+	}
+	offered := func(takes func(FormatSupport) bool) bool {
+		return slices.ContainsFunc(c.Formats, func(f FormatSupport) bool { return f.Transport.ContentType() == container && takes(f) })
+	}
+	refused := Axes{
+		Video: p.HasVideo() && !offered(func(f FormatSupport) bool { return (!p.VideoInterlaced || c.Deinterlaces) && f.Video.accepts(p) }),
+		Audio: p.HasAudio() && !offered(func(f FormatSupport) bool { return f.Audio.accepts(p) }),
+	}
+	if refused.Any() {
+		return refused
+	}
+	return Axes{Video: p.HasVideo(), Audio: p.HasAudio()}
+}
+
 func (f FormatSupport) accepts(p ProbeInfo, deinterlaces bool) bool {
 	return (p.HasVideo() || p.HasAudio()) &&
 		(!p.VideoInterlaced || deinterlaces) &&

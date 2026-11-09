@@ -56,11 +56,13 @@ type Observer struct {
 	floored bool
 	// said is why a cast was last found not lifted, so it is said once for as long as it holds.
 	said string
+	// last is the latest reading, read once the watch is over.
+	last Vitals
 }
 
 func Observe(m Monitor) *Observer {
 	now := time.Now()
-	o := &Observer{m: m, start: now, grew: now, kept: now}
+	o := &Observer{m: m, start: now, grew: now, kept: now, made: now}
 	o.trail = media.Trail{Span: rateSpan}
 	o.reading = newReading(m.Playhead)
 	o.asked = newPacing(m.MaxBitrate)
@@ -93,6 +95,7 @@ func (o *Observer) Next(ctx context.Context) (d Decision, err error) {
 		if err != nil {
 			return Complete, err
 		}
+		o.last = h
 		r, act, err := judge(t.m.Phase, h)
 		if err != nil {
 			return Complete, err
@@ -151,6 +154,9 @@ func (o *Observer) explain(ctx context.Context, h Vitals) {
 	}
 	slog.InfoContext(ctx, "the cast is not asked for more", attrs...)
 }
+
+// Latest is the last reading, which says where the viewer got to when something else ended the cast.
+func (o *Observer) Latest() Vitals { return o.last }
 
 // Target is the rate a ChangeRate asks the cast to weigh, zero for as the source does.
 func (o *Observer) Target() media.Bitrate { return o.pending.to }
@@ -236,7 +242,7 @@ func DeviceStarved(subject string, made media.Progress, handed int64) *Fault {
 		Kind:    Starved,
 		Subject: subject,
 		// It took everything made, so it played everything made.
-		Vitals: Vitals{Landed: made.Bytes, Position: made.Position, played: made.Position, handed: handed},
+		Vitals: Vitals{Landed: made.Bytes, Position: made.Position, played: made.Position, handed: handed, playing: true},
 	}
 }
 
@@ -297,6 +303,10 @@ type tracker struct {
 	// landed is the artifact's size, and grew when the producer last grew.
 	landed int64
 	grew   time.Time
+
+	// making and made are the output when last seen growing or unfed, and when.
+	making media.Progress
+	made   time.Time
 
 	// trail is the media position over the last rateSpan.
 	trail media.Trail
@@ -424,11 +434,19 @@ func (t *tracker) read(ctx context.Context) (Vitals, error) {
 		h.sinceFetch = now.Sub(cmp.Or(last, t.start))
 	}
 	if sv := t.m.Served; sv != nil {
-		h.weight = t.weigh(now, sv.Progress())
+		made := sv.Progress()
+		h.weight = t.weigh(now, made)
 		h.took = t.mediaAt(h.handed)
 		// Samples behind what the device passed are of no further use.
 		for len(t.curve) > 1 && t.curve[1].bytes <= h.handed {
 			t.curve = t.curve[1:]
+		}
+		if t.m.Fed != nil {
+			// Bytes see a long GOP between indexed keyframes; position sees HLS, which states no bytes.
+			if made.Bytes != t.making.Bytes || made.Position != t.making.Position || !t.m.Fed() {
+				t.making, t.made = made, now
+			}
+			h.sinceMade = now.Sub(t.made)
 		}
 	}
 	h.switchable = t.m.Switchable
@@ -438,6 +456,7 @@ func (t *tracker) read(ctx context.Context) (Vitals, error) {
 	h.climbAfter = t.m.Climb
 	// Only a device plays, and not before it first fetches: the watch starts as Play returns, which understates the media on hand.
 	if t.m.Phase == Playing {
+		h.playing = true
 		h.paused = t.playback.Is(playbackPaused) || t.playback.Is(resumeRefused)
 		head := &t.reading.playhead
 		h.pace, h.paceKnown = head.measure(ctx, now, h.paused)

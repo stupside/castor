@@ -2,6 +2,7 @@ package execute
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -52,6 +53,8 @@ type switchable interface {
 type producer interface {
 	health.Producer
 	health.Telemetry
+	// Fed is castor waiting on the output with input for it.
+	Fed() bool
 }
 
 // validateOutput checks the encoder's actual result, not just its requested flags.
@@ -67,7 +70,24 @@ func (s *preparation) validateOutput(d delivery, opts encodePlan, f feed) error 
 	if f.buffered != nil {
 		expected = expected.Or(f.buffered.expected)
 	}
-	return encoding.ValidateOutput(ctx, s.Probes.File(path), opts.delivery.Capabilities, opts.Format.ContentType, expected, d.output.Done())
+	return encodeFault(encoding.ValidateOutput(ctx, s.Probes.File(path), opts.delivery.Capabilities, opts.Format.ContentType, expected, d.output.Done()), opts.EncodeOptions)
+}
+
+// encodeFault types err as the encode's own where it refuses a half opts encoded.
+func encodeFault(err error, opts encoding.EncodeOptions) error {
+	mismatch, ok := errors.AsType[*encoding.Mismatch](err)
+	// Both refused may be their pairing, not the encode.
+	if !ok || mismatch.Refused.Video && mismatch.Refused.Audio {
+		return err
+	}
+	video, encodedVideo := opts.Video.Encode()
+	_, encodedAudio := opts.Audio.Encode()
+	refusedVideo := encodedVideo && mismatch.Refused.Video
+	refusedAudio := encodedAudio && mismatch.Refused.Audio
+	if !refusedVideo && !refusedAudio {
+		return err
+	}
+	return &encoderFailed{err: err, hardware: refusedVideo && video.Encoder.Hardware}
 }
 
 func (s *preparation) produce(work string, f feed, opts encodePlan, burn burnRenderer) (delivery, error) {
@@ -136,21 +156,23 @@ func (s *preparation) produceOnce(f feed, encoderOpts encoding.EncodeOptions, pr
 	if burn != nil {
 		step = burn.Writer(s.ctx)
 	}
-	var tail io.ReadCloser
+	var in *splice.Cursor
+	var tail io.Reader
 	if f.buffered != nil {
 		var err error
-		if tail, err = f.buffered.reader.spool.TailAt(s.ctx, 0); err != nil {
+		if in, err = splice.Open(s.ctx, f.buffered.reader.spool, 0, nil, nil); err != nil {
 			return nil, err
 		}
+		tail = in
 	}
 	proc, err := s.startEncoder(encoderOpts, tail, step, dir)
 	if err != nil {
-		if tail != nil {
-			_ = tail.Close()
+		if in != nil {
+			_ = in.Close()
 		}
 		return nil, err
 	}
-	production := startProduction(s.ctx, proc, tail, prepared.Write)
+	production := startProduction(s.ctx, proc, in, onHardware(encoderOpts), prepared.Write)
 	s.releases.worker(production.stop, func() error {
 		<-production.Done()
 		return production.Err()

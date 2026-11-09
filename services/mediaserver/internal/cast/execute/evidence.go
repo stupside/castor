@@ -11,7 +11,7 @@ import (
 
 // evidence is what an attempt left behind, read from how far it ran and how it ended.
 func evidence(r ran, err error, cancelled bool) recovery.Evidence {
-	e := recovery.Evidence{Reached: r.reached, Began: r.began, Cancelled: cancelled}
+	e := recovery.Evidence{Reached: r.reached, Began: r.began, Cancelled: cancelled, Vitals: r.seen}
 	if err == nil {
 		e.Reached = health.Delivered
 	}
@@ -31,6 +31,9 @@ func evidence(r ran, err error, cancelled bool) recovery.Evidence {
 	}
 	if unread, ok := errors.AsType[*timelineUnreadable](err); ok {
 		e.TimelineErr = unread.err
+	}
+	if failed, ok := errors.AsType[*encoderFailed](err); ok {
+		e.EncodeErr, e.Hardware, e.Lines = failed.err, failed.hardware, failed.lines
 	}
 	if undelivered, ok := errors.AsType[*health.Undelivered](err); ok {
 		e.Undelivered = undelivered

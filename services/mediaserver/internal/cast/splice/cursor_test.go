@@ -78,3 +78,30 @@ func TestACursorWithoutALimitFollowsTheBufferToItsEnd(t *testing.T) {
 		t.Errorf("read %q, %v, want bc", got, err)
 	}
 }
+
+func TestACursorIsBehindOnlyWhileTheBufferHoldsWhatItWillStillRead(t *testing.T) {
+	sp := spoolOf(t, bytes.Repeat([]byte("x"), 1000))
+	c, err := Open(t.Context(), sp, 0, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if _, err := io.ReadFull(c, make([]byte, 400)); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Behind() {
+		t.Error("a cursor 600 bytes short of the buffer's end is not behind")
+	}
+	if c.Stop(400); c.Behind() {
+		t.Error("a cursor stopped where it has read is behind")
+	}
+
+	caught, err := Open(t.Context(), sp, 1000, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer caught.Close()
+	if caught.Behind() {
+		t.Error("a cursor at the buffer's end is behind")
+	}
+}

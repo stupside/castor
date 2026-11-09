@@ -27,7 +27,7 @@ func floorVideoTrack(ctx context.Context, in Inputs) (Track[VideoEncode], []Reas
 	if len(refused) == 0 {
 		return CopyVideo(), nil, nil
 	}
-	enc, ok := in.Encoders(ctx, floorVideo.codec)
+	enc, ok := in.Encoders(ctx, floorVideo.codec, in.Software)
 	if !ok {
 		return Track[VideoEncode]{}, refused, fmt.Errorf("no working encoder for recovery codec %q", floorVideo.codec)
 	}

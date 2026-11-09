@@ -61,6 +61,8 @@ const (
 	Unfetched
 	// Outranked is a cast that played well on a link another outranks.
 	Outranked
+	// Wedged is a delivery that made nothing for Warmup while castor waited on it with input for it.
+	Wedged
 )
 
 func (k Kind) String() string {
@@ -89,6 +91,8 @@ func (k Kind) String() string {
 		return "unfetched"
 	case Outranked:
 		return "outranked"
+	case Wedged:
+		return "wedged"
 	default:
 		return "starting"
 	}
@@ -119,7 +123,7 @@ type verdict struct {
 	phase Phase
 }
 
-// actions is what each verdict asks for in each phase; while playing, only a source that gave out or a better link ends the attempt.
+// actions is what each verdict asks for in each phase; while playing, only a failing source or encoder, or a better link, ends the attempt.
 var actions = map[verdict]action{
 	{kind: starting, phase: Reading}: keepWatching,
 	{kind: starting, phase: Opening}: keepWatching,
@@ -132,6 +136,7 @@ var actions = map[verdict]action{
 	{kind: Dead, phase: Opening}:          revise,
 	{kind: Undeliverable, phase: Reading}: revise,
 	{kind: Stalled, phase: Opening}:       revise,
+	{kind: Wedged, phase: Opening}:        revise,
 
 	{kind: Lean, phase: Playing}:        hold,
 	{kind: Replenished, phase: Playing}: release,
@@ -142,4 +147,5 @@ var actions = map[verdict]action{
 	{kind: Roomy, phase: Playing}:     lift,
 	{kind: Unfetched, phase: Playing}: abandon,
 	{kind: Outranked, phase: Playing}: revise,
+	{kind: Wedged, phase: Playing}:    revise,
 }

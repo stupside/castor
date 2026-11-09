@@ -48,6 +48,7 @@ func (s *preparation) read(work string, program media.Program) (*buffered, error
 		MaxHeight: s.MaxHeight,
 		Spliced:   program.Seamed(),
 		Encoders:  s.Encoders,
+		Software:  s.attempt.Software,
 	})
 	if err != nil {
 		stop()

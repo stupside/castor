@@ -20,7 +20,7 @@ func TestMeasuredAbsentTrackDoesNotRequestAnEncoderAtASplice(t *testing.T) {
 			encoderCalls := 0
 			in := Inputs{
 				Probe: tt.probe, Measured: true, Spliced: true,
-				Encoders: func(context.Context, media.Codec) (ffmpeg.Encoder, bool) {
+				Encoders: func(context.Context, media.Codec, bool) (ffmpeg.Encoder, bool) {
 					encoderCalls++
 					return ffmpeg.Encoder{}, false
 				},

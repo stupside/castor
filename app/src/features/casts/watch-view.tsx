@@ -51,6 +51,7 @@ const recoveryActions: Record<RecoveryAction, string> = {
   [RecoveryAction.RELAX_READ]: "relaxed reading",
   [RecoveryAction.SERVE_INSTEAD]: "relayed through castor",
   [RecoveryAction.STAY]: "stayed",
+  [RecoveryAction.SOFTWARE_ENCODE]: "encoded in software",
 };
 
 const failures: Record<FailureCode, string> = {

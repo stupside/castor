@@ -14,7 +14,9 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/container"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/progressive"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/splice"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -37,7 +39,7 @@ func TestProductionDoneIncludesProcessResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	packaged := make(chan struct{})
-	p := startProduction(t.Context(), proc, nil, func(_ context.Context, r io.Reader) error {
+	p := startProduction(t.Context(), proc, nil, false, func(_ context.Context, r io.Reader) error {
 		_, err := io.Copy(io.Discard, r)
 		close(packaged)
 		return err
@@ -65,7 +67,7 @@ func TestProductionCancellationInterruptsAndJoinsPackager(t *testing.T) {
 	}
 	entered := make(chan struct{})
 	failure := errors.New("packager failure")
-	p := startProduction(ctx, proc, nil, func(_ context.Context, r io.Reader) error {
+	p := startProduction(ctx, proc, nil, false, func(_ context.Context, r io.Reader) error {
 		close(entered)
 		_, err := io.Copy(io.Discard, r)
 		return errors.Join(err, context.Canceled, failure)
@@ -88,7 +90,7 @@ func TestPackagerFailureStopsEncoder(t *testing.T) {
 		t.Fatal(err)
 	}
 	failure := errors.New("cannot store output")
-	p := startProduction(t.Context(), proc, nil, func(context.Context, io.Reader) error { return failure })
+	p := startProduction(t.Context(), proc, nil, false, func(context.Context, io.Reader) error { return failure })
 	t.Cleanup(func() { _ = p.Close() })
 	awaitProduction(t, p)
 	if !errors.Is(p.Err(), failure) {
@@ -115,7 +117,7 @@ func TestProductionCompletionKeepsPublicationAndStorageGuard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := startProduction(s.ctx, proc, nil, stream.Write)
+	p := startProduction(s.ctx, proc, nil, false, stream.Write)
 	s.releases.worker(p.stop, func() error { <-p.Done(); return p.Err() })
 	failStorage := make(chan struct{})
 	s.failures = failures
@@ -176,7 +178,7 @@ func TestCancellationPreservesExitedEncoderFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	drained := make(chan struct{})
-	p := startProduction(ctx, proc, nil, func(ctx context.Context, r io.Reader) error {
+	p := startProduction(ctx, proc, nil, false, func(ctx context.Context, r io.Reader) error {
 		_, err := io.Copy(io.Discard, r)
 		close(drained)
 		<-ctx.Done()
@@ -217,5 +219,54 @@ func TestPublicationFailureReleasesPreparedOutputBeforeEncoderStart(t *testing.T
 	}
 	if _, err := os.Stat(artifact); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("prepared output leaked after publication failure: %v", err)
+	}
+}
+
+func TestAnEncoderIsFedOnlyWhileCastorWaitsOnIt(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		reads bool
+	}{{"waited on", true}, {"held back", false}} {
+		t.Run(tt.name, func(t *testing.T) {
+			sp, err := storage.NewSpool(filepath.Join(t.TempDir(), "spool.ts"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { sp.CloseWrite(nil); _ = sp.Close() })
+			if _, err := sp.Write(make([]byte, 4<<20)); err != nil {
+				t.Fatal(err)
+			}
+			in, err := splice.Open(t.Context(), sp, 0, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// It takes and makes nothing, so only castor's side differs.
+			proc, err := ffmpeg.Start(t.Context(), "/bin/sh", ffmpeg.Command{Args: []string{"-c", "sleep 30"}}, ffmpeg.Options{Stdin: in})
+			if err != nil {
+				t.Fatal(err)
+			}
+			held := make(chan struct{})
+			p := startProduction(t.Context(), proc, in, false, func(ctx context.Context, r io.Reader) error {
+				if tt.reads {
+					_, err := io.Copy(io.Discard, r)
+					return err
+				}
+				select {
+				case <-held:
+				case <-ctx.Done():
+				}
+				return nil
+			})
+			t.Cleanup(func() { close(held); _ = p.Close() })
+			deadline := time.Now().Add(time.Second)
+			for p.Fed() != tt.reads && time.Now().Before(deadline) {
+				time.Sleep(10 * time.Millisecond)
+			}
+			// Still unfed after a while, not only at start.
+			time.Sleep(100 * time.Millisecond)
+			if p.Fed() != tt.reads {
+				t.Errorf("fed %t, want %t", p.Fed(), tt.reads)
+			}
+		})
 	}
 }

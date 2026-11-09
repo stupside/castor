@@ -151,7 +151,7 @@ func TestEncoderResultPreservesExpiredLiveInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = io.Copy(io.Discard, proc.Stdout)
-	err = encoderResult(t.Context(), proc)
+	err = encoderResult(t.Context(), proc, false, false)
 	if !errors.Is(err, storage.ErrSpoolExpired) {
 		t.Fatalf("encoder erased expiry: %v", err)
 	}

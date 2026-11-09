@@ -78,6 +78,9 @@ type Attempt struct {
 	// Delivery is carried per attempt because recovery may change it.
 	Delivery compose.DeliveryPreference
 
+	// Software encodes this link without hardware, after a hardware encode of it failed.
+	Software bool
+
 	// Climb is how long the attempt plays well before a better link is tried, zero for never.
 	Climb time.Duration
 }
@@ -92,6 +95,7 @@ type identity struct {
 	fetch     string
 	delivery  compose.DeliveryPreference
 	decode    media.Axes
+	software  bool
 }
 
 // identify reads unset fields as their defaults.
@@ -105,6 +109,7 @@ func (a Attempt) identify() identity {
 		fetch:     fmt.Sprint(a.Fetch),
 		delivery:  cmp.Or(a.Delivery, compose.DeliveryAuto),
 		decode:    a.Decode,
+		software:  a.Software,
 	}
 }
 

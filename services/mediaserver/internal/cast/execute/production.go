@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/stupside/castor/services/mediaserver/internal/cast/splice"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/teardown"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -15,17 +16,20 @@ import (
 // result only after packaging and process reaping have both finished.
 type production struct {
 	proc *ffmpeg.Process
+	// in is nil when the encoder reads the source itself.
+	in   *splice.Cursor
+	out  *awaited
 	done chan struct{}
 	stop func()
 	err  error
 }
 
-func startProduction(parent context.Context, proc *ffmpeg.Process, input io.Closer, write func(context.Context, io.Reader) error) *production {
+func startProduction(parent context.Context, proc *ffmpeg.Process, in *splice.Cursor, hardware bool, write func(context.Context, io.Reader) error) *production {
 	ctx, cancel := context.WithCancel(parent)
-	p := &production{proc: proc, done: make(chan struct{})}
+	p := &production{proc: proc, in: in, out: &awaited{Reader: proc.Stdout}, done: make(chan struct{})}
 	releaseIO := sync.OnceFunc(func() {
-		if input != nil {
-			_ = input.Close()
+		if in != nil {
+			_ = in.Close()
 		}
 		_ = proc.Stdout.Close()
 	})
@@ -36,18 +40,28 @@ func startProduction(parent context.Context, proc *ffmpeg.Process, input io.Clos
 		defer close(p.done)
 		defer cancel()
 		defer func() { stopped(); interrupt() }()
-		packaging := write(ctx, proc.Stdout)
+		packaging := write(ctx, p.out)
 		if packaging != nil {
 			proc.Kill()
 		}
 		releaseIO()
-		process := encoderResult(ctx, proc)
+		process := encoderResult(ctx, proc, hardware, in != nil)
 		p.err = errors.Join(teardown.Failures(ctx, packaging), process)
 	}()
 	return p
 }
 
 func (p *production) Done() <-chan struct{} { return p.done }
+
+// Fed is an encoder castor waits on with buffer left for it to read.
+func (p *production) Fed() bool {
+	select {
+	case <-p.done:
+		return false
+	default:
+		return p.in != nil && p.out.waiting() && p.in.Behind()
+	}
+}
 func (p *production) Err() error {
 	select {
 	case <-p.done:

@@ -9,11 +9,11 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-func hostEncoders(_ context.Context, codec media.Codec) (ffmpeg.Encoder, bool) {
-	switch codec {
-	case media.CodecHEVC:
+func hostEncoders(_ context.Context, codec media.Codec, software bool) (ffmpeg.Encoder, bool) {
+	switch {
+	case codec == media.CodecHEVC && !software:
 		return ffmpeg.Encoder{Name: "hevc_videotoolbox", Codec: media.CodecHEVC, Hardware: true}, true
-	case media.CodecH264:
+	case codec == media.CodecH264:
 		return ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264}, true
 	}
 	return ffmpeg.Encoder{}, false
@@ -181,6 +181,24 @@ func TestAThinRateIsSpentOnASmallerPicture(t *testing.T) {
 		v, _ := track.Encode()
 		if v.MaxHeight != tt.wantHeight || v.MaxFrameRate != tt.wantFPS {
 			t.Errorf("under %s: %dp at %v fps, want %dp at %v", tt.ceiling, v.MaxHeight, v.MaxFrameRate, tt.wantHeight, tt.wantFPS)
+		}
+	}
+}
+
+func TestAnAttemptInSoftwarePlansThePictureWithoutHardware(t *testing.T) {
+	both := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecHEVC}}, {Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
+	tall := media.ProbeInfo{VideoCodec: media.CodecH264, VideoHeight: 2160, VideoBitDepth: 8}
+	for _, tt := range []struct {
+		software bool
+		want     string
+	}{{false, "hevc_videotoolbox"}, {true, "libx264"}} {
+		in := Inputs{Caps: both, Probe: tall, Into: testFormat(t, media.MPEGTS), MaxHeight: 1080, Encoders: hostEncoders, Software: tt.software}
+		track, _, err := decideVideo(t.Context(), in, 0)
+		if err != nil {
+			t.Fatalf("decideVideo: %v", err)
+		}
+		if enc, _ := track.Encode(); enc.Encoder.Name != tt.want {
+			t.Errorf("software %t planned %q, want %q", tt.software, enc.Encoder.Name, tt.want)
 		}
 	}
 }

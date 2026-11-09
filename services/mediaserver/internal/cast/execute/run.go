@@ -35,6 +35,8 @@ type ran struct {
 	reached health.Phase
 	began   time.Duration
 	reader  *pull
+	// seen is the playing watch's last reading.
+	seen health.Vitals
 }
 
 // attemptEvent keeps this machine's events distinct at Go call sites.
@@ -193,6 +195,8 @@ type coordinator struct {
 	unmade     context.CancelFunc
 	stopHealth context.CancelFunc
 	stopDrain  context.CancelFunc
+	// observer judges the playing cast, nil before it plays.
+	observer *health.Observer
 }
 
 func newCoordinator(parent context.Context, c Cast, a recovery.Attempt) *coordinator {
@@ -443,10 +447,12 @@ func (c *coordinator) watchHealth(d *delivery) {
 	if aud == nil {
 		return
 	}
-	monitor := playingMonitor(c.presentation.feed, *d, aud, c.maxBitrate, c.climb, c.device)
+	observer := health.Observe(playingMonitor(c.presentation.feed, *d, aud, c.maxBitrate, c.climb, c.device))
+	c.observer = observer
 	watching, stop := context.WithCancel(c.ctx)
 	c.stopHealth = stop
-	c.launchUntil(watching, healthEnded, func() error { return observeHealth(watching, monitor, c.device, d.rate) })
+	plan := c.planned.options
+	c.launchUntil(watching, healthEnded, func() error { return wedgedOn(observeHealth(watching, observer, c.device, d.rate), *d, plan) })
 }
 
 func (c *coordinator) watchSeeks(d *delivery) {

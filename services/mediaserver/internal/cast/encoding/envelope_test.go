@@ -17,7 +17,7 @@ import (
 func TestActualEncodeHonorsBaselineLevelAndDimensions(t *testing.T) {
 	caps := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264, Profiles: []media.Profile{media.ProfileBaseline}, MaxLevel: 31}, Audio: media.AudioSupport{Codec: media.CodecAAC}}}}
 	format, _ := container.For(media.MP4)
-	plan, err := codec.Served(t.Context(), codec.Inputs{Caps: caps, Into: format, Measured: true, MaxHeight: 2160, Probe: media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: media.ProfileHigh, VideoHeight: 2160, VideoBitDepth: 8}, Encoders: func(context.Context, media.Codec) (ffmpeg.Encoder, bool) {
+	plan, err := codec.Served(t.Context(), codec.Inputs{Caps: caps, Into: format, Measured: true, MaxHeight: 2160, Probe: media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: media.ProfileHigh, VideoHeight: 2160, VideoBitDepth: 8}, Encoders: func(context.Context, media.Codec, bool) (ffmpeg.Encoder, bool) {
 		return ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264, Flags: []string{"-preset", "veryfast", "-pix_fmt", "yuv420p"}}, true
 	}})
 	if err != nil {

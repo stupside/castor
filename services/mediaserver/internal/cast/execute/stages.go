@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/splice"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/teardown"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
@@ -25,9 +26,6 @@ const (
 
 	// cutWait is how long a change waits for the read to reach a keyframe past the encoder.
 	cutWait = 30 * time.Second
-
-	// warmup is how long a new encoder has to make its first byte before the old one is cut for it.
-	warmup = 10 * time.Second
 )
 
 // errCutMissed is an encoder that read past every cut offered before it could be stopped at one.
@@ -40,13 +38,16 @@ type stage struct {
 	// src is the read whose buffer it reads, and opts how it makes what it passes.
 	src  *pull
 	opts encoding.EncodeOptions
+	// made is the encoder's raw output; out buffers it.
+	made *awaited
 	out  *bufio.Reader
 	// passed is the bytes of its output the delivery took.
 	passed int64
 }
 
 func newStage(proc *ffmpeg.Process, in *splice.Cursor, src *pull, opts encoding.EncodeOptions) *stage {
-	return &stage{proc: proc, in: in, src: src, opts: opts, out: bufio.NewReaderSize(proc.Stdout, 64<<10)}
+	made := &awaited{Reader: proc.Stdout}
+	return &stage{proc: proc, in: in, src: src, opts: opts, made: made, out: bufio.NewReaderSize(made, 64<<10)}
 }
 
 func (f *stage) kill() {
@@ -146,7 +147,7 @@ func (f *stages) release() {
 func (f *stages) results() error {
 	var err error
 	for _, each := range f.all() {
-		err = errors.Join(err, encoderResult(f.ctx, each.proc))
+		err = errors.Join(err, encoderResult(f.ctx, each.proc, onHardware(each.opts), true))
 	}
 	return err
 }
@@ -267,13 +268,13 @@ func cutStage(ctx, life context.Context, src *pull, spec stageSpec, opts encodin
 	case err := <-made:
 		if err != nil {
 			next.kill()
-			return nil, fmt.Errorf("the encoder made nothing at the cut: %w", errors.Join(err, encoderResult(life, proc)))
+			return nil, fmt.Errorf("the encoder made nothing at the cut: %w", errors.Join(err, encoderResult(life, proc, onHardware(opts), true)))
 		}
 		spec.warm.note(time.Since(began))
 		return next, nil
-	case <-time.After(warmup):
+	case <-time.After(health.Warmup):
 		next.close()
-		return nil, fmt.Errorf("the encoder made nothing at the cut within %s", warmup)
+		return nil, fmt.Errorf("the encoder made nothing at the cut within %s", health.Warmup)
 	case <-ctx.Done():
 		next.close()
 		return nil, context.Cause(ctx)
@@ -305,6 +306,17 @@ func (f *stages) Progress() media.Progress {
 }
 
 func (f *stages) Done() <-chan struct{} { return f.done }
+
+// Fed is castor waiting on the encoder with input left for it.
+func (f *stages) Fed() bool {
+	select {
+	case <-f.done:
+		return false
+	default:
+		cur := f.current()
+		return cur.made.waiting() && cur.in.Behind()
+	}
+}
 
 func (f *stages) Err() error {
 	select {

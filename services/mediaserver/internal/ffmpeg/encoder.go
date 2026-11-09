@@ -80,8 +80,8 @@ func vaapiEncoder(name string, codec media.Codec, node string) Encoder {
 	}
 }
 
-// Encoders is the best working encoder per codec on ffmpegPath, hardware first; each encoder is proven once by the value it returns.
-func Encoders(ffmpegPath string) func(context.Context, media.Codec) (Encoder, bool) {
+// Encoders is the best working encoder per codec on ffmpegPath, hardware first unless software; each is proven once.
+func Encoders(ffmpegPath string) func(ctx context.Context, codec media.Codec, software bool) (Encoder, bool) {
 	proven := &provenEncoders{ffmpegPath: ffmpegPath, slots: map[string]*proof{}}
 	return proven.best
 }
@@ -100,9 +100,13 @@ type proof struct {
 	works  bool
 }
 
-func (p *provenEncoders) best(ctx context.Context, codec media.Codec) (Encoder, bool) {
+func (p *provenEncoders) best(ctx context.Context, codec media.Codec, software bool) (Encoder, bool) {
 	all := candidates()
-	for _, hardware := range []bool{true, false} {
+	passes := []bool{true, false}
+	if software {
+		passes = passes[1:]
+	}
+	for _, hardware := range passes {
 		for _, e := range all {
 			if e.Codec != codec || e.Hardware != hardware {
 				continue
