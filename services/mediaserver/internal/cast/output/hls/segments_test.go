@@ -76,6 +76,29 @@ func TestServedCountsOnlyMediaHandedOver(t *testing.T) {
 	}
 }
 
+func TestAWebReceiverMayReadThePlaylistAndItsSegments(t *testing.T) {
+	dir := t.TempDir()
+	for name, content := range map[string]string{"stream.m3u8": "#EXTM3U\n#EXTINF:4,\nseg_00001.m4s\n", "seg_00001.m4s": "\x00\x00\x00\x18moof"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, path := range []string{"/stream.m3u8", "/seg_00001.m4s"} {
+		t.Run(path, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				srv, _ := serving(t, dir, testOpening{})
+				resp, err := request(t.Context(), srv, http.MethodGet, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+					t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
+				}
+			})
+		})
+	}
+}
+
 // The grace is seeded at open, so a device coming late for the tail segments still has its window.
 func TestTheIdleGraceStartsBeforeTheFirstRequest(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
