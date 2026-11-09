@@ -258,3 +258,23 @@ func TestSelectedVideoOffsetUsesItsInputClock(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodeReadsThePicturesFrameRate(t *testing.T) {
+	for _, tt := range []struct {
+		avg, r string
+		want   float64
+	}{
+		{"24000/1001", "24000/1001", 24000.0 / 1001},
+		{"0/0", "25/1", 25},
+		{"0/0", "0/0", 0},
+	} {
+		stream := `{"codec_type":"video","codec_name":"h264","width":1920,"height":1080,"pix_fmt":"yuv420p","avg_frame_rate":"` + tt.avg + `","r_frame_rate":"` + tt.r + `"}`
+		info, err := decode(probeJSON(vodFormat, stream+","+aacStream), 0, 0)
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if info.VideoFrameRate != tt.want {
+			t.Errorf("avg %s, r %s: frame rate %v, want %v", tt.avg, tt.r, info.VideoFrameRate, tt.want)
+		}
+	}
+}

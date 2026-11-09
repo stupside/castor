@@ -30,6 +30,8 @@ type ProbeInfo struct {
 	VideoInterlaced bool
 	// VideoRotation is the display matrix's turn in degrees; no container castor serves carries it.
 	VideoRotation int
+	// VideoFrameRate is the picture's frames per second, 0 if unknown.
+	VideoFrameRate float64
 
 	// VideoStartOffset is stream start_time minus its input's format start_time.
 	// Add the program input offset to locate the picture on the PCM clock.
@@ -66,7 +68,7 @@ type AudioTrack struct {
 func (p ProbeInfo) TakeVideo(m ProbeInfo) ProbeInfo {
 	p.VideoPresent = m.VideoPresent
 	p.VideoCodec, p.VideoProfile, p.VideoHeight, p.VideoBitDepth = m.VideoCodec, m.VideoProfile, m.VideoHeight, m.VideoBitDepth
-	p.VideoHDR, p.VideoLevel = m.VideoHDR, m.VideoLevel
+	p.VideoHDR, p.VideoLevel, p.VideoFrameRate = m.VideoHDR, m.VideoLevel, m.VideoFrameRate
 	p.VideoStartOffset = m.VideoStartOffset
 	p.VideoInterlaced, p.VideoRotation = m.VideoInterlaced, m.VideoRotation
 	p.VideoHeights, p.ProgramHeights = slices.Clone(m.VideoHeights), maps.Clone(m.ProgramHeights)

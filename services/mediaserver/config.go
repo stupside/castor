@@ -2,6 +2,7 @@ package mediaserver
 
 import (
 	"github.com/stupside/castor/internal/settings"
+	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/source/rank"
 	"github.com/stupside/castor/services/mediaserver/internal/subtitle/whisper"
 )
@@ -15,8 +16,9 @@ type Config struct {
 
 // FFmpegConfig names the installed media tools.
 type FFmpegConfig struct {
-	Path      string `yaml:"path" validate:"required"`
-	ProbePath string `yaml:"probe_path" validate:"required"`
+	Path             string            `yaml:"path" validate:"required"`
+	ProbePath        string            `yaml:"probe_path" validate:"required"`
+	HardwareEncoders []ffmpeg.Declared `yaml:"hardware_encoders"`
 }
 
 // ResolverConfig is how found streams are ranked.

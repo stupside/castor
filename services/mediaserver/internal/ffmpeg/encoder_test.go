@@ -37,11 +37,25 @@ func TestASoftwareAskNeverGetsAHardwareEncoder(t *testing.T) {
 		t.Skip("no true binary")
 	}
 	// Every test encode passes, so hardware would win wherever it is allowed.
-	best := Encoders(bin)
+	best := Encoders(bin, nil)
 	if e, _ := best(t.Context(), media.CodecH264, false); !e.Hardware {
 		t.Fatalf("an ask allowing hardware got %s, want a hardware encoder", e.Name)
 	}
 	if e, ok := best(t.Context(), media.CodecH264, true); !ok || e.Hardware {
 		t.Fatalf("a software ask got %s (hardware %t), want a software encoder", e.Name, e.Hardware)
+	}
+}
+
+func TestADeclaredEncoderIsTriedFirst(t *testing.T) {
+	bin, err := exec.LookPath("true")
+	if err != nil {
+		t.Skip("no true binary")
+	}
+	// Every test encode passes, so the first candidate wins.
+	if e, _ := Encoders(bin, []Declared{Declared(h264MediaCodec)})(t.Context(), media.CodecH264, false); e.Name != "h264_mediacodec" {
+		t.Errorf("with h264_mediacodec declared, got %s", e.Name)
+	}
+	if e, _ := Encoders(bin, nil)(t.Context(), media.CodecH264, false); e.Name == "h264_mediacodec" {
+		t.Error("an encoder nobody declared was tried")
 	}
 }

@@ -111,7 +111,7 @@ func faultCast(t *testing.T, dev Device, encoder string, links ...*source.Stream
 		t.Fatal(err)
 	}
 	c := realCast(dev, faulty, ffprobePath)
-	software := ffmpeg.Encoders(ffmpegPath)
+	software := ffmpeg.Encoders(ffmpegPath, nil)
 	c.Encoders = func(ctx context.Context, codec media.Codec, soft bool) (ffmpeg.Encoder, bool) {
 		if soft || codec != media.CodecH264 {
 			return software(ctx, codec, true)

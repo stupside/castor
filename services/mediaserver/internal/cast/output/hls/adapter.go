@@ -39,7 +39,12 @@ func format() container.Format {
 		}, Output: "stream.m3u8"},
 	}
 }
-func (hlsPlan) Format() container.Format { return format() }
+func (p hlsPlan) Format() container.Format {
+	f := format()
+	// Generated captions cut the encoder's fragments every CaptionSegmentDuration.
+	f.ClockCuts = p.captions != nil
+	return f
+}
 func (p hlsPlan) EncoderFormat() container.Format {
 	if p.captions == nil {
 		return p.Format()
