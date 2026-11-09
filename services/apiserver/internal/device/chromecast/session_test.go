@@ -287,6 +287,45 @@ func TestAPlayAbandonedForANewerOneLeavesTheNewerOneWatched(t *testing.T) {
 	}
 }
 
+// The receiver cancels a superseded LOAD under that LOAD's request id.
+func TestAnEarlierLoadsCancellationLeavesTheNewerCastPlaying(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		abandoned := &url.URL{Scheme: "http", Host: "media.test", Path: "/attempt-1.m3u8"}
+		current := &url.URL{Scheme: "http", Host: "media.test", Path: "/attempt-2.m3u8"}
+		loading := make(chan struct{})
+		first := 0
+		dev := receiverAnswering(t, func(id int, load mediaItem) []any {
+			if load.ContentId == abandoned.String() {
+				first = id
+				close(loading)
+				return nil
+			}
+			return []any{
+				castmedia.PayloadHeader{Type: "LOAD_CANCELLED", RequestId: first},
+				mediaStatus(id, load.ContentId, "BUFFERING", ""),
+				mediaStatus(0, load.ContentId, "PLAYING", ""),
+			}
+		})
+		ctx, abandon := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() {
+			done <- dev.Play(ctx, device.Playback{URL: abandoned, Play: devicetest.Source(mediav1.Container_CONTAINER_HLS)})
+		}()
+		<-loading
+		abandon()
+		<-done
+		if err := dev.Play(t.Context(), device.Playback{URL: current, Play: devicetest.Source(mediav1.Container_CONTAINER_HLS)}); err != nil {
+			t.Fatal(err)
+		}
+		// Shorter than the heartbeat's silence window.
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := dev.AwaitEnd(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("AwaitEnd() = %v, want the newer cast still playing", err)
+		}
+	})
+}
+
 func TestAPlayOnADroppedConnectionIsGone(t *testing.T) {
 	near, far := net.Pipe()
 	dev := &session{name: "Living Room", ending: newEnding()}

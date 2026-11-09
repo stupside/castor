@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"sync"
 
 	castmedia "github.com/vishen/go-chromecast/cast"
@@ -116,8 +115,6 @@ func playbackOutcome(w *playback, response *castmedia.MediaStatusResponse) (bool
 	switch response.Type {
 	case msgClose:
 		return w.active, nil
-	case "LOAD_FAILED", "LOAD_CANCELLED":
-		return true, fmt.Errorf("chromecast refused the media (%s)", response.Type)
 	case msgMediaStatus:
 		for _, status := range response.Status {
 			if over, err := w.observe(status); over {
