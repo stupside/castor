@@ -98,8 +98,8 @@ const lgC2Sink = "http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_BL_CIF15_AAC_520,http
 func TestAContainerNamedWithoutAProfilePlaysTheFamilyDefault(t *testing.T) {
 	caps, sinks := parseSinkProtocolInfo(lgC2Sink)
 	fallback, _ := fallbackCaps()
-	if len(caps.Formats) == 0 || !proto.Equal(caps.Formats[0], fallback.Formats[0]) {
-		t.Fatalf("first format = %v, want the MPEG-TS family default %v", caps.Formats, fallback.Formats[0])
+	if !slices.ContainsFunc(caps.Formats, func(f *mediav1.FormatSupport) bool { return proto.Equal(f, fallback.Formats[0]) }) {
+		t.Fatalf("formats %v, want the MPEG-TS family default %v among them", caps.Formats, fallback.Formats[0])
 	}
 	if !slices.ContainsFunc(caps.Formats, func(f *mediav1.FormatSupport) bool {
 		return f.GetProgressive().GetContainer() == mediav1.ProgressiveSupport_CONTAINER_MP4 &&
@@ -113,6 +113,21 @@ func TestAContainerNamedWithoutAProfilePlaysTheFamilyDefault(t *testing.T) {
 	}
 	if got := sinks[mediav1.Container_CONTAINER_MPEGTS]; got != (sinkEntry{mime: "video/mp2t", features: "*"}) {
 		t.Errorf("MPEG-TS sink entry = %+v, want the renderer's own profile-less row", got)
+	}
+}
+
+func TestAnSCTEProfileAdmitsEverySoundItsStandardDoes(t *testing.T) {
+	caps, _ := parseSinkProtocolInfo(lgC2Sink)
+	var sounds []mediav1.AudioCodec
+	for _, f := range caps.Formats {
+		if f.GetProgressive().GetContainer() == mediav1.ProgressiveSupport_CONTAINER_MPEGTS && f.GetAv().GetVideo().GetH264() != nil {
+			sounds = append(sounds, f.GetAv().GetAudio().GetCodec())
+		}
+	}
+	for _, want := range []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AC3, mediav1.AudioCodec_AUDIO_CODEC_EAC3, mediav1.AudioCodec_AUDIO_CODEC_AAC} {
+		if !slices.Contains(sounds, want) {
+			t.Errorf("H.264 in MPEG-TS plays %v, want %v too: the C2 names AVC_TS_NA_T", sounds, want)
+		}
 	}
 }
 
