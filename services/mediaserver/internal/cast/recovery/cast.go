@@ -137,6 +137,7 @@ func steer(ctx context.Context, run Runner, a Attempt, seeks <-chan Seek) (Outco
 				continue
 			}
 			next.Try = a.Try + 1
+			s.Leaving()
 			s.Accepted <- nil
 			cut(errSought)
 			return <-ran, &next

@@ -37,8 +37,8 @@ type Device struct {
 	// mu is held across pause and resume presses, so the viewer's and castor's never interleave.
 	mu      sync.Mutex
 	holders Holder
-	// stream counts the streams handed; what the device says of an earlier one is dropped.
-	stream          int
+	// changes counts each stream handed and each press; what the device said when asked before one is dropped.
+	changes         int
 	playing         bool
 	begins, runtime time.Duration
 	at              time.Duration
@@ -66,16 +66,9 @@ func (d *Device) Play(ctx context.Context, p execute.Playback) error {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.playing, d.holders, d.paused, d.stream = true, 0, false, d.stream+1
+	d.playing, d.holders, d.paused, d.changes = true, 0, false, d.changes+1
 	d.begins, d.runtime, d.saidAt = p.Begins, p.Stream.Length(), time.Time{}
 	return nil
-}
-
-// Reload leaves the stream the device plays behind until the next Play, as when the viewer moved the cast.
-func (d *Device) Reload() {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.playing, d.stream = false, d.stream+1
 }
 
 func played(p execute.Playback) *mediav1.DeviceCommand_Play {
@@ -118,6 +111,13 @@ func (d *Device) AwaitEnd(ctx context.Context) error {
 	return err
 }
 
+// Reload leaves the stream the device plays behind until the next Play, as when the viewer moved the cast.
+func (d *Device) Reload() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.playing, d.changes = false, d.changes+1
+}
+
 // Pause and Resume are castor's hold while its read gets ahead.
 func (d *Device) Pause(ctx context.Context) error  { return d.Hold(ctx, Castor, true) }
 func (d *Device) Resume(ctx context.Context) error { return d.Hold(ctx, Castor, false) }
@@ -145,7 +145,7 @@ func (d *Device) Hold(ctx context.Context, by Holder, held bool) error {
 		if err := d.done(ctx, press); err != nil {
 			return err
 		}
-		d.paused = pause
+		d.paused, d.changes = pause, d.changes+1
 	}
 	d.holders = holders
 	d.publish()
@@ -154,7 +154,7 @@ func (d *Device) Hold(ctx context.Context, by Holder, held bool) error {
 
 func (d *Device) Position(ctx context.Context) (at time.Duration, paused, ok bool) {
 	d.mu.Lock()
-	stream := d.stream
+	changes := d.changes
 	d.askedAt = time.Now()
 	d.mu.Unlock()
 	a, err := d.line.Call(ctx, &mediav1.DeviceCommand_Call{Operation: &mediav1.DeviceCommand_Call_Position{Position: &mediav1.DeviceCommand_Position{}}})
@@ -165,7 +165,7 @@ func (d *Device) Position(ctx context.Context) (at time.Duration, paused, ok boo
 	at, paused = p.GetAt().AsDuration(), p.GetPaused()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.stream != stream || !d.playing {
+	if d.changes != changes || !d.playing {
 		return 0, false, false
 	}
 	d.at, d.paused, d.saidAt = at, paused, time.Now()

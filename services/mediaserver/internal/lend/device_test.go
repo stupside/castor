@@ -22,6 +22,8 @@ type remote struct {
 	plays   []*mediav1.DeviceCommand_Play
 	heads   []*castorv1.Playhead
 	paused  bool
+	// late, where set, holds where the device says it plays until it is closed.
+	late chan struct{}
 }
 
 func (r *remote) device(t *testing.T, at time.Duration) *Device {
@@ -48,6 +50,10 @@ func (r *remote) device(t *testing.T, at time.Duration) *Device {
 				r.presses = append(r.presses, "resume")
 			case *mediav1.DeviceCommand_Call_Position:
 				answer.Answer = &mediav1.AnswerRequest_Position_{Position: &mediav1.AnswerRequest_Position{At: durationpb.New(at), Paused: r.paused}}
+				if r.late != nil {
+					go func() { <-r.late; l.Answer(answer) }()
+					continue
+				}
 			}
 			l.Answer(answer)
 		}
@@ -157,20 +163,32 @@ func TestTheViewerResumesADeviceItsOwnRemotePaused(t *testing.T) {
 	})
 }
 
-func TestWhatTheDeviceSaysOfAStreamItWasMovedOffIsDropped(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		r := &remote{}
-		d := r.device(t, 30*time.Second)
-		ctx := t.Context()
-		_ = d.Play(ctx, fromAMinuteIn)
-		d.Reload()
-		if _, _, ok := d.Position(ctx); ok || len(r.heads) != 0 {
-			t.Errorf("a position of the stream the viewer moved off was kept: %v", r.heads)
-		}
-		if err := d.Hold(ctx, Viewer, true); !errors.Is(err, ErrNotPlaying) {
-			t.Errorf("holding a device between streams: %v, want %v", err, ErrNotPlaying)
-		}
-	})
+func TestWhatTheDeviceSaidBeforeAPressOrAStreamIsDropped(t *testing.T) {
+	for _, change := range []string{"press", "stream"} {
+		synctest.Test(t, func(t *testing.T) {
+			r := &remote{paused: true, late: make(chan struct{})}
+			d := r.device(t, 30*time.Second)
+			ctx := t.Context()
+			_ = d.Play(ctx, fromAMinuteIn)
+			asked := make(chan bool)
+			go func() { _, _, ok := d.Position(ctx); asked <- ok }()
+			synctest.Wait()
+			if change == "press" {
+				_ = d.Hold(ctx, Viewer, true)
+				_ = d.Hold(ctx, Viewer, false)
+			} else {
+				_ = d.Play(ctx, fromAMinuteIn)
+			}
+			close(r.late)
+			if <-asked || len(r.heads) != 0 {
+				t.Errorf("after a %s, the paused answer asked before it was kept: %v", change, r.heads)
+			}
+			_ = d.Pause(ctx)
+			if got := r.presses[len(r.presses)-1]; got != "pause" {
+				t.Errorf("after a %s, castor's pause pressed %v, want it pressed though the stale answer said paused", change, r.presses)
+			}
+		})
+	}
 }
 
 func TestCastorNeverResumesADeviceItsViewerPaused(t *testing.T) {
@@ -183,6 +201,22 @@ func TestCastorNeverResumesADeviceItsViewerPaused(t *testing.T) {
 		_ = d.Resume(ctx)
 		if want := []string{"play"}; !slices.Equal(r.presses, want) {
 			t.Errorf("the device was pressed %v, want %v: castor held nothing, so it resumes nothing", r.presses, want)
+		}
+	})
+}
+
+func TestWhatTheDeviceSaysOfAStreamItWasMovedOffIsDropped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := &remote{}
+		d := r.device(t, 30*time.Second)
+		ctx := t.Context()
+		_ = d.Play(ctx, fromAMinuteIn)
+		d.Reload()
+		if _, _, ok := d.Position(ctx); ok || len(r.heads) != 0 {
+			t.Errorf("a position of the stream the viewer moved off was kept: %v", r.heads)
+		}
+		if err := d.Hold(ctx, Viewer, true); !errors.Is(err, ErrNotPlaying) {
+			t.Errorf("holding a device between streams: %v, want %v", err, ErrNotPlaying)
 		}
 	})
 }

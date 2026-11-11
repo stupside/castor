@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -330,8 +331,12 @@ func TestASeekRunsTheNextAttemptFromWhereTheViewerMovedTheCast(t *testing.T) {
 	seeks := make(chan Seek)
 	in := Intent{Turns: unheard{}, Candidates: []*source.Stream{head}, Deadline: 30 * time.Second, Seeks: seeks}
 	var seen []Attempt
+	var mu sync.Mutex
+	var turns []string
+	turn := func(name string) { mu.Lock(); turns = append(turns, name); mu.Unlock() }
 	run := runnerFunc(func(ctx context.Context, a Attempt) Outcome {
 		seen = append(seen, a)
+		turn("attempt")
 		if len(seen) > 1 {
 			return delivered
 		}
@@ -339,15 +344,16 @@ func TestASeekRunsTheNextAttemptFromWhereTheViewerMovedTheCast(t *testing.T) {
 		<-ctx.Done()
 		return Outcome{Err: context.Cause(ctx), Evidence: Evidence{Reached: health.Playing, Cancelled: true}}
 	})
+	leaving := func() { turn("left") }
 	cast := make(chan error, 1)
 	go func() { cast <- Cast(t.Context(), in, run, publishing(head, ladder(), source.Rendition{})) }()
 
 	accepted := make(chan error, 1)
-	seeks <- Seek{At: 3 * time.Hour, Accepted: accepted}
+	seeks <- Seek{At: 3 * time.Hour, Accepted: accepted, Leaving: leaving}
 	if err := <-accepted; !errors.Is(err, ErrNoPosition) {
 		t.Errorf("seeking past the two hours of media: %v, want no such position", err)
 	}
-	seeks <- Seek{At: 40 * time.Minute, Accepted: accepted}
+	seeks <- Seek{At: 40 * time.Minute, Accepted: accepted, Leaving: leaving}
 	if err := <-accepted; err != nil {
 		t.Fatalf("seeking within the media: %v", err)
 	}
@@ -356,6 +362,11 @@ func TestASeekRunsTheNextAttemptFromWhereTheViewerMovedTheCast(t *testing.T) {
 	}
 	if len(seen) != 2 || seen[1].Program.Start != 40*time.Minute || seen[1].Try != 2 {
 		t.Errorf("ran %d attempts, the last from %s on try %d; want a second from 40m", len(seen), seen[len(seen)-1].Program.Start, seen[len(seen)-1].Try)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if last := len(turns) - 1; len(turns) != 3 || turns[last] != "attempt" || !slices.Contains(turns[:last], "left") {
+		t.Errorf("turns %v, want the stream left once the seek was taken, before the next attempt", turns)
 	}
 }
 

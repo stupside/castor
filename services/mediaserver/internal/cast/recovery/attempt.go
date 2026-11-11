@@ -42,6 +42,8 @@ type Intent struct {
 type Seek struct {
 	At       time.Duration
 	Accepted chan<- error
+	// Leaving is called once the seek is taken, before the attempt from At starts.
+	Leaving func()
 }
 
 // ErrNoPosition refuses a seek outside the media, or into a live one.

@@ -37,20 +37,15 @@ func (c *cast) play(d *lend.Device) error {
 func (c *cast) seek(at time.Duration) error {
 	accepted := make(chan error, 1)
 	select {
-	case c.seeks <- recovery.Seek{At: at, Accepted: accepted}:
+	// Recovery leaves the device before it starts the next attempt, so that attempt's Play always comes after.
+	case c.seeks <- recovery.Seek{At: at, Accepted: accepted, Leaving: func() { c.device.Load().Reload() }}:
 	default:
 		if c.ctx.Err() != nil {
 			return errEnded
 		}
 		return lend.ErrNotPlaying
 	}
-	if err := <-accepted; err != nil {
-		return err
-	}
-	if d := c.device.Load(); d != nil {
-		d.Reload()
-	}
-	return nil
+	return <-accepted
 }
 
 // outcome preserves failures discovered while joining a canceled cast.
