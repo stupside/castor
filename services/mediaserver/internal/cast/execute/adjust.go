@@ -111,6 +111,12 @@ func (a *adjustable) Progress() media.Progress {
 	return made
 }
 
+func (a *adjustable) Ceiling() media.Bitrate {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.ceiling
+}
+
 func (a *adjustable) Withheld() bool {
 	chain, _ := a.chain()
 	return chain != nil && chain.Withheld()

@@ -65,7 +65,7 @@ func Observe(m Monitor) *Observer {
 	o := &Observer{m: m, start: now, grew: now, kept: now, made: now}
 	o.trail = media.Trail{Span: rateSpan}
 	o.reading = newReading(m.Playhead)
-	o.asked = newPacing(m.MaxBitrate)
+	o.asked = newPacing(m.MaxBitrate, m.Asked)
 	o.playback = o.playbackMachine()
 	return o
 }

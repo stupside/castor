@@ -52,7 +52,11 @@ func readMonitor(reader *pull, m health.Monitor) health.Monitor {
 
 // playingMonitor judges a buffered cast by its read and encoder, and one reading its source by its encoder.
 func playingMonitor(f feed, d delivery, aud health.Audience, maxBitrate media.Bitrate, climb time.Duration, dev Device) health.Monitor {
-	m := health.Monitor{Subject: "the playing cast", Phase: health.Playing, Audience: aud, Served: d.output, Fed: d.output.Fed, Switchable: d.rate != nil, MaxBitrate: maxBitrate, Climb: climb}
+	m := health.Monitor{Subject: "the playing cast", Phase: health.Playing, Audience: aud, Served: d.output, Fed: d.output.Fed, Switchable: d.rate != nil, MaxBitrate: maxBitrate, Asked: maxBitrate, Climb: climb}
+	if d.rate != nil {
+		// A watch begun again after a seek starts from the rate the delivery was changed to, not the cast's own.
+		m.Asked = d.rate.Ceiling()
+	}
 	if p, ok := dev.(health.Playhead); ok {
 		m.Playhead = p
 	}

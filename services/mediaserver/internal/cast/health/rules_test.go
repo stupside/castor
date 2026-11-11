@@ -204,7 +204,7 @@ func TestAReasonThatHoldsIsSaidOnceHoweverItsMeasurementMoves(t *testing.T) {
 	previous := slog.Default()
 	slog.SetDefault(slog.New(records))
 	t.Cleanup(func() { slog.SetDefault(previous) })
-	o := &Observer{m: Monitor{Subject: "the playing cast"}, asked: newPacing(0)}
+	o := &Observer{m: Monitor{Subject: "the playing cast"}, asked: newPacing(0, 0)}
 	o.asked.at = 1_200_000
 
 	for _, behind := range []time.Duration{2 * time.Minute, 2*time.Minute + time.Second, 119 * time.Second} {

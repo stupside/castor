@@ -13,7 +13,7 @@ func took(bytesPerSecond float64) Vitals {
 }
 
 func TestACastIsLightenedToAShareOfWhatTheLinkTookAndRemembersWhatItWeighedUnasked(t *testing.T) {
-	p := newPacing(0)
+	p := newPacing(0, 0)
 	got, ok := p.lighten(took(500_000))
 	if !ok || got.to != 3_000_000 {
 		t.Fatalf("lighten = %s, %t, want 3.0 Mbit/s: three quarters of the 4.0 Mbit/s taken", got.to, ok)
@@ -24,7 +24,7 @@ func TestACastIsLightenedToAShareOfWhatTheLinkTookAndRemembersWhatItWeighedUnask
 }
 
 func TestALinkTooPoorForACastWorthSendingIsNotAskedForLess(t *testing.T) {
-	p := newPacing(0)
+	p := newPacing(0, 0)
 	if got, ok := p.lighten(took(50_000)); ok {
 		t.Errorf("lighten = %s, want none under %s", got.to, lowest)
 	}
@@ -34,7 +34,7 @@ func TestALinkTooPoorForACastWorthSendingIsNotAskedForLess(t *testing.T) {
 }
 
 func TestACastAlreadyAskedForLessIsAskedForLessStill(t *testing.T) {
-	p := newPacing(2_000_000)
+	p := newPacing(2_000_000, 2_000_000)
 	// A device taking more than the cast weighs cannot be what lightened it again, but the answer must still be lighter.
 	got, ok := p.lighten(took(400_000))
 	if !ok || got.to >= 2_000_000 {
@@ -52,7 +52,7 @@ func moved(t *testing.T, p *pacing, move rateEvent, to media.Bitrate, at time.Ti
 
 func TestACastIsLiftedBetweenWhatItKeepsUpWithAndWhatItDoesNot(t *testing.T) {
 	now := time.Now()
-	p := newPacing(4_000_000)
+	p := newPacing(4_000_000, 4_000_000)
 	p.full = 6_400_000
 	if _, ok, _ := p.lift(now); ok {
 		t.Fatal("a cast at its policy was lifted")
@@ -71,7 +71,7 @@ func TestACastIsLiftedBetweenWhatItKeepsUpWithAndWhatItDoesNot(t *testing.T) {
 
 func TestAHeavierRateOnTrialStandsOnceItHeldAndIsGivenBackIfItDoesNot(t *testing.T) {
 	now := time.Now()
-	p := newPacing(0)
+	p := newPacing(0, 0)
 	p.at, p.full = 2_000_000, 6_400_000
 
 	moved(t, &p, rateLifted, 2_500_000, now)
@@ -112,12 +112,20 @@ func TestAHeavierRateOnTrialStandsOnceItHeldAndIsGivenBackIfItDoesNot(t *testing
 }
 
 func TestACastLiftedPastWhatItWeighsUnaskedIsAskedForNoBound(t *testing.T) {
-	p := newPacing(0)
+	p := newPacing(0, 0)
 	p.at, p.full = 5_600_000, 6_400_000
 	if got, ok, _ := p.lift(time.Now()); !ok || got.to != 0 {
 		t.Errorf("lift = %s, %t, want no bound: the cast weighs less than the step", got.to, ok)
 	}
 	if p.sinceChange(time.Now()) < time.Hour {
 		t.Error("a rate that never changed has not stood for good")
+	}
+}
+
+// A watch begun on a delivery already made lighter than the ceiling starts from what it is made at, so it can lift it again.
+func TestAWatchStartsFromTheRateTheDeliveryIsMadeAt(t *testing.T) {
+	o := Observe(Monitor{Subject: "the playing cast", Phase: Playing, Switchable: true, MaxBitrate: 6_000_000, Asked: 3_000_000})
+	if c, ok, why := o.asked.lift(time.Now()); !ok || c.to <= 3_000_000 {
+		t.Errorf("lift = %+v, %t (%s), want above the 3 Mbit/s the delivery is made at", c, ok, why)
 	}
 }

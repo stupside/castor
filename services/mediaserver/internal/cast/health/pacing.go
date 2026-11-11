@@ -112,8 +112,8 @@ type change struct {
 	weighed media.Bitrate
 }
 
-func newPacing(policy media.Bitrate) pacing {
-	return pacing{policy: policy, at: policy, machine: rateMachine()}
+func newPacing(policy, at media.Bitrate) pacing {
+	return pacing{policy: policy, at: at, machine: rateMachine()}
 }
 
 func (p *pacing) onTrial() bool { return p.machine.Is(rateTrial) }

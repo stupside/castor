@@ -47,6 +47,8 @@ type switchable interface {
 	Switch(ctx context.Context, ceiling media.Bitrate) (from int64, err error)
 	// Withheld says the delivery is holding itself back for the device.
 	Withheld() bool
+	// Ceiling is the rate the delivery is made at now, zero for none.
+	Ceiling() media.Bitrate
 }
 
 // producer is what writes the served bytes, judged by the media it has made rather than bytes a muxer pads.

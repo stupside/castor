@@ -40,6 +40,9 @@ type Monitor struct {
 	// MaxBitrate bounds the rate asked of the device, zero for none.
 	MaxBitrate media.Bitrate
 
+	// Asked is the rate the delivery is made at already, which the watch starts from; zero for none.
+	Asked media.Bitrate
+
 	// Climb is how long the cast plays well before a better link is tried, zero for never.
 	Climb time.Duration
 

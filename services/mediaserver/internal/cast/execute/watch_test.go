@@ -213,3 +213,12 @@ func TestAWedgeIsBlamedOnTheEncoderMakingTheDeliveryWhenItWedged(t *testing.T) {
 		}
 	}
 }
+
+// A watch begun again after a seek is told the rate its delivery was changed to, not the cast's own ceiling.
+func TestThePlayingWatchStartsFromTheRateTheDeliveryIsMadeAt(t *testing.T) {
+	lighter := &adjustable{ceiling: 3_000_000}
+	read := feed{buffered: &buffered{reader: &pull{}}}
+	if m := playingMonitor(read, delivery{output: lighter, rate: lighter}, nil, 6_000_000, 0, &fakeDevice{}); m.Asked != 3_000_000 {
+		t.Errorf("asked %s, want the 3 Mbit/s the delivery is made at", m.Asked)
+	}
+}
