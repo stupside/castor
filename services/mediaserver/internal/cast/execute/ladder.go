@@ -2,6 +2,7 @@ package execute
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -93,12 +94,17 @@ func (l *ladder) program(ctx context.Context) (media.Program, error) {
 }
 
 // readAt starts reading program from at into spool on the clock of from, released with rel; a known probe of the program spares measuring it again.
-func (s *preparation) readAt(ctx context.Context, rel *releases, program media.Program, at time.Duration, from *pull, spool string, known *media.ProbeInfo) (*pull, error) {
+func (s *preparation) readAt(ctx context.Context, rel *releases, program media.Program, at time.Duration, from *pull, spool string, known *media.ProbeInfo) (_ *pull, err error) {
 	program.Start = at
-	followed, err := s.follow(program)
+	followed, unfollow, err := s.follow(program)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, unfollow())
+		}
+	}()
 	read, err := encoding.NewProgramSource(followed, s.attempt.Fetch, s.Binary, s.InputArgs)
 	if err != nil {
 		return nil, err
@@ -131,5 +137,9 @@ func (s *preparation) readAt(ctx context.Context, rel *releases, program media.P
 	}
 	rel.push(pulled.spool.Close)
 	rel.worker(pulled.stop, pulled.joined)
+	// The timeline serves only this read, so it is given back once another read replaces it, not with rel.
+	unfollowed := make(chan error, 1)
+	go func() { <-pulled.done; unfollowed <- unfollow() }()
+	rel.worker(nil, func() error { return <-unfollowed })
 	return pulled, nil
 }

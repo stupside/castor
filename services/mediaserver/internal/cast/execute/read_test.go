@@ -69,10 +69,11 @@ func TestASilentSourceRunsNoBurnInAtAll(t *testing.T) {
 	c.Transcription = subtitling(&fakeTranscript{})
 	s := readingAttempt(t, c, recovery.Attempt{Program: program, Fetch: sourceFetchPlan(t, program, testReadDeadline)})
 
-	followed, err := s.follow(program)
+	followed, unfollow, err := s.follow(program)
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.releases.push(unfollow)
 	buf, err := s.read(t.TempDir(), followed)
 	if err != nil {
 		t.Fatalf("starting the read: %v", err)
@@ -103,10 +104,11 @@ func TestReleasingAReadStopsItsTranscriptionBeforeTheWorkDirGoes(t *testing.T) {
 	// Stands for the workspace, acquired before the read and so released after it.
 	var running int64
 	s.releases.push(func() error { running = burn.attached.Load() - burn.ended.Load(); return nil })
-	followed, err := s.follow(program)
+	followed, unfollow, err := s.follow(program)
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.releases.push(unfollow)
 	if _, err := s.read(t.TempDir(), followed); err != nil {
 		t.Fatalf("starting the read: %v", err)
 	}

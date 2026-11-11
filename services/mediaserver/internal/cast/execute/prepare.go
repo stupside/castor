@@ -171,8 +171,12 @@ func (s *preparation) prepare() (string, media.Program, error) {
 		return "", media.Program{}, fmt.Errorf("creating work directory: %w", err)
 	}
 	s.releases.push(func() error { return os.RemoveAll(work) })
-	program, err := s.follow(s.attempt.Program)
-	return work, program, err
+	program, unfollow, err := s.follow(s.attempt.Program)
+	if err != nil {
+		return "", media.Program{}, err
+	}
+	s.releases.push(unfollow)
+	return work, program, nil
 }
 
 // compose is the kind of cast this attempt calls for.
@@ -199,14 +203,13 @@ func (s *preparation) compose() compose.Kind {
 // transcribing is a cast whose subtitles castor makes from the sound, since the source shows none.
 func (s *preparation) transcribing() bool { return s.subtitles != nil && s.caption == nil }
 
-// follow points the inputs whose timelines castor keeps at castor's republished playlists.
-func (s *preparation) follow(program media.Program) (media.Program, error) {
-	followed, unfollow, err := s.Timelines.Republish(s.ctx, program)
+// follow points the inputs whose timelines castor keeps at castor's republished playlists, which unfollow gives back.
+func (s *preparation) follow(program media.Program) (followed media.Program, unfollow func() error, err error) {
+	followed, unfollow, err = s.Timelines.Republish(s.ctx, program)
 	if err != nil {
-		return media.Program{}, &timelineUnreadable{err: err}
+		return media.Program{}, nil, &timelineUnreadable{err: err}
 	}
-	s.releases.push(unfollow)
-	return followed, nil
+	return followed, unfollow, nil
 }
 
 // timelineUnreadable is a source whose timeline castor must keep and could not read.

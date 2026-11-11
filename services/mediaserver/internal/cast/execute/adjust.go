@@ -253,7 +253,10 @@ func (a *adjustable) Seek(ctx context.Context, at time.Duration) error {
 	a.run = run
 	a.mu.Unlock()
 	if left != nil {
-		go func() { _ = left.release() }()
+		// Released now, so the read it left does not outlive it, and joined with the attempt, which hears how that went.
+		released := make(chan error, 1)
+		go func() { released <- left.release() }()
+		a.s.releases.worker(nil, func() error { return <-released })
 	}
 	select {
 	case a.sought <- struct{}{}:

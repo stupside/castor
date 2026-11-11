@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -116,9 +117,18 @@ func TestACastWithoutADeclaredRuntimeIsServedFromItsStartOnly(t *testing.T) {
 	}
 }
 
+// unfollowing republishes nothing, and counts the timelines given back.
+type unfollowing struct{ given atomic.Int32 }
+
+func (u *unfollowing) Republish(_ context.Context, program media.Program) (media.Program, func() error, error) {
+	return program, func() error { u.given.Add(1); return nil }, nil
+}
+
 func TestASeekReleasesWhatTheSeekBeforeItStarted(t *testing.T) {
 	p, ctx := seekable(t, dlnaLike())
 	a := p.delivery.rate.(*adjustable)
+	timelines := &unfollowing{}
+	a.s.Timelines = timelines
 	fetchFrom(t, ctx, p.target.String(), "npt=20-", 64<<10)
 	first := filepath.Join(a.dir, "seek-1"+encoding.SpoolFormat.Extension)
 	if _, err := os.Stat(first); err != nil {
@@ -126,11 +136,12 @@ func TestASeekReleasesWhatTheSeekBeforeItStarted(t *testing.T) {
 	}
 	fetchFrom(t, ctx, p.target.String(), "npt=40-", 64<<10)
 	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
-		if _, err := os.Stat(first); errors.Is(err, fs.ErrNotExist) {
+		_, err := os.Stat(first)
+		if errors.Is(err, fs.ErrNotExist) && timelines.given.Load() == 1 {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("the first seek's read is still held after another seek took its place")
+			t.Fatalf("after another seek took its place, the first seek's read is held (%v) or its timeline was given back %d times, want once", err, timelines.given.Load())
 		}
 	}
 }

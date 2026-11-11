@@ -238,6 +238,8 @@ func TestACastOnALighterRungGoesBackToTheHeavyOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	timelines := &unfollowing{}
+	s.Timelines = timelines
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, p.target.String(), nil)
 	resp, err := reader.Do(req)
 	if err != nil {
@@ -263,6 +265,11 @@ func TestACastOnALighterRungGoesBackToTheHeavyOne(t *testing.T) {
 		t.Fatalf("switch back to the heavy rung: %v", err)
 	}
 	take(9 << 20)
+	for deadline := time.Now().Add(5 * time.Second); timelines.given.Load() != 1; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("the lighter rung's timeline was given back %d times once the heavy rung replaced it, want once while the cast plays", timelines.given.Load())
+		}
+	}
 	served = served[:len(served)/packet*packet]
 	file := filepath.Join(t.TempDir(), "served.ts")
 	if err := os.WriteFile(file, served, 0o600); err != nil {
