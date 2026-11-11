@@ -61,3 +61,19 @@ func TestSharedNameIsAmbiguousNotFirstWins(t *testing.T) {
 		t.Errorf("Target = %v, %v, want an error naming device.id", got, err)
 	}
 }
+
+// The picker preselects and a cast targets by the same rule, so a TV listed by two families is one device of the type configured.
+func TestADeviceIsNamedOnlyWithinItsType(t *testing.T) {
+	tv := Device{Name: "TV", Type: "chromecast"}
+	for found, want := range map[*castorv1.Device]bool{
+		{Id: "chromecast:1", Name: "TV", Type: castorv1.DeviceType_DEVICE_TYPE_CHROMECAST}: true,
+		{Id: "dlna:1", Name: "TV", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA}:             false,
+	} {
+		if got := tv.Is(found); got != want {
+			t.Errorf("Is(%s) = %t, want %t", found.GetId(), got, want)
+		}
+	}
+	if (Device{}).Is(&castorv1.Device{Id: "dlna:2", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA}) {
+		t.Error("no device configured named a device without a name")
+	}
+}

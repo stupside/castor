@@ -53,7 +53,7 @@ func TestTheConfiguredDeviceIsPreselectedAndEnterCastsToIt(t *testing.T) {
 	discover := func(context.Context) []*castorv1.Device {
 		return []*castorv1.Device{{Name: "Living room", Type: castorv1.DeviceType_DEVICE_TYPE_DLNA, Address: "10.0.0.2"}, bedroom}
 	}
-	tm := teatest.NewTestModel(t, newModel(t.Context(), discover, cast.Device{Name: "Bedroom"}.Is),
+	tm := teatest.NewTestModel(t, newModel(t.Context(), discover, cast.Device{Name: "Bedroom", Type: "chromecast"}.Is),
 		teatest.WithInitialTermSize(80, 20),
 		teatest.WithProgramOptions(tea.WithColorProfile(colorprofile.Ascii)),
 	)

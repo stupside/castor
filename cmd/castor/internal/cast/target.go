@@ -19,8 +19,11 @@ type Device struct {
 	ID   string `yaml:"id"`
 }
 
-// Is reports whether found is the device d names: by id when it sets one, else by name.
+// Is reports whether found is the device d names: of its type, by id when it sets one, else by its name.
 func (d Device) Is(found *castorv1.Device) bool {
+	if kind, err := configuredDeviceType(d.Type); err != nil || found.GetType() != kind {
+		return false
+	}
 	if d.ID != "" {
 		return found.GetId() == d.ID
 	}
@@ -43,7 +46,7 @@ func Target(ctx context.Context, devices interface {
 		return nil, err
 	}
 	matches := slices.DeleteFunc(slices.Clone(listed.GetDevices()), func(found *castorv1.Device) bool {
-		return found.GetType() != kind || !d.Is(found)
+		return !d.Is(found)
 	})
 	label := cmp.Or(d.ID, d.Name)
 	switch len(matches) {
