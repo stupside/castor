@@ -3,6 +3,7 @@ package browse
 import (
 	"context"
 
+	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/stupside/castor/cmd/castor/internal/browse/tmdb"
@@ -17,6 +18,7 @@ const (
 	tabPopularTV
 	tabTopTV
 	tabCount
+	noTab tabID = -1
 )
 
 func (t tabID) label() string {
@@ -42,9 +44,22 @@ func (t tabID) fetch(ctx context.Context, c Catalog) ([]tmdb.SearchResult, error
 	return pg.Results, err
 }
 
+// tabOwnsList is whether the list belongs to the chosen tab: no discover and no query.
+func (m *model) tabOwnsList() bool {
+	return m.mode == modeCurated && m.query.Value() == ""
+}
+
+// setRows puts items in the list as the rows of tab, noTab for search or discover results.
+func (m *model) setRows(items []list.Item, tab tabID) {
+	m.results.SetItems(items)
+	m.listTab = tab
+}
+
 func (m *model) cycleTab(delta int) tea.Cmd {
 	m.drill.tok++
-	m.topsCursor[m.tab] = m.results.Index()
+	if m.listTab != noTab {
+		m.topsCursor[m.listTab] = m.results.Index()
+	}
 	n := int(tabCount)
 	m.tab = tabID(((int(m.tab)+delta)%n + n) % n)
 	if m.mode != modeCurated {
@@ -57,7 +72,7 @@ func (m *model) cycleTab(delta int) tea.Cmd {
 }
 
 func (m *model) applyTab() {
-	m.results.SetItems(m.topsCache[m.tab])
+	m.setRows(m.topsCache[m.tab], m.tab)
 	if m.topsCursor[m.tab] < len(m.topsCache[m.tab]) {
 		m.results.Select(m.topsCursor[m.tab])
 	}
@@ -68,7 +83,7 @@ func (m *model) applyMode() {
 	m.loading = false
 	m.err = nil
 	if m.mode == modeDiscover {
-		m.results.SetItems(toResultItems(m.disc.results))
+		m.setRows(toResultItems(m.disc.results), noTab)
 		m.results.Select(0)
 		return
 	}
@@ -101,7 +116,7 @@ func loadTopCmd(ctx context.Context, c Catalog, t tabID) tea.Cmd {
 }
 
 func (m model) onTopsLoaded(msg topsLoadedMsg) (tea.Model, tea.Cmd) {
-	current := msg.tab == m.tab && m.scr == screenBrowse && m.mode == modeCurated && m.query.Value() == ""
+	current := msg.tab == m.tab && m.tabOwnsList()
 	if current {
 		m.loading = false
 	}
@@ -111,11 +126,9 @@ func (m model) onTopsLoaded(msg topsLoadedMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	items := toResultItems(msg.res)
-	m.topsCache[msg.tab] = items
-	if m.scr == screenBrowse && m.mode == modeCurated && m.tab == msg.tab && m.query.Value() == "" {
-		m.results.SetItems(items)
-		m.results.Select(m.topsCursor[msg.tab])
+	m.topsCache[msg.tab] = toResultItems(msg.res)
+	if current {
+		m.applyTab()
 		return m, m.inspector.hover()
 	}
 	return m, nil

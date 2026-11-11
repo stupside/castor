@@ -38,6 +38,7 @@ type model struct {
 	query      textinput.Model
 	queryTok   int // monotonic; only the latest debounce tick fires
 	results    list.Model
+	listTab    tabID // the tab whose rows results holds, noTab for search or discover rows
 	topsCache  [tabCount][]list.Item
 	topsCursor [tabCount]int
 	disc       discoverState
@@ -82,6 +83,7 @@ func newModel(ctx context.Context, client Catalog, badge string) model {
 		mode:      modeCurated,
 		query:     q,
 		results:   results,
+		listTab:   noTab,
 		disc:      discoverState{sort: tmdb.SortPopularity},
 		inspector: newInspector(ctx, client),
 		genres:    newGenrePicker(),
@@ -184,7 +186,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			return m, nil
 		}
-		m.results.SetItems(toResultItems(msg.res))
+		m.setRows(toResultItems(msg.res), noTab)
 		m.results.Select(0)
 		return m, m.inspector.hover()
 

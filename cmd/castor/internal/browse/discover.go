@@ -119,7 +119,7 @@ func (m *model) onDiscoverDone(msg discoverDoneMsg) tea.Cmd {
 	if searching {
 		return nil // applyMode shows them when the query clears
 	}
-	m.results.SetItems(toResultItems(m.disc.results))
+	m.setRows(toResultItems(m.disc.results), noTab)
 	if msg.page <= 1 {
 		m.results.Select(0)
 	}
