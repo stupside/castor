@@ -185,7 +185,10 @@ func (s *session) finish() (*castorv1.Ended, error) {
 			case s.result = <-s.watching:
 				s.watching = nil
 			case <-stopping.Done():
-				s.result.err = context.Cause(stopping)
+				// A Stop that kept failing already named the grace running out.
+				if stopErr == nil {
+					s.result.err = context.Cause(stopping)
+				}
 			}
 		}
 		stop()

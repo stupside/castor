@@ -3,6 +3,7 @@ package mediaclient
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -75,4 +76,27 @@ func TestCancelledSessionDoesNotStartRemoteWork(t *testing.T) {
 	if ended != nil || !errors.Is(err, cause) {
 		t.Fatalf("ended=%v err=%v", ended, err)
 	}
+}
+
+func TestAStopGraceThatRanOutIsReportedOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		watched := make(chan watchResult, 1)
+		s := &session{
+			client: &Client{Casts: &unavailableCast{err: errors.New("stop response lost")}},
+			id:     "cast", ctx: ctx, cancel: cancel, machine: newSessionMachine(), watching: watched,
+			failure: errors.New("the device went away"),
+		}
+		s.move(remoteStarted)
+		s.move(sessionCancelled)
+		s.workers.Go(func() {
+			<-ctx.Done()
+			watched <- watchResult{}
+		})
+		_, err := s.finish()
+		if err == nil || strings.Count(err.Error(), context.DeadlineExceeded.Error()) != 1 {
+			t.Errorf("finish = %q, want the grace that ran out named once", err)
+		}
+	})
 }
