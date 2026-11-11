@@ -312,12 +312,12 @@ function Controls({
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented)
       return;
-    const typing =
-      e.target instanceof Element &&
-      e.target.closest(
-        "input, textarea, button, a, [role=slider], [role=listbox]",
-      );
-    if (typing) return;
+    // A text field keeps every key, a focused button the Space that presses it.
+    const target = e.target instanceof Element ? e.target : null;
+    const takenByControl =
+      target?.closest("input, textarea, select") ||
+      (e.key === " " && target?.closest("button"));
+    if (takenByControl) return;
     const action = {
       " ": toggle,
       k: toggle,
@@ -360,7 +360,15 @@ function Controls({
           />
         )}
       </Stack>
-      <Row sx={styles.centered}>
+      <Row
+        sx={styles.centered}
+        onClick={(e) => {
+          // A button pressed by pointer gives focus back, so Space plays or pauses instead of pressing it again.
+          if (e.detail > 0 && e.target instanceof Element) {
+            e.target.closest("button")?.blur();
+          }
+        }}
+      >
         <Button icon="back" onClick={() => jump(-jumpMs)}>
           10s
         </Button>
