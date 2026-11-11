@@ -19,6 +19,7 @@ export const deviceTypes: Record<DeviceType, string> = {
   [DeviceType.DLNA]: "DLNA",
   [DeviceType.CHROMECAST]: "Chromecast",
   [DeviceType.ROKU]: "Roku",
+  [DeviceType.FCAST]: "FCast",
 };
 
 // deviceName is what a device is called, its address where it has no name.

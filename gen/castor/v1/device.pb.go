@@ -29,6 +29,7 @@ const (
 	DeviceType_DEVICE_TYPE_DLNA        DeviceType = 1
 	DeviceType_DEVICE_TYPE_CHROMECAST  DeviceType = 2
 	DeviceType_DEVICE_TYPE_ROKU        DeviceType = 3
+	DeviceType_DEVICE_TYPE_FCAST       DeviceType = 4
 )
 
 // Enum value maps for DeviceType.
@@ -38,12 +39,14 @@ var (
 		1: "DEVICE_TYPE_DLNA",
 		2: "DEVICE_TYPE_CHROMECAST",
 		3: "DEVICE_TYPE_ROKU",
+		4: "DEVICE_TYPE_FCAST",
 	}
 	DeviceType_value = map[string]int32{
 		"DEVICE_TYPE_UNSPECIFIED": 0,
 		"DEVICE_TYPE_DLNA":        1,
 		"DEVICE_TYPE_CHROMECAST":  2,
 		"DEVICE_TYPE_ROKU":        3,
+		"DEVICE_TYPE_FCAST":       4,
 	}
 )
 
@@ -465,13 +468,14 @@ const file_castor_v1_device_proto_rawDesc = "" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12$\n" +
 	"\aaddress\x18\x02 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01(\x80@R\aaddressB\x0f\n" +
-	"\x06target\x12\x05\xbaH\x02\b\x01*q\n" +
+	"\x06target\x12\x05\xbaH\x02\b\x01*\x88\x01\n" +
 	"\n" +
 	"DeviceType\x12\x1b\n" +
 	"\x17DEVICE_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEVICE_TYPE_DLNA\x10\x01\x12\x1a\n" +
 	"\x16DEVICE_TYPE_CHROMECAST\x10\x02\x12\x14\n" +
-	"\x10DEVICE_TYPE_ROKU\x10\x032\xb0\x01\n" +
+	"\x10DEVICE_TYPE_ROKU\x10\x03\x12\x15\n" +
+	"\x11DEVICE_TYPE_FCAST\x10\x042\xb0\x01\n" +
 	"\rDeviceService\x12L\n" +
 	"\vListDevices\x12\x1d.castor.v1.ListDevicesRequest\x1a\x1e.castor.v1.ListDevicesResponse\x12Q\n" +
 	"\fWatchDevices\x12\x1e.castor.v1.WatchDevicesRequest\x1a\x1f.castor.v1.WatchDevicesResponse0\x01B\x94\x01\n" +

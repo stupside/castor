@@ -61,3 +61,15 @@ func TestSharedNameIsAmbiguousNotFirstWins(t *testing.T) {
 		t.Errorf("Target = %v, %v, want an error naming device.id", got, err)
 	}
 }
+
+func TestEveryDeviceTypeTheContractNamesCanBeConfigured(t *testing.T) {
+	for number, name := range castorv1.DeviceType_name {
+		kind := castorv1.DeviceType(number)
+		if kind == castorv1.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+			continue
+		}
+		if got, err := configuredDeviceType(DeviceTypeName(kind)); err != nil || got != kind {
+			t.Errorf("%s has no device.type name, so scan lists it as unknown and no config can pin it", name)
+		}
+	}
+}
