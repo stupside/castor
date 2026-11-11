@@ -29,9 +29,6 @@ var audioRefusals = slices.Concat([]refusalRule{{
 	// Device's advertised support is codec AND channel count; 2.0 AC-3 is not 5.1 AC-3.
 	reason: reasonDeviceAudio,
 	when:   func(in Inputs) bool { return !in.Caps.CanCopyAudio(in.Probe) },
-}, {
-	reason: reasonSampleRate,
-	when:   func(in Inputs) bool { return in.Probe.AudioSampleRate > media.PlaybackSampleRate },
 }}, audioCarriageRefusals, []refusalRule{{
 	reason: reasonBitrateLimit,
 	when:   func(in Inputs) bool { return in.MaxBitrate > 0 && !copyFits(in) },

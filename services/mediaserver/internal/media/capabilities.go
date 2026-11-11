@@ -92,14 +92,11 @@ func (c Capabilities) CanCopyVideo(v ProbeInfo) bool {
 }
 
 func (c Capabilities) CanCopyAudio(p ProbeInfo) bool {
-	if p.AudioSampleRate > PlaybackSampleRate {
-		return false
-	}
 	return slices.ContainsFunc(c.Formats, func(f FormatSupport) bool { return f.Audio.accepts(p) })
 }
 
 func (s AudioSupport) accepts(p ProbeInfo) bool {
-	if p.AudioCodec == "" || p.AudioCodec != s.Codec {
+	if p.AudioCodec == "" || p.AudioCodec != s.Codec || p.AudioSampleRate > PlaybackSampleRate {
 		return false
 	}
 	// Unknown source channel count (0) is trusted: don't force-transcode a matching codec with no layout.

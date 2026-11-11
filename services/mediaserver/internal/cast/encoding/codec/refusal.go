@@ -17,7 +17,6 @@ const (
 	reasonHDRPolicy       Reason = "hdr-policy"
 	reasonInterlaced      Reason = "interlaced"
 	reasonRotated         Reason = "rotated"
-	reasonSampleRate      Reason = "sample-rate"
 	reasonSpliced         Reason = "spliced"
 	reasonSubtitleBurnIn  Reason = "subtitle-burn-in"
 

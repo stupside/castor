@@ -122,3 +122,11 @@ func TestAnInterlacedPictureIsPlayedOnlyByADeviceThatDeinterlaces(t *testing.T) 
 		}
 	}
 }
+
+func TestSoundAboveWhatDevicesPlayIsPlayedNowhere(t *testing.T) {
+	hiRes := ProbeInfo{AudioCodec: CodecAAC, AudioChannels: 2, AudioSampleRate: 96000}
+	caps := Capabilities{Formats: []FormatSupport{{Transport: TransportMP4, Audio: AudioSupport{Codec: CodecAAC, MaxChannels: 2}}}}
+	if caps.CanCopyAudio(hiRes) || caps.CanPlayIn(MP4, hiRes) || caps.CanPlaySourceIn(MP4, hiRes) {
+		t.Errorf("96 kHz sound: copy %t, plays %t, source plays %t, want none: no device castor serves plays it", caps.CanCopyAudio(hiRes), caps.CanPlayIn(MP4, hiRes), caps.CanPlaySourceIn(MP4, hiRes))
+	}
+}
