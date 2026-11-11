@@ -23,7 +23,7 @@ type axis struct {
 	// dolbyVision is a picture carrying a Dolby Vision configuration, which only a copy keeps.
 	dolbyVision bool
 	action      codec.Action
-	refused bool // the tables already say this container will not carry it
+	refused     bool // the tables already say this container will not carry it
 	// encode is the encoder's own options, nil when copied.
 	encode []string
 }
