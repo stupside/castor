@@ -166,7 +166,7 @@ Keep secrets, like your TMDB key, in a git-ignored `config.local.yaml` next to t
 
 | Protocol | Status | Reported working on |
 | --- | --- | --- |
-| DLNA / UPnP | Main target | Samsung Q70 and Q80 ([#15](https://github.com/stupside/castor/issues/15)), Philips 50PUD6654 ([#23](https://github.com/stupside/castor/pull/23)) |
+| DLNA / UPnP | Main target | Samsung Q70 and Q80 ([#15](https://github.com/stupside/castor/issues/15)), Philips 50PUD6654 ([#23](https://github.com/stupside/castor/pull/23)), LG C2, from the Android client ([#83](https://github.com/stupside/castor/pull/83)) |
 | Chromecast | Experimental | Xiaomi TV Box ([#5](https://github.com/stupside/castor/issues/5)), LG C2 in Chromecast mode, from the Android client ([#68](https://github.com/stupside/castor/pull/68)) |
 | Roku | Experimental | Not tested on hardware yet |
 
