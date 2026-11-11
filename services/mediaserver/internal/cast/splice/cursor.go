@@ -104,11 +104,21 @@ func (c *Cursor) Behind() bool {
 	return c.next < end
 }
 
-// Stop ends the cursor's reading at offset at, reporting whether it had not read past it already.
+// OffsetAfter is the offset the cursor is at once it reads n more bytes, never past where it stops.
+func (c *Cursor) OffsetAfter(n int64) int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.limit >= 0 {
+		return min(c.next+n, c.limit)
+	}
+	return c.next + n
+}
+
+// Stop ends the cursor's reading at offset at, reporting whether it had not read past it and was not stopping sooner.
 func (c *Cursor) Stop(at int64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if at < c.next {
+	if at < c.next || c.limit >= 0 && at > c.limit {
 		return false
 	}
 	c.limit = at

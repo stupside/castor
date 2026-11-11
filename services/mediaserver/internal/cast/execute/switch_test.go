@@ -344,19 +344,21 @@ func TestAnAskBeforeTheLastCutReachedTheDeviceReplacesIt(t *testing.T) {
 		t.Fatalf("first switch: %v", err)
 	}
 	chain.mu.Lock()
-	first, firstAt := chain.next, chain.nextAt
+	first := chain.next
 	chain.mu.Unlock()
 	if first == nil {
 		t.Fatal("the first cut is not waiting for the device")
 	}
+	// A slow host measures a warm-up that would place the next cut past the waiting one.
+	chain.spec.warm.note(4 * time.Second)
 	if _, err := chain.Switch(ctx, 900_000); err != nil {
 		t.Fatalf("second switch: %v", err)
 	}
 	chain.mu.Lock()
-	second, secondAt := chain.next, chain.nextAt
+	second := chain.next
 	chain.mu.Unlock()
-	if second == first || secondAt > firstAt {
-		t.Fatalf("the cut waiting is the first (%d) or later than it (%d > %d), want the second ask in its place", firstAt, secondAt, firstAt)
+	if second == first {
+		t.Fatal("the cut waiting is the first, want the second ask in its place")
 	}
 	if !slices.Contains(chain.all(), first) {
 		t.Error("the encoder the second ask replaced is not tracked, so nothing stops or reaps it")

@@ -88,9 +88,7 @@ type stages struct {
 	switching sync.Mutex
 	mu        sync.Mutex
 	cur, next *stage
-	// nextAt is the byte of the read the encoder waiting to take over starts at.
-	nextAt  int64
-	retired []*stage
+	retired   []*stage
 	// base is the bytes the retired stages made.
 	base int64
 
@@ -204,7 +202,7 @@ func (f *stages) Switch(ctx context.Context, ceiling media.Bitrate) (int64, erro
 	// An encoder that runs ahead while the new one warms up is cut further on the next time.
 	for attempt := range cutAttempts {
 		cur = f.current()
-		cut, next, err := change.cut(ctx, cur.in.Offset()+f.spec.warm.margin(cur.src, attempt))
+		cut, next, err := change.cut(ctx, cur.in.OffsetAfter(f.spec.warm.margin(cur.src, attempt)))
 		if err != nil {
 			change.abandon()
 			return 0, err
@@ -238,14 +236,14 @@ func (f *stages) current() *stage {
 	return f.cur
 }
 
-// cutIn has next take over from cur at byte at, refusing where cur moved on, read past at, or an earlier cut waits.
+// cutIn has next take over from cur at byte at, refusing where cur moved on or cannot stop there.
 func (f *stages) cutIn(cur *stage, at int64, next *stage) (superseded *stage, stopped bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.cur != cur || f.next != nil && at > f.nextAt || !cur.in.Stop(at) {
+	if f.cur != cur || !cur.in.Stop(at) {
 		return nil, false
 	}
-	superseded, f.next, f.nextAt = f.next, next, at
+	superseded, f.next = f.next, next
 	return superseded, true
 }
 

@@ -65,6 +65,29 @@ func TestACursorCannotBeStoppedBehindWhatItHasRead(t *testing.T) {
 	}
 }
 
+func TestACursorNeverReadsOrStopsPastWhereItWasStopped(t *testing.T) {
+	c, err := Open(t.Context(), spoolOf(t, bytes.Repeat([]byte("x"), 1000)), 0, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if got := c.OffsetAfter(800); got != 800 {
+		t.Errorf("offset after 800 bytes = %d, want 800 for a cursor that stops nowhere", got)
+	}
+	if !c.Stop(500) {
+		t.Fatal("a cursor that had read nothing refused to stop at 500")
+	}
+	if got := c.OffsetAfter(800); got != 500 {
+		t.Errorf("offset after 800 bytes = %d, want 500, where the cursor stops", got)
+	}
+	if c.Stop(600) {
+		t.Error("a cursor stopping at 500 agreed to stop later")
+	}
+	if !c.Stop(450) {
+		t.Error("a cursor stopping at 500 refused to stop sooner")
+	}
+}
+
 func TestACursorWithoutALimitFollowsTheBufferToItsEnd(t *testing.T) {
 	sp := spoolOf(t, []byte("abc"))
 	c, err := Open(t.Context(), sp, 1, nil, nil)
