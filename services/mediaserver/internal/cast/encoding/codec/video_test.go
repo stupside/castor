@@ -221,10 +221,7 @@ func TestTheEncoderIsToldTheRateFramesReachItAt(t *testing.T) {
 
 // A hardware encoder is passed over for software where a segment it encodes would not start on an IDR.
 func TestSoftwareEncodesWhereAHardwareSegmentWouldNotStartOnAnIDR(t *testing.T) {
-	gopKeyed := ffmpeg.Encoder{Name: "gop-keyed", Codec: media.CodecH264, Hardware: true, GOPKeyframes: true}
 	singleIDR := ffmpeg.Encoder{Name: "single-idr", Codec: media.CodecH264, Hardware: true, SingleIDROutOfBand: true}
-	clockCut := testFormat(t, media.MPEGTS)
-	clockCut.ClockCuts = true
 	segmented := container.Format{ContentType: media.HLS, Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand}
 	inBandSegments := segmented
 	inBandSegments.Framing = media.FramingInBand
@@ -234,12 +231,10 @@ func TestSoftwareEncodesWhereAHardwareSegmentWouldNotStartOnAnIDR(t *testing.T) 
 		into    container.Format
 		want    string
 	}{
-		{"a GOP-keyed encoder on a stream", gopKeyed, testFormat(t, media.MPEGTS), "gop-keyed"},
-		{"a GOP-keyed encoder on a delivery cut on the clock", gopKeyed, clockCut, "libx264"},
 		{"a single IDR on segments with the config out of band", singleIDR, segmented, "libx264"},
 		{"a single IDR on segments that carry the config", singleIDR, inBandSegments, "single-idr"},
 		{"a single IDR on a stream with the config out of band", singleIDR, testFormat(t, media.MP4), "single-idr"},
-		{"an encoder that keys anywhere on segments cut on the clock", ffmpeg.Encoder{Name: "keys-anywhere", Codec: media.CodecH264, Hardware: true}, container.Format{ContentType: media.HLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand, ClockCuts: true}, "keys-anywhere"},
+		{"an encoder that keys anywhere on segments with the config out of band", ffmpeg.Encoder{Name: "keys-anywhere", Codec: media.CodecH264, Hardware: true}, segmented, "keys-anywhere"},
 	} {
 		host := func(_ context.Context, c media.Codec, software bool) (ffmpeg.Encoder, bool) {
 			if software {

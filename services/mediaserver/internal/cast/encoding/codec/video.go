@@ -122,11 +122,7 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 
 // everySegmentStartsOnIDR reports whether every segment of into that e encodes starts on a frame a device can start decoding at.
 func everySegmentStartsOnIDR(e ffmpeg.Encoder, into container.Format) bool {
-	switch {
-	case into.ClockCuts && e.GOPKeyframes:
-		// Fragments cut on the clock each open on a forced keyframe, which a GOP-keyed encoder cannot place.
-		return false
-	case into.Delivery == container.DeliverSegmented && into.Framing == media.FramingOutOfBand && e.SingleIDROutOfBand:
+	if e.SingleIDROutOfBand && into.Delivery == container.DeliverSegmented && into.Framing == media.FramingOutOfBand {
 		// A device may start at any segment, and none carries the decoder config.
 		return false
 	}

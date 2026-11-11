@@ -22,18 +22,3 @@ func TestRollingOutputsNeverOutrunReceiverPlayback(t *testing.T) {
 		}
 	}
 }
-
-func TestOnlyGeneratedCaptionsCutTheEncodeOnTheClock(t *testing.T) {
-	for _, tt := range []struct {
-		captions *output.Captions
-		want     bool
-	}{{nil, false}, {&output.Captions{Cues: &subtitle.Cues{}}, true}} {
-		plan, ok := (Adapter{}).Select(media.FormatSupport{Transport: media.TransportHLSWebVTT}, tt.captions)
-		if !ok {
-			t.Fatal("supported envelope refused")
-		}
-		if got := plan.Format().ClockCuts; got != tt.want {
-			t.Errorf("captions %t: clock cuts %t, want %t", tt.captions != nil, got, tt.want)
-		}
-	}
-}
