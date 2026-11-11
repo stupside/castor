@@ -242,10 +242,10 @@ func TestAPlayCarriesTheMediaAndItsDetailsButNothingTheReceiverWouldApply(t *tes
 		want map[string]any
 	}{
 		{"a title and its image", &castorv1.MediaInfo{Title: "The Matrix", ImageUrl: "https://image.test/matrix.jpg"}, map[string]any{
-			"container": "application/x-mpegURL", "url": stream,
+			"container": "application/vnd.apple.mpegurl", "url": stream,
 			"metadata": map[string]any{"type": float64(0), "title": "The Matrix", "thumbnailUrl": "https://image.test/matrix.jpg"},
 		}},
-		{"nothing to show", nil, map[string]any{"container": "application/x-mpegURL", "url": stream}},
+		{"nothing to show", nil, map[string]any{"container": "application/vnd.apple.mpegurl", "url": stream}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dev, r, err := connectReceiver(t, 3, greets(echoes()))
@@ -268,6 +268,53 @@ func TestAPlayCarriesTheMediaAndItsDetailsButNothingTheReceiverWouldApply(t *tes
 			}
 		})
 	}
+}
+
+func TestAnHLSPlayIsNamedAsFCastReceiversRouteItToTheirPlayer(t *testing.T) {
+	// Mirrors the receivers' shared web code, which hands a Play to its video player only for a container it lists.
+	playerTakes := func(container string) bool {
+		player := false
+		for _, known := range []string{"application/vnd.apple.mpegurl", "application/x-mpegURL", "video/mp4"} {
+			if known == strings.ToLower(container) {
+				player = true
+			}
+		}
+		return player
+	}
+	synctest.Test(t, func(t *testing.T) {
+		dev, r, err := connectReceiver(t, 3, func(r *fakeReceiver, p packet) {
+			switch p.op {
+			case opVersion:
+				r.send(opInitial, `{"displayName":"Living Room","appName":"FCast","appVersion":"2.0.0"}`)
+			case opPlay:
+				var play struct {
+					Container string `json:"container"`
+					URL       string `json:"url"`
+				}
+				_ = json.Unmarshal([]byte(p.body), &play)
+				r.send(opPlayUpdate, playUpdate(play.URL))
+				// The generic viewer plays nothing and reports nothing.
+				if playerTakes(play.Container) {
+					r.say(update(statePlaying, 1), itemEnded(play.URL))
+				}
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		playback := mp4(t)
+		playback.Play = devicetest.Source(mediav1.Container_CONTAINER_HLS)
+		if err := dev.Play(t.Context(), playback); err != nil {
+			t.Fatal(err)
+		}
+		r.flush(t)
+		if got, err := dev.Position(t.Context()); err != nil {
+			t.Errorf("Position = %v, %v; want the receiver's position, its player never took the Play", got, err)
+		}
+		if err := dev.AwaitEnd(t.Context()); err != nil {
+			t.Errorf("AwaitEnd = %v, want the cast to end with its item", err)
+		}
+	})
 }
 
 func TestPlayReturnsTheReceiversAnswerToIt(t *testing.T) {

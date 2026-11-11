@@ -16,6 +16,18 @@ import (
 // protocolVersion is the FCast version castor speaks; receivers that know v4 downgrade to it.
 const protocolVersion = 3
 
+// hlsContainer is how a Play names HLS. Receivers match the name in lower case against a list that spells the
+// other common name, application/x-mpegURL, in mixed case: that one never reaches their player, the registered one does.
+const hlsContainer = "application/vnd.apple.mpegurl"
+
+// containerName is how a Play names container to a receiver; empty for one FCast has no name for.
+func containerName(container mediav1.Container) string {
+	if container == mediav1.Container_CONTAINER_HLS {
+		return hlsContainer
+	}
+	return device.MIME(container)
+}
+
 // session is one FCast connection to a receiver, following the Play it was last handed.
 type session struct {
 	ch   *channel
@@ -138,7 +150,7 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 
 func (s *session) play(ctx context.Context, playback device.Playback) error {
 	stream, info := playback.URL.String(), playback.Info
-	container := device.MIME(playback.Container())
+	container := containerName(playback.Container())
 	if container == "" {
 		return fmt.Errorf("fcast has no name for container %v", playback.Container())
 	}
