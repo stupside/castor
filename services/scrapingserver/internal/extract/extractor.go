@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sync"
 
+	"buf.build/go/protovalidate"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/telemetry"
 	"google.golang.org/protobuf/proto"
@@ -91,7 +92,7 @@ func (e *Extractor) Resolve(ctx context.Context, urls []string) (streams []*cast
 		return nil, err
 	}
 
-	deduped := deduplicate(slices.Concat(results...))
+	deduped := deduplicate(accepted(ctx, slices.Concat(results...)))
 	if len(deduped) == 0 {
 		if err := errors.Join(failures...); err != nil {
 			return nil, fmt.Errorf("no stream extracted from %d URL(s): %w", len(urls), err)
@@ -100,6 +101,17 @@ func (e *Extractor) Resolve(ctx context.Context, urls []string) (streams []*cast
 	}
 	slog.InfoContext(ctx, "extraction complete", "urls", len(urls), "streams", len(deduped))
 	return deduped, nil
+}
+
+// accepted is the candidates the contract takes; a browser fetches some URLs it refuses, which cost only themselves.
+func accepted(ctx context.Context, candidates []*castorv1.StreamCandidate) []*castorv1.StreamCandidate {
+	return slices.DeleteFunc(candidates, func(c *castorv1.StreamCandidate) bool {
+		err := protovalidate.Validate(c)
+		if err != nil {
+			slog.DebugContext(ctx, "candidate the contract refuses", "url", c.GetStream().GetUrl(), "error", err)
+		}
+		return err != nil
+	})
 }
 
 func deduplicate(streams []*castorv1.StreamCandidate) []*castorv1.StreamCandidate {

@@ -77,3 +77,11 @@ func TestDeduplicatePrefersMultivariantEvidence(t *testing.T) {
 		t.Fatal("deduplication changed its input")
 	}
 }
+
+func TestAStreamTheContractRefusesCostsOnlyItself(t *testing.T) {
+	good := &castorv1.StreamCandidate{Stream: &castorv1.Stream{Url: "https://cdn.example/master.m3u8"}, SourcePage: "https://site.example/watch"}
+	raw := &castorv1.StreamCandidate{Stream: &castorv1.Stream{Url: "https://cdn.example/master.m3u8?token=a|b"}, SourcePage: "https://site.example/watch"}
+	if got := accepted(t.Context(), []*castorv1.StreamCandidate{raw, good}); len(got) != 1 || got[0] != good {
+		t.Errorf("accepted %v, want only the candidate the contract takes", got)
+	}
+}
