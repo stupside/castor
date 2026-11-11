@@ -6,6 +6,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
 const (
@@ -16,11 +18,10 @@ const (
 
 // ssdpTarget is address on SSDP's own port; a typed port is the device's HTTP server.
 func ssdpTarget(address string) string {
-	host, _, err := net.SplitHostPort(address)
-	if err != nil {
-		host = address
+	if host, _, err := net.SplitHostPort(address); err == nil {
+		address = host
 	}
-	return net.JoinHostPort(host, ssdpPort)
+	return device.WithPort(address, ssdpPort)
 }
 
 // searchDescription: unicast M-SEARCH of target for description (no interface enumeration).

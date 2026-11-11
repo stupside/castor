@@ -42,6 +42,7 @@ func TestATypedPortIsNotWhereSSDPIsAsked(t *testing.T) {
 		"fe80::1":         "[fe80::1]:1900",
 		"[fe80::1]:1534":  "[fe80::1]:1900",
 		"fe80::1%en0":     "[fe80::1%en0]:1900",
+		"[fe80::1]":       "[fe80::1]:1900",
 	} {
 		if got := ssdpTarget(typed); got != want {
 			t.Errorf("ssdpTarget(%q) = %q, want %q", typed, got, want)
