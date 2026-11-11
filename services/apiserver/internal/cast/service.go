@@ -63,30 +63,43 @@ func New(defaults *mediav1.PlaybackSettings, devices Devices, media *mediaclient
 	return &Service{watchers: semaphore.NewWeighted(256), resolutions: semaphore.NewWeighted(resolutionCapacity), ctx: running, shut: shut, media: media, scraping: scraping, defaults: proto.CloneOf(defaults), devices: devices, casts: registry.New[*cast](linger)}
 }
 
-func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv1.CastResponse, error) {
+// admit starts work under ctx that the server's shutdown also ends; finish releases it and says how it went, as a shutdown once the server shut down.
+func (s *Service) admit(ctx context.Context) (working context.Context, finish func(error) error, err error) {
 	if s.ctx.Err() != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
+		return nil, nil, connect.NewError(connect.CodeUnavailable, errShutdown)
 	}
-	// Target discovery is accepted service work even before a cast is registered.
 	if !s.resolutions.TryAcquire(1) {
-		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("concurrent resolutions capacity exhausted"))
+		return nil, nil, connect.NewError(connect.CodeResourceExhausted, errors.New("concurrent resolutions capacity exhausted"))
 	}
-	defer s.resolutions.Release(1)
 	if s.ctx.Err() != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
+		s.resolutions.Release(1)
+		return nil, nil, connect.NewError(connect.CodeUnavailable, errShutdown)
 	}
-	finding, cancel := context.WithCancel(ctx)
-	stopFinding := context.AfterFunc(s.ctx, cancel)
-	defer stopFinding()
-	defer cancel()
-	target, err := s.devices.Target(finding, req.GetTarget())
-	if s.ctx.Err() != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
-	}
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
+	working, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(s.ctx, cancel)
+	return working, func(err error) error {
+		stop()
+		cancel()
+		s.resolutions.Release(1)
+		if s.ctx.Err() != nil {
+			return connect.NewError(connect.CodeUnavailable, errShutdown)
+		}
+		return err
+	}, nil
+}
+
+func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv1.CastResponse, error) {
+	// Target discovery is accepted service work even before a cast is registered.
+	finding, finish, err := s.admit(ctx)
 	if err != nil {
+		return nil, err
+	}
+	target, err := s.devices.Target(finding, req.GetTarget())
+	if err := finish(err); err != nil {
+		return nil, err
+	}
+	// A cast outlives its request, so none starts for a request already given up.
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	asked := s.asked(req.GetPreferences())
@@ -157,27 +170,18 @@ func (s *Service) asked(p *castorv1.Preferences) *mediav1.PlaybackSettings {
 }
 
 func (s *Service) Resolve(ctx context.Context, req *castorv1.ResolveRequest) (*castorv1.ResolveResponse, error) {
-	if s.ctx.Err() != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
-	}
-	if !s.resolutions.TryAcquire(1) {
-		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("concurrent resolutions capacity exhausted"))
-	}
-	defer s.resolutions.Release(1)
-	if s.ctx.Err() != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
-	}
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	stop := context.AfterFunc(s.ctx, func() { cancel(errShutdown) })
-	defer stop()
-	source, err := s.resolve(ctx, req.GetSource())
+	working, finish, err := s.admit(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ranked, err := s.media.Rank(ctx, source, s.asked(req.GetPreferences()))
-	if err != nil {
-		return nil, fromMedia(err)
+	source, err := s.resolve(working, req.GetSource())
+	var ranked []*castorv1.RankedStream
+	if err == nil {
+		ranked, err = s.media.Rank(working, source, s.asked(req.GetPreferences()))
+		err = fromMedia(err)
+	}
+	if err := finish(err); err != nil {
+		return nil, err
 	}
 	return &castorv1.ResolveResponse{Ranked: ranked}, nil
 }

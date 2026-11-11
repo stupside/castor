@@ -155,8 +155,8 @@ func TestDrainCancelsAndJoinsResolution(t *testing.T) {
 		}
 		close(r.release)
 		<-drained
-		if err := <-resolved; !errors.Is(err, context.Canceled) {
-			t.Fatalf("resolution = %v", err)
+		if err := <-resolved; connect.CodeOf(err) != connect.CodeUnavailable {
+			t.Fatalf("resolution cut off by the shutdown = %v, want unavailable, as a cast cut off by it answers", err)
 		}
 		if _, err := s.Resolve(t.Context(), &castorv1.ResolveRequest{}); connect.CodeOf(err) != connect.CodeUnavailable {
 			t.Fatalf("resolution accepted after shutdown: %v", err)
