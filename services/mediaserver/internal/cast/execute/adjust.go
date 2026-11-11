@@ -82,6 +82,7 @@ func (a *adjustable) Done() <-chan struct{} { return a.unit().Done() }
 func (a *adjustable) Err() error            { return a.unit().Err() }
 func (a *adjustable) Evidence() []string    { return a.unit().Evidence() }
 func (a *adjustable) Fed() bool             { return a.unit().Fed() }
+func (a *adjustable) onHardware() bool      { return a.unit().onHardware() }
 
 func (a *adjustable) chain() (*stages, int64) {
 	a.mu.Lock()

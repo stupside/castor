@@ -17,16 +17,18 @@ import (
 type production struct {
 	proc *ffmpeg.Process
 	// in is nil when the encoder reads the source itself.
-	in   *splice.Cursor
-	out  *awaited
-	done chan struct{}
-	stop func()
-	err  error
+	in  *splice.Cursor
+	out *awaited
+	// hardware is whether a hardware encoder makes the picture.
+	hardware bool
+	done     chan struct{}
+	stop     func()
+	err      error
 }
 
 func startProduction(parent context.Context, proc *ffmpeg.Process, in *splice.Cursor, hardware bool, write func(context.Context, io.Reader) error) *production {
 	ctx, cancel := context.WithCancel(parent)
-	p := &production{proc: proc, in: in, out: &awaited{Reader: proc.Stdout}, done: make(chan struct{})}
+	p := &production{proc: proc, in: in, out: &awaited{Reader: proc.Stdout}, hardware: hardware, done: make(chan struct{})}
 	releaseIO := sync.OnceFunc(func() {
 		if in != nil {
 			_ = in.Close()
@@ -52,6 +54,8 @@ func startProduction(parent context.Context, proc *ffmpeg.Process, in *splice.Cu
 }
 
 func (p *production) Done() <-chan struct{} { return p.done }
+
+func (p *production) onHardware() bool { return p.hardware }
 
 // Fed is an encoder castor waits on with buffer left for it to read.
 func (p *production) Fed() bool {

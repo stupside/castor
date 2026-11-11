@@ -34,10 +34,10 @@ func awaitArtifact(ctx context.Context, d delivery) error {
 	})
 }
 
-// wedgedOn types a wedged verdict as the encode's own failure.
-func wedgedOn(err error, d delivery, plan encodePlan) error {
+// wedgedOn types a wedged verdict as the failure of the encode making the delivery when it wedged.
+func wedgedOn(err error, d delivery) error {
 	if f, ok := errors.AsType[*health.Fault](err); ok && f.Kind == health.Wedged {
-		return &encoderFailed{err: err, hardware: onHardware(plan.EncodeOptions), lines: d.output.Evidence()}
+		return &encoderFailed{err: err, hardware: d.output.onHardware(), lines: d.output.Evidence()}
 	}
 	return err
 }

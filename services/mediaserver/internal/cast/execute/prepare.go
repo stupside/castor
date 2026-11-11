@@ -154,7 +154,7 @@ func (s *preparation) producePresentation(planned plannedPresentation) (presenta
 	p.delivery = &d
 	p.reached.reached = health.Opening
 	if err := awaitArtifact(s.ctx, d); err != nil {
-		return p, wedgedOn(err, d, planned.options)
+		return p, wedgedOn(err, d)
 	}
 	if err := s.validateOutput(d, planned.options, p.feed); err != nil {
 		return p, err

@@ -171,10 +171,10 @@ func (s *preparation) startEncoder(opts encoding.EncodeOptions, tail io.Reader, 
 	return proc, nil
 }
 
-// onHardware is an encode whose picture a hardware encoder makes.
-func onHardware(opts encoding.EncodeOptions) bool {
-	video, ok := opts.Video.Encode()
-	return ok && video.Encoder.Hardware
+// onHardware is whether a hardware encoder makes video's picture.
+func onHardware(video codec.Track[codec.VideoEncode]) bool {
+	encode, ok := video.Encode()
+	return ok && encode.Encoder.Hardware
 }
 
 // encoderResult is how proc ended.

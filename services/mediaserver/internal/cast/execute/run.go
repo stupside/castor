@@ -451,8 +451,7 @@ func (c *coordinator) watchHealth(d *delivery) {
 	c.observer = observer
 	watching, stop := context.WithCancel(c.ctx)
 	c.stopHealth = stop
-	plan := c.planned.options
-	c.launchUntil(watching, healthEnded, func() error { return wedgedOn(observeHealth(watching, observer, c.device, d.rate), *d, plan) })
+	c.launchUntil(watching, healthEnded, func() error { return wedgedOn(observeHealth(watching, observer, c.device, d.rate), *d) })
 }
 
 func (c *coordinator) watchSeeks(d *delivery) {

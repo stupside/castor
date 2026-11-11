@@ -55,6 +55,8 @@ type producer interface {
 	health.Telemetry
 	// Fed is castor waiting on the output with input for it.
 	Fed() bool
+	// onHardware is whether a hardware encoder makes what the producer writes now.
+	onHardware() bool
 }
 
 // validateOutput checks the encoder's actual result, not just its requested flags.
@@ -172,7 +174,7 @@ func (s *preparation) produceOnce(f feed, encoderOpts encoding.EncodeOptions, pr
 		}
 		return nil, err
 	}
-	production := startProduction(s.ctx, proc, in, onHardware(encoderOpts), prepared.Write)
+	production := startProduction(s.ctx, proc, in, onHardware(encoderOpts.Video), prepared.Write)
 	s.releases.worker(production.stop, func() error {
 		<-production.Done()
 		return production.Err()

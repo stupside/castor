@@ -243,6 +243,8 @@ func (p *pull) Done() <-chan struct{} { return p.tail().done }
 // Fed is never a read's: castor holds none of its input.
 func (p *pull) Fed() bool { return false }
 
+func (p *pull) onHardware() bool { return onHardware(p.floor.Video) }
+
 func (p *pull) Err() error {
 	t := p.tail()
 	select {

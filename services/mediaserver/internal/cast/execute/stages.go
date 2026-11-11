@@ -145,7 +145,7 @@ func (f *stages) release() {
 func (f *stages) results() error {
 	var err error
 	for _, each := range f.all() {
-		err = errors.Join(err, encoderResult(f.ctx, each.proc, onHardware(each.opts), true))
+		err = errors.Join(err, encoderResult(f.ctx, each.proc, onHardware(each.opts.Video), true))
 	}
 	return err
 }
@@ -266,7 +266,7 @@ func cutStage(ctx, life context.Context, src *pull, spec stageSpec, opts encodin
 	case err := <-made:
 		if err != nil {
 			next.kill()
-			return nil, fmt.Errorf("the encoder made nothing at the cut: %w", errors.Join(err, encoderResult(life, proc, onHardware(opts), true)))
+			return nil, fmt.Errorf("the encoder made nothing at the cut: %w", errors.Join(err, encoderResult(life, proc, onHardware(opts.Video), true)))
 		}
 		spec.warm.note(time.Since(began))
 		return next, nil
@@ -331,5 +331,7 @@ func (f *stages) Evidence() []string {
 	f.mu.Unlock()
 	return cur.proc.Evidence().Lines
 }
+
+func (f *stages) onHardware() bool { return onHardware(f.current().opts.Video) }
 
 func (f *stages) Close() error { f.stop(); <-f.done; return f.err }
