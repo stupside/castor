@@ -2,7 +2,6 @@ package scrapingserver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -89,8 +88,8 @@ func TestScrapingShutdownCancelsAndWaitsForExtraction(t *testing.T) {
 		default:
 			t.Fatal("shutdown did not wait for cleanup")
 		}
-		if err := <-done; !errors.Is(err, context.Canceled) && connect.CodeOf(err) != connect.CodeCanceled {
-			t.Errorf("shutdown returned %v, want canceled", err)
+		if err := <-done; connect.CodeOf(err) != connect.CodeUnavailable {
+			t.Errorf("an extraction the shutdown cut off returned %v, want unavailable, as one after it does", err)
 		}
 		if _, err := c.Resolve(t.Context(), &scrapingv1.ResolveRequest{Urls: []string{"https://site.example/watch"}}); connect.CodeOf(err) != connect.CodeUnavailable {
 			t.Errorf("request after shutdown: %v", err)

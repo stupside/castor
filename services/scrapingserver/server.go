@@ -32,6 +32,8 @@ type Server struct {
 
 const maxRequests = 16
 
+var errShutdown = errors.New("the scraping server is shutting down")
+
 func New(resolver Resolver) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{requests: semaphore.NewWeighted(maxRequests), resolver: resolver, ctx: ctx, cancel: cancel}
@@ -46,7 +48,7 @@ func (s *Server) Resolve(ctx context.Context, req *scrapingv1.ResolveRequest) (*
 	s.mu.Lock()
 	if s.ctx.Err() != nil {
 		s.mu.Unlock()
-		return nil, connect.NewError(connect.CodeUnavailable, context.Canceled)
+		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
 	}
 	if !s.requests.TryAcquire(1) {
 		s.mu.Unlock()
@@ -59,6 +61,9 @@ func (s *Server) Resolve(ctx context.Context, req *scrapingv1.ResolveRequest) (*
 	stop := context.AfterFunc(s.ctx, cancel)
 	defer stop()
 	streams, err := s.resolver.Resolve(ctx, req.GetUrls())
+	if s.ctx.Err() != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errShutdown)
+	}
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
