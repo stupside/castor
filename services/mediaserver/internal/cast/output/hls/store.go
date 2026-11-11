@@ -1,6 +1,7 @@
 package hls
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -47,6 +48,24 @@ func (s *segmentStore) landed() (int64, error) {
 		return 0, err
 	}
 	return info.Size(), nil
+}
+
+// liveStart is how many fragments a rolling playlist lists before a device is handed it: a live player starts that many target durations behind the newest.
+const liveStart = 3
+
+// rollingLanded holds a rolling playlist back until a live player has fragments to start behind its edge; one that has ended is whole.
+func (s *segmentStore) rollingLanded() (int64, error) {
+	body, err := os.ReadFile(s.playlist)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	if bytes.Count(body, []byte("#EXTINF:")) < liveStart && !bytes.Contains(body, []byte("#EXT-X-ENDLIST")) {
+		return 0, nil
+	}
+	return int64(len(body)), nil
 }
 
 func (s *segmentStore) Close() error { return s.root.Close() }
