@@ -85,6 +85,10 @@ servers:
     # advertise: http://castor.example.com:8410
     # network:
     #   interface: "eth0" # pin the LAN interface if automatic selection fails
+    # ffmpeg:
+    #   # Hardware encoders this host's ffmpeg has, tried first; MediaCodec is only ever used from
+    #   # here. Each is proven by a test encode before a cast uses it.
+    #   hardware_encoders: [h264_mediacodec, hevc_mediacodec]
     # resolver:
     #   probe_max_concurrency: 2
     whisper:
