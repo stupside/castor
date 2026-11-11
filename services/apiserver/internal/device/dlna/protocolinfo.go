@@ -118,7 +118,7 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 		timestamped := ct == mediav1.Container_CONTAINER_MPEGTS && timestampedProfile(pn)
 		video := videoFromProfile(mime, pn)
 		audios := audioFromProfile(mime, pn)
-		if cok && video == nil && mime == device.MIME(ct) && !strings.Contains(pn, "DLNA.ORG_PN=") {
+		if video == nil && mime == device.MIME(ct) && !strings.Contains(pn, "DLNA.ORG_PN=") {
 			// A container named by its contract MIME and no profile plays the family default.
 			video, audios = device.H264Support(), []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AAC}
 		}
