@@ -10,11 +10,10 @@ import (
 	"strings"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
-
 	"github.com/stupside/castor/cmd/castor/internal/browse/picker"
 	"github.com/stupside/castor/cmd/castor/internal/browse/tmdb"
 	"github.com/stupside/castor/cmd/castor/internal/cast"
+	"github.com/stupside/castor/cmd/castor/internal/tui"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/gen/castor/v1/castorv1connect"
 )
@@ -102,13 +101,9 @@ type Selection struct {
 
 // pickTitle runs the browser until a title is chosen, or the operator leaves without one.
 func pickTitle(ctx context.Context, client Catalog, badge string, ask bool) (Selection, bool, error) {
-	// bubbletea's kill path races its input reader when started on a done context.
-	if err := ctx.Err(); err != nil {
-		return Selection{}, false, err
-	}
 	m := newModel(ctx, client, badge)
 	m.ask = ask
-	final, err := tea.NewProgram(m, tea.WithContext(ctx)).Run()
+	final, err := tui.Run(ctx, m)
 	if err != nil {
 		return Selection{}, false, err
 	}

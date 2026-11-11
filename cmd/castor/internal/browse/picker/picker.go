@@ -16,16 +16,13 @@ import (
 
 	"github.com/stupside/castor/cmd/castor/internal/cast"
 	"github.com/stupside/castor/cmd/castor/internal/palette"
+	"github.com/stupside/castor/cmd/castor/internal/tui"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 )
 
 // Device is the device the operator picks, preselecting the first one preselect accepts; ok is false when they quit without one.
 func Device(ctx context.Context, discover Discover, preselect func(*castorv1.Device) bool) (picked *castorv1.Device, ok bool, err error) {
-	// bubbletea's kill path races its input reader when started on a done context.
-	if err := ctx.Err(); err != nil {
-		return nil, false, err
-	}
-	final, err := tea.NewProgram(newModel(ctx, discover, preselect), tea.WithContext(ctx)).Run()
+	final, err := tui.Run(ctx, newModel(ctx, discover, preselect))
 	if err != nil {
 		return nil, false, err
 	}
