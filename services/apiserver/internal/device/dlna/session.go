@@ -146,7 +146,7 @@ func retryTransportLocked(ctx context.Context, do func() error) error {
 	var err error
 	for attempt := range transportLockedRetries {
 		err = do()
-		if !isTransportLocked(err) {
+		if !upnpError(err, transportLocked) {
 			return err
 		}
 		slog.DebugContext(ctx, "transport locked, retrying action", "attempt", attempt+1)
@@ -164,8 +164,6 @@ const (
 	transitionUnavailable = 701
 	transportLocked       = 705
 )
-
-func isTransportLocked(err error) bool { return upnpError(err, transportLocked) }
 
 func upnpError(err error, code int) bool {
 	fault, ok := errors.AsType[*soap.SOAPFaultError](err)
