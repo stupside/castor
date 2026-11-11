@@ -406,7 +406,7 @@ func programHead(t *testing.T, ffmpegPath string) []byte {
 func servingAttempt(t *testing.T, ffmpegPath string) *preparation {
 	t.Helper()
 	s := testPreparation(t.Context(),
-		Cast{FFmpegPath: ffmpegPath, Encoders: ffmpeg.Encoders(ffmpegPath), InputArgs: formats.InputArgs, Outputs: testOutputs(), Publisher: loopback{}, Timelines: direct{}},
+		Cast{FFmpegPath: ffmpegPath, Encoders: ffmpeg.Encoders(ffmpegPath, nil), InputArgs: formats.InputArgs, Outputs: testOutputs(), Publisher: loopback{}, Timelines: direct{}},
 		recovery.Attempt{})
 	t.Cleanup(func() { _ = s.releases.release() })
 	return s

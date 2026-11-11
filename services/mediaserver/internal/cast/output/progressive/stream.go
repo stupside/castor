@@ -268,15 +268,7 @@ func (s *Stream) resume(rangeHeader string) (served, string) {
 	total, final := s.snapshot()
 	switch {
 	case !final:
-		if start >= total {
-			return served{code: http.StatusRequestedRangeNotSatisfiable, total: -1}, ""
-		}
-		// These bytes are immutable even though the final length is not known.
-		// Byte-zero open requests above still follow production instead of ending at this snapshot.
-		if end < 0 || end >= total {
-			end = total - 1
-		}
-		return served{code: http.StatusPartialContent, start: start, end: end, total: -1}, ""
+		return refuse("the producer is still running, and a player takes a 206 ending at the bytes made so far for the stream's end")
 	case start >= total:
 		return served{code: http.StatusRequestedRangeNotSatisfiable, total: total}, ""
 	case end >= 0:
@@ -434,12 +426,6 @@ func nptSeconds(d time.Duration) string { return strconv.FormatFloat(d.Seconds()
 
 func (s *Stream) admit(ctx context.Context, w http.ResponseWriter, r *http.Request) (served, bool) {
 	asked := r.Header.Get("Range")
-	if err := s.waitForRange(ctx, asked); err != nil {
-		if ctx.Err() == nil {
-			http.Error(w, "stream unavailable at the requested position", http.StatusServiceUnavailable)
-		}
-		return served{}, false
-	}
 	sv, refused := s.resume(asked)
 	slog.InfoContext(ctx, "stream GET",
 		"from", r.RemoteAddr,
@@ -466,30 +452,6 @@ func (s *Stream) admit(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		return sv, false
 	}
 	return sv, true
-}
-
-// A finite stream retains all offsets. A seek beyond its prefix can wait for the
-// producer rather than silently replaying byte zero or claiming an invented length.
-func (s *Stream) waitForRange(ctx context.Context, header string) error {
-	start, end, ok := byteRange(header)
-	if !ok || start == 0 && end < 0 || s.rangesDeclined() || s.run.Load().spool.Live() {
-		return nil
-	}
-	if size, final := s.snapshot(); final || start < size {
-		return nil
-	}
-	tail, err := s.tailAt(ctx, start)
-	if err != nil {
-		return err
-	}
-	defer tail.Close()
-	var first [1]byte
-	_, err = io.ReadFull(tail, first[:])
-	if errors.Is(err, io.EOF) {
-		// Production ended before this offset: resume can now state the real 416 length.
-		return nil
-	}
-	return err
 }
 
 func (s *Stream) respond(w http.ResponseWriter, sv served) error {

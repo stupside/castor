@@ -27,6 +27,7 @@ const (
 	ServeInstead    Action = "serve-instead"
 	Stay            Action = "stay"
 	OptimizeLive    Action = "optimize-live"
+	SoftwareEncode  Action = "software-encode"
 )
 
 // strategy is one recovery action, applying only where the facts allow it.
@@ -76,8 +77,8 @@ func readable(ctx context.Context, in Intent, resolver SourceResolver, a Attempt
 			continue
 		}
 		a.candidate, a.Stream = i, link
-		// Packets the last link broke on do not condemn this one's.
-		a.Decode = media.Axes{}
+		// A new link keeps neither the last one's decode nor its fallbacks.
+		a.Decode, a.Software = media.Axes{}, false
 		a.OptimizedLive = false
 		return a.reading(resolved, in.Deadline), true
 	}
@@ -107,6 +108,19 @@ var decodeAxis = strategy{
 			return a, false
 		}
 		a.Decode = next
+		return a, true
+	},
+}
+
+// softwareEncode makes the picture again without hardware, where hardware made the encode that failed.
+var softwareEncode = strategy{
+	action: SoftwareEncode,
+	apply: func(_ context.Context, c change) (Attempt, bool) {
+		a := c.attempt
+		if a.Software || !c.outcome.Evidence.Hardware {
+			return a, false
+		}
+		a.Software = true
 		return a, true
 	},
 }

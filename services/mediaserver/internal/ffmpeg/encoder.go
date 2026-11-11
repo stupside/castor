@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"slices"
@@ -20,6 +21,22 @@ type Encoder struct {
 	InitArgs []string    // emitted before the input: hardware device setup
 	Filters  []string    // appended to the -vf chain: e.g. the GPU upload
 	Flags    []string    // encoder-specific -c:v flags: preset, pix_fmt, GOP
+
+	AverageRate      bool // honors -b:v alone: no VBV ceiling, no quality target
+	GOPKeyframes     bool // places keyframes by -g alone, ignoring forced ones
+	MediaCodecLevels bool // reads -level:v by MediaCodec's names: 4, 4.2, m4.1
+}
+
+// Level is level as e's -level:v reads it: MediaCodec's names drop ".0", and HEVC's name its main tier.
+func (e Encoder) Level(level string) string {
+	if !e.MediaCodecLevels {
+		return level
+	}
+	level = strings.TrimSuffix(level, ".0")
+	if e.Codec == media.CodecHEVC {
+		return "m" + level
+	}
+	return level
 }
 
 const vaapiRenderNode = "/dev/dri/renderD128"
@@ -30,6 +47,7 @@ var (
 	softwareFlags     = []string{"-preset", "veryfast", "-pix_fmt", "yuv420p"}
 	videotoolboxFlags = []string{"-pix_fmt", "yuv420p", "-g", "600"}
 	vaapiFilters      = []string{"format=nv12", "hwupload"}
+	mediacodecFlags   = []string{"-pix_fmt", "nv12", "-bitrate_mode", "vbr"}
 )
 
 var (
@@ -48,19 +66,37 @@ var (
 	h264AMF          = Encoder{Name: "h264_amf", Codec: media.CodecH264, Hardware: true, Flags: []string{"-quality", "speed", "-pix_fmt", "nv12"}}
 	hevcAMF          = Encoder{Name: "hevc_amf", Codec: media.CodecHEVC, Hardware: true, Flags: []string{"-quality", "speed", "-pix_fmt", "nv12"}}
 
+	h264MediaCodec = Encoder{Name: "h264_mediacodec", Codec: media.CodecH264, Hardware: true, Flags: mediacodecFlags, AverageRate: true, GOPKeyframes: true, MediaCodecLevels: true}
+	hevcMediaCodec = Encoder{Name: "hevc_mediacodec", Codec: media.CodecHEVC, Hardware: true, Flags: mediacodecFlags, AverageRate: true, GOPKeyframes: true, MediaCodecLevels: true}
+
 	h264VAAPI = vaapiEncoder("h264_vaapi", media.CodecH264, vaapiRenderNode)
 	hevcVAAPI = vaapiEncoder("hevc_vaapi", media.CodecHEVC, vaapiRenderNode)
 )
 
-// encoders is every encoder castor knows, grouped by codec, hardware before software.
+// encoders is every encoder castor tries on its own, grouped by codec, hardware before software.
 var encoders = []Encoder{
 	h264VideoToolbox, h264NVENC, h264QSV, h264VAAPI, h264AMF, libx264,
 	hevcVideoToolbox, hevcNVENC, hevcQSV, hevcVAAPI, hevcAMF, libx265,
 }
 
-// candidates is encoders plus VA-API on every other render node this host has.
-func candidates() []Encoder {
-	out := slices.Clone(encoders)
+// known is every encoder castor knows: those it tries on its own, and MediaCodec, which it does not probe; the Android host declares the ones its phone backs with hardware.
+var known = slices.Concat(encoders, []Encoder{h264MediaCodec, hevcMediaCodec})
+
+// Declared is a hardware encoder the host says its ffmpeg has, configured by its name and tried first.
+type Declared Encoder
+
+func (d *Declared) UnmarshalText(name []byte) error {
+	i := slices.IndexFunc(known, func(e Encoder) bool { return e.Hardware && e.Name == string(name) })
+	if i < 0 {
+		return fmt.Errorf("%q is not a hardware encoder castor knows", name)
+	}
+	*d = Declared(known[i])
+	return nil
+}
+
+// candidates is the declared encoders, then encoders plus VA-API on every other render node this host has.
+func candidates(declared []Encoder) []Encoder {
+	out := slices.Concat(declared, encoders)
 	nodes, _ := filepath.Glob("/dev/dri/renderD*")
 	for _, node := range nodes {
 		if node == vaapiRenderNode {
@@ -80,14 +116,18 @@ func vaapiEncoder(name string, codec media.Codec, node string) Encoder {
 	}
 }
 
-// Encoders is the best working encoder per codec on ffmpegPath, hardware first; each encoder is proven once by the value it returns.
-func Encoders(ffmpegPath string) func(context.Context, media.Codec) (Encoder, bool) {
+// Encoders is the best working encoder per codec on ffmpegPath, declared ones first and hardware first unless software; each is proven once.
+func Encoders(ffmpegPath string, declared []Declared) func(ctx context.Context, codec media.Codec, software bool) (Encoder, bool) {
 	proven := &provenEncoders{ffmpegPath: ffmpegPath, slots: map[string]*proof{}}
+	for _, d := range declared {
+		proven.declared = append(proven.declared, Encoder(d))
+	}
 	return proven.best
 }
 
 type provenEncoders struct {
 	ffmpegPath string
+	declared   []Encoder
 
 	mu    sync.Mutex
 	slots map[string]*proof
@@ -100,9 +140,13 @@ type proof struct {
 	works  bool
 }
 
-func (p *provenEncoders) best(ctx context.Context, codec media.Codec) (Encoder, bool) {
-	all := candidates()
-	for _, hardware := range []bool{true, false} {
+func (p *provenEncoders) best(ctx context.Context, codec media.Codec, software bool) (Encoder, bool) {
+	all := candidates(p.declared)
+	passes := []bool{true, false}
+	if software {
+		passes = passes[1:]
+	}
+	for _, hardware := range passes {
 		for _, e := range all {
 			if e.Codec != codec || e.Hardware != hardware {
 				continue

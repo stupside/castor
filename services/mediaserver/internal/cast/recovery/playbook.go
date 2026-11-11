@@ -34,6 +34,9 @@ var playbook = map[kind][]strategy{
 	// The delivery lost the artifact, not the reader, so decoding would answer nothing.
 	producedNothing: {switchCandidate},
 
+	// Hardware first: it is what real input most often breaks.
+	encodeFailed: {softwareEncode, switchCandidate},
+
 	// A cast that played well is moved back toward the link that outranks it, and resumes where it was when none can be read.
 	outranked: {climb, stay},
 }
@@ -47,14 +50,14 @@ type revision struct {
 
 // revise is the first strategy in the playbook that offers an attempt not run yet.
 func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, resolver SourceResolver) revision {
-	if !revisable(o) {
+	if !revisable(o, f.kind) {
 		return revision{}
 	}
 
 	pos := f.resumeAt()
 	facts := change{intent: in, attempt: f.attempt, outcome: o, resolver: resolver}
 	for _, s := range playbook[f.kind] {
-		if in.PreserveSource && s.action != RelaxRead && s.action != ServeInstead && s.action != Stay && s.action != OptimizeLive {
+		if in.PreserveSource && !keepsSource(s.action, f.attempt) {
 			continue
 		}
 		next, ok := s.apply(ctx, facts)
@@ -73,6 +76,18 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 	return revision{}
 }
 
+// keepsSource is an action a cast that preserves its source may take: none of them chooses another source.
+// Once optimize-live has allowed the conversion, the encode it runs may be made again in software.
+func keepsSource(action Action, a Attempt) bool {
+	switch action {
+	case RelaxRead, ServeInstead, Stay, OptimizeLive:
+		return true
+	case SoftwareEncode:
+		return a.OptimizedLive
+	}
+	return false
+}
+
 // resumeAt is where the viewer got to: a cast that played is taken up there.
 func (f *fault) resumeAt() time.Duration {
 	switch {
@@ -80,7 +95,8 @@ func (f *fault) resumeAt() time.Duration {
 		// A live program has no position to go back to, only its edge.
 		return 0
 	case f.evidence.Reached >= health.Playing:
-		return f.evidence.Began + f.evidence.Vitals.Reached()
+		at, _ := f.evidence.Vitals.Reached()
+		return f.evidence.Began + at
 	}
 	return f.attempt.Program.Start
 }
@@ -95,17 +111,18 @@ func fallBack(left *Attempt, f *fault, led *ledger) revision {
 	return revision{attempt: back, action: SwitchCandidate, offered: led.admit(back)}
 }
 
-// revisable is an attempt that failed before playing and can change; once playing, only one that can resume where it got to.
-func revisable(o Outcome) bool {
+// revisable is an attempt that failed before playing and can change; once playing, one whose kind resumes from a known place.
+func revisable(o Outcome, k kind) bool {
 	if o.Evidence.Reached >= health.Playing {
-		switch o.Evidence.Verdict {
-		case health.Starved, health.Stalled, health.Outranked:
-			return true
+		_, placed := o.Evidence.Vitals.Reached()
+		switch k {
+		case starved, sourceStalled, outranked, encodeFailed:
+			return placed
 		}
 		return false
 	}
 	if judged, ok := errors.AsType[*health.Fault](o.Err); ok {
 		return judged.Revise
 	}
-	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil || errors.Is(o.Err, media.ErrNativeIncompatible)
+	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil || o.Evidence.EncodeErr != nil || errors.Is(o.Err, media.ErrNativeIncompatible)
 }

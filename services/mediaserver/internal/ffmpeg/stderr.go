@@ -19,6 +19,9 @@ type Evidence struct {
 	// ExitStatus is the process exit code (noExitStatus = not reaped or castor killed it).
 	ExitStatus int
 
+	// Signaled is a signal castor did not send ending it; ffmpeg's own exit codes pass 128 too.
+	Signaled bool
+
 	// Lines are the most recent complaints on stderr (warning and worse), kept even while the process runs.
 	Lines []string
 }
@@ -34,6 +37,7 @@ func isComplaint(line string) bool {
 func (p *Process) Evidence() Evidence {
 	return Evidence{
 		ExitStatus: int(p.status.Load()),
+		Signaled:   p.signaled.Load(),
 		Lines:      p.tail.snapshot(),
 	}
 }

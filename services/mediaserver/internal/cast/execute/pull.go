@@ -240,6 +240,9 @@ func (p *pull) tail() *pull {
 // Done is closed once the read that speaks for this one has finished, cleanly or not, and its spool's write side with it.
 func (p *pull) Done() <-chan struct{} { return p.tail().done }
 
+// Fed is never a read's: castor holds none of its input.
+func (p *pull) Fed() bool { return false }
+
 func (p *pull) Err() error {
 	t := p.tail()
 	select {

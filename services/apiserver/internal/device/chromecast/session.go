@@ -61,15 +61,15 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 		Type: msgLoad, Autoplay: true,
 		Media: mediaItem{MediaItem: castmedia.MediaItem{ContentId: stream, ContentType: device.MIME(playback.Container()), StreamType: "BUFFERED", Duration: float32(playback.Duration().Seconds())}},
 	}
-	if playback.Play.GetPlaylist() != nil {
-		load.Media.HLSSegmentFormat = "fmp4"
-		load.Media.HLSVideoSegmentFormat = "fmp4"
-	}
 	load.Media.Metadata = castmedia.MediaMetadata{Title: info.GetTitle(), Subtitle: info.GetSynopsis(), ReleaseDate: info.GetReleaseDate()}
 	if imageURL := info.GetImageUrl(); imageURL != "" {
 		load.Media.Metadata.Images = []castmedia.Image{{URL: imageURL}}
 	}
 	load.Media.Tracks, load.ActiveTrackIds = textTracks(playback.Play.GetCaptions())
+	if playback.Play.GetPlaylist().GetSegments() == mediav1.Container_CONTAINER_MP4 {
+		// The receiver's HLS player takes segments for MPEG-TS unless told otherwise.
+		load.Media.HLSSegmentFormat, load.Media.HLSVideoSegmentFormat = "fmp4", "fmp4"
+	}
 	reply, err := s.ch.request(ctx, transport, nsMedia, load)
 	if err == nil {
 		err = loadVerdict(reply, stream)
@@ -81,6 +81,8 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 		s.watchMu.Lock()
 		// A Play begun since owns the watch now; this one's failure is not its to clear.
 		if s.ending == mine {
+			// The receiver's code belongs to this Play only while it still owns the watch.
+			err = s.watch.named(err)
 			s.watch.disarm()
 		}
 		s.watchMu.Unlock()

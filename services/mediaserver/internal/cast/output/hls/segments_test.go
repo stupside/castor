@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -70,6 +71,29 @@ func TestServedCountsOnlyMediaHandedOver(t *testing.T) {
 				}
 				if got := resp.Header.Get("transferMode.dlna.org"); got != "Streaming" {
 					t.Errorf("transferMode.dlna.org = %q, want the device's header", got)
+				}
+			})
+		})
+	}
+}
+
+func TestAWebReceiverMayReadThePlaylistAndItsSegments(t *testing.T) {
+	dir := t.TempDir()
+	for name, content := range map[string]string{"stream.m3u8": "#EXTM3U\n#EXTINF:4,\nseg_00001.m4s\n", "seg_00001.m4s": "\x00\x00\x00\x18moof"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, path := range []string{"/stream.m3u8", "/seg_00001.m4s"} {
+		t.Run(path, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				srv, _ := serving(t, dir, testOpening{})
+				resp, err := request(t.Context(), srv, http.MethodGet, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+					t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
 				}
 			})
 		})
@@ -298,5 +322,152 @@ func TestProducerCancellationKeepsPublishedSegmentsAvailable(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("retained segment returned %d after producer cancellation", resp.StatusCode)
+	}
+}
+
+// traceEntry is one record a traceSink was handed.
+type traceEntry struct {
+	message string
+	level   slog.Level
+	attrs   map[string]any
+}
+
+// traceSink keeps every record it is handed, so a test can read what was logged.
+type traceSink struct {
+	mu      sync.Mutex
+	entries []traceEntry
+}
+
+func (s *traceSink) Enabled(context.Context, slog.Level) bool { return true }
+
+func (s *traceSink) Handle(_ context.Context, record slog.Record) error {
+	attrs := map[string]any{}
+	record.Attrs(func(a slog.Attr) bool {
+		attrs[a.Key] = a.Value.Any()
+		return true
+	})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, traceEntry{message: record.Message, level: record.Level, attrs: attrs})
+	return nil
+}
+
+func (s *traceSink) WithAttrs([]slog.Attr) slog.Handler { return s }
+
+func (s *traceSink) WithGroup(string) slog.Handler { return s }
+
+// Every request a receiver makes is traced at debug level, a 404 included.
+func TestEveryReceiverRequestIsTracedAtDebugLevel(t *testing.T) {
+	const playlist = "#EXTM3U\n#EXTINF:4,\nseg_00001.m4s\n"
+	const segment = "\x00\x00\x00\x18moof"
+	dir := t.TempDir()
+	for name, content := range map[string]string{"stream.m3u8": playlist, "seg_00001.m4s": segment} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sink := &traceSink{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(sink))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	synctest.Test(t, func(t *testing.T) {
+		srv, _ := serving(t, dir, testOpening{})
+		for _, path := range []string{"/stream.m3u8", "/seg_00001.m4s", "/seg_00009.m4s"} {
+			if _, err := request(t.Context(), srv, http.MethodGet, path); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The handler logs after its answer is written, so let it finish before reading the sink.
+		synctest.Wait()
+	})
+
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	var traced []traceEntry
+	for _, entry := range sink.entries {
+		if entry.message == "receiver asked the HLS output" {
+			traced = append(traced, entry)
+		}
+	}
+	if len(traced) != 3 {
+		t.Fatalf("traced %d receiver requests, want 3", len(traced))
+	}
+	wants := []struct {
+		path   string
+		status int64
+	}{
+		{"/stream.m3u8", 200},
+		{"/seg_00001.m4s", 200},
+		{"/seg_00009.m4s", 404},
+	}
+	for i, want := range wants {
+		entry := traced[i]
+		if entry.level != slog.LevelDebug {
+			t.Errorf("request %d logged at %v, want %v", i, entry.level, slog.LevelDebug)
+		}
+		if got := entry.attrs["path"]; got != want.path {
+			t.Errorf("request %d path = %v, want %s", i, got, want.path)
+		}
+		if got := entry.attrs["status"]; got != want.status {
+			t.Errorf("request %d status = %v, want %d", i, got, want.status)
+		}
+	}
+	if got := traced[0].attrs["bytes"]; got != int64(len(playlist)) {
+		t.Errorf("playlist bytes = %v, want %d", got, len(playlist))
+	}
+	if got := traced[1].attrs["bytes"]; got != int64(len(segment)) {
+		t.Errorf("segment bytes = %v, want %d", got, len(segment))
+	}
+}
+
+// A rolling playlist is handed over once a live player can start behind its edge; a retained event at its first fragment.
+func TestARollingPlaylistLandsOnceALivePlayerCanStartBehindItsEdge(t *testing.T) {
+	playlist := func(fragments int, ended bool) string {
+		body := "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-MAP:URI=\"init.mp4\"\n"
+		for i := range fragments {
+			body += fmt.Sprintf("#EXTINF:4.000000,\nseg_%05d.m4s\n", i)
+		}
+		if ended {
+			body += "#EXT-X-ENDLIST\n"
+		}
+		return body
+	}
+	for _, tt := range []struct {
+		name      string
+		runtime   time.Duration
+		fragments int
+		ended     bool
+		lands     bool
+	}{
+		{name: "a rolling playlist with no file yet has not landed", fragments: -1},
+		{name: "a rolling playlist of one fragment is held back", fragments: 1},
+		{name: "a rolling playlist of two fragments is held back", fragments: 2},
+		{name: "a rolling playlist of three fragments lands", fragments: 3, lands: true},
+		{name: "a rolling playlist that ended short is whole", fragments: 1, ended: true, lands: true},
+		{name: "a retained event lands at its first fragment", runtime: time.Minute, fragments: 1, lands: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			o := output.Opening{Format: format()}
+			s, err := newSegments(o, dir, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = s.Close() })
+			s.runtime = tt.runtime
+			if tt.fragments >= 0 {
+				if err := os.WriteFile(filepath.Join(dir, o.Format.Tuning.Output), []byte(playlist(tt.fragments, tt.ended)), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			size, err := s.Artifact().Landed()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if landed := size > 0; landed != tt.lands {
+				t.Fatalf("landed = %v (size %d), want %v", landed, size, tt.lands)
+			}
+		})
 	}
 }

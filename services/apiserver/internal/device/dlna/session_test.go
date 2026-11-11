@@ -132,12 +132,12 @@ func TestAPlayTimeoutNeedsConfirmationOfTheRequestedStream(t *testing.T) {
 func TestTheTransportStateEndsTheCastOnlyOncePlaybackBegan(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
-		states []string
+		states []transportState
 		want   bool
 	}{
-		{"stop before playback is ignored", []string{"STOPPED", "TRANSITIONING", "STOPPED"}, false},
-		{"stop after playing ends", []string{"PLAYING", "STOPPED"}, true},
-		{"pause remains active", []string{"PLAYING", "PAUSED_PLAYBACK"}, false},
+		{"stop before playback is ignored", []transportState{"STOPPED", "TRANSITIONING", "STOPPED"}, false},
+		{"stop after playing ends", []transportState{"PLAYING", "STOPPED"}, true},
+		{"pause remains active", []transportState{"PLAYING", "PAUSED_PLAYBACK"}, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var watch transportWatch
@@ -229,7 +229,7 @@ func TestADeviceThatStaysStoppedNeverPlayedTheStream(t *testing.T) {
 
 func TestADeviceBufferingBeforeItPlaysIsNotRefusing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		script := []string{"STOPPED", "STOPPED", "TRANSITIONING", "STOPPED", "PLAYING", "STOPPED"}
+		script := []transportState{"STOPPED", "STOPPED", "TRANSITIONING", "STOPPED", "PLAYING", "STOPPED"}
 		i := 0
 		poll := func(context.Context) (transportInfo, error) {
 			state := script[i]

@@ -56,7 +56,12 @@ func (s *Segments) Path() string {
 }
 func (s *Segments) Served() int { return int(s.served.Load()) }
 func (s *Segments) Artifact() output.Artifact {
-	return output.Artifact{Path: s.store.playlist, Subject: "the HLS playlist", Landed: s.store.landed}
+	landed := s.store.landed
+	// A retained event starts at its beginning and a caption rendition has its own readiness; only a rolling window is joined at its edge.
+	if s.runtime == 0 && s.store.captions == nil {
+		landed = s.store.rollingLanded
+	}
+	return output.Artifact{Path: s.store.playlist, Subject: "the HLS playlist", Landed: landed}
 }
 func (s *Segments) WatchStorage(ctx context.Context) error {
 	if s.runtime > 0 {

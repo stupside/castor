@@ -171,7 +171,7 @@ func TestCancellationJoinsHealthControlBeforeReleasingResources(t *testing.T) {
 			return nil
 		})
 		c.launch(healthEnded, func() error {
-			return observeHealth(c.ctx, health.Monitor{Phase: health.Playing, Holdable: true, Audience: fetchingAudience{}}, control, nil)
+			return observeHealth(c.ctx, health.Observe(health.Monitor{Phase: health.Playing, Holdable: true, Audience: fetchingAudience{}}), control, nil)
 		})
 		done := make(chan error, 1)
 		go func() { c.loop(); _, err := c.finish(); done <- err }()

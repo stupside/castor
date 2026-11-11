@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -49,7 +50,7 @@ func videoEncodeArgs(venc codec.VideoEncode) []string {
 		args = append(args, "-profile:v", venc.Profile)
 	}
 	if venc.Level != "" {
-		args = append(args, "-level:v", venc.Level)
+		args = append(args, "-level:v", venc.Encoder.Level(venc.Level))
 	}
 	if venc.ToneMap {
 		args = append(args, "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709")
@@ -57,19 +58,26 @@ func videoEncodeArgs(venc codec.VideoEncode) []string {
 	if venc.Bitrate > 0 {
 		args = append(args, "-b:v", venc.Bitrate.FFmpeg())
 	}
-	// A quality target rather than an average rate, which only the recovery floor asks for.
-	if venc.Quality > 0 {
-		args = append(args, "-crf", strconv.Itoa(venc.Quality))
-	}
-	// VBV cap: bound the instantaneous bitrate so the pacer's fixed send rate is a real ceiling.
-	if venc.Maxrate > 0 {
-		args = append(args, "-maxrate", venc.Maxrate.FFmpeg())
-	}
-	if venc.Bufsize > 0 {
-		args = append(args, "-bufsize", venc.Bufsize.FFmpeg())
+	if !venc.Encoder.AverageRate {
+		// A quality target rather than an average rate, which only the recovery floor asks for.
+		if venc.Quality > 0 {
+			args = append(args, "-crf", strconv.Itoa(venc.Quality))
+		}
+		// VBV cap: bound the instantaneous bitrate so the pacer's fixed send rate is a real ceiling.
+		if venc.Maxrate > 0 {
+			args = append(args, "-maxrate", venc.Maxrate.FFmpeg())
+		}
+		if venc.Bufsize > 0 {
+			args = append(args, "-bufsize", venc.Bufsize.FFmpeg())
+		}
 	}
 	if venc.KeyframeIntervalSec > 0 {
-		args = append(args, "-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", venc.KeyframeIntervalSec))
+		if venc.Encoder.GOPKeyframes {
+			// Only the GOP places its keyframes, so it spans the interval at the rate frames arrive.
+			args = append(args, "-g", strconv.Itoa(int(math.Round(float64(venc.KeyframeIntervalSec)*venc.FrameRate))))
+		} else {
+			args = append(args, "-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", venc.KeyframeIntervalSec))
+		}
 	}
 	return args
 }

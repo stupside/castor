@@ -9,11 +9,11 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-func hostEncoders(_ context.Context, codec media.Codec) (ffmpeg.Encoder, bool) {
-	switch codec {
-	case media.CodecHEVC:
+func hostEncoders(_ context.Context, codec media.Codec, software bool) (ffmpeg.Encoder, bool) {
+	switch {
+	case codec == media.CodecHEVC && !software:
 		return ffmpeg.Encoder{Name: "hevc_videotoolbox", Codec: media.CodecHEVC, Hardware: true}, true
-	case media.CodecH264:
+	case codec == media.CodecH264:
 		return ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264}, true
 	}
 	return ffmpeg.Encoder{}, false
@@ -183,4 +183,65 @@ func TestAThinRateIsSpentOnASmallerPicture(t *testing.T) {
 			t.Errorf("under %s: %dp at %v fps, want %dp at %v", tt.ceiling, v.MaxHeight, v.MaxFrameRate, tt.wantHeight, tt.wantFPS)
 		}
 	}
+}
+
+func TestAnAttemptInSoftwarePlansThePictureWithoutHardware(t *testing.T) {
+	both := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecHEVC}}, {Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}}}}
+	tall := media.ProbeInfo{VideoCodec: media.CodecH264, VideoHeight: 2160, VideoBitDepth: 8}
+	for _, tt := range []struct {
+		software bool
+		want     string
+	}{{false, "hevc_videotoolbox"}, {true, "libx264"}} {
+		in := Inputs{Caps: both, Probe: tall, Into: testFormat(t, media.MPEGTS), MaxHeight: 1080, Encoders: hostEncoders, Software: tt.software}
+		track, _, err := decideVideo(t.Context(), in, 0)
+		if err != nil {
+			t.Fatalf("decideVideo: %v", err)
+		}
+		if enc, _ := track.Encode(); enc.Encoder.Name != tt.want {
+			t.Errorf("software %t planned %q, want %q", tt.software, enc.Encoder.Name, tt.want)
+		}
+	}
+}
+
+func TestTheEncoderIsToldTheRateFramesReachItAt(t *testing.T) {
+	for _, tt := range []struct {
+		source, want float64
+	}{{23.976, 23.976}, {120, 60}, {0, 60}} {
+		in := Inputs{Caps: h264OnlyCaps(), Probe: media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 1080, VideoBitDepth: 8, VideoFrameRate: tt.source}, Into: testFormat(t, media.MPEGTS), MaxHeight: 1080, Encoders: hostEncoders}
+		track, _, err := decideVideo(t.Context(), in, 0)
+		if err != nil {
+			t.Fatalf("decideVideo: %v", err)
+		}
+		if enc, _ := track.Encode(); enc.FrameRate != tt.want {
+			t.Errorf("a %v fps source reaches the encoder at %v, want %v", tt.source, enc.FrameRate, tt.want)
+		}
+	}
+}
+
+func TestADeliveryCutOnTheClockIsNotEncodedByAGOPKeyedEncoder(t *testing.T) {
+	gopKeyed := func(_ context.Context, c media.Codec, software bool) (ffmpeg.Encoder, bool) {
+		if software {
+			return ffmpeg.Encoder{Name: "libx264", Codec: c}, true
+		}
+		return ffmpeg.Encoder{Name: "h264_mediacodec", Codec: c, Hardware: true, GOPKeyframes: true}, true
+	}
+	for _, tt := range []struct {
+		clock bool
+		want  string
+	}{{false, "h264_mediacodec"}, {true, "libx264"}} {
+		into := testFormat(t, media.MPEGTS)
+		into.ClockCuts = tt.clock
+		in := Inputs{Caps: h264OnlyCaps(), Probe: media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 1080, VideoBitDepth: 8}, Into: into, MaxHeight: 1080, Encoders: gopKeyed}
+		track, _, err := decideVideo(t.Context(), in, 0)
+		if err != nil {
+			t.Fatalf("decideVideo: %v", err)
+		}
+		if enc, _ := track.Encode(); enc.Encoder.Name != tt.want {
+			t.Errorf("clock cuts %t planned %q, want %q", tt.clock, enc.Encoder.Name, tt.want)
+		}
+	}
+}
+
+func h264OnlyCaps() media.Capabilities {
+	return media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMPEGTS, Video: media.VideoSupport{Codec: media.CodecH264}}}}
 }

@@ -31,8 +31,9 @@ const (
 	RecoveryAction_RECOVERY_ACTION_RELAX_READ       RecoveryAction = 3
 	RecoveryAction_RECOVERY_ACTION_SERVE_INSTEAD    RecoveryAction = 4
 	RecoveryAction_RECOVERY_ACTION_STAY             RecoveryAction = 5
+	RecoveryAction_RECOVERY_ACTION_SOFTWARE_ENCODE  RecoveryAction = 6
 	// Convert a live source only after native planning refuses it.
-	RecoveryAction_RECOVERY_ACTION_OPTIMIZE_LIVE RecoveryAction = 6
+	RecoveryAction_RECOVERY_ACTION_OPTIMIZE_LIVE RecoveryAction = 7
 )
 
 // Enum value maps for RecoveryAction.
@@ -44,7 +45,8 @@ var (
 		3: "RECOVERY_ACTION_RELAX_READ",
 		4: "RECOVERY_ACTION_SERVE_INSTEAD",
 		5: "RECOVERY_ACTION_STAY",
-		6: "RECOVERY_ACTION_OPTIMIZE_LIVE",
+		6: "RECOVERY_ACTION_SOFTWARE_ENCODE",
+		7: "RECOVERY_ACTION_OPTIMIZE_LIVE",
 	}
 	RecoveryAction_value = map[string]int32{
 		"RECOVERY_ACTION_UNSPECIFIED":      0,
@@ -53,7 +55,8 @@ var (
 		"RECOVERY_ACTION_RELAX_READ":       3,
 		"RECOVERY_ACTION_SERVE_INSTEAD":    4,
 		"RECOVERY_ACTION_STAY":             5,
-		"RECOVERY_ACTION_OPTIMIZE_LIVE":    6,
+		"RECOVERY_ACTION_SOFTWARE_ENCODE":  6,
+		"RECOVERY_ACTION_OPTIMIZE_LIVE":    7,
 	}
 )
 
@@ -145,15 +148,16 @@ const file_castor_v1_revision_proto_rawDesc = "" +
 	"\bRevision\x12=\n" +
 	"\x06action\x18\x01 \x01(\x0e2\x19.castor.v1.RecoveryActionB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x06action\x12\x19\n" +
-	"\x03why\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03why*\xf8\x01\n" +
+	"\x03why\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03why*\x9d\x02\n" +
 	"\x0eRecoveryAction\x12\x1f\n" +
 	"\x1bRECOVERY_ACTION_UNSPECIFIED\x10\x00\x12$\n" +
 	" RECOVERY_ACTION_SWITCH_CANDIDATE\x10\x01\x12\x1f\n" +
 	"\x1bRECOVERY_ACTION_DECODE_AXIS\x10\x02\x12\x1e\n" +
 	"\x1aRECOVERY_ACTION_RELAX_READ\x10\x03\x12!\n" +
 	"\x1dRECOVERY_ACTION_SERVE_INSTEAD\x10\x04\x12\x18\n" +
-	"\x14RECOVERY_ACTION_STAY\x10\x05\x12!\n" +
-	"\x1dRECOVERY_ACTION_OPTIMIZE_LIVE\x10\x06B\x96\x01\n" +
+	"\x14RECOVERY_ACTION_STAY\x10\x05\x12#\n" +
+	"\x1fRECOVERY_ACTION_SOFTWARE_ENCODE\x10\x06\x12!\n" +
+	"\x1dRECOVERY_ACTION_OPTIMIZE_LIVE\x10\aB\x96\x01\n" +
 	"\rcom.castor.v1B\rRevisionProtoP\x01Z1github.com/stupside/castor/gen/castor/v1;castorv1\xa2\x02\x03CXX\xaa\x02\tCastor.V1\xca\x02\tCastor\\V1\xe2\x02\x15Castor\\V1\\GPBMetadata\xea\x02\n" +
 	"Castor::V1b\x06proto3"
 

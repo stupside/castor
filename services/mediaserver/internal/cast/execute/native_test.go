@@ -64,7 +64,7 @@ func TestNativeLiveFallbackProducesPlayableMediaThroughBothReadPaths(t *testing.
 			dev := &fakeDevice{caps: chromecastLike(media.MP4), drain: true}
 			dev.caps.SelfFetch = selfFetch
 			cast := realCast(dev, ffmpegPath, ffprobePath)
-			cast.Encoders = func(_ context.Context, codec media.Codec) (ffmpeg.Encoder, bool) {
+			cast.Encoders = func(_ context.Context, codec media.Codec, _ bool) (ffmpeg.Encoder, bool) {
 				return ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264}, codec == media.CodecH264
 			}
 			cast.PreserveSource = true

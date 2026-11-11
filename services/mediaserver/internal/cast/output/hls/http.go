@@ -3,6 +3,7 @@ package hls
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"path"
 	"regexp"
@@ -19,6 +20,11 @@ func (s *Segments) Handler() http.Handler {
 	files := http.FileServerFS(s.store.root.FS())
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", s.o.Answering(func(w *output.Answer, r *http.Request) {
+		output.AllowWebReceivers(w.Header())
+		// The path is the artifact's path inside this output, not the device-facing URL.
+		defer func() {
+			slog.DebugContext(r.Context(), "receiver asked the HLS output", "method", r.Method, "path", r.URL.Path, "status", w.Status, "bytes", w.Bytes)
+		}()
 		s.mu.Lock()
 		s.lastRequest = time.Now()
 		s.mu.Unlock()

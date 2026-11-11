@@ -6,8 +6,6 @@ import (
 	"net"
 	"strings"
 	"time"
-
-	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
 const (
@@ -16,11 +14,19 @@ const (
 	searchTimeout = 3 * time.Second
 )
 
-// searchDescription: unicast M-SEARCH for description (no interface enumeration).
-func searchDescription(ctx context.Context, host string) (string, error) {
+// ssdpTarget is address on SSDP's own port; a typed port is the device's HTTP server.
+func ssdpTarget(address string) string {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		host = address
+	}
+	return net.JoinHostPort(host, ssdpPort)
+}
+
+// searchDescription: unicast M-SEARCH of target for description (no interface enumeration).
+func searchDescription(ctx context.Context, target string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, searchTimeout)
 	defer cancel()
-	target := device.WithPort(host, ssdpPort)
 
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "udp", target)

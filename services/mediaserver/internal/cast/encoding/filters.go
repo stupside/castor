@@ -19,21 +19,10 @@ func scaleFilter(maxHeight media.HeightCap) string {
 	return fmt.Sprintf("scale=-2:'min(%d,max(2,trunc(ih/2)*2))'", evenCap)
 }
 
-// toneMapFilter bounds the picture in the first color conversion. Expanding an entire 4K
-// frame to floating-point RGB and tone-mapping it before an HD downscale wastes most of
-// the work, and can starve a live encode even when its source arrives fast enough.
-func toneMapFilter(venc codec.VideoEncode) string {
-	var size string
-	if venc.MaxWidth > 0 && venc.MaxHeight > 0 {
-		ratio := fmt.Sprintf("min(1,min(%d/iw,%d/ih))", venc.MaxWidth, int(venc.MaxHeight)&^1)
-		size = fmt.Sprintf("w='max(2,trunc((iw*%s+0.5)/2)*2)':h='max(2,trunc((ih*%s+0.5)/2)*2)':", ratio, ratio)
-	} else if venc.MaxHeight > 0 {
-		size = fmt.Sprintf("w=-2:h='min(%d,max(2,trunc(ih/2)*2))':", int(venc.MaxHeight)&^1)
-	}
-	return "zscale=" + size + "t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
-}
+// toneMap maps a PQ or HLG picture to BT.709 SDR in linear light.
+const toneMap = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
 
-// videoFilters is a re-encode's -vf chain, in the order the frames pass through it.
+// videoFilters is a re-encode's -vf chain in frame order, shrinking frames before the float RGB tone map.
 func videoFilters(venc codec.VideoEncode) []string {
 	var filters []string
 	if venc.Deinterlace {
@@ -42,12 +31,13 @@ func videoFilters(venc codec.VideoEncode) []string {
 	if venc.MaxFrameRate > 0 {
 		filters = append(filters, fmt.Sprintf("fps='min(source_fps,%s)'", strconv.FormatFloat(venc.MaxFrameRate, 'f', -1, 64)))
 	}
-	if venc.ToneMap {
-		filters = append(filters, toneMapFilter(venc))
-	} else if venc.MaxWidth > 0 && venc.MaxHeight > 0 {
+	if venc.MaxWidth > 0 && venc.MaxHeight > 0 {
 		filters = append(filters, fmt.Sprintf("scale=w='min(iw,%d)':h='min(ih,%d)':force_original_aspect_ratio=decrease:force_divisible_by=2", venc.MaxWidth, int(venc.MaxHeight)&^1))
 	} else if f := scaleFilter(venc.MaxHeight); f != "" {
 		filters = append(filters, f)
+	}
+	if venc.ToneMap {
+		filters = append(filters, toneMap)
 	}
 	if venc.SubtitleTextFile != "" {
 		filters = append(filters, drawtextFilter(venc.SubtitleTextFile))

@@ -49,6 +49,7 @@ func (s *preparation) read(work string, program media.Program) (*buffered, error
 		PreserveSource: s.PreserveSource,
 		Spliced:        program.Seamed(),
 		Encoders:       s.Encoders,
+		Software:       s.attempt.Software,
 	})
 	if err != nil {
 		stop()

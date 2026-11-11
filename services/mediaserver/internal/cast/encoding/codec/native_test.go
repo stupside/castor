@@ -18,7 +18,7 @@ func originalInput(t *testing.T) Inputs {
 		Caps: media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMPEGTS,
 			Video: media.VideoSupport{Codec: media.CodecH264}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}}}},
 		Into: testFormat(t, media.MPEGTS),
-		Encoders: func(context.Context, media.Codec) (ffmpeg.Encoder, bool) {
+		Encoders: func(context.Context, media.Codec, bool) (ffmpeg.Encoder, bool) {
 			t.Fatal("a native cast must never ask for an encoder")
 			return ffmpeg.Encoder{}, false
 		},
@@ -49,7 +49,7 @@ func TestNativeTrialDefersUnverifiedHEVCHDRAudioSupportToTheReceiver(t *testing.
 		t.Fatal("a playback trial must not claim the unverified decoder is supported")
 	}
 	in.PreserveSource = false
-	in.Encoders = func(context.Context, media.Codec) (ffmpeg.Encoder, bool) {
+	in.Encoders = func(context.Context, media.Codec, bool) (ffmpeg.Encoder, bool) {
 		return ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264}, true
 	}
 	optimized, err := Served(t.Context(), in)

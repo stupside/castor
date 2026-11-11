@@ -26,6 +26,9 @@ type Monitor struct {
 	// Served maps the bytes the device took to media (nil where unmeasured).
 	Served Telemetry
 
+	// Fed is castor waiting on Served's output with input for it; nil where castor feeds nothing.
+	Fed func() bool
+
 	Playhead Playhead
 
 	// Holdable says whether the attempt can pause this playback.

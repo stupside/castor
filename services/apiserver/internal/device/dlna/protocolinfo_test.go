@@ -9,6 +9,8 @@ import (
 
 	"buf.build/go/protovalidate"
 	"github.com/huin/goupnp"
+	"google.golang.org/protobuf/proto"
+
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 )
 
@@ -88,7 +90,7 @@ func TestParseSinkProtocolInfo(t *testing.T) {
 	}
 }
 
-// lgC2Sink is the video part of an LG OLED42C24LA's GetProtocolInfo answer: codecs only for a CIF baseline MP4.
+// lgC2Sink is an LG OLED42C24LA's video sink; only its CIF baseline MP4 row names codecs.
 const lgC2Sink = "http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_BL_CIF15_AAC_520,http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=MPEG_TS_HD_KO," +
 	"http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_NA_T,http-get:*:video/x-ms-wmv:*,http-get:*:video/mpeg:*," +
 	"http-get:*:video/mp4:*,http-get:*:video/x-matroska:*,http-get:*:video/mp2t:*,http-get:*:video/x-msvideo:*"
@@ -104,6 +106,8 @@ func TestContainersListedWithoutAProfileLeaveNativeTracksToTheRenderer(t *testin
 	}
 	if want := []mediav1.ProgressiveSupport_Container{
 		mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
+		mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
+		mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
 		mediav1.ProgressiveSupport_CONTAINER_MP4,
 		mediav1.ProgressiveSupport_CONTAINER_MP4,
 		mediav1.ProgressiveSupport_CONTAINER_MKV,
@@ -116,6 +120,54 @@ func TestContainersListedWithoutAProfileLeaveNativeTracksToTheRenderer(t *testin
 	// A profile naming codecs still stands on its own, without trial.
 	if profiled, _ := parseSinkProtocolInfo("http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_MP_HD_AAC"); profiled.GetNativePlaybackTrial() {
 		t.Fatal("a profile naming its codecs is not a trial")
+	}
+}
+
+func TestAContainerNamedWithoutAProfilePlaysTheFamilyDefault(t *testing.T) {
+	caps, sinks := parseSinkProtocolInfo(lgC2Sink)
+	fallback, _ := fallbackCaps()
+	if !slices.ContainsFunc(caps.Formats, func(f *mediav1.FormatSupport) bool { return proto.Equal(f, fallback.Formats[0]) }) {
+		t.Fatalf("formats %v, want the MPEG-TS family default %v among them", caps.Formats, fallback.Formats[0])
+	}
+	if !slices.ContainsFunc(caps.Formats, func(f *mediav1.FormatSupport) bool {
+		return f.GetProgressive().GetContainer() == mediav1.ProgressiveSupport_CONTAINER_MP4 &&
+			slices.Contains(f.GetAv().GetVideo().GetH264().GetProfiles(), mediav1.H264Support_PROFILE_HIGH)
+	}) {
+		t.Errorf("formats %v: a profile-less MP4 row must admit High H.264, not only the CIF baseline profile", caps.Formats)
+	}
+	// The stream must not claim the CIF profile.
+	if got := sinks[mediav1.Container_CONTAINER_MP4]; got.features != "*" {
+		t.Errorf("MP4 sink entry = %+v, want no DLNA profile", got)
+	}
+	if got := sinks[mediav1.Container_CONTAINER_MPEGTS]; got != (sinkEntry{mime: "video/mp2t", features: "*"}) {
+		t.Errorf("MPEG-TS sink entry = %+v, want the renderer's own profile-less row", got)
+	}
+}
+
+func TestAnSCTEProfileAdmitsEverySoundItsStandardDoes(t *testing.T) {
+	caps, _ := parseSinkProtocolInfo(lgC2Sink)
+	var sounds []mediav1.AudioCodec
+	for _, f := range caps.Formats {
+		if f.GetProgressive().GetContainer() == mediav1.ProgressiveSupport_CONTAINER_MPEGTS && f.GetAv().GetVideo().GetH264() != nil {
+			sounds = append(sounds, f.GetAv().GetAudio().GetCodec())
+		}
+	}
+	for _, want := range []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AC3, mediav1.AudioCodec_AUDIO_CODEC_EAC3, mediav1.AudioCodec_AUDIO_CODEC_AAC} {
+		if !slices.Contains(sounds, want) {
+			t.Errorf("H.264 in MPEG-TS plays %v, want %v too: the C2 names AVC_TS_NA_T", sounds, want)
+		}
+	}
+}
+
+func TestOnlyCastorsOwnContainerWithoutAProfileImpliesTheDefault(t *testing.T) {
+	for name, sink := range map[string]string{
+		"a profile naming another codec":   "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=MPEG_TS_HD_KO",
+		"192-byte timestamped MPEG-TS":     "http-get:*:video/vnd.dlna.mpeg-tts:*",
+		"a container castor does not make": "http-get:*:video/x-msvideo:*",
+	} {
+		if got, _ := parseSinkProtocolInfo(sink); len(got.Formats) != 0 {
+			t.Errorf("%s yielded %v, want nothing castor makes", name, got.Formats)
+		}
 	}
 }
 
