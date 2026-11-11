@@ -41,14 +41,15 @@ func (s *preparation) read(work string, program media.Program) (*buffered, error
 	}
 
 	floor, err := codec.Floor(ctx, codec.Inputs{
-		Probe:     facts.probe,
-		Measured:  facts.measured,
-		Into:      encoding.SpoolFormat,
-		Decode:    s.attempt.Decode,
-		MaxHeight: s.MaxHeight,
-		Spliced:   program.Seamed(),
-		Encoders:  s.Encoders,
-		Software:  s.attempt.Software,
+		Probe:          facts.probe,
+		Measured:       facts.measured,
+		Into:           encoding.SpoolFormat,
+		Decode:         s.attempt.Decode,
+		MaxHeight:      s.MaxHeight,
+		PreserveSource: s.PreserveSource,
+		Spliced:        program.Seamed(),
+		Encoders:       s.Encoders,
+		Software:       s.attempt.Software,
 	})
 	if err != nil {
 		stop()

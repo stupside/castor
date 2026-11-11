@@ -4,6 +4,7 @@ package codec
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -21,6 +22,8 @@ type Inputs struct {
 	Caps     media.Capabilities
 	Probe    media.ProbeInfo
 	Measured bool
+	// PreserveSource permits stream copies only, including the read-once buffer.
+	PreserveSource bool
 	// Into is the container this encode writes.
 	Into      container.Format
 	Decode    media.Axes
@@ -62,7 +65,12 @@ func (p Plan) Copied() media.Axes {
 }
 
 // Served plans the encode a device is served, from its capabilities, track by track.
-func Served(ctx context.Context, in Inputs) (Plan, error) {
+func Served(ctx context.Context, in Inputs) (result Plan, err error) {
+	defer func() {
+		if in.PreserveSource && err != nil && !errors.Is(err, media.ErrNativeIncompatible) {
+			err = fmt.Errorf("%w: %w", media.ErrNativeIncompatible, err)
+		}
+	}()
 	if len(in.Caps.Formats) > 0 {
 		var best Plan
 		var bestStanding standing
@@ -99,6 +107,9 @@ func Served(ctx context.Context, in Inputs) (Plan, error) {
 
 // servedTracks plans the sound first, so the picture is proven and given its budget against the cast that sound makes.
 func servedTracks(ctx context.Context, in Inputs) (Plan, error) {
+	if in.PreserveSource {
+		return originalTracks(in, videoRefusals, audioRefusals)
+	}
 	audio, audioRefusals, audioErr := decideAudio(in)
 	// An encoded sound replaces the source's, of unknown weight where nobody weighed it.
 	if enc, ok := audio.Encode(); ok && in.Rate > 0 {

@@ -13,6 +13,14 @@ import (
 // renditionCodecs describes the produced bitstream, including copied HEVC/AV1,
 // rather than relying on a receiver's default assumption of AVC and AAC.
 func renditionCodecs(movie *mp4.MoovBox) (string, error) {
+	codecs, err := mediaCodecs(movie)
+	if err != nil {
+		return "", err
+	}
+	return codecs + ",wvtt", nil
+}
+
+func mediaCodecs(movie *mp4.MoovBox) (string, error) {
 	var codecs []string
 	for _, track := range movie.Traks {
 		if track.Mdia == nil || track.Mdia.Minf == nil || track.Mdia.Minf.Stbl == nil || track.Mdia.Minf.Stbl.Stsd == nil {
@@ -63,7 +71,5 @@ func renditionCodecs(movie *mp4.MoovBox) (string, error) {
 			return "", fmt.Errorf("unsupported HLS sample description")
 		}
 	}
-	// WebVTT belongs to the subtitle rendition referenced by this variant.
-	codecs = append(codecs, "wvtt")
 	return strings.Join(codecs, ","), nil
 }

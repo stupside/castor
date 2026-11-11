@@ -122,6 +122,11 @@ func (d *driver) exec(ctx context.Context, cmd *mediav1.DeviceCommand_Call) *med
 		return outcome(d.device.Resume(ctx))
 	case *mediav1.DeviceCommand_Call_Position:
 		return d.position(ctx)
+	case *mediav1.DeviceCommand_Call_Seek:
+		if !device.ControlsOf(d.device).Seek {
+			return failure(device.ErrUnsupportedControl)
+		}
+		return outcome(device.Seek(ctx, d.device, c.Seek.GetPosition().AsDuration()))
 	}
 	return failure(fmt.Errorf("device command %q is one this drive does not know", cmd.GetId()))
 }

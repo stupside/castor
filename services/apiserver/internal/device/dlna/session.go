@@ -28,7 +28,10 @@ type session struct {
 	// sinks is how the device names each container it accepts.
 	sinks map[mediav1.Container]sinkEntry
 	// ticked is a playhead seen to move since the last Play, before which a 0:00:00 says nothing.
-	ticked atomic.Bool
+	ticked   atomic.Bool
+	seekable atomic.Bool
+	// file is a source the renderer seeks by its bytes, as opposed to a stream castor makes.
+	file atomic.Bool
 }
 
 func (s *session) Capabilities() *mediav1.Capabilities { return s.caps }
@@ -81,6 +84,8 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 		return fmt.Errorf("setting transport URI: %w", err)
 	}
 	s.ticked.Store(false)
+	s.file.Store(playback.Play.GetSource() != nil)
+	s.seekable.Store(playback.Duration() > 0 && (playback.Play.GetSource() != nil || playback.Play.GetPlaylist() != nil || playback.Play.GetProgressive().GetRuntime().GetSeek() == mediav1.DeviceCommand_Play_Runtime_SEEK_TIME))
 
 	play := &struct {
 		InstanceID string
@@ -161,6 +166,7 @@ func retryTransportLocked(ctx context.Context, do func() error) error {
 
 // AVTransport error codes.
 const (
+	actionFailed          = 501
 	transitionUnavailable = 701
 	transportLocked       = 705
 )

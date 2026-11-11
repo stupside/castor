@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/output/forward"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/subtitle"
@@ -21,25 +23,26 @@ import (
 // scope. It cannot command the device or transition the attempt state machine.
 type preparation struct {
 	Machinery
-	Publisher    output.Publisher
-	Timelines    Timelines
-	Captions     *Captions
-	MaxHeight    media.HeightCap
-	MaxBitrate   media.Bitrate
-	Resolver     recovery.SourceResolver
-	capabilities media.Capabilities
-	ctx          context.Context
-	attempt      recovery.Attempt
-	releases     *releases
-	failures     chan<- error
-	subtitles    Subtitles
+	Publisher      output.Publisher
+	Timelines      Timelines
+	Captions       *Captions
+	MaxHeight      media.HeightCap
+	PreserveSource bool
+	MaxBitrate     media.Bitrate
+	Resolver       recovery.SourceResolver
+	capabilities   media.Capabilities
+	ctx            context.Context
+	attempt        recovery.Attempt
+	releases       *releases
+	failures       chan<- error
+	subtitles      Subtitles
 	// caption is the source caption fetched once, nil where none can be shown.
 	caption *fetchedCaption
 }
 
 func newPreparation(ctx context.Context, c Cast, a recovery.Attempt, releases *releases, failures chan<- error) *preparation {
 	p := &preparation{Machinery: c.Machinery, Publisher: c.Publisher, Timelines: c.Timelines,
-		Captions: c.Captions, MaxHeight: c.MaxHeight, MaxBitrate: c.MaxBitrate, Resolver: c.Resolver, ctx: ctx, attempt: a, releases: releases, failures: failures}
+		Captions: c.Captions, MaxHeight: c.MaxHeight, PreserveSource: c.PreserveSource && !a.OptimizedLive, MaxBitrate: c.MaxBitrate, Resolver: c.Resolver, ctx: ctx, attempt: a, releases: releases, failures: failures}
 	if c.Device != nil {
 		p.capabilities = c.Device.Capabilities()
 	}
@@ -63,6 +66,8 @@ type presentation struct {
 	delivery  *delivery
 	feed      feed
 	reached   ran
+	// delivers is how much of the source the device is handed, once planned.
+	delivers media.Delivery
 }
 
 // inspectedPresentation retains the selected reading and any validated local
@@ -85,15 +90,27 @@ func (s *preparation) inspectPresentation() (p inspectedPresentation, err error)
 		return p, err
 	}
 	s.caption = s.fetchCaption()
+	if s.PreserveSource && s.transcribing() {
+		return p, fmt.Errorf("%w: generated subtitles require conversion", media.ErrNativeIncompatible)
+	}
 	if err := s.ctx.Err(); err != nil {
 		return p, err
 	}
 	p.kind = s.compose()
 	p.runtime, p.reached.began = s.attempt.Runtime(), s.attempt.Program.Start
 	p.captions = s.shownCaptions()
-	if p.kind == compose.Handoff {
+	switch p.kind {
+	case compose.Handoff:
 		primary, _ := s.attempt.Program.PrimaryInput()
 		p.target, p.contentType, p.source = primary.URL, primary.ContentType, true
+		return p, nil
+	case compose.Forward:
+		primary, _ := s.attempt.Program.PrimaryInput()
+		target, err := s.forwardSource(primary)
+		if err != nil {
+			return p, err
+		}
+		p.target, p.contentType, p.source = target, primary.ContentType, true
 		return p, nil
 	}
 	work, program, err := s.prepare()
@@ -130,7 +147,9 @@ func (s *preparation) planPresentation(inspected inspectedPresentation) (planned
 	if err := s.ctx.Err(); err != nil {
 		return p, err
 	}
-	if p.kind == compose.Handoff {
+	probe, _ := s.attempt.Program.Measurement()
+	p.delivers = media.Delivery{Fidelity: media.FidelityOriginalFile, DolbyVision: probe.VideoDolbyVision != nil}
+	if p.kind.Original() {
 		p.readiness = sourceEligible
 		return p, nil
 	}
@@ -139,6 +158,10 @@ func (s *preparation) planPresentation(inspected inspectedPresentation) (planned
 		return p, err
 	}
 	p.options = opts
+	p.delivers.Fidelity = media.FidelityConverted
+	if opts.KeepsTracks() {
+		p.delivers.Fidelity = media.FidelityOriginalTracks
+	}
 	return p, nil
 }
 
@@ -178,13 +201,14 @@ func (s *preparation) prepare() (string, media.Program, error) {
 // compose is the kind of cast this attempt calls for.
 func (s *preparation) compose() compose.Kind {
 	shape := compose.Shape{
-		Device:     s.playbackCapabilities(),
-		Program:    s.attempt.Program,
-		Delivery:   s.attempt.Delivery,
-		Height:     s.attempt.SelfFetchHeight(),
-		MaxHeight:  s.MaxHeight,
-		MaxBitrate: s.MaxBitrate,
-		Rate:       s.attempt.SelfFetchRate(),
+		Device:         s.playbackCapabilities(),
+		Program:        s.attempt.Program,
+		Delivery:       s.attempt.Delivery,
+		Height:         s.attempt.SelfFetchHeight(),
+		MaxHeight:      s.MaxHeight,
+		MaxBitrate:     s.MaxBitrate,
+		Rate:           s.attempt.SelfFetchRate(),
+		PreserveSource: s.PreserveSource,
 	}
 	kind := compose.For(shape)
 	// Requested transcription needs a buffered PCM feed whenever no usable
@@ -194,6 +218,20 @@ func (s *preparation) compose() compose.Kind {
 	}
 	slog.InfoContext(s.ctx, "cast composition", "composition", string(kind))
 	return kind
+}
+
+// forwardSource publishes in's file for the device to read through castor, until the attempt releases it.
+func (s *preparation) forwardSource(in media.Input) (*url.URL, error) {
+	served := s.playbackCapabilities().Served(in.ContentType)
+	name := forward.Name(in.ContentType)
+	mux := http.NewServeMux()
+	mux.Handle("GET /"+name, forward.Handler(&http.Client{Transport: forward.Transport()}, in.URL, in.Headers, in.ContentType, served))
+	pub, err := s.Publisher.Publish(s.ctx, mux)
+	if err != nil {
+		return nil, fmt.Errorf("publishing the forwarded source: %w", err)
+	}
+	s.releases.push(pub.Close)
+	return pub.URL(name), nil
 }
 
 // transcribing is a cast whose subtitles castor makes from the sound, since the source shows none.

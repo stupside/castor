@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/stupside/castor/internal/telemetry"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
@@ -35,8 +36,29 @@ func (s *preparation) encode(f feed, burn burnRenderer) (encodePlan, error) {
 	if native && burn == nil {
 		captions = &output.Captions{Cues: f.buffered.transcript.Cues(), VideoOffset: *f.buffered.captionVideoOffset}
 	}
-	selections := s.Outputs.Selections(s.playbackCapabilities(), captions)
+	caps := s.playbackCapabilities()
+	var runtime time.Duration
+	if s.PreserveSource && caps.NativePlaybackTrial && !f.live() {
+		runtime = s.attempt.Runtime()
+	}
+	selections := s.Outputs.Selections(caps, captions, runtime)
+	if runtime > 0 {
+		// A growing, unindexed progressive MP4 is not seekable in Chromium.
+		// HLS indexes complete fragments without waiting for the whole download.
+		slices.SortStableFunc(selections, func(a, b output.Selection) int {
+			priority := func(s output.Selection) int {
+				if s.Plan.Format().ContentType == media.HLS {
+					return 0
+				}
+				return 1
+			}
+			return cmp.Compare(priority(a), priority(b))
+		})
+	}
 	if len(selections) == 0 {
+		if s.PreserveSource {
+			return encodePlan{}, fmt.Errorf("%w: no compatible delivery adapter", media.ErrNativeIncompatible)
+		}
 		return encodePlan{}, fmt.Errorf("no delivery adapter accepts the requested playback envelopes")
 	}
 
@@ -92,6 +114,7 @@ func (s *preparation) bufferedFacts(src *pull) facts {
 func (s *preparation) decide(caps media.Capabilities, into container.Format, facts facts, burnIn string, spliced bool, ceiling media.Bitrate, keepAudio media.Codec) (codec.Plan, error) {
 	decided, err := codec.Served(s.ctx, codec.Inputs{
 		Caps: caps, Probe: facts.probe, Measured: facts.measured, Into: into, MaxHeight: s.MaxHeight,
+		PreserveSource: s.PreserveSource,
 		// A playlist's own bit_rate is not the media's, so the rate its rung declares stands in.
 		MaxBitrate: ceiling, Rate: cmp.Or(media.Bitrate(facts.probe.BitRate), s.attempt.Rendition.Bitrate),
 		Spliced: spliced, KeepAudio: keepAudio,
@@ -111,6 +134,8 @@ func (s *preparation) decide(caps media.Capabilities, into container.Format, fac
 		"source_video_codec", string(facts.probe.VideoCodec),
 		"source_audio_codec", string(facts.probe.AudioCodec),
 		"source_video", fmt.Sprintf("%s/%d/%d-bit", facts.probe.VideoProfile, facts.probe.VideoLevel, facts.probe.VideoBitDepth),
+		"source_hdr", facts.probe.VideoHDR,
+		"native_trial", s.PreserveSource && caps.NativePlaybackTrial,
 	)
 	logRefusals(s.ctx, decided)
 	observePlan(s.ctx, decided)

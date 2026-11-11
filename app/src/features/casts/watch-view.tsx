@@ -51,6 +51,7 @@ const recoveryActions: Record<RecoveryAction, string> = {
   [RecoveryAction.RELAX_READ]: "relaxed reading",
   [RecoveryAction.SERVE_INSTEAD]: "relayed through castor",
   [RecoveryAction.STAY]: "stayed",
+  [RecoveryAction.OPTIMIZE_LIVE]: "optimized the live stream",
   [RecoveryAction.SOFTWARE_ENCODE]: "encoded in software",
 };
 
@@ -61,6 +62,7 @@ const failures: Record<FailureCode, string> = {
   [FailureCode.EXTRACTION_FAILED]: "No video found",
   [FailureCode.SERVER_SHUTDOWN]: "Server shut down",
   [FailureCode.INTERNAL]: "Internal error",
+  [FailureCode.NATIVE_INCOMPATIBLE]: "The original cannot play here",
 };
 
 type Result = EndedValid["result"]["case"];
@@ -177,6 +179,11 @@ export function WatchView({
               <p sx={styles.fine}>
                 Changed plan: {recoveryActions[casting.revision.action]},{" "}
                 {casting.revision.why}
+              </p>
+            )}
+            {casting?.optimizedLive && (
+              <p sx={styles.fine}>
+                Live stream optimized automatically for playback.
               </p>
             )}
           </Stack>

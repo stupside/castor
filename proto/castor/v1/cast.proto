@@ -105,6 +105,9 @@ message Preferences {
   optional uint32 max_height = 2 [(buf.validate.field).uint32.gte = 2];
   SubtitleSelection subtitles = 3;
   AudioSelection audio = 4;
+  // preserve_source keeps the selected video and audio original, allowing container changes.
+  // Live sources that cannot be preserved may be optimized automatically; finite sources stay strict.
+  optional bool preserve_source = 5;
 }
 
 message AudioSelection {
@@ -169,6 +172,19 @@ message CastingStatus {
   Revision revision = 4;
   // playhead is absent until the device reports a position, and on devices that never do.
   Playhead playhead = 5;
+  // True once native planning required conversion of this live cast; preferences remain unchanged.
+  bool optimized_live = 6;
+  // handover is what the playing attempt handed the device, absent until the device took it.
+  Handover handover = 7;
+}
+
+message Handover {
+  Fidelity fidelity = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // dolby_vision is a source declaring Dolby Vision, which only an original file is sure to keep signaled.
+  bool dolby_vision = 2;
 }
 
 message Playhead {
@@ -206,6 +222,7 @@ enum FailureCode {
   FAILURE_CODE_EXTRACTION_FAILED = 3;
   FAILURE_CODE_SERVER_SHUTDOWN = 4;
   FAILURE_CODE_INTERNAL = 5;
+  FAILURE_CODE_NATIVE_INCOMPATIBLE = 6;
 }
 
 message StopRequest {

@@ -30,6 +30,10 @@ type feed struct {
 // spliced is whether the plan joins a seamed program itself; a buffer was made one stream by the floor.
 func (f feed) spliced() bool { return f.buffered == nil && f.program.Seamed() }
 
+func (f feed) live() bool {
+	return f.buffered != nil && f.buffered.live || slices.ContainsFunc(f.program.Inputs, func(in media.Input) bool { return in.Fetching().Live })
+}
+
 // delivery is what serves a cast: the mechanism the device fetches from, and what writes the bytes it serves.
 type delivery struct {
 	sink   output.Output
@@ -70,6 +74,14 @@ func (s *preparation) validateOutput(d delivery, opts encodePlan, f feed) error 
 	if f.buffered != nil {
 		expected = expected.Or(f.buffered.expected)
 	}
+	if s.PreserveSource && opts.delivery.Capabilities.NativePlaybackTrial {
+		_, videoEncoded := opts.Video.Encode()
+		_, audioEncoded := opts.Audio.Encode()
+		if videoEncoded || audioEncoded {
+			return fmt.Errorf("%w: native playback cannot validate a re-encoded delivery", media.ErrNativeIncompatible)
+		}
+		return encoding.ValidateOriginalOutput(ctx, s.Probes.File(path), opts.Probe, expected, d.output.Done())
+	}
 	return encodeFault(encoding.ValidateOutput(ctx, s.Probes.File(path), opts.delivery.Capabilities, opts.Format.ContentType, expected, d.output.Done()), opts.EncodeOptions)
 }
 
@@ -92,7 +104,7 @@ func encodeFault(err error, opts encoding.EncodeOptions) error {
 
 func (s *preparation) produce(work string, f feed, opts encodePlan, burn burnRenderer) (delivery, error) {
 	o := output.Opening{
-		Live:          f.buffered != nil && f.buffered.live || slices.ContainsFunc(f.program.Inputs, func(in media.Input) bool { return in.Fetching().Live }),
+		Live:          f.live(),
 		Format:        opts.Format,
 		Headers:       opts.delivery.Capabilities.Served(opts.Format.ContentType),
 		IdleGrace:     idleGrace,

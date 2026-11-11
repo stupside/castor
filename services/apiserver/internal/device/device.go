@@ -65,7 +65,11 @@ var ErrNoPosition = errors.New("the device does not report its position")
 type Playhead struct {
 	At     time.Duration
 	Paused bool
+	// Seekable is the currently available media window, absent when unknown.
+	Seekable *SeekWindow
 }
+
+type SeekWindow struct{ Start, End time.Duration }
 
 // Info names one device, where it answers.
 type Info struct {

@@ -297,6 +297,27 @@ func TestCastDecodesTheAxisWhoseCopyBrokeUpstream(t *testing.T) {
 	}
 }
 
+func TestNativeRecoveryNeverDecodesOrSwitchesToAnotherStream(t *testing.T) {
+	in := Intent{PreserveSource: true, Turns: unheard{}, Candidates: candidates(t,
+		"https://cdn.example/original.m3u8", "https://cdn.example/lower.m3u8"), Deadline: 30 * time.Second}
+	run := &scriptedRunner{outcomes: []Outcome{broke(media.Axes{Video: true, Audio: true}), delivered}}
+	if err := Cast(t.Context(), in, run, publishing(in.Candidates[0], source.Origin{Segmented: true}, source.Rendition{})); err == nil || len(run.seen) != 1 {
+		t.Fatalf("native cast = %v after %d attempts; want failure without a changed source", err, len(run.seen))
+	}
+}
+
+func TestNativeDoesNotScheduleAClimbAwayFromItsSelectedReadableSource(t *testing.T) {
+	in := Intent{PreserveSource: true, Turns: unheard{}, Candidates: candidates(t,
+		"https://cdn.example/expired.m3u8", "https://cdn.example/original.m3u8"), Deadline: 30 * time.Second}
+	prog := &fakeProgram{answers: map[string]published{
+		"https://cdn.example/expired.m3u8": {err: errors.New("HTTP 410")},
+	}}
+	run := &scriptedRunner{outcomes: []Outcome{delivered}}
+	if err := Cast(t.Context(), in, run, prog); err != nil || len(run.seen) != 1 || run.seen[0].Climb != 0 {
+		t.Fatalf("native cast = %v, attempts %+v; no stream change may be scheduled", err, run.seen)
+	}
+}
+
 // starvedAt is a cast that played for the given media and then outran its read.
 func starvedAt(played time.Duration) Outcome {
 	fault := health.DeviceStarved("the playing cast", media.Progress{Bytes: 1 << 20, Position: played}, 1<<20)

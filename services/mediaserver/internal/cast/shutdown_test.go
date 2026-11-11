@@ -66,7 +66,7 @@ type recoveringCaster struct {
 	attempts    int
 }
 
-func (r *recoveringCaster) Play(ctx context.Context, _ execute.Device, _ output.Publisher, streams []*source.Stream, _ time.Duration, turns recovery.Turns, _ <-chan recovery.Seek) error {
+func (r *recoveringCaster) Play(ctx context.Context, _ execute.Device, _ output.Publisher, streams []*source.Stream, _ time.Duration, turns Turns, _ <-chan recovery.Seek) error {
 	backup := *streams[0]
 	u := *backup.URL
 	u.Path = "/backup.mp4"
