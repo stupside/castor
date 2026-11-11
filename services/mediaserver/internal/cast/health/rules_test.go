@@ -99,6 +99,14 @@ func TestVerdicts(t *testing.T) {
 		{"a device held longer than it played, past the crawl mark, is starved", Playing, Vitals{holdable: true, paused: true, Landed: 8 << 20, handed: 4 << 20, Position: 3 * time.Minute, played: crawlAfter, held: crawlAfter + time.Second, sincePause: time.Second}, Starved},
 		{"a device held longer than it played before the crawl mark is one outage, not a crawl", Playing, Vitals{holdable: true, paused: true, Landed: 8 << 20, handed: 4 << 20, Position: time.Minute, played: time.Minute, held: 70 * time.Second, sincePause: time.Second}, healthy},
 		{"a device held past the pause budget is starved", Playing, Vitals{holdable: true, paused: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 10 * time.Minute, sincePause: pauseBudget + time.Second}, Starved},
+		{"an encoder fed and silent to its first byte past the warmup is wedged, not opened as overdue", Opening, Vitals{overdue: true, sinceMade: Warmup + time.Millisecond}, Wedged},
+		{"an encoder fed and silent past the warmup is wedged, however far ahead its read is", Playing, Vitals{holdable: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: time.Minute, sinceMade: Warmup + time.Millisecond}, Wedged},
+		{"an encoder fed and silent within the warmup is no verdict", Playing, Vitals{holdable: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: time.Minute, sinceMade: Warmup}, healthy},
+		{"a wedged encoder is not taken for a link that cannot carry the cast", Playing, func() Vitals {
+			v := choking(400_000, 60*time.Second, 62*time.Second, 3*time.Minute)
+			v.sinceMade = Warmup + time.Millisecond
+			return v
+		}(), Wedged},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			rule, _, err := judge(tt.phase, tt.vitals)
@@ -216,10 +224,13 @@ func TestAReasonThatHoldsIsSaidOnceHoweverItsMeasurementMoves(t *testing.T) {
 }
 
 func TestWhereTheViewerGotToIsTheDevicesWordElseTheClockFromWhereItAsked(t *testing.T) {
-	if got := (Vitals{began: 20 * time.Minute, played: time.Minute}).Reached(); got != 21*time.Minute {
+	if got, _ := (Vitals{playing: true, began: 20 * time.Minute, played: time.Minute}).Reached(); got != 21*time.Minute {
 		t.Errorf("by the clock, reached %v, want the minute played from the 20m asked for", got)
 	}
-	if got := (Vitals{began: 20 * time.Minute, played: time.Minute, head: 20*time.Minute + 40*time.Second, headKnown: true}).Reached(); got != 20*time.Minute+40*time.Second {
+	if got, _ := (Vitals{playing: true, began: 20 * time.Minute, played: time.Minute, head: 20*time.Minute + 40*time.Second, headKnown: true}).Reached(); got != 20*time.Minute+40*time.Second {
 		t.Errorf("reached %v, want where the device says it is, since it buffered part of that minute", got)
+	}
+	if _, ok := (Vitals{began: 20 * time.Minute, played: time.Minute}).Reached(); ok {
+		t.Error("a reading taken before any device played says where its viewer got to")
 	}
 }

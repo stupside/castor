@@ -23,7 +23,7 @@ func (s *session) Seek(ctx context.Context, at time.Duration) error {
 		return s.action(ctx, "Seek", &struct{ InstanceID, Unit, Target string }{"0", "REL_TIME", target})
 	}
 	err := seek()
-	if upnpError(err, actionFailed) && s.file.Load() && s.state(ctx) == "PAUSED_PLAYBACK" {
+	if upnpError(err, actionFailed) && s.file.Load() && s.state(ctx) == statePaused {
 		// LG's renderer seeks a file only while it plays, so it is played, sought and held again.
 		// Not a stream castor makes: that renderer stalls seeking one while it plays.
 		err = s.Resume(ctx)
@@ -39,7 +39,7 @@ func (s *session) Seek(ctx context.Context, at time.Duration) error {
 }
 
 // state is the renderer's transport state, empty where it does not answer.
-func (s *session) state(ctx context.Context) string {
+func (s *session) state(ctx context.Context) transportState {
 	ctx, cancel := context.WithTimeout(ctx, actionTimeout)
 	defer cancel()
 	info, _ := s.transportInfo(ctx)
@@ -49,7 +49,7 @@ func (s *session) state(ctx context.Context) string {
 // awaitPlaying gives a renderer told to play a moment to say it does.
 func (s *session) awaitPlaying(ctx context.Context) {
 	for range 25 {
-		if state := s.state(ctx); state == "" || state == "PLAYING" {
+		if state := s.state(ctx); state == "" || state == statePlaying {
 			return
 		}
 		select {

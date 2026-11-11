@@ -123,5 +123,10 @@ func (c *coordinator) finish() (ran, error) {
 	if c.interruption != nil {
 		err = &recovery.Interrupted{Cause: c.interruption, Failure: err}
 	}
-	return p.reached, err
+	r := p.reached
+	// Read once every worker joined, so nothing still writes it.
+	if c.observer != nil {
+		r.seen = c.observer.Latest()
+	}
+	return r, err
 }

@@ -19,6 +19,7 @@ func (s *Segments) Handler() http.Handler {
 	files := http.FileServerFS(s.store.root.FS())
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", s.o.Answering(func(w *output.Answer, r *http.Request) {
+		output.AllowWebReceivers(w.Header())
 		s.mu.Lock()
 		s.lastRequest = time.Now()
 		s.mu.Unlock()

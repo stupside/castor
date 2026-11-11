@@ -147,7 +147,7 @@ func unmarshal(k *koanf.Koanf, path string, destination any, strict bool) error 
 		DecoderConfig: &mapstructure.DecoderConfig{
 			DecodeHook: mapstructure.ComposeDecodeHookFunc(
 				mapstructure.StringToTimeDurationHookFunc(),
-				mapstructure.StringToSliceHookFunc(","),
+				mapstructure.StringToWeakSliceHookFunc(","),
 				mapstructure.TextUnmarshallerHookFunc(),
 			),
 			WeaklyTypedInput: true,

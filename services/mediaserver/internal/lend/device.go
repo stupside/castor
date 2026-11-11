@@ -102,7 +102,7 @@ func played(p execute.Playback) *mediav1.DeviceCommand_Play {
 		}
 		play.Stream = &mediav1.DeviceCommand_Play_Progressive_{Progressive: served}
 	case execute.Playlist:
-		play.Stream = &mediav1.DeviceCommand_Play_Playlist_{Playlist: &mediav1.DeviceCommand_Play_Playlist{Duration: runtime(s.Runtime)}}
+		play.Stream = &mediav1.DeviceCommand_Play_Playlist_{Playlist: &mediav1.DeviceCommand_Play_Playlist{Duration: runtime(s.Runtime), Segments: wire.Container(s.Segments)}}
 	}
 	return play
 }

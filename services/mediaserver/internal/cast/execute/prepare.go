@@ -58,6 +58,7 @@ type presentation struct {
 	captions    []media.Caption
 	target      *url.URL
 	contentType string
+	segments    string
 	source      bool
 	// runtime is what is left of the program from where the attempt begins, zero where the source declared none.
 	runtime   time.Duration
@@ -176,12 +177,12 @@ func (s *preparation) producePresentation(planned plannedPresentation) (presenta
 	p.delivery = &d
 	p.reached.reached = health.Opening
 	if err := awaitArtifact(s.ctx, d); err != nil {
-		return p, err
+		return p, wedgedOn(err, d, planned.options)
 	}
 	if err := s.validateOutput(d, planned.options, p.feed); err != nil {
 		return p, err
 	}
-	p.target, p.contentType = d.URL(), planned.options.Format.ContentType
+	p.target, p.contentType, p.segments = d.URL(), planned.options.Format.ContentType, planned.options.Format.Segments
 	p.readiness = outputValidated
 	return p, nil
 }

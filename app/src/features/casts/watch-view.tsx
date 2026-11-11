@@ -52,6 +52,7 @@ const recoveryActions: Record<RecoveryAction, string> = {
   [RecoveryAction.SERVE_INSTEAD]: "relayed through castor",
   [RecoveryAction.STAY]: "stayed",
   [RecoveryAction.OPTIMIZE_LIVE]: "optimized the live stream",
+  [RecoveryAction.SOFTWARE_ENCODE]: "encoded in software",
 };
 
 const failures: Record<FailureCode, string> = {

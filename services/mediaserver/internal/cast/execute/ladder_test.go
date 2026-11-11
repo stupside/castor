@@ -145,7 +145,7 @@ func moved(t *testing.T, caps media.Capabilities, head, after int, ceiling media
 		t.Fatalf("the delivery cannot change: %+v", p.delivery)
 	}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, p.target.String(), nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := reader.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestACastOnALighterRungGoesBackToTheHeavyOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, p.target.String(), nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := reader.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

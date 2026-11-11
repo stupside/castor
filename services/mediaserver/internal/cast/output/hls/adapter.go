@@ -38,7 +38,7 @@ func (p hlsPlan) retained() bool { return p.runtime > 0 && p.captions == nil }
 
 func format() container.Format {
 	return container.Format{
-		ContentType: media.HLS, Extension: ".m3u8", Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand,
+		ContentType: media.HLS, Extension: ".m3u8", Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand, Segments: media.MP4,
 		Tuning: container.Tuning{Args: []string{
 			"-hls_time", strconv.FormatFloat(CaptionSegmentDuration.Seconds(), 'f', -1, 64),
 			"-hls_list_size", strconv.Itoa(captionWindowSegments),
@@ -61,6 +61,8 @@ func (p hlsPlan) Format() container.Format {
 			"-hls_segment_filename", "seg_%05d.m4s",
 		}
 	}
+	// Generated captions cut the encoder's fragments every CaptionSegmentDuration.
+	f.ClockCuts = p.captions != nil
 	return f
 }
 func (p hlsPlan) EncoderFormat() container.Format {

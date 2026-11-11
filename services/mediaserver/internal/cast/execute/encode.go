@@ -122,6 +122,7 @@ func (s *preparation) decide(caps media.Capabilities, into container.Format, fac
 		Decode:   s.attempt.Decode,
 		BurnIn:   burnIn,
 		Encoders: s.Encoders,
+		Software: s.attempt.Software,
 	})
 	if err != nil {
 		return codec.Plan{}, fmt.Errorf("planning media: %w", err)
@@ -195,17 +196,41 @@ func (s *preparation) startEncoder(opts encoding.EncodeOptions, tail io.Reader, 
 	return proc, nil
 }
 
-func encoderResult(ctx context.Context, proc *ffmpeg.Process) error {
+// onHardware is an encode whose picture a hardware encoder makes.
+func onHardware(opts encoding.EncodeOptions) bool {
+	video, ok := opts.Video.Encode()
+	return ok && video.Encoder.Hardware
+}
+
+// encoderResult is how proc ended.
+func encoderResult(ctx context.Context, proc *ffmpeg.Process, hardware, buffered bool) error {
 	err := cmp.Or(proc.Wait(), proc.SilentFailure())
 	if ctx.Err() == nil && errors.Is(err, storage.ErrSpoolExpired) {
 		return fmt.Errorf("encoder input expired: %w", err)
 	}
 	err = teardown.Failures(ctx, err)
-	if err == nil || proc.Evidence().ExitStatus < 0 {
+	exit := proc.Evidence().ExitStatus
+	if err == nil || exit < 0 {
 		return nil
 	}
 	if complaints := proc.Evidence().Lines; len(complaints) > 0 {
-		return fmt.Errorf("encoder: %w: %s", err, strings.Join(complaints[max(0, len(complaints)-4):], " | "))
+		err = fmt.Errorf("encoder: %w: %s", err, strings.Join(complaints[max(0, len(complaints)-4):], " | "))
+	} else {
+		err = fmt.Errorf("encoder: %w", err)
 	}
-	return fmt.Errorf("encoder: %w", err)
+	// An ffmpeg reading the source exits on the source's failure as on its own.
+	if exit > 0 && (buffered || proc.Evidence().Signaled) {
+		return &encoderFailed{err: err, hardware: hardware, lines: proc.Evidence().Lines}
+	}
+	return err
 }
+
+// encoderFailed is an encode failing on its own account.
+type encoderFailed struct {
+	err      error
+	hardware bool
+	lines    []string
+}
+
+func (e *encoderFailed) Error() string { return e.err.Error() }
+func (e *encoderFailed) Unwrap() error { return e.err }

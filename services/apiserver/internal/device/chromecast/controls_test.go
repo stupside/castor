@@ -71,7 +71,7 @@ func TestFiniteHLSWaitsForPlaybackAndRecoversAReceiverStuckAtZero(t *testing.T) 
 				_ = receiver.send(t.Context(), senderID, nsMedia, jsontext.Value(reply))
 			})
 			t.Cleanup(func() { _ = dev.ch.Close(); _ = receiver.Close() })
-			play := devicetest.Playlist()
+			play := devicetest.Playlist(mediav1.Container_CONTAINER_MP4)
 			play.GetPlaylist().Duration = durationpb.New(time.Hour)
 			u, _ := url.Parse("http://media.test/master.m3u8")
 			timeout := 6 * time.Second
@@ -129,7 +129,7 @@ func TestHLSWaitsThroughLoadingIdleAndTheAssignmentOfItsMediaSession(t *testing.
 					reply.Status[0].MediaSessionId = activeSession
 					reply.Status[0].CurrentTime = 0.5
 					return reply
-				}, func(id int, media castmedia.MediaItem) []any {
+				}, func(id int, media mediaItem) []any {
 					loaded = true
 					extension := ""
 					if extended {
@@ -137,7 +137,7 @@ func TestHLSWaitsThroughLoadingIdleAndTheAssignmentOfItsMediaSession(t *testing.
 					}
 					return []any{jsontext.Value(fmt.Sprintf(`{"type":"MEDIA_STATUS","requestId":%d,"status":[{"mediaSessionId":%d,"playerState":"IDLE","media":{"contentId":%q}%s}]}`, id, sessionID, media.ContentId, extension))}
 				})
-				play := devicetest.Playlist()
+				play := devicetest.Playlist(mediav1.Container_CONTAINER_MP4)
 				play.GetPlaylist().Duration = durationpb.New(time.Hour)
 				u, _ := url.Parse(content)
 				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
@@ -157,10 +157,10 @@ func TestHLSWaitsThroughLoadingIdleAndTheAssignmentOfItsMediaSession(t *testing.
 func TestHLSTerminalIdleReasonsStillRefusePlayback(t *testing.T) {
 	for _, reason := range []string{"ERROR", "CANCELLED", "INTERRUPTED", "FINISHED"} {
 		t.Run(reason, func(t *testing.T) {
-			dev := receiverSaying(t, func(id int) any { return running(id) }, func(id int, media castmedia.MediaItem) []any {
+			dev := receiverSaying(t, func(id int) any { return running(id) }, func(id int, media mediaItem) []any {
 				return []any{mediaStatus(id, media.ContentId, stateIdle, reason)}
 			})
-			play := devicetest.Playlist()
+			play := devicetest.Playlist(mediav1.Container_CONTAINER_MP4)
 			play.GetPlaylist().Duration = durationpb.New(time.Hour)
 			u, _ := url.Parse("http://media.test/master.m3u8")
 			ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
@@ -208,7 +208,7 @@ func TestServedHLSDeclaresFMP4WithoutOverridingSourcePlaylists(t *testing.T) {
 			t.Cleanup(func() { _ = dev.Close(); _ = receiver.Close() })
 			play := devicetest.Source(mediav1.Container_CONTAINER_HLS)
 			if served {
-				play = devicetest.Playlist()
+				play = devicetest.Playlist(mediav1.Container_CONTAINER_MP4)
 			}
 			u, _ := url.Parse("http://media.test/master.m3u8")
 			if err := dev.Play(t.Context(), device.Playback{URL: u, Play: play}); err != nil {

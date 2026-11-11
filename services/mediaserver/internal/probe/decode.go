@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"math"
+	"math/big"
 	"regexp"
 	"slices"
 	"strconv"
@@ -16,7 +17,7 @@ import (
 )
 
 const showEntries = "format=format_name,bit_rate,duration,start_time:" +
-	"stream=index,start_time,codec_type,codec_name,profile,level,width,height,pix_fmt,color_transfer,field_order,channels,sample_rate,bit_rate:" +
+	"stream=index,start_time,codec_type,codec_name,profile,level,width,height,pix_fmt,color_transfer,field_order,avg_frame_rate,r_frame_rate,channels,sample_rate,bit_rate:" +
 	"stream_disposition=attached_pic,default:stream_side_data=side_data_type,rotation,dv_profile,dv_level,dv_bl_signal_compatibility_id:" +
 	"stream_tags=language:" +
 	"program=program_id:program_stream_disposition=attached_pic:" +
@@ -39,6 +40,8 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 			ColorTransfer string `json:"color_transfer"`
 			Level         int    `json:"level"`
 			FieldOrder    string `json:"field_order"`
+			AvgFrameRate  string `json:"avg_frame_rate"`
+			RFrameRate    string `json:"r_frame_rate"`
 			Channels      int    `json:"channels"`
 			SampleRate    string `json:"sample_rate"`
 			BitRate       string `json:"bit_rate"`
@@ -117,6 +120,7 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 					info.VideoBitDepth = pixFmtBitDepth(s.PixFmt)
 					info.VideoHDR = isHDRTransfer(s.ColorTransfer)
 					info.VideoLevel = s.Level
+					info.VideoFrameRate = cmp.Or(frameRate(s.AvgFrameRate), frameRate(s.RFrameRate))
 					info.VideoInterlaced = interlaced[s.FieldOrder] || slices.ContainsFunc(result.Frames, func(f probedFrame) bool {
 						return f.StreamIndex == s.Index && f.InterlacedFrame == 1
 					})
@@ -228,4 +232,14 @@ func formatToContentType(format string) string {
 		}
 	}
 	return ""
+}
+
+// frameRate reads ffprobe's "num/den", 0 where it is unknown, as ffprobe's own "0/0" is.
+func frameRate(rational string) float64 {
+	r, ok := new(big.Rat).SetString(rational)
+	if !ok {
+		return 0
+	}
+	f, _ := r.Float64()
+	return f
 }

@@ -32,6 +32,8 @@ type ProbeInfo struct {
 	VideoRotation int
 	// VideoDolbyVision is the picture's Dolby Vision configuration, nil where the stream declares none.
 	VideoDolbyVision *DolbyVision
+	// VideoFrameRate is the picture's frames per second, 0 if unknown.
+	VideoFrameRate float64
 
 	// VideoStartOffset is stream start_time minus its input's format start_time.
 	// Add the program input offset to locate the picture on the PCM clock.
@@ -75,7 +77,7 @@ type AudioTrack struct {
 func (p ProbeInfo) TakeVideo(m ProbeInfo) ProbeInfo {
 	p.VideoPresent = m.VideoPresent
 	p.VideoCodec, p.VideoProfile, p.VideoHeight, p.VideoBitDepth = m.VideoCodec, m.VideoProfile, m.VideoHeight, m.VideoBitDepth
-	p.VideoHDR, p.VideoLevel = m.VideoHDR, m.VideoLevel
+	p.VideoHDR, p.VideoLevel, p.VideoFrameRate = m.VideoHDR, m.VideoLevel, m.VideoFrameRate
 	p.VideoStartOffset = m.VideoStartOffset
 	p.VideoInterlaced, p.VideoRotation = m.VideoInterlaced, m.VideoRotation
 	p.VideoDolbyVision = m.VideoDolbyVision

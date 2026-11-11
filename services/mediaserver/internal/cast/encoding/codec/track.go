@@ -96,6 +96,8 @@ type VideoEncode struct {
 	ToneMap bool
 	// MaxFrameRate drops frames above it; 0 keeps the source's rate.
 	MaxFrameRate float64
+	// FrameRate is the rate frames reach the encoder at: the source's, under MaxFrameRate.
+	FrameRate float64
 }
 
 func (e VideoEncode) name() string { return e.Encoder.Name }

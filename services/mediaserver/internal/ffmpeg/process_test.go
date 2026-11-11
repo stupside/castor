@@ -132,3 +132,29 @@ func TestProcessCancellationIsOneOperation(t *testing.T) {
 		t.Fatalf("own cancellation classified as exit %d", got)
 	}
 }
+
+// ffmpeg's own exit codes reach past 128, so only the wait status says a signal ended it.
+func TestASignalOfItsOwnIsToldApartFromAnExitSharingItsCode(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		script   string
+		kill     bool
+		signaled bool
+	}{
+		{"an exit with a signal's code", "exit 139", false, false},
+		{"a signal of its own", "kill -SEGV $$", false, true},
+		{"castor's own kill", "sleep 30", true, false},
+	} {
+		proc, err := Start(t.Context(), "/bin/sh", Command{Args: []string{"-c", tc.script}}, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tc.kill {
+			proc.Kill()
+		}
+		_ = proc.Wait()
+		if got := proc.Evidence().Signaled; got != tc.signaled {
+			t.Errorf("%s: signaled %t, want %t", tc.name, got, tc.signaled)
+		}
+	}
+}

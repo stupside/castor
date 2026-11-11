@@ -36,8 +36,9 @@ type Process struct {
 	tail    *ringTail
 	markers *markerWatch
 
-	// status is the exit code; atomics avoid racing ProcessState.
-	status atomic.Int64
+	// status is the exit code, and signaled a signal castor did not send; atomics avoid racing ProcessState.
+	status   atomic.Int64
+	signaled atomic.Bool
 
 	// stopped records that castor sent its kill signal (see exitStatus).
 	stopped *atomic.Bool
@@ -208,7 +209,9 @@ func (p *Process) Progress() media.Progress {
 func (p *Process) Wait() error {
 	err := p.cmd.Wait()
 	// Publish exit status for Evidence reads from other goroutines.
-	p.status.Store(int64(p.exitStatus()))
+	status, signaled := p.exitStatus()
+	p.status.Store(int64(status))
+	p.signaled.Store(signaled)
 	// Release any platform transport still waiting for the exited child.
 	finishSideOutputs(p.extra)
 	// Then join progress (last sample still in pipe); step writes to work dir caller will remove.
@@ -245,22 +248,22 @@ func kill(proc *os.Process, exited <-chan struct{}, stopped *atomic.Bool) error 
 	return err
 }
 
-// exitStatus reads the reaped process status; only castor's own kill leaves none.
-func (p *Process) exitStatus() int {
+// exitStatus reads the reaped status and whether its own signal ended it; castor's kill leaves no status.
+func (p *Process) exitStatus() (status int, signaled bool) {
 	state := p.cmd.ProcessState
 	ws, ok := state.Sys().(syscall.WaitStatus)
 	if !ok || !ws.Signaled() {
 		// Windows has no signals: its kill is exit code 1, told from a failure only by castor having sent it.
 		if runtime.GOOS == "windows" && p.stopped.Load() {
-			return noExitStatus
+			return noExitStatus, false
 		}
-		return state.ExitCode()
+		return state.ExitCode(), false
 	}
 	// Teardown kills before it waits, so a crash already reaped still names its own signal.
 	if ws.Signal() == syscall.SIGKILL && p.stopped.Load() {
-		return noExitStatus
+		return noExitStatus, false
 	}
-	return signalExitBase + int(ws.Signal())
+	return signalExitBase + int(ws.Signal()), true
 }
 
 // observedInput preserves source errors that os/exec otherwise replaces with a

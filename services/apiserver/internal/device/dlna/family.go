@@ -62,7 +62,7 @@ func (Family) Locate(ctx context.Context, address string) (string, error) {
 		return address, nil
 	}
 
-	location, err := searchDescription(ctx, address)
+	location, err := searchDescription(ctx, ssdpTarget(address))
 	if err != nil {
 		return "", fmt.Errorf(
 			"resolving DLNA description for %q (device did not answer a unicast SSDP search; "+

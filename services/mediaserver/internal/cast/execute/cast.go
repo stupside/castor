@@ -121,6 +121,8 @@ type Runtime struct {
 type Playlist struct {
 	// Runtime is zero where the source declared none.
 	Runtime time.Duration
+	// Segments is the content type the playlist is cut into.
+	Segments string
 }
 
 func (s Source) Length() time.Duration   { return s.Runtime }

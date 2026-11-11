@@ -76,16 +76,13 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 		return retryTransportLocked(ctx, func() error { return s.action(ctx, "SetAVTransportURI", setURI) })
 	}
 	err = set()
-	if upnpError(err, transitionUnavailable) {
-		// Some renderers, LG's among them, take a new stream only once stopped, not while paused.
-		if stopped := s.Stop(ctx); stopped == nil {
-			err = set()
-		}
+	// A renderer may refuse a new stream while paused, so it is stopped first.
+	if upnpError(err, transitionUnavailable) && s.Stop(ctx) == nil {
+		err = set()
 	}
 	if err != nil {
 		return fmt.Errorf("setting transport URI: %w", err)
 	}
-	// The new stream's playhead has yet to move: until it does, its 0:00:00 says nothing.
 	s.ticked.Store(false)
 	s.file.Store(playback.Play.GetSource() != nil)
 	s.seekable.Store(playback.Duration() > 0 && (playback.Play.GetSource() != nil || playback.Play.GetPlaylist() != nil || playback.Play.GetProgressive().GetRuntime().GetSeek() == mediav1.DeviceCommand_Play_Runtime_SEEK_TIME))
@@ -114,7 +111,7 @@ func (s *session) playingStream(ctx context.Context, streamURL *url.URL) bool {
 	ctx, cancel := context.WithTimeout(ctx, actionTimeout)
 	defer cancel()
 	info, err := s.transportInfo(ctx)
-	if err != nil || info.CurrentTransportState != "PLAYING" {
+	if err != nil || info.CurrentTransportState != statePlaying {
 		return false
 	}
 	var response struct{ CurrentURI string }
@@ -167,7 +164,7 @@ func retryTransportLocked(ctx context.Context, do func() error) error {
 	return err
 }
 
-// AVTransport's errors for an action that failed, one the current state does not allow, and a transport another action holds.
+// AVTransport error codes.
 const (
 	actionFailed          = 501
 	transitionUnavailable = 701
@@ -199,6 +196,24 @@ const transportQuery = "GetTransportInfo"
 // idlePolls is how many polls in a row a device may sit stopped with nothing playing before it is taken to have refused the stream.
 const idlePolls = 15
 
+// transportState is AVTransport's TransportState.
+type transportState string
+
+const (
+	statePlaying   transportState = "PLAYING"
+	statePaused    transportState = "PAUSED_PLAYBACK"
+	stateRecording transportState = "RECORDING"
+	stateStopped   transportState = "STOPPED"
+	stateNoMedia   transportState = "NO_MEDIA_PRESENT"
+)
+
+func (t transportState) active() bool {
+	return t == statePlaying || t == statePaused || t == stateRecording
+}
+
+// idle is a renderer holding no stream.
+func (t transportState) idle() bool { return t == stateStopped || t == stateNoMedia }
+
 // transportWatch holds the one thing that ends a cast from the device's side.
 type transportWatch struct {
 	active bool
@@ -206,12 +221,12 @@ type transportWatch struct {
 }
 
 // observe reports whether the cast is over: the device stopped after playing, or never played at all.
-func (w *transportWatch) observe(state string) bool {
-	switch state {
-	case "PLAYING", "PAUSED_PLAYBACK", "RECORDING":
+func (w *transportWatch) observe(state transportState) bool {
+	switch {
+	case state.active():
 		w.active = true
 		w.idle = 0
-	case "STOPPED", "NO_MEDIA_PRESENT":
+	case state.idle():
 		w.idle++
 		return w.active || w.refused()
 	default:
@@ -250,7 +265,7 @@ func awaitTransportEnd(ctx context.Context, name string, poll func(context.Conte
 }
 
 type transportInfo struct {
-	CurrentTransportState  string
+	CurrentTransportState  transportState
 	CurrentTransportStatus string
 }
 
@@ -264,9 +279,11 @@ func (s *session) transportInfo(ctx context.Context) (transportInfo, error) {
 // Stop ends whatever the device is playing.
 func (s *session) Stop(ctx context.Context) error {
 	err := s.action(ctx, "Stop", &struct{ InstanceID string }{"0"})
-	// LG's renderer refuses Stop with nothing loaded, which leaves nothing to stop.
+	// A renderer may refuse Stop while it holds nothing, which is stopped already.
 	if upnpError(err, transitionUnavailable) {
-		if state := s.state(ctx); state == "STOPPED" || state == "NO_MEDIA_PRESENT" {
+		ctx, cancel := context.WithTimeout(ctx, actionTimeout)
+		defer cancel()
+		if info, _ := s.transportInfo(ctx); info.CurrentTransportState.idle() {
 			return nil
 		}
 	}

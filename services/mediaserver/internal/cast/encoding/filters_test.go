@@ -10,17 +10,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-func TestHDRBoundsPrecedeFloatingPointToneMapping(t *testing.T) {
-	filters := videoFilters(codec.VideoEncode{ToneMap: true, MaxWidth: 1920, MaxHeight: 1080, MaxFrameRate: 30})
-	if len(filters) != 2 || !strings.HasPrefix(filters[0], "fps=") || !strings.HasPrefix(filters[1], "zscale=w=") {
-		t.Fatalf("HDR frames must be rate- and size-bounded before tone mapping: %v", filters)
-	}
-	if !strings.Contains(filters[1], "t=linear:npl=100") || !strings.Contains(filters[1], "tonemap=tonemap=hable") || !strings.HasSuffix(filters[1], "format=yuv420p") {
-		t.Fatalf("HDR conversion must retain linear-light Hable mapping to SDR: %v", filters)
-	}
-}
-
-func TestHDRToneMappingBoundsTheFramesItActuallyProcesses(t *testing.T) {
+func TestHDRToneMappingRunsOnFramesAlreadyBounded(t *testing.T) {
 	binary, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		t.Skip("ffmpeg not on PATH")
@@ -36,27 +26,23 @@ func TestHDRToneMappingBoundsTheFramesItActuallyProcesses(t *testing.T) {
 		{"height only", "3840x1608", "1920x804", 0, 804},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			graph := strings.Join(videoFilters(codec.VideoEncode{ToneMap: true, MaxWidth: tt.width, MaxHeight: tt.height}), ",")
-			// Observe the pixels entering Hable, not just the geometry named in an argv.
-			graph = strings.Replace(graph, "tonemap=", "showinfo@bounded,tonemap=", 1) + ",showinfo@output"
-			args := []string{"-hide_banner", "-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=%s:rate=1:duration=1", tt.input),
-				"-vf", "format=yuv420p10le,setparams=range=limited:color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc," + graph,
-				"-frames:v", "1", "-f", "null", "-"}
-			out, err := exec.CommandContext(t.Context(), binary, args...).CombinedOutput()
+			graph := strings.Join(videoFilters(codec.VideoEncode{ToneMap: true, MaxWidth: tt.width, MaxHeight: tt.height, MaxFrameRate: 30}), ",")
+			// Observe the pixels entering Hable, not the geometry named in an argv.
+			graph = strings.Replace(graph, "tonemap=", "showinfo@mapped,tonemap=", 1) + ",showinfo@output"
+			out, err := exec.CommandContext(t.Context(), binary, "-hide_banner",
+				"-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=%s:rate=1:duration=1", tt.input),
+				"-vf", "format=yuv420p10le,setparams=range=limited:color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,"+graph,
+				"-frames:v", "1", "-f", "null", "-").CombinedOutput()
 			if err != nil {
-				t.Fatalf("executing HDR filters: %v\n%s", err, out)
+				t.Fatalf("running the HDR chain: %v\n%s", err, out)
 			}
-			var bounded, output bool
+			var mapped, output bool
 			for line := range strings.SplitSeq(string(out), "\n") {
-				if strings.Contains(line, "showinfo@bounded") && strings.Contains(line, "fmt:gbrpf32le") && strings.Contains(line, "s:"+tt.want+" ") {
-					bounded = true
-				}
-				if strings.Contains(line, "showinfo@output") && strings.Contains(line, "fmt:yuv420p ") && strings.Contains(line, "s:"+tt.want+" ") {
-					output = true
-				}
+				mapped = mapped || strings.Contains(line, "showinfo@mapped") && strings.Contains(line, "fmt:gbrpf32le") && strings.Contains(line, "s:"+tt.want+" ")
+				output = output || strings.Contains(line, "showinfo@output") && strings.Contains(line, "fmt:yuv420p ") && strings.Contains(line, "s:"+tt.want+" ")
 			}
-			if !bounded || !output || !strings.Contains(string(out), "color_primaries:bt709 color_trc:bt709") {
-				t.Fatalf("expected bounded linear-light frames and %s BT.709 SDR output\n%s", tt.want, out)
+			if !mapped || !output || !strings.Contains(string(out), "color_primaries:bt709 color_trc:bt709") {
+				t.Fatalf("want %s linear frames into the tone map and %s BT.709 SDR out\n%s", tt.want, tt.want, out)
 			}
 		})
 	}

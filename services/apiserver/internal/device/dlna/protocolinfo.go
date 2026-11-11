@@ -114,15 +114,15 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 		}
 		ct, cok := containerFromMIME(mime)
 		video := videoFromProfile(mime, pn)
-		a, aok := audioFromProfile(mime, pn)
-		if cok && video == nil && !strings.Contains(pn, "DLNA.ORG_PN=") {
-			// The renderer names the container, not its codecs: conversions target family
-			// defaults, and Native leaves the tracks it carries to the renderer's verdict.
-			video, a, aok = device.H264Support(), mediav1.AudioCodec_AUDIO_CODEC_AAC, true
+		audios := audioFromProfile(mime, pn)
+		if cok && video == nil && mime == device.MIME(ct) && !strings.Contains(pn, "DLNA.ORG_PN=") {
+			// A container named by its contract MIME and no profile plays the family default,
+			// and Native leaves the tracks it carries to the renderer's verdict.
+			video, audios = device.H264Support(), []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AAC}
 			r.NativePlaybackTrial = true
 		}
 		// A separate audio-only profile says nothing about this video container.
-		if !cok || video == nil || !aok {
+		if !cok || video == nil || len(audios) == 0 {
 			if cok {
 				if _, exists := sinks[ct]; !exists {
 					sinks[ct] = sinkEntry{mime: fields[2], features: fields[3]}
@@ -140,20 +140,22 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 			hevc.Profiles = []mediav1.HEVCSupport_Profile{mediav1.HEVCSupport_PROFILE_MAIN}
 		}
 		progressive := progressiveContainers[ct]
-		format := &mediav1.FormatSupport{Transport: &mediav1.FormatSupport_Progressive{Progressive: &mediav1.ProgressiveSupport{Container: progressive}}, Tracks: &mediav1.FormatSupport_Av{Av: &mediav1.AVSupport{Video: video, Audio: audioSupportFor(a)}}}
-		duplicate := slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool { return proto.Equal(existing, format) })
-		alternative := slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool {
-			return existing.GetProgressive().GetContainer() == progressive && !proto.Equal(existing, format)
-		})
-		if !duplicate {
-			r.Formats = append(r.Formats, format)
-		}
-		if alternative || sinks[ct].features == "*" {
-			// The play contract names a container, not a DLNA profile. With multiple
-			// alternatives, omit the profile rather than advertise one not selected.
-			sinks[ct] = sinkEntry{mime: device.MIME(ct), features: "*"}
-		} else {
-			sinks[ct] = sinkEntry{mime: fields[2], features: fields[3]}
+		for _, a := range audios {
+			format := &mediav1.FormatSupport{Transport: &mediav1.FormatSupport_Progressive{Progressive: &mediav1.ProgressiveSupport{Container: progressive}}, Tracks: &mediav1.FormatSupport_Av{Av: &mediav1.AVSupport{Video: video, Audio: audioSupportFor(a)}}}
+			duplicate := slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool { return proto.Equal(existing, format) })
+			alternative := slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool {
+				return existing.GetProgressive().GetContainer() == progressive && !proto.Equal(existing, format)
+			})
+			if !duplicate {
+				r.Formats = append(r.Formats, format)
+			}
+			if alternative || sinks[ct].features == "*" {
+				// The play contract names a container, not a DLNA profile. With multiple
+				// alternatives, omit the profile rather than advertise one not selected.
+				sinks[ct] = sinkEntry{mime: device.MIME(ct), features: "*"}
+			} else {
+				sinks[ct] = sinkEntry{mime: fields[2], features: fields[3]}
+			}
 		}
 	}
 	// Prefer MPEG-TS, then MP4, keeping each receiver-advertised tuple intact. Matroska
@@ -185,16 +187,20 @@ func videoFromProfile(mime, pn string) *mediav1.VideoSupport {
 	return nil
 }
 
-func audioFromProfile(mime, pn string) (mediav1.AudioCodec, bool) {
+// audioFromProfile is the sound a DLNA.ORG_PN token (already upper-cased) or failing that the MIME type admits, nil for none.
+func audioFromProfile(mime, pn string) []mediav1.AudioCodec {
 	switch {
 	case strings.Contains(pn, "EAC3") || strings.Contains(mime, "eac3") || strings.Contains(mime, "dd+"):
-		return mediav1.AudioCodec_AUDIO_CODEC_EAC3, true
+		return []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_EAC3}
 	case strings.Contains(pn, "AC3") || strings.Contains(mime, "ac3") || strings.Contains(mime, "dolby.dd"):
-		return mediav1.AudioCodec_AUDIO_CODEC_AC3, true
+		return []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AC3}
 	case strings.Contains(pn, "AAC") || strings.Contains(mime, "aac") || mime == "audio/mp4":
-		return mediav1.AudioCodec_AUDIO_CODEC_AAC, true
+		return []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AAC}
+	case strings.Contains(pn, "_TS_NA"):
+		// SCTE's profiles name no sound: they admit AC-3, E-AC-3, HE-AAC v2 or MPEG-1 Layer II.
+		return []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AC3, mediav1.AudioCodec_AUDIO_CODEC_EAC3, mediav1.AudioCodec_AUDIO_CODEC_AAC}
 	}
-	return mediav1.AudioCodec_AUDIO_CODEC_UNSPECIFIED, false
+	return nil
 }
 
 // containerFromMIME reads the DLNA MIME spellings of the containers castor serves or forwards.

@@ -13,8 +13,8 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-// Encoders finds the host's working encoder for a codec.
-type Encoders func(context.Context, media.Codec) (ffmpeg.Encoder, bool)
+// Encoders finds the host's working encoder for a codec, software only if asked.
+type Encoders func(ctx context.Context, codec media.Codec, software bool) (ffmpeg.Encoder, bool)
 
 // Inputs is everything a plan is decided against.
 type Inputs struct {
@@ -38,6 +38,8 @@ type Inputs struct {
 	BurnIn  string
 	// Encoders is the host's encoder lookup; required.
 	Encoders Encoders
+	// Software plans without hardware encoders.
+	Software bool
 }
 
 // Plan is the complete codec plan for an FFmpeg encode; Refusals explain why it is not a copy.

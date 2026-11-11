@@ -59,8 +59,30 @@ func (loopback) Publish(ctx context.Context, h http.Handler) (output.Publication
 	if err != nil {
 		return nil, err
 	}
-	return testhttp.Publish(ctx, ln, h), nil
+	return testhttp.Publish(ctx, smallSends{ln}, h), nil
 }
+
+// socketBuffer keeps kernel buffering small, so handed bytes match what the device read on any OS.
+const socketBuffer = 64 << 10
+
+type smallSends struct{ net.Listener }
+
+func (l smallSends) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if tc, ok := c.(*net.TCPConn); ok {
+		_ = tc.SetWriteBuffer(socketBuffer)
+	}
+	return c, err
+}
+
+// reader is a device client whose socket holds no more than socketBuffer.
+var reader = &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+	c, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+	if tc, ok := c.(*net.TCPConn); ok {
+		_ = tc.SetReadBuffer(socketBuffer)
+	}
+	return c, err
+}}}
 
 var _ Device = (*fakeDevice)(nil)
 
@@ -225,7 +247,7 @@ func realCast(dev Device, ffmpegPath, ffprobePath string) Cast {
 		Outputs:    testOutputs(),
 		FFmpegPath: ffmpegPath,
 		Binary:     ffmpeg.Inspect(ffmpegPath),
-		Encoders:   ffmpeg.Encoders(ffmpegPath),
+		Encoders:   ffmpeg.Encoders(ffmpegPath, nil),
 		Probes:     probe.FFprobe(ffprobePath),
 		Timelines:  direct{},
 		InputArgs:  formats.InputArgs,

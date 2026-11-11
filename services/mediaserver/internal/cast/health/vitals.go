@@ -17,6 +17,9 @@ type Vitals struct {
 	// sinceGrowth is how long no new media has arrived: Position when the producer states one, else Landed.
 	sinceGrowth time.Duration
 
+	// sinceMade is how long a fed delivery has made nothing.
+	sinceMade time.Duration
+
 	// Position is the media made so far.
 	Position time.Duration
 
@@ -61,6 +64,8 @@ type Vitals struct {
 	pace      float64
 	paceKnown bool
 
+	// playing is a reading taken while a device played; only those place the viewer.
+	playing bool
 	// began is where in the program the device's current fetch began; played is how long it has played since, less the time it was held.
 	began  time.Duration
 	played time.Duration
@@ -97,12 +102,12 @@ func (h Vitals) outranked() bool {
 // at is where the device has played to by the clock.
 func (h Vitals) at() time.Duration { return h.began + h.played }
 
-// Reached is where the viewer got to in the attempt's program: the device's own word where it says, else the clock.
-func (h Vitals) Reached() time.Duration {
+// Reached is where the viewer got to: the device's word where it says, else the clock; false unless a device played.
+func (h Vitals) Reached() (time.Duration, bool) {
 	if h.headKnown {
-		return h.head
+		return h.head, h.playing
 	}
-	return h.at()
+	return h.at(), h.playing
 }
 
 // Intake is the rate the device took the cast at, in bits per second, zero where the span was not covered.
@@ -229,6 +234,9 @@ const (
 
 	// StallWindow outlasts two reconnect ceilings, so a reconnecting read is never called silent.
 	StallWindow = 2*fetch.BackoffMax + 30*time.Second
+
+	// Warmup is how long an encoder castor feeds may make nothing before it has failed.
+	Warmup = 10 * time.Second
 
 	// fetchWindow is one reconnect ceiling: a device on the local network needs no longer.
 	fetchWindow = fetch.BackoffMax

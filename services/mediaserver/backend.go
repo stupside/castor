@@ -45,7 +45,7 @@ func (c *Config) backend() func(*mediav1.PlaybackSettings) cast.Caster {
 		Outputs:    output.Factory{progressive.Adapter{}, hlsoutput.Adapter{}},
 		FFmpegPath: ffmpegBinary,
 		Binary:     ffmpeg.Inspect(ffmpegBinary),
-		Encoders:   ffmpeg.Encoders(ffmpegBinary),
+		Encoders:   ffmpeg.Encoders(ffmpegBinary, c.Servers.Media.FFmpeg.HardwareEncoders),
 		Probes:     probe.FFprobe(ffprobeBinary),
 		InputArgs:  formats.InputArgs,
 	}

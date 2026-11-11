@@ -59,7 +59,7 @@ func TestAStoppedRendererReportsNoPosition(t *testing.T) {
 			t.Errorf("Position() at %s %s = %v, %v; want no position", rel, state, head, err)
 		}
 	}
-	// A renderer still opening the stream is where it says, so a playhead that never moves stays visible.
+	// TRANSITIONING is not idle.
 	rel, state = "0:00:35", "TRANSITIONING"
 	if head, err := s.Position(t.Context()); err != nil || head.At != 35*time.Second {
 		t.Errorf("Position() while transitioning = %v, %v; want 35s", head, err)

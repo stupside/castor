@@ -36,7 +36,7 @@ func TestEncodeTriesNextTransportWhenHostCannotEncodeForFirst(t *testing.T) {
 		{Transport: media.TransportHLS, Video: media.VideoSupport{Codec: media.CodecHEVC}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}},
 		{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}},
 	}}
-	s.Encoders = func(context.Context, media.Codec) (ffmpeg.Encoder, bool) { return ffmpeg.Encoder{}, false }
+	s.Encoders = func(context.Context, media.Codec, bool) (ffmpeg.Encoder, bool) { return ffmpeg.Encoder{}, false }
 	opts, err := s.encode(feed{buffered: buf}, nil)
 	if err != nil {
 		t.Fatal(err)

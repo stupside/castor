@@ -10,6 +10,7 @@ import (
 
 // Cursor reads a buffer from an offset, to a limit that may be set while it reads.
 type Cursor struct {
+	sp   *storage.Spool
 	tail io.ReadCloser
 
 	// skip drops the sound a reader starting at a cut has already been given, nil for none.
@@ -31,7 +32,7 @@ func Open(ctx context.Context, sp *storage.Spool, from int64, tables []byte, ski
 	if err != nil {
 		return nil, err
 	}
-	return &Cursor{tail: tail, skip: skip, prefix: tables, next: from, limit: -1}, nil
+	return &Cursor{sp: sp, tail: tail, skip: skip, prefix: tables, next: from, limit: -1}, nil
 }
 
 func (c *Cursor) Read(p []byte) (int, error) {
@@ -90,6 +91,17 @@ func (c *Cursor) Offset() int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.next
+}
+
+// Behind is buffer the cursor has yet to read before its limit; a read waiting for more has claimed it.
+func (c *Cursor) Behind() bool {
+	end := c.sp.Size()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.limit >= 0 {
+		end = min(end, c.limit)
+	}
+	return c.next < end
 }
 
 // Stop ends the cursor's reading at offset at, reporting whether it had not read past it already.

@@ -196,3 +196,12 @@ func TestBufferedReadRejectsUnidentifiedExtraTracks(t *testing.T) {
 		}
 	}
 }
+
+func TestAnOutputTheReceiverCannotPlayNamesTheHalvesItRefuses(t *testing.T) {
+	caps := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}}}}
+	p := media.ProbeInfo{VideoCodec: media.CodecVP8, VideoBitDepth: 8, AudioCodec: media.CodecAAC, AudioChannels: 2}
+	mismatch, ok := errors.AsType[*Mismatch](ValidateOutput(t.Context(), outputProbe{info: p}, caps, media.MP4, p.RequiredTracks(), nil))
+	if !ok || mismatch.Refused != (media.Axes{Video: true}) {
+		t.Fatalf("mismatch = %+v, want the picture named as what the receiver refuses", mismatch)
+	}
+}

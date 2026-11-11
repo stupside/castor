@@ -26,6 +26,12 @@ type rule struct {
 
 // rules are asked in order, the first match deciding; the two rows below answer the rest.
 var rules = []rule{{
+	// First: a read that is fine says nothing of the encoder it feeds.
+	name:   "wedged",
+	phases: []Phase{Opening, Playing},
+	when:   func(h Vitals) bool { return h.sinceMade > Warmup },
+	kind:   Wedged,
+}, {
 	// A partial buffer would play, then stop, so a read failing before play is dead.
 	name:   "producer-failed",
 	phases: []Phase{Reading, Opening},

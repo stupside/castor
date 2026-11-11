@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/urfave/cli/v3"
@@ -13,7 +14,7 @@ import (
 
 func TestDesktopToolPathsStillUseInstalledNames(t *testing.T) {
 	want := FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe"}
-	if got := defaults().Servers.Media.FFmpeg; got != want {
+	if got := defaults().Servers.Media.FFmpeg; !reflect.DeepEqual(got, want) {
 		t.Fatalf("default tool paths = %#v, want %#v", got, want)
 	}
 }
@@ -28,12 +29,74 @@ func TestConfiguredToolPaths(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Servers.Media.FFmpeg != want {
+		if !reflect.DeepEqual(got.Servers.Media.FFmpeg, want) {
 			t.Fatalf("tool paths = %#v, want %#v", got.Servers.Media.FFmpeg, want)
 		}
 		return nil
 	}
 	if err := cmd.Run(t.Context(), []string{"media"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTheHostDeclaresItsHardwareEncodersByName(t *testing.T) {
+	for _, tt := range []struct {
+		declared string
+		want     []string
+		refused  bool
+	}{
+		{"hevc_mediacodec,h264_mediacodec", []string{"hevc_mediacodec", "h264_mediacodec"}, false},
+		{"h264_qsv", []string{"h264_qsv"}, false},
+		{"libx264", nil, true},
+		{"h264_bogus", nil, true},
+	} {
+		t.Setenv("CASTOR_SERVERS__MEDIA__FFMPEG__HARDWARE_ENCODERS", tt.declared)
+		cmd := &cli.Command{Flags: []cli.Flag{settings.Flag}}
+		cmd.Action = func(_ context.Context, cmd *cli.Command) error {
+			got, err := settings.Load(cmd, defaults())
+			if tt.refused {
+				if err == nil {
+					t.Errorf("%s was accepted", tt.declared)
+				}
+				return nil
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var names []string
+			for _, e := range got.Servers.Media.FFmpeg.HardwareEncoders {
+				names = append(names, e.Name)
+			}
+			if !reflect.DeepEqual(names, tt.want) {
+				t.Errorf("declared %s, got %v", tt.declared, names)
+			}
+			return nil
+		}
+		if err := cmd.Run(t.Context(), []string{"media"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestAConfigFileDeclaresHardwareEncodersAsAList(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("servers:\n  media:\n    ffmpeg:\n      hardware_encoders: [h264_mediacodec]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := &cli.Command{
+		Name: "castor", Flags: []cli.Flag{settings.Flag},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			got, err := settings.Load(cmd, defaults())
+			if err != nil {
+				return err
+			}
+			if declared := got.Servers.Media.FFmpeg.HardwareEncoders; len(declared) != 1 || declared[0].Name != "h264_mediacodec" {
+				t.Errorf("declared %v, want h264_mediacodec", declared)
+			}
+			return nil
+		},
+	}
+	if err := command.Run(t.Context(), []string{"castor", "--config", path}); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -71,7 +71,14 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 	if len(refused) == 0 {
 		return CopyVideo(), nil, nil
 	}
-	host := func(c media.Codec) (ffmpeg.Encoder, bool) { return in.Encoders(ctx, c) }
+	host := func(c media.Codec) (ffmpeg.Encoder, bool) {
+		e, ok := in.Encoders(ctx, c, in.Software)
+		// Fragments cut on the clock each open on a forced keyframe, which a GOP-keyed encoder cannot place.
+		if ok && e.GOPKeyframes && in.Into.ClockCuts {
+			return in.Encoders(ctx, c, true)
+		}
+		return e, ok
+	}
 	enc, t, ok := selectVideoEncoder(in.Caps, host)
 	if !ok {
 		if ceilingOnly(refused) {
@@ -104,6 +111,7 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 		Deinterlace:         in.Probe.VideoInterlaced && !in.Caps.Deinterlaces,
 		ToneMap:             in.Probe.VideoHDR,
 		MaxFrameRate:        frameRate,
+		FrameRate:           min(cmp.Or(in.Probe.VideoFrameRate, frameRate), frameRate),
 		Bitrate:             bitrate,
 		Maxrate:             maxrate,
 		Bufsize:             bufsize,
