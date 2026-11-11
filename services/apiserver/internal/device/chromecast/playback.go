@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
+	"log/slog"
 	"sync"
 
 	castmedia "github.com/vishen/go-chromecast/cast"
@@ -47,6 +49,10 @@ func (s *session) watchMessage(payload []byte) {
 		return
 	}
 	s.watchMu.Lock()
+	if code, ok := receiverError(payload); ok && s.watch.armed {
+		s.watch.errorCode = code
+		slog.Warn("chromecast receiver reported an error", "detailed_error_code", code)
+	}
 	over, playErr := playbackOutcome(&s.watch, &response)
 	var controls struct {
 		Status []struct {
@@ -78,6 +84,7 @@ type playback struct {
 	mediaSession int
 	active       bool
 	commands     uint64
+	errorCode    int // the detailed code of the receiver's last ERROR message, 0 when it sent none
 }
 
 func (w *playback) begin(content string) {
@@ -86,6 +93,7 @@ func (w *playback) begin(content string) {
 	w.mediaSession = 0
 	w.active = false
 	w.commands = 0
+	w.errorCode = 0
 }
 
 func (w *playback) disarm() {
@@ -94,6 +102,20 @@ func (w *playback) disarm() {
 	w.mediaSession = 0
 	w.active = false
 	w.commands = 0
+	w.errorCode = 0
+}
+
+// named adds the receiver's own error code, when it sent one, to the error a playback ends with.
+func (w *playback) named(err error) error {
+	if w.errorCode == 0 || err == nil {
+		return err
+	}
+	return fmt.Errorf("%w (receiver detailed error code %d)", err, w.errorCode)
+}
+
+// failure names the receiver's own error code when it sent one.
+func (w *playback) failure(text string) error {
+	return w.named(errors.New(text))
 }
 
 func (w *playback) observe(status castmedia.Media) (bool, error) {
@@ -114,9 +136,9 @@ func (w *playback) observe(status castmedia.Media) (bool, error) {
 		switch status.IdleReason {
 		case idleError:
 			if w.active {
-				return true, errors.New("chromecast playback ended with receiver error")
+				return true, w.failure("chromecast playback ended with receiver error")
 			}
-			return true, errors.New("chromecast refused the media: the receiver went idle with an error before playback began")
+			return true, w.failure("chromecast refused the media: the receiver went idle with an error before playback began")
 		case "FINISHED", "CANCELLED", "INTERRUPTED":
 			return w.active, nil
 		}
@@ -141,4 +163,18 @@ func playbackOutcome(w *playback, response *castmedia.MediaStatusResponse) (bool
 	default:
 		return false, nil
 	}
+}
+
+const msgError = "ERROR"
+
+// receiverError reads the detailed code of a receiver's ERROR message.
+func receiverError(payload []byte) (code int, ok bool) {
+	var message struct {
+		Type string `json:"type"`
+		Code *int   `json:"detailedErrorCode"`
+	}
+	if err := json.Unmarshal(payload, &message); err != nil || message.Type != msgError || message.Code == nil {
+		return 0, false
+	}
+	return *message.Code, true
 }

@@ -81,6 +81,8 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 		s.watchMu.Lock()
 		// A Play begun since owns the watch now; this one's failure is not its to clear.
 		if s.ending == mine {
+			// The receiver's code belongs to this Play only while it still owns the watch.
+			err = s.watch.named(err)
 			s.watch.disarm()
 		}
 		s.watchMu.Unlock()
