@@ -114,3 +114,24 @@ func TestSourceProbeOpensEachInputAsTheReaderWill(t *testing.T) {
 		}
 	}
 }
+
+// A start ffprobe could not read is no measured zero: the reader would shift that input by the clock's whole start.
+func TestAnInputWhoseStartIsUnreadHasNoMeasuredStart(t *testing.T) {
+	ffprobe, _ := fakeFFprobe(t, `  *'https://audio.test/sound.aac'*) printf '%s\n' '{"streams":[{"codec_type":"audio","codec_name":"aac","channels":2}],"format":{"format_name":"aac","start_time":"N/A"}}' ;;
+  *) printf '%s\n' '{"streams":[{"codec_type":"video","codec_name":"h264","width":1280,"height":720}],"format":{"format_name":"hls","start_time":"11.400000"}}' ;;
+`)
+	program := media.Program{Inputs: []media.Input{
+		{ID: "audio", URL: mustURL(t, "https://audio.test/sound.aac"), ContentType: media.HLS},
+		{ID: "video", URL: mustURL(t, "https://video.test/live.m3u8"), ContentType: media.HLS},
+	}, Tracks: []media.TrackRef{
+		{Input: "video", Kind: media.TrackVideo},
+		{Input: "audio", Kind: media.TrackAudio},
+	}, ClockInput: "video", EndPolicy: media.EndAtLongest}
+	info, _, err := sourceProbe(t, ffprobe, program, nil).Probe(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, measured := info.InputStarts["audio"]; measured || info.InputStarts["video"] != 11400*time.Millisecond {
+		t.Errorf("input starts %v, want only the video's 11.4s", info.InputStarts)
+	}
+}

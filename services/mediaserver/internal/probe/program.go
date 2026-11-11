@@ -64,10 +64,13 @@ func (p sourceProber) Probe(ctx context.Context) (media.ProbeInfo, media.Reach, 
 				return info, reach, fmt.Errorf("probing program clock input: %w", err)
 			}
 		}
-		if info.InputStarts == nil {
-			info.InputStarts = map[media.InputID]time.Duration{}
+		// A start ffprobe could not read is no zero: reading it as one would shift this input by the clock's start.
+		if measured.StartKnown {
+			if info.InputStarts == nil {
+				info.InputStarts = map[media.InputID]time.Duration{}
+			}
+			info.InputStarts[input.ID] = measured.Start
 		}
-		info.InputStarts[input.ID] = measured.Start
 		if clock {
 			info.Start = measured.Start
 			info.StartKnown = measured.StartKnown
