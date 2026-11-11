@@ -358,3 +358,16 @@ func TestAStopRefusedWithNothingLoadedHasNothingToStop(t *testing.T) {
 		}
 	}
 }
+
+func TestACancelWhileTheTransportStaysLockedCarriesItsCause(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cause := errors.New("viewer stopped")
+		ctx, cancel := context.WithCancelCause(t.Context())
+		locked := &soap.SOAPFaultError{}
+		locked.Detail.UPnPError.Errorcode = transportLocked
+		err := retryTransportLocked(ctx, func() error { cancel(cause); return locked })
+		if !errors.Is(err, cause) {
+			t.Errorf("a cancel while the transport stayed locked ended with %v, want its cause", err)
+		}
+	})
+}

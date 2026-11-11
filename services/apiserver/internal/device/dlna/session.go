@@ -91,11 +91,14 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	}); err != nil {
 		// A renderer may start playing without acknowledging Play before its deadline.
 		// Do not tear down that stream, or resend Play, if its state confirms the handover.
-		if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) && s.playingStream(ctx, playback.URL) {
-			slog.InfoContext(ctx, "device confirmed playback after Play timed out", "device", s.name())
-			return nil
+		if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+			if s.playingStream(ctx, playback.URL) {
+				slog.InfoContext(ctx, "device confirmed playback after Play timed out", "device", s.name())
+				return nil
+			}
+			// A cancel during the confirmation is seen only here.
+			err = errors.Join(err, context.Cause(ctx))
 		}
-		err = errors.Join(err, context.Cause(ctx))
 		return fmt.Errorf("starting playback: %w", err)
 	}
 	return nil
@@ -152,7 +155,7 @@ func retryTransportLocked(ctx context.Context, do func() error) error {
 		slog.DebugContext(ctx, "transport locked, retrying action", "attempt", attempt+1)
 		select {
 		case <-ctx.Done():
-			return err
+			return errors.Join(err, context.Cause(ctx))
 		case <-time.After(transportLockedDelay):
 		}
 	}
