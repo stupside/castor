@@ -353,7 +353,7 @@ func TestAStopRefusedWithNothingLoadedHasNothingToStop(t *testing.T) {
 			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
 		})
 		s := &session{transport: goupnp.ServiceClient{SOAPClient: client, Service: &goupnp.Service{ServiceType: "urn:schemas-upnp-org:service:AVTransport:1"}}}
-		if err := s.Stop(t.Context()); (err != nil) != refused || refused && !upnpError(err, transitionUnavailable) {
+		if err := s.stop(t.Context()); (err != nil) != refused || refused && !upnpError(err, transitionUnavailable) {
 			t.Errorf("Stop while %s = %v, want a refusal %v", state, err, refused)
 		}
 	}
@@ -370,6 +370,30 @@ func TestACancelWhileTheTransportStaysLockedCarriesItsCause(t *testing.T) {
 			t.Errorf("a cancel while the transport stayed locked ended with %v, want its cause", err)
 		}
 	})
+}
+
+func TestAStreamAnotherSenderHandedTheRendererIsNotStopped(t *testing.T) {
+	const ours = "http://192.0.2.1:8080/media/stream"
+	for current, stops := range map[string]bool{ours: true, "": true, "http://192.0.2.99/other.mp4": false} {
+		var stopped atomic.Bool
+		s := renderer(func(action string) string {
+			switch action {
+			case "GetMediaInfo":
+				return "<CurrentURI>" + current + "</CurrentURI>"
+			case "Stop":
+				stopped.Store(true)
+			}
+			return ""
+		})
+		_, s.sinks = parseSinkProtocolInfo("http-get:*:video/mp2t:*")
+		u, _ := url.Parse(ours)
+		if err := s.Play(t.Context(), device.Playback{URL: u, Play: devicetest.Source(mediav1.Container_CONTAINER_MPEGTS)}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Stop(t.Context()); err != nil || stopped.Load() != stops {
+			t.Errorf("renderer holding %q: Stop = %v, stopped %t, want stopped %t", current, err, stopped.Load(), stops)
+		}
+	}
 }
 
 func TestAPlayheadAskedOfTheStreamBeforeAPlayDoesNotTickTheNewOne(t *testing.T) {

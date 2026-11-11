@@ -79,7 +79,7 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	}
 	err = set()
 	// A renderer may refuse a new stream while paused, so it is stopped first.
-	if upnpError(err, transitionUnavailable) && s.Stop(ctx) == nil {
+	if upnpError(err, transitionUnavailable) && s.stop(ctx) == nil {
 		err = set()
 	}
 	if err != nil {
@@ -121,10 +121,16 @@ func (s *session) playingStream(ctx context.Context, streamURL *url.URL) bool {
 	if err != nil || info.CurrentTransportState != statePlaying {
 		return false
 	}
+	uri, err := s.currentURI(ctx)
+	return err == nil && uri == streamURL.String() && ctx.Err() == nil
+}
+
+// currentURI is the stream the renderer holds now, whoever handed it.
+func (s *session) currentURI(ctx context.Context) (string, error) {
 	var response struct{ CurrentURI string }
-	err = s.transport.SOAPClient.PerformActionCtx(ctx, s.transport.Service.ServiceType,
+	err := s.transport.SOAPClient.PerformActionCtx(ctx, s.transport.Service.ServiceType,
 		"GetMediaInfo", &struct{ InstanceID string }{"0"}, &response)
-	return err == nil && response.CurrentURI == streamURL.String() && ctx.Err() == nil
+	return response.CurrentURI, err
 }
 
 // shownCaption is the one caption a renderer is told of: the default, else the first.
@@ -280,8 +286,23 @@ func (s *session) transportInfo(ctx context.Context) (transportInfo, error) {
 	return response, err
 }
 
-// Stop ends whatever the device is playing.
+// Stop ends castor's stream; one another sender handed the renderer since is left alone.
 func (s *session) Stop(ctx context.Context) error {
+	played := s.played.Load()
+	if played == nil {
+		return nil
+	}
+	asking, cancel := context.WithTimeout(ctx, actionTimeout)
+	uri, err := s.currentURI(asking)
+	cancel()
+	if err == nil && uri != "" && uri != played.uri {
+		return nil
+	}
+	return s.stop(ctx)
+}
+
+// stop ends whatever the renderer plays.
+func (s *session) stop(ctx context.Context) error {
 	err := s.action(ctx, "Stop", &struct{ InstanceID string }{"0"})
 	// A renderer may refuse Stop while it holds nothing, which is stopped already.
 	if upnpError(err, transitionUnavailable) {

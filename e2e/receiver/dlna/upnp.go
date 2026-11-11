@@ -113,6 +113,12 @@ func (u *upnp) actions() map[string]func(envelope) (string, int) {
 			played := u.session.Played().Round(time.Second)
 			return fmt.Sprintf("<Track>1</Track><RelTime>%d:%02d:%02d</RelTime>", int(played.Hours()), int(played.Minutes())%60, int(played.Seconds())%60), 0
 		},
+		// GetMediaInfo names the stream the transport holds, which a sender asks before stopping it.
+		"GetMediaInfo": func(envelope) (string, int) {
+			u.mu.Lock()
+			defer u.mu.Unlock()
+			return "<NrTracks>1</NrTracks><CurrentURI>" + html.EscapeString(u.uri) + "</CurrentURI><CurrentURIMetaData>" + html.EscapeString(u.meta) + "</CurrentURIMetaData>", 0
+		},
 		"GetTransportInfo": func(envelope) (string, int) {
 			return "<CurrentTransportState>" + u.transportState() + "</CurrentTransportState><CurrentTransportStatus>OK</CurrentTransportStatus><CurrentSpeed>1</CurrentSpeed>", 0
 		},
