@@ -193,3 +193,19 @@ func TestALiveDeliveryDecliningRangesServesTheWholeStreamWhateverIsAsked(t *test
 		}
 	}
 }
+
+func TestALiveDeliveryServesTheWholeStreamForARangeItCannotRead(t *testing.T) {
+	for _, asked := range []string{"bytes=0-3,5-6", "items=0-3", "bytes=5"} {
+		spool, _ := liveSpool(t, 64)
+		_, _ = spool.Write([]byte("complete"))
+		spool.CloseWrite(nil)
+		stream := ServeSpool(output.Opening{}, spool)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://example/stream", nil)
+		req.Header.Set("Range", asked)
+		recorder := httptest.NewRecorder()
+		stream.handleStream(recorder, req)
+		if recorder.Code != http.StatusOK || recorder.Body.String() != "complete" {
+			t.Errorf("%s: status=%d body=%q, want the whole stream, as a finished stream answers", asked, recorder.Code, recorder.Body.String())
+		}
+	}
+}

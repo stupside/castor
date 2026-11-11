@@ -13,14 +13,14 @@ func (s *Stream) resumeLive(header string) served {
 	}
 	result := served{code: http.StatusOK, start: 0, end: -1, total: total}
 	start, last, ok := byteRange(header)
-	// The whole stream, following production: asked so, asked of a delivery declining ranges, or from byte zero before the end is known.
-	if header == "" || s.rangesDeclined() || ok && start == 0 && last < 0 && !closed {
+	// The whole stream, following production: asked so, by a range it cannot read, of a delivery declining ranges, or from byte zero before the end is known.
+	if !ok || s.rangesDeclined() || start == 0 && last < 0 && !closed {
 		if first > 0 {
 			result.code = http.StatusGone
 		}
 		return result
 	}
-	if !ok || start >= end {
+	if start >= end {
 		return served{code: http.StatusRequestedRangeNotSatisfiable, total: total}
 	}
 	if start < first {
