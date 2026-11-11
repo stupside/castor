@@ -88,10 +88,7 @@ type AudioSupport struct {
 const PlaybackSampleRate = 48000
 
 func (c Capabilities) CanCopyVideo(v ProbeInfo) bool {
-	if v.VideoInterlaced && !c.Deinterlaces {
-		return false
-	}
-	return slices.ContainsFunc(c.Formats, func(f FormatSupport) bool { return f.Video.accepts(v) })
+	return slices.ContainsFunc(c.Formats, func(f FormatSupport) bool { return f.acceptsVideo(v, c.Deinterlaces) })
 }
 
 func (c Capabilities) CanCopyAudio(p ProbeInfo) bool {
@@ -190,7 +187,7 @@ func (c Capabilities) Refused(container string, p ProbeInfo) Axes {
 		return slices.ContainsFunc(c.Formats, func(f FormatSupport) bool { return f.Transport.ContentType() == container && takes(f) })
 	}
 	refused := Axes{
-		Video: p.HasVideo() && !offered(func(f FormatSupport) bool { return (!p.VideoInterlaced || c.Deinterlaces) && f.Video.accepts(p) }),
+		Video: p.HasVideo() && !offered(func(f FormatSupport) bool { return f.acceptsVideo(p, c.Deinterlaces) }),
 		Audio: p.HasAudio() && !offered(func(f FormatSupport) bool { return f.Audio.accepts(p) }),
 	}
 	if refused.Any() {
@@ -201,7 +198,11 @@ func (c Capabilities) Refused(container string, p ProbeInfo) Axes {
 
 func (f FormatSupport) accepts(p ProbeInfo, deinterlaces bool) bool {
 	return (p.HasVideo() || p.HasAudio()) &&
-		(!p.VideoInterlaced || deinterlaces) &&
-		(!p.HasVideo() || f.Video.accepts(p)) &&
+		(!p.HasVideo() || f.acceptsVideo(p, deinterlaces)) &&
 		(!p.HasAudio() || f.Audio.accepts(p))
+}
+
+// acceptsVideo is whether f plays p's picture, an interlaced one only on a device that deinterlaces.
+func (f FormatSupport) acceptsVideo(p ProbeInfo, deinterlaces bool) bool {
+	return (!p.VideoInterlaced || deinterlaces) && f.Video.accepts(p)
 }

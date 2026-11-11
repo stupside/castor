@@ -112,3 +112,13 @@ func TestTheHalvesAReceiverRefusesAreNamed(t *testing.T) {
 		}
 	}
 }
+
+func TestAnInterlacedPictureIsPlayedOnlyByADeviceThatDeinterlaces(t *testing.T) {
+	interlaced := ProbeInfo{VideoCodec: CodecH264, VideoProfile: "High", VideoHeight: 1080, VideoBitDepth: 8, VideoInterlaced: true}
+	for _, deinterlaces := range []bool{false, true} {
+		caps := Capabilities{Deinterlaces: deinterlaces, Formats: []FormatSupport{{Transport: TransportMPEGTS, Video: VideoSupport{Codec: CodecH264}}}}
+		if caps.CanCopyVideo(interlaced) != deinterlaces || caps.CanPlayIn(MPEGTS, interlaced) != deinterlaces || caps.Refused(MPEGTS, interlaced).Video == deinterlaces {
+			t.Errorf("deinterlaces %t: copy %t, plays %t, refused %v", deinterlaces, caps.CanCopyVideo(interlaced), caps.CanPlayIn(MPEGTS, interlaced), caps.Refused(MPEGTS, interlaced))
+		}
+	}
+}
