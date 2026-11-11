@@ -5,6 +5,7 @@ import { Meter } from "@/components/meter";
 import { color, space, text } from "@/components/tokens.stylex";
 import { useEffect, useState } from "react";
 import { clock } from "./labels";
+import { type Elapsed, elapsedAfter, livePosition } from "./playhead-state";
 
 // Between the device's reports, a playing cast moves on with the clock.
 export function useLivePosition(
@@ -12,18 +13,18 @@ export function useLivePosition(
   paused: boolean,
   duration?: number,
 ) {
-  const [elapsed, setElapsed] = useState({ from: position, ms: 0 });
+  const [elapsed, setElapsed] = useState<Elapsed>({ from: position, ms: 0 });
   useEffect(() => {
     if (paused) return;
-    const start = performance.now();
-    const id = setInterval(
-      () => setElapsed({ from: position, ms: performance.now() - start }),
-      250,
-    );
+    let last = performance.now();
+    const id = setInterval(() => {
+      const now = performance.now();
+      setElapsed((e) => elapsedAfter(e, position, now - last));
+      last = now;
+    }, 250);
     return () => clearInterval(id);
   }, [position, paused]);
-  const live =
-    !paused && elapsed.from === position ? position + elapsed.ms : position;
+  const live = livePosition(elapsed, position);
   return duration ? Math.min(live, duration) : live;
 }
 
