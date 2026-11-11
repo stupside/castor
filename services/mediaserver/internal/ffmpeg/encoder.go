@@ -22,9 +22,10 @@ type Encoder struct {
 	Filters  []string    // appended to the -vf chain: e.g. the GPU upload
 	Flags    []string    // encoder-specific -c:v flags: preset, pix_fmt, GOP
 
-	AverageRate      bool // honors -b:v alone: no VBV ceiling, no quality target
-	GOPKeyframes     bool // places keyframes by -g alone, ignoring forced ones
-	MediaCodecLevels bool // reads -level:v by MediaCodec's names: 4, 4.2, m4.1
+	AverageRate        bool // honors -b:v alone: no VBV ceiling, no quality target
+	GOPKeyframes       bool // places keyframes by -g alone, ignoring forced ones
+	SingleIDROutOfBand bool // with the decoder config out of band, only its first frame is an IDR
+	MediaCodecLevels   bool // reads -level:v by MediaCodec's names: 4, 4.2, m4.1
 }
 
 // Level is level as e's -level:v reads it: MediaCodec's names drop ".0", and HEVC's name its main tier.
@@ -66,8 +67,8 @@ var (
 	h264AMF          = Encoder{Name: "h264_amf", Codec: media.CodecH264, Hardware: true, Flags: []string{"-quality", "speed", "-pix_fmt", "nv12"}}
 	hevcAMF          = Encoder{Name: "hevc_amf", Codec: media.CodecHEVC, Hardware: true, Flags: []string{"-quality", "speed", "-pix_fmt", "nv12"}}
 
-	h264MediaCodec = Encoder{Name: "h264_mediacodec", Codec: media.CodecH264, Hardware: true, Flags: mediacodecFlags, AverageRate: true, GOPKeyframes: true, MediaCodecLevels: true}
-	hevcMediaCodec = Encoder{Name: "hevc_mediacodec", Codec: media.CodecHEVC, Hardware: true, Flags: mediacodecFlags, AverageRate: true, GOPKeyframes: true, MediaCodecLevels: true}
+	h264MediaCodec = Encoder{Name: "h264_mediacodec", Codec: media.CodecH264, Hardware: true, Flags: mediacodecFlags, AverageRate: true, GOPKeyframes: true, SingleIDROutOfBand: true, MediaCodecLevels: true}
+	hevcMediaCodec = Encoder{Name: "hevc_mediacodec", Codec: media.CodecHEVC, Hardware: true, Flags: mediacodecFlags, AverageRate: true, GOPKeyframes: true, SingleIDROutOfBand: true, MediaCodecLevels: true}
 
 	h264VAAPI = vaapiEncoder("h264_vaapi", media.CodecH264, vaapiRenderNode)
 	hevcVAAPI = vaapiEncoder("hevc_vaapi", media.CodecHEVC, vaapiRenderNode)

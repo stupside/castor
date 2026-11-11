@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/container"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -218,26 +219,41 @@ func TestTheEncoderIsToldTheRateFramesReachItAt(t *testing.T) {
 	}
 }
 
-func TestADeliveryCutOnTheClockIsNotEncodedByAGOPKeyedEncoder(t *testing.T) {
-	gopKeyed := func(_ context.Context, c media.Codec, software bool) (ffmpeg.Encoder, bool) {
-		if software {
-			return ffmpeg.Encoder{Name: "libx264", Codec: c}, true
-		}
-		return ffmpeg.Encoder{Name: "h264_mediacodec", Codec: c, Hardware: true, GOPKeyframes: true}, true
-	}
+// A hardware encoder is passed over for software where a segment it encodes would not start on an IDR.
+func TestSoftwareEncodesWhereAHardwareSegmentWouldNotStartOnAnIDR(t *testing.T) {
+	gopKeyed := ffmpeg.Encoder{Name: "gop-keyed", Codec: media.CodecH264, Hardware: true, GOPKeyframes: true}
+	singleIDR := ffmpeg.Encoder{Name: "single-idr", Codec: media.CodecH264, Hardware: true, SingleIDROutOfBand: true}
+	clockCut := testFormat(t, media.MPEGTS)
+	clockCut.ClockCuts = true
+	segmented := container.Format{ContentType: media.HLS, Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand}
+	inBandSegments := segmented
+	inBandSegments.Framing = media.FramingInBand
 	for _, tt := range []struct {
-		clock bool
-		want  string
-	}{{false, "h264_mediacodec"}, {true, "libx264"}} {
-		into := testFormat(t, media.MPEGTS)
-		into.ClockCuts = tt.clock
-		in := Inputs{Caps: h264OnlyCaps(), Probe: media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 1080, VideoBitDepth: 8}, Into: into, MaxHeight: 1080, Encoders: gopKeyed}
+		name    string
+		encoder ffmpeg.Encoder
+		into    container.Format
+		want    string
+	}{
+		{"a GOP-keyed encoder on a stream", gopKeyed, testFormat(t, media.MPEGTS), "gop-keyed"},
+		{"a GOP-keyed encoder on a delivery cut on the clock", gopKeyed, clockCut, "libx264"},
+		{"a single IDR on segments with the config out of band", singleIDR, segmented, "libx264"},
+		{"a single IDR on segments that carry the config", singleIDR, inBandSegments, "single-idr"},
+		{"a single IDR on a stream with the config out of band", singleIDR, testFormat(t, media.MP4), "single-idr"},
+		{"an encoder that keys anywhere on segments cut on the clock", ffmpeg.Encoder{Name: "keys-anywhere", Codec: media.CodecH264, Hardware: true}, container.Format{ContentType: media.HLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand, ClockCuts: true}, "keys-anywhere"},
+	} {
+		host := func(_ context.Context, c media.Codec, software bool) (ffmpeg.Encoder, bool) {
+			if software {
+				return ffmpeg.Encoder{Name: "libx264", Codec: c}, true
+			}
+			return tt.encoder, true
+		}
+		in := Inputs{Caps: h264OnlyCaps(), Probe: media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 1080, VideoBitDepth: 8}, Into: tt.into, MaxHeight: 1080, Encoders: host}
 		track, _, err := decideVideo(t.Context(), in, 0)
 		if err != nil {
-			t.Fatalf("decideVideo: %v", err)
+			t.Fatalf("%s: %v", tt.name, err)
 		}
 		if enc, _ := track.Encode(); enc.Encoder.Name != tt.want {
-			t.Errorf("clock cuts %t planned %q, want %q", tt.clock, enc.Encoder.Name, tt.want)
+			t.Errorf("%s: planned %q, want %q", tt.name, enc.Encoder.Name, tt.want)
 		}
 	}
 }

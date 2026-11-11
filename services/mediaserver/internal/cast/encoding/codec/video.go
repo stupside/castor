@@ -73,8 +73,7 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 	}
 	host := func(c media.Codec) (ffmpeg.Encoder, bool) {
 		e, ok := in.Encoders(ctx, c, in.Software)
-		// Fragments cut on the clock each open on a forced keyframe, which a GOP-keyed encoder cannot place.
-		if ok && e.GOPKeyframes && in.Into.ClockCuts {
+		if ok && !everySegmentStartsOnIDR(e, in.Into) {
 			return in.Encoders(ctx, c, true)
 		}
 		return e, ok
@@ -119,6 +118,19 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 		KeyframeIntervalSec: keyframeSeconds,
 		SubtitleTextFile:    in.BurnIn,
 	}), refused, nil
+}
+
+// everySegmentStartsOnIDR reports whether every segment of into that e encodes starts on a frame a device can start decoding at.
+func everySegmentStartsOnIDR(e ffmpeg.Encoder, into container.Format) bool {
+	switch {
+	case into.ClockCuts && e.GOPKeyframes:
+		// Fragments cut on the clock each open on a forced keyframe, which a GOP-keyed encoder cannot place.
+		return false
+	case into.Delivery == container.DeliverSegmented && into.Framing == media.FramingOutOfBand && e.SingleIDROutOfBand:
+		// A device may start at any segment, and none carries the decoder config.
+		return false
+	}
+	return true
 }
 
 // playbackFrameRate is the most any device castor serves shows in a second; above it a re-encode drops frames.
