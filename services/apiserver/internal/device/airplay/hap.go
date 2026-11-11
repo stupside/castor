@@ -150,7 +150,9 @@ func (c *srpClient) public() []byte { return c.A.Bytes() }
 // answer derives K and M1 from the receiver's salt and public B, for the PIN pin.
 func (c *srpClient) answer(salt, serverPublic []byte, pin string) error {
 	B := new(big.Int).SetBytes(serverPublic)
-	if new(big.Int).Mod(B, srpN).Sign() == 0 {
+	// A server's B is a residue of N other than zero. This is read before the receiver has proved anything,
+	// and one at or past N would not fit the padding below.
+	if B.Sign() == 0 || B.Cmp(srpN) >= 0 {
 		return errors.New("the receiver sent an invalid SRP public key")
 	}
 	k := new(big.Int).SetBytes(sha(srpN.Bytes(), pad(srpG)))

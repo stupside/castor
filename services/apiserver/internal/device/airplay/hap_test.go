@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json/v2"
 	"io"
+	"math/big"
 	"net"
 	"os"
 	"testing"
@@ -96,10 +97,41 @@ func TestSRPAgreesWithPyatv(t *testing.T) {
 	}
 }
 
-func TestSRPRefusesAZeroServerKey(t *testing.T) {
+func TestSRPRefusesAServerKeyOutsideTheGroup(t *testing.T) {
+	width := len(srpN.Bytes())
+	for _, tt := range []struct {
+		name string
+		key  []byte
+	}{
+		{"zero", []byte{0}},
+		{"nothing", nil},
+		{"the modulus, which pins the session key", srpN.Bytes()},
+		{"the modulus plus one", new(big.Int).Add(srpN, big.NewInt(1)).Bytes()},
+		{"twice the modulus", new(big.Int).Lsh(srpN, 1).Bytes()},
+		{"one byte wider than the group", append([]byte{1}, make([]byte, width)...)},
+		{"far wider than the group", bytes.Repeat([]byte{0xff}, 4*width)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("a key the receiver sent before proving anything panicked instead of being refused: %v", r)
+				}
+			}()
+			c := newSRPClient([]byte{1})
+			if err := c.answer([]byte{1}, tt.key, "1234"); err == nil {
+				t.Error("a server key outside the group was accepted")
+			}
+			if c.key != nil || c.proof != nil {
+				t.Error("a refused server key still left a session key or a proof")
+			}
+		})
+	}
+}
+
+func TestSRPTakesTheLargestServerKeyInTheGroup(t *testing.T) {
 	c := newSRPClient([]byte{1})
-	if err := c.answer([]byte{1}, srpN.Bytes(), "1234"); err == nil {
-		t.Error("B = N was accepted, which pins the session key")
+	if err := c.answer([]byte{1}, new(big.Int).Sub(srpN, big.NewInt(1)).Bytes(), "1234"); err != nil {
+		t.Errorf("B = N-1 was refused: %v", err)
 	}
 }
 
