@@ -27,9 +27,14 @@ type session struct {
 	caps      *mediav1.Capabilities
 	// sinks is how the device names each container it accepts.
 	sinks map[mediav1.Container]sinkEntry
-	// ticked is a playhead seen to move since the last Play, before which a 0:00:00 says nothing.
-	ticked atomic.Bool
+	// played is the stream castor last handed the renderer, nil before any.
+	played atomic.Pointer[handed]
+	// ticked is the stream whose playhead was seen moving, before which its 0:00:00 says nothing.
+	ticked atomic.Pointer[handed]
 }
+
+// handed is one stream castor handed the renderer, and the one castor handed before it.
+type handed struct{ uri, before string }
 
 func (s *session) Capabilities() *mediav1.Capabilities { return s.caps }
 
@@ -80,7 +85,11 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	if err != nil {
 		return fmt.Errorf("setting transport URI: %w", err)
 	}
-	s.ticked.Store(false)
+	var before string
+	if last := s.played.Load(); last != nil {
+		before = last.uri
+	}
+	s.played.Store(&handed{uri: playback.URL.String(), before: before})
 
 	play := &struct {
 		InstanceID string
