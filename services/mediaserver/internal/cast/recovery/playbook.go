@@ -57,7 +57,7 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 	pos := f.resumeAt()
 	facts := change{intent: in, attempt: f.attempt, outcome: o, resolver: resolver}
 	for _, s := range playbook[f.kind] {
-		if in.PreserveSource && s.action != RelaxRead && s.action != ServeInstead && s.action != Stay && s.action != OptimizeLive {
+		if in.PreserveSource && !keepsSource(s.action, f.attempt) {
 			continue
 		}
 		next, ok := s.apply(ctx, facts)
@@ -74,6 +74,18 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 		return revision{attempt: next, action: s.action, offered: true}
 	}
 	return revision{}
+}
+
+// keepsSource is an action a cast that preserves its source may take: none of them chooses another source.
+// Once optimize-live has allowed the conversion, the encode it runs may be made again in software.
+func keepsSource(action Action, a Attempt) bool {
+	switch action {
+	case RelaxRead, ServeInstead, Stay, OptimizeLive:
+		return true
+	case SoftwareEncode:
+		return a.OptimizedLive
+	}
+	return false
 }
 
 // resumeAt is where the viewer got to: a cast that played is taken up there.
