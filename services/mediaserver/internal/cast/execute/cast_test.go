@@ -29,11 +29,12 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/testhttp"
 )
 
-// fakeDevice plays what it is handed; if drain is set, it fetches the served stream and keeps it in served.
+// fakeDevice plays what it is handed, kept in handed; if drain is set, it fetches the served stream and keeps it in served.
 type fakeDevice struct {
 	caps   media.Capabilities
 	drain  bool
 	refuse error
+	handed Playback
 	served []byte
 	ended  bool
 }
@@ -87,6 +88,7 @@ var reader = &http.Client{Transport: &http.Transport{DialContext: func(ctx conte
 var _ Device = (*fakeDevice)(nil)
 
 func (d *fakeDevice) Play(ctx context.Context, p Playback) error {
+	d.handed = p
 	streamURL := p.URL
 	if d.refuse != nil {
 		return d.refuse
@@ -207,6 +209,23 @@ func TestAnAudioOnlyCastDoesNotRequireAVideoEncoder(t *testing.T) {
 	}
 	if len(dev.served) == 0 {
 		t.Fatal("the audio-only cast delivered no bytes")
+	}
+}
+
+// A cast resumed into its source tells the device where the stream it is handed begins.
+func TestAResumedCastTellsTheDeviceWhereItsStreamBegins(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+	dev := &fakeDevice{caps: dlnaLike(), drain: true}
+	program := programFromStream(t, serveHeavy(t, ffmpegPath).stream())
+	program.Start = 15 * time.Second
+	ctx, cancel := context.WithTimeout(t.Context(), castTimeout)
+	defer cancel()
+	out := realCast(dev, ffmpegPath, ffprobePath).Run(ctx, recovery.Attempt{Try: 1, Program: program, Fetch: sourceFetchPlan(t, program, testReadDeadline)})
+	if out.Err != nil {
+		t.Fatal(out.Err)
+	}
+	if dev.handed.Begins != program.Start {
+		t.Errorf("the device was told the stream begins at %s, want %s, where the cast resumed", dev.handed.Begins, program.Start)
 	}
 }
 
