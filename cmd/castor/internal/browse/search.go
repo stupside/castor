@@ -61,6 +61,7 @@ func (m model) forwardToQuery(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize()
 	}
 	m.queryTok++
-	m.drill.tok++
+	// A query changed by any means, a paste included, leaves a show still loading behind.
+	m.drill.abandon()
 	return m, tea.Batch(cmd, searchTickCmd(m.queryTok, m.query.Value()))
 }

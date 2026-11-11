@@ -56,7 +56,6 @@ func (m *model) setRows(items []list.Item, tab tabID) {
 }
 
 func (m *model) cycleTab(delta int) tea.Cmd {
-	m.drill.tok++
 	if m.listTab != noTab {
 		m.topsCursor[m.listTab] = m.results.Index()
 	}

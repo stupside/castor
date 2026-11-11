@@ -117,7 +117,7 @@ func (m model) footer() string {
 func (m model) statusLine() string {
 	pad := lipgloss.NewStyle().Padding(0, spInline)
 	switch {
-	case m.loading:
+	case m.loading || m.drill.loading:
 		return pad.Render(m.spin.View() + " " + m.styles.muted.Render("loading…"))
 	case m.err != nil:
 		return m.styles.err.Render("error: " + m.err.Error())

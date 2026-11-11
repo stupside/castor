@@ -68,7 +68,6 @@ func (m model) discParams(page int) tmdb.DiscoverParams {
 }
 
 func (m *model) enterDiscover() tea.Cmd {
-	m.drill.tok++
 	m.mode = modeDiscover
 	m.query.SetValue("")
 	m.queryTok++

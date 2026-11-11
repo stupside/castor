@@ -56,7 +56,6 @@ func (m model) pickResult(r tmdb.SearchResult) (tea.Model, tea.Cmd) {
 	case tmdb.MediaMovie:
 		return m.choose(&Selection{Kind: KindMovie, TMDBID: strconv.Itoa(r.ID), Title: r.DisplayTitle(), Synopsis: r.Overview, ImageURL: tmdb.ImageURL(r.PosterPath), ReleaseDate: r.ReleaseDate})
 	case tmdb.MediaTV:
-		m.loading = true
 		m.err = nil
 		return m, tea.Batch(m.drill.begin(r.ID, r.DisplayTitle(), r.PosterPath), m.spin.Tick)
 	}

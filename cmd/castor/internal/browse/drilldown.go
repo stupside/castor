@@ -28,13 +28,15 @@ type drilldown struct {
 	ctx    context.Context
 	client Catalog
 
-	list         list.Model
-	mode         drillMode
-	tvID         int
-	tvName       string
-	posterPath   string
-	seasonNum    int
-	tok          int
+	list       list.Model
+	mode       drillMode
+	tvID       int
+	tvName     string
+	posterPath string
+	seasonNum  int
+	tok        int
+	// loading is a show or season asked for and not yet landed.
+	loading      bool
 	seasonsCache []list.Item
 }
 
@@ -50,7 +52,7 @@ func newDrilldown(ctx context.Context, client Catalog) drilldown {
 
 type drillOutcome struct {
 	cmd      tea.Cmd
-	loading  bool // show spinner while cmd runs
+	asked    bool // cmd asks for a season, which the spinner shows until it lands
 	exit     bool
 	selected *Selection
 }
@@ -61,7 +63,14 @@ func (d *drilldown) begin(id int, name, posterPath string) tea.Cmd {
 	d.tvName = name
 	d.posterPath = posterPath
 	d.tok++
+	d.loading = true
 	return tvCmd(d.ctx, d.client, id, d.tok)
+}
+
+// abandon leaves whatever show or season is still loading behind, its spinner with it.
+func (d *drilldown) abandon() {
+	d.tok++
+	d.loading = false
 }
 
 func (d *drilldown) restyle(p palette.Palette) {
@@ -103,7 +112,7 @@ func (d *drilldown) update(msg tea.Msg, keys keyMap) drillOutcome {
 	if km, ok := msg.(tea.KeyPressMsg); ok && !d.list.SettingFilter() {
 		switch {
 		case key.Matches(km, keys.back):
-			d.tok++ // invalidate requests abandoned by back navigation
+			d.abandon()
 			switch d.mode {
 			case modeEpisodes:
 				d.list.SetItems(d.seasonsCache)
@@ -128,7 +137,8 @@ func (d *drilldown) enter() drillOutcome {
 		if it, ok := d.list.SelectedItem().(seasonItem); ok {
 			d.seasonNum = it.s.SeasonNumber
 			d.tok++
-			return drillOutcome{cmd: seasonCmd(d.ctx, d.client, d.tvID, it.s.SeasonNumber, d.tok), loading: true}
+			d.loading = true
+			return drillOutcome{cmd: seasonCmd(d.ctx, d.client, d.tvID, it.s.SeasonNumber, d.tok), asked: true}
 		}
 	case modeEpisodes:
 		if it, ok := d.list.SelectedItem().(episodeItem); ok {
