@@ -7,6 +7,7 @@ import {
   useEffect,
   useEffectEvent,
   useReducer,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -37,6 +38,7 @@ import { valid } from "@/lib/valid";
 import { pauseAction, resumeAction, seekAction } from "./actions";
 import { clock, journey, stateBadge } from "./labels";
 import { useLivePosition } from "./live-playhead";
+import { type Seek, seekShown } from "./playhead-state";
 import { StopButton } from "./stop-button";
 import { watchState } from "./watch-state";
 import { watchUpdates } from "./watch-updates";
@@ -268,8 +270,10 @@ function Controls({
   if (wantPaused !== undefined && wantPaused === playhead.paused) {
     setWantPaused(undefined);
   }
-  const [seek, setSeek] = useState<{ to: number; from: number }>();
-  if (seek && seek.from !== position) setSeek(undefined);
+  const [seek, setSeek] = useState<Seek>();
+  const seeks = useRef(0);
+  const shownSeek = seekShown(seek, position);
+  if (shownSeek !== seek) setSeek(shownSeek);
   const [drag, setDrag] = useState<number>();
 
   const paused = wantPaused ?? playhead.paused;
@@ -289,13 +293,17 @@ function Controls({
   };
   const commit = (to: number) => {
     setDrag(undefined);
-    setSeek({ to, from: position });
+    seeks.current += 1;
+    const request = seeks.current;
+    setSeek({ request, to, from: position, answered: false });
     startTransition(async () => {
       const error = await seekAction(castId, to);
       if (error) {
-        setSeek(undefined);
+        setSeek((s) => (s?.request === request ? undefined : s));
         toast(`Couldn’t seek: ${error}`, "danger");
+        return;
       }
+      setSeek((s) => (s?.request === request ? { ...s, answered: true } : s));
     });
   };
   const jump = (delta: number) =>
