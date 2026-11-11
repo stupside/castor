@@ -25,6 +25,8 @@ type Holder uint8
 const (
 	Castor Holder = 1 << iota
 	Viewer
+	// deviceRemote is the device's own remote, which holds it while the device says it is paused with no one else holding it.
+	deviceRemote
 )
 
 // Device is the lent device as the engine sees it: its lender holds it for the whole cast and plays what it is asked.
@@ -42,7 +44,6 @@ type Device struct {
 	playing         bool
 	begins, runtime time.Duration
 	at              time.Duration
-	paused          bool
 	// askedAt is the last time anyone asked where the device plays, saidAt the last it answered.
 	askedAt, saidAt time.Time
 }
@@ -66,7 +67,7 @@ func (d *Device) Play(ctx context.Context, p execute.Playback) error {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.playing, d.holders, d.paused, d.changes = true, 0, false, d.changes+1
+	d.playing, d.holders, d.changes = true, 0, d.changes+1
 	d.begins, d.runtime, d.saidAt = p.Begins, p.Stream.Length(), time.Time{}
 	return nil
 }
@@ -133,23 +134,27 @@ func (d *Device) Hold(ctx context.Context, by Holder, held bool) error {
 	if held {
 		holders |= by
 	}
-	// Castor only undoes its own hold; the viewer's press also reaches a device paused by its own remote.
-	if by == Castor && holders == d.holders {
-		return nil
+	// The viewer's resume ends their pause wherever they pressed it.
+	if by == Viewer && !held {
+		holders &^= deviceRemote
 	}
-	if pause := holders != 0; pause != (d.holders != 0 || d.paused) {
-		press := &mediav1.DeviceCommand_Call{Operation: &mediav1.DeviceCommand_Call_Resume{Resume: &mediav1.DeviceCommand_Resume{}}}
-		if pause {
-			press = &mediav1.DeviceCommand_Call{Operation: &mediav1.DeviceCommand_Call_Pause{Pause: &mediav1.DeviceCommand_Pause{}}}
-		}
-		if err := d.done(ctx, press); err != nil {
+	if pause := holders != 0; pause != (d.holders != 0) {
+		if err := d.done(ctx, press(pause)); err != nil {
 			return err
 		}
-		d.paused, d.changes = pause, d.changes+1
+		d.changes++
 	}
 	d.holders = holders
 	d.publish()
 	return nil
+}
+
+// press is the call that pauses the device, or resumes it.
+func press(pause bool) *mediav1.DeviceCommand_Call {
+	if pause {
+		return &mediav1.DeviceCommand_Call{Operation: &mediav1.DeviceCommand_Call_Pause{Pause: &mediav1.DeviceCommand_Pause{}}}
+	}
+	return &mediav1.DeviceCommand_Call{Operation: &mediav1.DeviceCommand_Call_Resume{Resume: &mediav1.DeviceCommand_Resume{}}}
 }
 
 func (d *Device) Position(ctx context.Context) (at time.Duration, paused, ok bool) {
@@ -168,7 +173,20 @@ func (d *Device) Position(ctx context.Context) (at time.Duration, paused, ok boo
 	if d.changes != changes || !d.playing {
 		return 0, false, false
 	}
-	d.at, d.paused, d.saidAt = at, paused, time.Now()
+	d.at, d.saidAt = at, time.Now()
+	switch {
+	case !paused && d.holders&deviceRemote != 0:
+		// The viewer played on from the device's own remote, ending their pause; castor's, which no press made, is pressed now.
+		d.holders &^= deviceRemote | Viewer
+		if d.holders != 0 && d.done(ctx, press(true)) == nil {
+			d.changes++
+			paused = true
+		} else {
+			d.holders = 0
+		}
+	case d.holders == 0 && paused:
+		d.holders = deviceRemote
+	}
 	d.publish()
 	return at, paused, true
 }
@@ -199,7 +217,7 @@ func (d *Device) publish() {
 	if !d.playing || d.saidAt.IsZero() {
 		return
 	}
-	head := &castorv1.Playhead{Position: durationpb.New(d.begins + d.at), Paused: d.holders != 0 || d.paused}
+	head := &castorv1.Playhead{Position: durationpb.New(d.begins + d.at), Paused: d.holders != 0}
 	if d.runtime > 0 {
 		head.Duration = durationpb.New(d.begins + d.runtime)
 	}
