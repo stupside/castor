@@ -131,6 +131,36 @@ func TestAnSCTEProfileAdmitsEverySoundItsStandardDoes(t *testing.T) {
 	}
 }
 
+func TestAProfileAdmittingSeveralSoundsKeepsItsOwnEntry(t *testing.T) {
+	_, sinks := parseSinkProtocolInfo("http-get:*:video/mp2t:DLNA.ORG_PN=AVC_TS_NA_ISO")
+	if got, want := sinks[mediav1.Container_CONTAINER_MPEGTS], (sinkEntry{mime: "video/mp2t", features: "DLNA.ORG_PN=AVC_TS_NA_ISO"}); got != want {
+		t.Errorf("MPEG-TS entry = %+v, want the row's own %+v: its sounds are not alternatives of each other", got, want)
+	}
+}
+
+func TestATimestampedRowNeverAnnouncesCastorsStream(t *testing.T) {
+	for name, sink := range map[string]string{
+		"SCTE":         "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=MPEG_TS_HD_KO,http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_NA_T",
+		"single sound": "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_HD_60_AC3_T",
+		"zero stamped": "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_HD_50_AC3",
+	} {
+		caps, sinks := parseSinkProtocolInfo(sink)
+		if got, want := sinks[mediav1.Container_CONTAINER_MPEGTS], (sinkEntry{mime: "video/mp2t", features: "*"}); len(caps.Formats) == 0 || got != want {
+			t.Errorf("%s: MPEG-TS entry %+v over %d formats, want %+v: castor writes 188-byte packets", name, got, len(caps.Formats), want)
+		}
+	}
+}
+
+func TestATimestampedRowLeavesAnISORowItsOwnEntry(t *testing.T) {
+	const stamped, iso = "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_HD_50_AC3_T", "http-get:*:video/mp2t:DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO"
+	for name, sink := range map[string]string{"stamped first": stamped + "," + iso, "ISO first": iso + "," + stamped} {
+		_, sinks := parseSinkProtocolInfo(sink)
+		if got, want := sinks[mediav1.Container_CONTAINER_MPEGTS], (sinkEntry{mime: "video/mp2t", features: "DLNA.ORG_PN=AVC_TS_HD_50_AC3_ISO"}); got != want {
+			t.Errorf("%s: MPEG-TS entry %+v, want the ISO row's %+v", name, got, want)
+		}
+	}
+}
+
 func TestOnlyCastorsOwnContainerWithoutAProfileImpliesTheDefault(t *testing.T) {
 	for name, sink := range map[string]string{
 		"a profile naming another codec":   "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=MPEG_TS_HD_KO",

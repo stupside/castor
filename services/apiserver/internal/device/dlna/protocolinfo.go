@@ -100,6 +100,7 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 	r := &mediav1.Capabilities{Provenance: "receiver ConnectionManager protocolInfo; video envelope uses conservative family defaults"}
 	sinks := map[mediav1.Container]sinkEntry{}
 	var captions []mediav1.CaptionFormat
+	var unannounced []mediav1.Container
 	for entry := range strings.SplitSeq(sink, ",") {
 		fields := strings.SplitN(strings.TrimSpace(entry), ":", 4)
 		if len(fields) != 4 || !strings.EqualFold(fields[0], "http-get") {
@@ -113,6 +114,8 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 			captions = append(captions, mediav1.CaptionFormat_CAPTION_FORMAT_VTT)
 		}
 		ct, cok := containerFromMIME(mime)
+		// A 192-byte MPEG-TS row says what the device decodes, never how to announce castor's 188-byte packets.
+		timestamped := ct == mediav1.Container_CONTAINER_MPEGTS && timestampedProfile(pn)
 		video := videoFromProfile(mime, pn)
 		audios := audioFromProfile(mime, pn)
 		if cok && video == nil && mime == device.MIME(ct) && !strings.Contains(pn, "DLNA.ORG_PN=") {
@@ -121,11 +124,6 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 		}
 		// A separate audio-only profile says nothing about this video container.
 		if !cok || video == nil || len(audios) == 0 {
-			if cok {
-				if _, exists := sinks[ct]; !exists {
-					sinks[ct] = sinkEntry{mime: fields[2], features: fields[3]}
-				}
-			}
 			continue
 		}
 		if h264 := video.GetH264(); h264 != nil && strings.Contains(pn, "_BL_") {
@@ -141,22 +139,33 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 		if ct == mediav1.Container_CONTAINER_MPEGTS {
 			progressive = mediav1.ProgressiveSupport_CONTAINER_MPEGTS
 		}
+		var row []*mediav1.FormatSupport
 		for _, a := range audios {
-			format := &mediav1.FormatSupport{Transport: &mediav1.FormatSupport_Progressive{Progressive: &mediav1.ProgressiveSupport{Container: progressive}}, Tracks: &mediav1.FormatSupport_Av{Av: &mediav1.AVSupport{Video: video, Audio: audioSupportFor(a)}}}
-			duplicate := slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool { return proto.Equal(existing, format) })
-			alternative := slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool {
-				return existing.GetProgressive().GetContainer() == progressive && !proto.Equal(existing, format)
-			})
-			if !duplicate {
+			row = append(row, &mediav1.FormatSupport{Transport: &mediav1.FormatSupport_Progressive{Progressive: &mediav1.ProgressiveSupport{Container: progressive}}, Tracks: &mediav1.FormatSupport_Av{Av: &mediav1.AVSupport{Video: video, Audio: audioSupportFor(a)}}})
+		}
+		alternative := slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool {
+			return existing.GetProgressive().GetContainer() == progressive && !slices.ContainsFunc(row, func(f *mediav1.FormatSupport) bool { return proto.Equal(existing, f) })
+		})
+		for _, format := range row {
+			if !slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool { return proto.Equal(existing, format) }) {
 				r.Formats = append(r.Formats, format)
 			}
-			if alternative || sinks[ct].features == "*" {
-				// The play contract names a container, not a DLNA profile. With multiple
-				// alternatives, omit the profile rather than advertise one not selected.
-				sinks[ct] = sinkEntry{mime: device.MIME(ct), features: "*"}
-			} else {
-				sinks[ct] = sinkEntry{mime: fields[2], features: fields[3]}
-			}
+		}
+		switch {
+		case alternative || sinks[ct].features == "*":
+			// The play contract names a container, not a DLNA profile. With another row's
+			// alternatives, omit the profile rather than advertise one not selected.
+			sinks[ct] = sinkEntry{mime: device.MIME(ct), features: "*"}
+		case timestamped:
+			unannounced = append(unannounced, ct)
+		default:
+			sinks[ct] = sinkEntry{mime: fields[2], features: fields[3]}
+		}
+	}
+	// A container only 192-byte rows name is announced by its contract MIME alone.
+	for _, ct := range unannounced {
+		if _, ok := sinks[ct]; !ok {
+			sinks[ct] = sinkEntry{mime: device.MIME(ct), features: "*"}
 		}
 	}
 	// Prefer MPEG-TS, then MP4, keeping each receiver-advertised tuple intact.
@@ -198,6 +207,13 @@ func audioFromProfile(mime, pn string) []mediav1.AudioCodec {
 		return []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AC3, mediav1.AudioCodec_AUDIO_CODEC_EAC3, mediav1.AudioCodec_AUDIO_CODEC_AAC}
 	}
 	return nil
+}
+
+// timestampedProfile is whether an MPEG-TS DLNA.ORG_PN token (already upper-cased) names 192-byte packets, as all but the _ISO profiles do.
+func timestampedProfile(pn string) bool {
+	_, after, found := strings.Cut(pn, "DLNA.ORG_PN=")
+	name, _, _ := strings.Cut(after, ";")
+	return found && !strings.HasSuffix(name, "_ISO")
 }
 
 // containerFromMIME reads the DLNA MIME spellings of the containers castor serves.
