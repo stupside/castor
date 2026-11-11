@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -124,7 +125,12 @@ func (ch *channel) read() {
 		}
 		ch.heard.Store(time.Now().UnixNano())
 		payload := []byte(msg.GetPayloadUtf8())
-		var header castmedia.PayloadHeader
+		var header struct {
+			Type      string `json:"type"`
+			RequestID int    `json:"requestId"`
+			// DetailedErrorCode is why the receiver failed, in its error messages; 0 in any other.
+			DetailedErrorCode int `json:"detailedErrorCode"`
+		}
 		if json.Unmarshal(payload, &header) != nil {
 			continue
 		}
@@ -134,8 +140,11 @@ func (ch *channel) read() {
 			}
 			continue
 		}
+		if header.DetailedErrorCode != 0 {
+			slog.Warn("chromecast receiver reported an error", "address", ch.conn.RemoteAddr().String(), "type", header.Type, "detailed_error_code", header.DetailedErrorCode)
+		}
 		ch.observe(payload)
-		ch.answer(header.RequestId, payload)
+		ch.answer(header.RequestID, payload)
 	}
 }
 

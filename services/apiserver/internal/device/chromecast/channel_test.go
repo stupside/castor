@@ -1,8 +1,11 @@
 package chromecast
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net"
+	"strings"
 	"testing"
 	"testing/synctest"
 
@@ -64,4 +67,25 @@ func TestAReceiverThatAnswersEachPingKeepsItsConnection(t *testing.T) {
 		_ = sender.Close()
 		_ = far.Close()
 	})
+}
+
+func TestAReceiversErrorCodeIsLoggedAsItArrives(t *testing.T) {
+	var logged bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	near, far := net.Pipe()
+	observed := make(chan struct{})
+	sender := newChannel(near, func([]byte) { observed <- struct{}{} })
+	t.Cleanup(func() { _ = sender.Close(); _ = far.Close() })
+	peer := &channel{conn: far, writing: make(chan struct{}, 1)}
+	for _, message := range []any{map[string]any{"type": "ERROR", "detailedErrorCode": 104}, castmedia.PayloadHeader{Type: msgMediaStatus}} {
+		if err := peer.send(t.Context(), senderID, nsMedia, message); err != nil {
+			t.Fatal(err)
+		}
+		<-observed
+	}
+	if got := logged.String(); strings.Count(got, "detailed_error_code=") != 1 || !strings.Contains(got, "detailed_error_code=104") {
+		t.Errorf("logged %q, want the receiver's detailed error code 104 once", got)
+	}
 }
