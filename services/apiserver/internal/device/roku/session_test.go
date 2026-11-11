@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -185,10 +186,12 @@ func TestRokuPauseAndResumePressPlayOnlyWhenTheStateCallsForIt(t *testing.T) {
 	}
 }
 
-func TestRokuStopLeavesForHome(t *testing.T) {
-	ecp := &scriptedECP{states: []string{"play"}}
-	if err := scriptedSession(ecp).Stop(t.Context()); err != nil || len(ecp.keys) != 1 || ecp.keys[0] != "Home" {
-		t.Errorf("Stop = %v with keys %v, want Home", err, ecp.keys)
+func TestRokuStopLeavesOnlyCastorsChannelForHome(t *testing.T) {
+	for state, want := range map[string][]string{"play@dev": {"Home"}, "play": {"Home"}, "play@12": nil} {
+		ecp := &scriptedECP{states: []string{state}}
+		if err := scriptedSession(ecp).Stop(t.Context()); err != nil || !slices.Equal(ecp.keys, want) {
+			t.Errorf("%s: Stop = %v with keys %v, want %v: a channel the viewer moved to is left alone", state, err, ecp.keys, want)
+		}
 	}
 }
 

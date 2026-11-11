@@ -120,8 +120,13 @@ func (s *session) keypress(ctx context.Context, key string) error {
 	return nil
 }
 
-// Stop leaves the channel for the home screen, which ends its playback.
-func (s *session) Stop(ctx context.Context) error { return s.keypress(ctx, "Home") }
+// Stop leaves castor's channel for the home screen, which ends its playback; a channel the viewer moved to is left alone.
+func (s *session) Stop(ctx context.Context) error {
+	if player, err := s.query(ctx); err == nil && player.heldByAnother(s.appID) {
+		return nil
+	}
+	return s.keypress(ctx, "Home")
+}
 
 const startupTimeout = 30 * time.Second
 
@@ -138,8 +143,13 @@ type mediaPlayer struct {
 	} `xml:"plugin"`
 }
 
-// player is castor's media player as reported, a playback error once it reports one.
-func (s *session) player(ctx context.Context) (mediaPlayer, error) {
+// heldByAnother is a player a channel other than castor's holds.
+func (p mediaPlayer) heldByAnother(appID string) bool {
+	return p.Plugin.ID != "" && p.Plugin.ID != appID
+}
+
+// query is the media player as the Roku reports it, whichever channel holds it.
+func (s *session) query(ctx context.Context) (mediaPlayer, error) {
 	var player mediaPlayer
 	body, err := get(ctx, s.hc, s.ecp.JoinPath(mediaPlayerQuery), 1<<16)
 	if err != nil {
@@ -148,8 +158,17 @@ func (s *session) player(ctx context.Context) (mediaPlayer, error) {
 	if err := xml.Unmarshal(body, &player); err != nil {
 		return player, fmt.Errorf("decoding roku player state: %w", err)
 	}
+	return player, nil
+}
+
+// player is castor's media player as reported, a playback error once it reports one.
+func (s *session) player(ctx context.Context) (mediaPlayer, error) {
+	player, err := s.query(ctx)
+	if err != nil {
+		return player, err
+	}
 	// Another channel holding the player means castor's closed, whatever that channel's own playback reports.
-	if player.Plugin.ID != "" && player.Plugin.ID != s.appID {
+	if player.heldByAnother(s.appID) {
 		return mediaPlayer{State: "close"}, nil
 	}
 	if player.Error {
