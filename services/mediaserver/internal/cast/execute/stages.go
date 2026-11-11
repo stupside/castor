@@ -266,7 +266,12 @@ func cutStage(ctx, life context.Context, src *pull, spec stageSpec, opts encodin
 	case err := <-made:
 		if err != nil {
 			next.kill()
-			return nil, fmt.Errorf("the encoder made nothing at the cut: %w", errors.Join(err, encoderResult(life, proc, onHardware(opts.Video), true)))
+			failed := encoderResult(life, proc, onHardware(opts.Video), true)
+			// A cut that fails is only logged, never a cast's fault, so it quotes the lines its encoder's failure leaves to the fault.
+			if own, ok := errors.AsType[*encoderFailed](failed); ok {
+				failed = quoting(failed, own.lines)
+			}
+			return nil, fmt.Errorf("the encoder made nothing at the cut: %w", errors.Join(err, failed))
 		}
 		spec.warm.note(time.Since(began))
 		return next, nil

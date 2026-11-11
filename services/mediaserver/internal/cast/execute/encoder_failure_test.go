@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -191,6 +192,21 @@ func TestAHardwareEncoderThatFailsOnRealInputIsReplacedBySoftware(t *testing.T) 
 				t.Errorf("the first attempt ended on %v, want wedged %t", outcomes[0].Err, tt.wedged)
 			}
 		})
+	}
+}
+
+// An encoder failing on its own leaves its lines to the cast's fault, which quotes them beside its error, never in it too.
+func TestAnEncodersOwnFailureLeavesItsLinesToTheFault(t *testing.T) {
+	t.Parallel()
+	ffmpegPath, _ := requireFFmpegTools(t)
+	stream := sourceOf(t, generateFixture(t, ffmpegPath, "movie.ts", 10, []string{"-c:v", "mpeg4", "-c:a", "aac", "-ac", "2", "-shortest", "-f", "mpegts"}))
+	_, _, outcomes, _ := faultCast(t, &fetchingDevice{caps: dlnaLike()}, "h264_bogus", stream)
+	if len(outcomes) == 0 {
+		t.Fatal("no attempt ended")
+	}
+	first := outcomes[0]
+	if said := strings.Join(first.Evidence.Lines, " "); !strings.Contains(said, "Unknown encoder") || strings.Contains(first.Err.Error(), "Unknown encoder") {
+		t.Errorf("the encoder said %q and its error reads %q, want its lines beside the error only", said, first.Err)
 	}
 }
 

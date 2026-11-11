@@ -184,20 +184,25 @@ func encoderResult(ctx context.Context, proc *ffmpeg.Process, hardware, buffered
 		return fmt.Errorf("encoder input expired: %w", err)
 	}
 	err = teardown.Failures(ctx, err)
-	exit := proc.Evidence().ExitStatus
-	if err == nil || exit < 0 {
+	evidence := proc.Evidence()
+	if err == nil || evidence.ExitStatus < 0 {
 		return nil
 	}
-	if complaints := proc.Evidence().Lines; len(complaints) > 0 {
-		err = fmt.Errorf("encoder: %w: %s", err, strings.Join(complaints[max(0, len(complaints)-4):], " | "))
-	} else {
-		err = fmt.Errorf("encoder: %w", err)
-	}
+	err = fmt.Errorf("encoder: %w", err)
 	// An ffmpeg reading the source exits on the source's failure as on its own.
-	if exit > 0 && (buffered || proc.Evidence().Signaled) {
-		return &encoderFailed{err: err, hardware: hardware, lines: proc.Evidence().Lines}
+	if evidence.ExitStatus > 0 && (buffered || evidence.Signaled) {
+		// The cast's fault quotes the encoder's lines itself.
+		return &encoderFailed{err: err, hardware: hardware, lines: evidence.Lines}
 	}
-	return err
+	return quoting(err, evidence.Lines)
+}
+
+// quoting is err followed by the encoder's last lines, where no fault quotes them beside it.
+func quoting(err error, lines []string) error {
+	if err == nil || len(lines) == 0 {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, strings.Join(lines[max(0, len(lines)-4):], " | "))
 }
 
 // encoderFailed is an encode failing on its own account.
