@@ -56,11 +56,11 @@ func videoEncodeArgs(venc codec.VideoEncode) []string {
 	if venc.Bitrate > 0 {
 		args = append(args, "-b:v", venc.Bitrate.FFmpeg())
 	}
+	// A quality target rather than an average rate, which only the recovery floor asks for.
+	if venc.Quality > 0 {
+		args = append(args, "-crf", strconv.Itoa(venc.Quality))
+	}
 	if !venc.Encoder.AverageRate {
-		// A quality target rather than an average rate, which only the recovery floor asks for.
-		if venc.Quality > 0 {
-			args = append(args, "-crf", strconv.Itoa(venc.Quality))
-		}
 		// VBV cap: bound the instantaneous bitrate so the pacer's fixed send rate is a real ceiling.
 		if venc.Maxrate > 0 {
 			args = append(args, "-maxrate", venc.Maxrate.FFmpeg())

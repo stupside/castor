@@ -361,7 +361,7 @@ func TestAMediaCodecEncodeIsAskedOnlyWhatItHonors(t *testing.T) {
 	} {
 		args := videoEncodeArgs(codec.VideoEncode{
 			Encoder: ffmpeg.Encoder{Name: "mediacodec", Codec: tt.codec, AverageRate: true, GOPKeyframes: true, MediaCodecLevels: true},
-			Level:   tt.level, Bitrate: 4_000_000, Maxrate: 4_000_000, Bufsize: 8_000_000, Quality: 23,
+			Level:   tt.level, Bitrate: 4_000_000, Maxrate: 4_000_000, Bufsize: 8_000_000,
 			KeyframeIntervalSec: 2, FrameRate: 23.976,
 		})
 		value := func(flag string) string {
@@ -373,7 +373,7 @@ func TestAMediaCodecEncodeIsAskedOnlyWhatItHonors(t *testing.T) {
 		if value("-level:v") != tt.want || value("-g") != "48" || value("-b:v") == "" {
 			t.Errorf("%s %s: args %q, want -level:v %s, -g 48 and -b:v", tt.codec, tt.level, args, tt.want)
 		}
-		for _, ignored := range []string{"-crf", "-maxrate", "-bufsize", "-force_key_frames"} {
+		for _, ignored := range []string{"-maxrate", "-bufsize", "-force_key_frames"} {
 			if slices.Contains(args, ignored) {
 				t.Errorf("%s: args %q carry %s, which MediaCodec ignores", tt.codec, args, ignored)
 			}

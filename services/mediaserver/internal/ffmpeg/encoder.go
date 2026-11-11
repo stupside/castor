@@ -22,7 +22,7 @@ type Encoder struct {
 	Filters  []string    // appended to the -vf chain: e.g. the GPU upload
 	Flags    []string    // encoder-specific -c:v flags: preset, pix_fmt, GOP
 
-	AverageRate        bool // honors -b:v alone: no VBV ceiling, no quality target
+	AverageRate        bool // honors -b:v alone, no VBV ceiling
 	GOPKeyframes       bool // places keyframes by -g alone, ignoring forced ones
 	SingleIDROutOfBand bool // with the decoder config out of band, only its first frame is an IDR
 	MediaCodecLevels   bool // reads -level:v by MediaCodec's names: 4, 4.2, m4.1
