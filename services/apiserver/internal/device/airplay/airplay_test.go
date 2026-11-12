@@ -197,6 +197,34 @@ func TestAnItemTheReceiverCannotFetchFails(t *testing.T) {
 	}
 }
 
+// A receiver playing a live HLS item may ask castor to fetch a playlist reload it missed. That alone does not end
+// a cast that plays: the receiver asks again or gives up with an error of its own.
+func TestAPlayingItemOutlivesAPartTheReceiverCouldNotFetch(t *testing.T) {
+	r := newFakeReceiver(t, lgFeatures, lgStatus)
+	r.script = append(scenario(t, "hls_plays"), scenario(t, "refused")[0])
+	dev := connect(t, pairedFamily(t, r), r)
+	if err := dev.Play(t.Context(), hlsPlayback()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+	defer cancel()
+	if err := dev.AwaitEnd(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("AwaitEnd = %v, want the item still playing", err)
+	}
+}
+
+func TestAPlayingItemTheReceiverGivesUpOnEndsWithItsError(t *testing.T) {
+	r := newFakeReceiver(t, lgFeatures, lgStatus)
+	r.script = append(scenario(t, "hls_plays"), scenario(t, "refused")...)
+	dev := connect(t, pairedFamily(t, r), r)
+	if err := dev.Play(t.Context(), hlsPlayback()); err != nil {
+		t.Fatal(err)
+	}
+	if err := awaitEnd(t, dev); err == nil || !strings.Contains(err.Error(), "-60009") {
+		t.Errorf("AwaitEnd = %v, want the receiver's error", err)
+	}
+}
+
 func TestAnItemTheReceiverGaveUpOnFails(t *testing.T) {
 	r := newFakeReceiver(t, lgFeatures, lgStatus)
 	// A receiver may only report the error, after giving up on its own.

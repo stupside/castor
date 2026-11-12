@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"sync"
 	"time"
@@ -249,9 +250,21 @@ func (p *playhead) v2Command(item string, c map[string]any, answered func(uint64
 		p.over(fmt.Errorf("the receiver could not play the media (error %s)", code))
 	case "unhandledURL":
 		// The receiver asks the sender to fetch what it could not reach itself, which castor does not do.
-		if key, _ := nested(c, "request", "FCUP_Response_IsContentKeyRequest").(bool); !key {
-			p.over(fmt.Errorf("the receiver could not fetch %v itself", nested(c, "request", "FCUP_Response_URL")))
+		if key, _ := nested(c, "request", "FCUP_Response_IsContentKeyRequest").(bool); key {
+			return
 		}
+		url := nested(c, "request", "FCUP_Response_URL")
+		p.mu.Lock()
+		started := p.started
+		p.mu.Unlock()
+		// Before the item plays, that is its refusal. Once it plays, a live playlist reload it missed is not its end:
+		// the receiver asks again, or gives up with an error of its own, and only that ends the cast.
+		if started {
+			slog.Warn("the receiver could not fetch part of the playing media itself", "url", url,
+				"request", nested(c, "request", "FCUP_Response_RequestID"), "headers", nested(c, "request", "FCUP_Response_Headers"))
+			return
+		}
+		p.over(fmt.Errorf("the receiver could not fetch %v itself", url))
 	}
 }
 
