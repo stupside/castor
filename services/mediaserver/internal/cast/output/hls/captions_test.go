@@ -1,8 +1,9 @@
 package hls
 
 import (
+	"bytes"
 	"context"
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,37 +16,21 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/subtitle"
 )
 
-func captionFixture(t *testing.T, videoFilters ...string) (*captionDelivery, string) {
+// captionSource is picture with B-frames beside sound, encoded into fragments as the caption encoder writes them; videoFilters retime the picture.
+func captionSource(t *testing.T, videoFilters ...string) []byte {
 	t.Helper()
 	binary, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		t.Skip("ffmpeg unavailable")
 	}
-	dir := t.TempDir()
-	args := []string{"-hide_banner", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=25", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-c:a", "aac", "-t", "12", "-c:v", "libx264", "-g", "100", "-bf", "2", "-f", "hls", "-hls_time", "4", "-hls_list_size", "8", "-hls_segment_type", "fmp4", "-hls_segment_filename", "seg_%05d.m4s"}
-	if len(videoFilters) > 0 {
-		sourceArgs := []string{"-hide_banner", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=25:duration=10", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=12", "-c:v", "libx264", "-g", "100", "-bf", "2", "-c:a", "aac"}
-		sourceArgs = append(sourceArgs, videoFilters...)
-		sourceArgs = append(sourceArgs, "source.mp4")
-		source := exec.CommandContext(t.Context(), binary, sourceArgs...)
-		source.Dir = dir
-		if out, err := source.CombinedOutput(); err != nil {
-			t.Fatalf("delayed source: %v %s", err, out)
-		}
-		args = []string{"-hide_banner", "-v", "error", "-i", "source.mp4", "-c", "copy", "-f", "hls", "-hls_time", "4", "-hls_list_size", "8", "-hls_segment_type", "fmp4", "-hls_segment_filename", "seg_%05d.m4s"}
-	}
-	args = append(args, "stream.m3u8")
-	cmd := exec.CommandContext(t.Context(), binary, args...)
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("ffmpeg: %v: %s", err, out)
-	}
-	root, err := os.OpenRoot(dir)
+	args := []string{"-hide_banner", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=25:duration=10", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=12", "-c:v", "libx264", "-g", "100", "-bf", "2", "-c:a", "aac"}
+	args = append(args, videoFilters...)
+	args = append(args, "-movflags", "delay_moov+default_base_moof", "-frag_duration", "4000000", "-min_frag_duration", "4000000", "-f", "mp4", "pipe:1")
+	data, err := exec.CommandContext(t.Context(), binary, args...).Output()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ffmpeg: %v", err)
 	}
-	t.Cleanup(func() { root.Close() })
-	return &captionDelivery{root: root, playlist: "stream.m3u8", cues: &subtitle.Cues{}, cache: make(map[string]captionSegment)}, dir
+	return data
 }
 
 func captionRequest(t *testing.T, c *captionDelivery, name string) *httptest.ResponseRecorder {
@@ -57,14 +42,40 @@ func captionRequest(t *testing.T, c *captionDelivery, name string) *httptest.Res
 	return recorder
 }
 
-func TestCaptionRenditionsWaitForCommittedCues(t *testing.T) {
-	c, _ := captionFixture(t)
-	if got := captionRequest(t, c, "stream.m3u8").Code; got != http.StatusServiceUnavailable {
-		t.Fatalf("unsettled video: %d", got)
+// awaitPublished waits until the writer has published a fragment.
+func awaitPublished(t *testing.T, c *captionDelivery) {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for captionRequest(t, c, "captions.m3u8").Code != http.StatusOK {
+		select {
+		case <-deadline:
+			t.Fatal("no fragment published")
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
-	c.cues.Commit([]subtitle.Word{{Start: 1, End: 2, Text: "Hello."}}, 4.2)
-	video := captionRequest(t, c, "stream.m3u8").Body.String()
-	if !strings.Contains(video, "seg_00000.m4s") || strings.Contains(video, "seg_00001.m4s") || strings.Contains(video, "ENDLIST") {
+}
+
+func readPlaylist(t *testing.T, dir string) string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(dir, "stream.m3u8"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+func TestCaptionRenditionsWaitForCommittedCues(t *testing.T) {
+	data := captionSource(t)
+	cues := &subtitle.Cues{}
+	c, dir := captionWriter(t, cues, 0)
+	written := make(chan error, 1)
+	go func() { written <- c.write(t.Context(), bytes.NewReader(data)) }()
+	if got := captionRequest(t, c, "captions.m3u8").Code; got != http.StatusServiceUnavailable {
+		t.Fatalf("unsettled captions: %d", got)
+	}
+	cues.Commit([]subtitle.Word{{Start: 1, End: 2, Text: "Hello."}}, 4.2)
+	awaitPublished(t, c)
+	if video := readPlaylist(t, dir); !strings.Contains(video, "seg_00000.m4s") || strings.Contains(video, "seg_00001.m4s") || strings.Contains(video, "ENDLIST") {
 		t.Fatalf("premature video publication: %s", video)
 	}
 	playlist := captionRequest(t, c, "captions.m3u8").Body.String()
@@ -75,15 +86,15 @@ func TestCaptionRenditionsWaitForCommittedCues(t *testing.T) {
 	if first.Code != http.StatusOK || !strings.Contains(first.Body.String(), "Hello.") {
 		t.Fatalf("caption response: %s", first.Body)
 	}
-	if !strings.Contains(first.Body.String(), "MPEGTS:7200") {
-		t.Fatalf("B-frame presentation offset lost: %s", first.Body)
+	cues.Commit([]subtitle.Word{{Start: 4.5, End: 5.5, Text: "Next."}}, 12)
+	cues.Close()
+	if err := <-written; err != nil {
+		t.Fatal(err)
 	}
-	c.cues.Commit([]subtitle.Word{{Start: 4.5, End: 5.5, Text: "Next."}}, 12)
-	c.cues.Close()
 	if got := captionRequest(t, c, "caption-0.vtt").Body.String(); got != first.Body.String() {
 		t.Fatal("published caption changed")
 	}
-	if got := captionRequest(t, c, "stream.m3u8").Body.String(); !strings.Contains(got, "ENDLIST") || !strings.Contains(got, "seg_00002.m4s") {
+	if got := readPlaylist(t, dir); !strings.Contains(got, "ENDLIST") || !strings.Contains(got, "seg_00002.m4s") {
 		t.Fatalf("finished video: %s", got)
 	}
 	if got := captionRequest(t, c, "captions.m3u8").Body.String(); !strings.Contains(got, "ENDLIST") || !strings.Contains(got, "caption-2.vtt") {
@@ -95,45 +106,22 @@ func TestCaptionRenditionsWaitForCommittedCues(t *testing.T) {
 	}
 }
 
-func TestCaptionWindowUsesActualFragmentTimestamps(t *testing.T) {
-	c, dir := captionFixture(t)
-	c.cues.Commit([]subtitle.Word{{Start: 3.5, End: 4.5, Text: "Across."}}, 12)
-	c.cues.Close()
-	if _, _, err := c.playlists(); err != nil {
+func TestACueAcrossAFragmentBoundaryPlaysWithBoth(t *testing.T) {
+	data := captionSource(t)
+	cues := &subtitle.Cues{}
+	cues.Commit([]subtitle.Word{{Start: 3.5, End: 4.5, Text: "Across."}}, 12)
+	cues.Close()
+	c, _ := captionWriter(t, cues, 0)
+	if err := c.write(t.Context(), bytes.NewReader(data)); err != nil {
 		t.Fatal(err)
 	}
-	before := captionRequest(t, c, "caption-1.vtt").Body.String()
-	if !strings.Contains(before, "Across.") {
-		t.Fatalf("overlapping cue missing: %s", before)
+	for _, name := range []string{"caption-0.vtt", "caption-1.vtt"} {
+		if got := captionRequest(t, c, name).Body.String(); !strings.Contains(got, "Across.") {
+			t.Fatalf("%s lacks the cue it overlaps: %s", name, got)
+		}
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, "stream.m3u8"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := strings.Replace(string(raw), "#EXT-X-MEDIA-SEQUENCE:0", "#EXT-X-MEDIA-SEQUENCE:1", 1)
-	text = strings.Replace(text, "#EXTINF:4.000000,\nseg_00000.m4s\n", "", 1)
-	if err := os.WriteFile(filepath.Join(dir, "stream.m3u8"), []byte(text), 0600); err != nil {
-		t.Fatal(err)
-	}
-	delete(c.cache, "caption-1.vtt")
-	if _, _, err := c.playlists(); err != nil {
-		t.Fatal(err)
-	}
-	after := captionRequest(t, c, "caption-1.vtt").Body.String()
-	if before != after {
-		t.Fatalf("rolling playlist shifted timeline:\n%s\n%s", before, after)
-	}
-	if _, ok := c.cache["caption-0.vtt"]; !ok {
-		t.Fatal("caption evicted while its video remains fetchable")
-	}
-	if err := os.Remove(filepath.Join(dir, "seg_00000.m4s")); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := c.playlists(); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := c.cache["caption-0.vtt"]; ok {
-		t.Fatal("caption retained after its video expired")
+	if got := captionRequest(t, c, "caption-2.vtt").Body.String(); strings.Contains(got, "Across.") {
+		t.Fatalf("caption-2.vtt carries a cue ended before it: %s", got)
 	}
 }
 
@@ -147,31 +135,16 @@ func TestCaptionVTTClockEscapingAndEmptySegments(t *testing.T) {
 	}
 }
 
-func TestCaptionDeliveryRejectsLostInitialTimeline(t *testing.T) {
-	c, dir := captionFixture(t)
-	c.cues.Close()
-	raw, err := os.ReadFile(filepath.Join(dir, "stream.m3u8"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := strings.Replace(string(raw), "#EXT-X-MEDIA-SEQUENCE:0", "#EXT-X-MEDIA-SEQUENCE:1", 1)
-	if err := os.WriteFile(filepath.Join(dir, "stream.m3u8"), []byte(text), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := c.playlists(); !errors.Is(err, errCaptionWindow) {
-		t.Fatalf("lost origin: %v", err)
-	}
-}
-
 func TestCaptionDeliveryRoutesThroughSegments(t *testing.T) {
-	c, dir := captionFixture(t)
+	data := captionSource(t)
 	o := testOpening{Publisher: newLAN(t),
 		Format: format()}
-	store, err := openSegmentStore(dir, o.Format.Tuning.Output)
+	store, err := openSegmentStore(t.TempDir(), o.Format.Tuning.Output)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store.captions = &captionDelivery{root: store.root, playlist: c.playlist, cues: c.cues, videoOffset: c.videoOffset, cache: make(map[string]captionSegment)}
+	cues := &subtitle.Cues{}
+	store.captions = &captionDelivery{root: store.root, playlist: o.Format.Tuning.Output, cues: cues, vtt: map[string]string{}}
 	srv, err := publishSegmentsFixture(t.Context(), o, store, func(context.Context) error { return nil })
 	if err != nil {
 		t.Fatal(err)
@@ -183,8 +156,11 @@ func TestCaptionDeliveryRoutesThroughSegments(t *testing.T) {
 	if got, _ := srv.Artifact().Landed(); got != 0 {
 		t.Fatalf("unsettled artifact ready: %d", got)
 	}
-	c.cues.Commit(nil, 12)
-	c.cues.Close()
+	cues.Commit(nil, 12)
+	cues.Close()
+	if err := store.captions.write(t.Context(), bytes.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
 	if got, _ := srv.Artifact().Landed(); got == 0 {
 		t.Fatal("settled artifact not ready")
 	}
@@ -203,34 +179,48 @@ func TestCaptionDeliveryRoutesThroughSegments(t *testing.T) {
 }
 
 func TestCaptionMediaClockIncludesSampleDurations(t *testing.T) {
-	c, _ := captionFixture(t)
-	first, err := captionMedia(c.root, "init.mp4", "seg_00000.m4s")
+	cues := &subtitle.Cues{}
+	cues.Close()
+	c, _ := captionWriter(t, cues, 0)
+	if err := c.write(t.Context(), bytes.NewReader(captionSource(t))); err != nil {
+		t.Fatal(err)
+	}
+	first, err := captionMedia(c.root, initSection, "seg_00000.m4s")
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, err := captionMedia(c.root, "init.mp4", "seg_00001.m4s")
+	next, err := captionMedia(c.root, initSection, "seg_00001.m4s")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.VideoStart == nil || next.VideoStart == nil || *first.VideoStart != 0.08 || first.Start > *first.VideoStart || first.End < 4.08 || *next.VideoStart != 4.08 || next.End < 8.08 {
+	// The B-frames' composition offset is undone by the edit list: a clock that skipped either would start off zero.
+	if first.VideoStart == nil || next.VideoStart == nil || *first.VideoStart != 0 || first.Start > *first.VideoStart || first.End < 4 || *next.VideoStart != 4 || next.End < 8 {
 		t.Fatalf("media clocks: %+v, %+v", first, next)
 	}
 }
 
 func TestCaptionTimelinePreservesAudioBeforeVideo(t *testing.T) {
-	c, _ := captionFixture(t, "-vf", "setpts=PTS+2/TB", "-fps_mode", "passthrough")
-	c.videoOffset = 2 * time.Second
-	c.cues.Commit([]subtitle.Word{{Start: 0.3, End: 1.6, Text: "Before the picture."}, {Start: 2.5, End: 3.5, Text: "On the original clock."}}, 12)
-	c.cues.Close()
-	if _, _, err := c.playlists(); err != nil {
+	data := captionSource(t, "-vf", "setpts=PTS+2/TB", "-fps_mode", "passthrough")
+	cues := &subtitle.Cues{}
+	cues.Commit([]subtitle.Word{{Start: 0.3, End: 1.6, Text: "Before the picture."}, {Start: 2.5, End: 3.5, Text: "On the original clock."}}, 12)
+	cues.Close()
+	c, _ := captionWriter(t, cues, 2*time.Second)
+	if err := c.write(t.Context(), bytes.NewReader(data)); err != nil {
 		t.Fatal(err)
 	}
 	text := captionRequest(t, c, "caption-0.vtt").Body.String()
 	if !strings.Contains(text, "00:00:00.450 --> 00:00:01.400") || !strings.Contains(text, "Before the picture.") || !strings.Contains(text, "00:00:02.650 --> 00:00:03.300") {
 		t.Fatalf("cue lost source clock: %s", text)
 	}
+	var ticks int64
+	if _, err := fmt.Sscanf(text, "WEBVTT\nX-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:%d", &ticks); err != nil {
+		t.Fatal(err)
+	}
+	if ticks > 1<<32 {
+		ticks -= 1 << 33
+	}
 	// A two-second source video delay must not become a two-second subtitle shift.
-	if *c.origin > 0.2 || *c.origin < -0.2 {
-		t.Fatalf("video delay leaked into mapping: %fs", *c.origin)
+	if origin := float64(ticks) / 90000; origin > 0.2 || origin < -0.2 {
+		t.Fatalf("video delay leaked into mapping: %fs", origin)
 	}
 }

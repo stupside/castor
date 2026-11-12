@@ -25,18 +25,6 @@ func openSegmentStore(dir, playlist string) (*segmentStore, error) {
 }
 
 func (s *segmentStore) landed() (int64, error) {
-	if s.captions != nil {
-		s.captions.mu.Lock()
-		defer s.captions.mu.Unlock()
-		video, _, err := s.captions.playlists()
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, errCaptionsPending) {
-			return 0, nil
-		}
-		if err != nil {
-			return 0, err
-		}
-		return int64(len(video)), nil
-	}
 	info, err := os.Stat(s.playlist)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, nil

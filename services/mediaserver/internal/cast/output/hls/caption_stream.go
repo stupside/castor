@@ -7,9 +7,9 @@ import (
 	"io"
 	"math"
 	"os"
+	"strings"
 	"time"
 
-	"github.com/Eyevinn/hls-m3u8/m3u8"
 	"github.com/Eyevinn/mp4ff/mp4"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage/diskbudget"
 	"github.com/stupside/castor/services/mediaserver/internal/subtitle"
@@ -24,21 +24,25 @@ const (
 	captionTargetDuration = 6
 )
 
+// captionFragment is one video fragment of the window, named beside the captions that play with it.
 type captionFragment struct {
-	media           m3u8.MediaSegment
+	media, captions string
+	sequence        uint64
+	start, duration float64
 	longestPlaylist float64
 }
 
 type retiredCaptionFragment struct {
-	name    string
-	expires time.Time
+	media, captions string
+	expires         time.Time
 }
 
-// publishCaptionHLS consumes the encoder's fragmented MP4 stdout. It reads only
+// write consumes the encoder's fragmented MP4 stdout. It reads only
 // one complete fragment ahead of the transcript, then stops draining the pipe.
 // This backpressures FFmpeg itself, rather than letting a rolling video window
 // delete segments whose subtitles have not settled yet.
-func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, cues *subtitle.Cues, videoOffset time.Duration) error {
+func (c *captionDelivery) write(ctx context.Context, producer io.Reader) error {
+	root := c.root
 	defer root.Remove("fragment.tmp")
 	defer root.Remove("init.tmp")
 	defer root.Remove("playlist.tmp")
@@ -66,12 +70,13 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 	if err := root.Rename("init.tmp", initSection); err != nil {
 		return err
 	}
-	var playlist *m3u8.MediaPlaylist
 	var segments []captionFragment
 	var retired []retiredCaptionFragment
 	var origin float64
+	var codecs string
+	var bandwidth uint64
 	for sequence := uint64(0); ; sequence++ {
-		retired, err = expireCaptionFragments(root, retired, time.Now())
+		retired, err = c.expire(retired, time.Now())
 		if err != nil {
 			return err
 		}
@@ -90,8 +95,7 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 			if sequence == 0 {
 				return fmt.Errorf("caption media ended before its first fragment")
 			}
-			playlist.Close()
-			return writeCaptionPlaylist(root, playlist)
+			return c.publish(segments, true, codecs, bandwidth)
 		}
 		if err != nil {
 			return fmt.Errorf("reading caption fragment: %w", err)
@@ -124,7 +128,7 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 			if timing.VideoStart == nil {
 				return fmt.Errorf("first caption fragment has no video clock")
 			}
-			origin = *timing.VideoStart - videoOffset.Seconds()
+			origin = *timing.VideoStart - c.videoOffset.Seconds()
 		}
 		duration := timing.End - timing.Start
 		if duration <= 0 || math.IsNaN(duration) || math.IsInf(duration, 0) {
@@ -133,9 +137,11 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 		if math.Round(duration) > captionTargetDuration {
 			return fmt.Errorf("caption fragment duration %.3fs exceeds stable HLS target %ds", duration, captionTargetDuration)
 		}
+		// The fragment's captions are frozen the moment the transcript settles past its end.
+		var snapshot subtitle.Snapshot
 		ticker := time.NewTicker(50 * time.Millisecond)
 		for {
-			snapshot := cues.Snapshot(0, 0)
+			snapshot = c.cues.Snapshot(timing.Start-origin, timing.End-origin)
 			if snapshot.Complete || snapshot.SettledTo+0.000001 >= timing.End-origin {
 				break
 			}
@@ -154,38 +160,58 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 		if err := root.Rename("fragment.tmp", name); err != nil {
 			return err
 		}
-		segments = append(segments, captionFragment{media: m3u8.MediaSegment{URI: name, Duration: duration, SeqId: sequence}})
+		info, err := root.Stat(name)
+		if err != nil {
+			return err
+		}
+		settled := captionFragment{media: name, captions: fmt.Sprintf(captionNames, sequence), sequence: sequence, start: timing.Start, duration: duration}
+		vtt := captionVTT(snapshot.Cues, origin)
+		c.mu.Lock()
+		c.vtt[settled.captions] = vtt
+		c.mu.Unlock()
+		codecs = timing.Codecs
+		bandwidth = max(bandwidth, uint64(math.Ceil(float64(info.Size()+int64(len(vtt)))*8/duration)))
+		segments = append(segments, settled)
 		if len(segments) > captionWindowSegments {
 			removed := segments[0]
-			retired = append(retired, retiredCaptionFragment{name: removed.media.URI, expires: time.Now().Add(time.Duration((removed.media.Duration + removed.longestPlaylist) * float64(time.Second)))})
+			retired = append(retired, retiredCaptionFragment{media: removed.media, captions: removed.captions, expires: time.Now().Add(time.Duration((removed.duration + removed.longestPlaylist) * float64(time.Second)))})
 			segments = segments[1:]
+			c.cues.DiscardBefore(segments[0].start - origin)
 		}
 		var windowDuration float64
 		for _, segment := range segments {
-			windowDuration += segment.media.Duration
+			windowDuration += segment.duration
 		}
 		for i := range segments {
 			segments[i].longestPlaylist = max(segments[i].longestPlaylist, windowDuration)
 		}
-		// Build the small current window directly: the upstream writer encodes
-		// contiguous segments and does not wrap its ring when serializing.
-		playlist, err = m3u8.NewMediaPlaylist(captionWindowSegments, captionWindowSegments)
-		if err != nil {
-			return err
-		}
-		playlist.SeqNo = segments[0].media.SeqId
-		playlist.SetDefaultMap(initSection, 0, 0)
-		playlist.SetVersion(7)
-		playlist.SetTargetDuration(captionTargetDuration)
-		for _, segment := range segments {
-			if err := playlist.Append(segment.media.URI, segment.media.Duration, ""); err != nil {
-				return err
-			}
-		}
-		if err := writeCaptionPlaylist(root, playlist); err != nil {
+		if err := c.publish(segments, false, codecs, bandwidth); err != nil {
 			return err
 		}
 	}
+}
+
+// publish renders the window's video and caption playlists in step; the video one lands on disk, served and probed like any castor playlist.
+func (c *captionDelivery) publish(segments []captionFragment, closed bool, codecs string, bandwidth uint64) error {
+	var video, captions strings.Builder
+	fmt.Fprintf(&video, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:%d\n#EXT-X-MEDIA-SEQUENCE:%d\n#EXT-X-MAP:URI=\"%s\"\n", captionTargetDuration, segments[0].sequence, initSection)
+	fmt.Fprintf(&captions, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:%d\n#EXT-X-MEDIA-SEQUENCE:%d\n", captionTargetDuration, segments[0].sequence)
+	for _, segment := range segments {
+		fmt.Fprintf(&video, "#EXTINF:%.6f,\n%s\n", segment.duration, segment.media)
+		fmt.Fprintf(&captions, "#EXTINF:%.6f,\n%s\n", segment.duration, segment.captions)
+	}
+	if closed {
+		video.WriteString("#EXT-X-ENDLIST\n")
+		captions.WriteString("#EXT-X-ENDLIST\n")
+	}
+	if err := writeCaptionPlaylist(c.root, c.playlist, video.String()); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.master = fmt.Sprintf("#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"captions\",NAME=\"Transcription\",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI=\"%s\"\n#EXT-X-STREAM-INF:BANDWIDTH=%d,CODECS=\"%s\",SUBTITLES=\"captions\"\n%s\n", captionPlaylist, bandwidth, codecs, c.playlist)
+	c.captions = captions.String()
+	return nil
 }
 
 func copyCaptionBox(root *os.Root, dst io.Writer, src io.Reader, header mp4.BoxHeader) error {
@@ -222,31 +248,34 @@ func copyCaptionBox(root *os.Root, dst io.Writer, src io.Reader, header mp4.BoxH
 	return err
 }
 
-func writeCaptionPlaylist(root *os.Root, playlist *m3u8.MediaPlaylist) error {
+func writeCaptionPlaylist(root *os.Root, name, playlist string) error {
 	file, err := root.OpenFile("playlist.tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
-	_, writeErr := file.Write(playlist.Encode().Bytes())
+	_, writeErr := io.WriteString(file, playlist)
 	if err = errors.Join(writeErr, file.Close()); err != nil {
 		return err
 	}
-	return root.Rename("playlist.tmp", "stream.m3u8")
+	return root.Rename("playlist.tmp", name)
 }
 
 // RFC 8216 section 6.2.2 retains a removed fragment for its duration plus the
 // longest playlist in which it appeared. Expiry happens before reading another
 // fragment; directory quotas still bound unusually fast or malformed producers.
-func expireCaptionFragments(root *os.Root, fragments []retiredCaptionFragment, now time.Time) ([]retiredCaptionFragment, error) {
+func (c *captionDelivery) expire(fragments []retiredCaptionFragment, now time.Time) ([]retiredCaptionFragment, error) {
 	retained := fragments[:0]
 	for _, fragment := range fragments {
 		if now.Before(fragment.expires) {
 			retained = append(retained, fragment)
 			continue
 		}
-		if err := root.Remove(fragment.name); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := c.root.Remove(fragment.media); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
+		c.mu.Lock()
+		delete(c.vtt, fragment.captions)
+		c.mu.Unlock()
 	}
 	return retained, nil
 }

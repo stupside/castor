@@ -28,7 +28,7 @@ func newSegments(o output.Opening, dir string, captions *output.Captions) (*Segm
 		return nil, err
 	}
 	if captions != nil {
-		store.captions = &captionDelivery{root: store.root, playlist: o.Format.Tuning.Output, cues: captions.Cues, videoOffset: captions.VideoOffset, cache: make(map[string]captionSegment)}
+		store.captions = &captionDelivery{root: store.root, playlist: o.Format.Tuning.Output, cues: captions.Cues, videoOffset: captions.VideoOffset, vtt: map[string]string{}}
 	}
 	return &Segments{o: o, store: store, lastRequest: time.Now()}, nil
 }
@@ -36,8 +36,8 @@ func newSegments(o output.Opening, dir string, captions *output.Captions) (*Segm
 // Write packages native captions, or drains FFmpeg's stdout when FFmpeg writes
 // the HLS files itself. The caller owns the reader and its interruption.
 func (s *Segments) Write(ctx context.Context, producer io.Reader) error {
-	if c := s.store.captions; c != nil {
-		return publishCaptionHLS(ctx, s.store.root, producer, c.cues, c.videoOffset)
+	if s.store.captions != nil {
+		return s.store.captions.write(ctx, producer)
 	}
 	_, err := io.Copy(io.Discard, producer)
 	return err
@@ -45,7 +45,7 @@ func (s *Segments) Write(ctx context.Context, producer io.Reader) error {
 
 func (s *Segments) Path() string {
 	if s.store.captions != nil {
-		return "master.m3u8"
+		return masterPlaylist
 	}
 	return s.o.Format.Tuning.Output
 }

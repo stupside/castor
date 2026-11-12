@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,7 +32,8 @@ func captionMP4(t *testing.T, duration string) []byte {
 	return data
 }
 
-func captionRoot(t *testing.T) (*os.Root, string) {
+// captionWriter is a delivery whose writer cuts into a fresh directory, timed against cues.
+func captionWriter(t *testing.T, cues *subtitle.Cues, videoOffset time.Duration) (*captionDelivery, string) {
 	t.Helper()
 	dir := t.TempDir()
 	root, err := os.OpenRoot(dir)
@@ -39,19 +41,19 @@ func captionRoot(t *testing.T) (*os.Root, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { root.Close() })
-	return root, dir
+	return &captionDelivery{root: root, playlist: "stream.m3u8", cues: cues, videoOffset: videoOffset, vtt: map[string]string{}}, dir
 }
 
 func TestCaptionPublisherBackpressuresAtUnsettledFragment(t *testing.T) {
 	data := captionMP4(t, "12")
-	root, dir := captionRoot(t)
 	cues := &subtitle.Cues{}
+	c, dir := captionWriter(t, cues, 0)
 	reader, writer := io.Pipe()
 	defer writer.Close()
 	written := make(chan error, 1)
 	go func() { _, err := writer.Write(data); writer.Close(); written <- err }()
 	published := make(chan error, 1)
-	go func() { published <- publishCaptionHLS(t.Context(), root, reader, cues, 0) }()
+	go func() { published <- c.write(t.Context(), reader) }()
 	awaitCaptionFile(t, filepath.Join(dir, "fragment.tmp"))
 	select {
 	case err := <-written:
@@ -107,10 +109,11 @@ func awaitCaptionFile(t *testing.T, path string) {
 }
 
 func TestCaptionPublisherBoundsRollingWindow(t *testing.T) {
-	root, dir := captionRoot(t)
 	cues := &subtitle.Cues{}
+	cues.Commit([]subtitle.Word{{Start: 1, End: 2, Text: "Before the window."}}, 44)
 	cues.Close()
-	if err := publishCaptionHLS(t.Context(), root, io.NopCloser(bytes.NewReader(captionMP4(t, "44"))), cues, 0); err != nil {
+	c, dir := captionWriter(t, cues, 0)
+	if err := c.write(t.Context(), bytes.NewReader(captionMP4(t, "44"))); err != nil {
 		t.Fatal(err)
 	}
 	files, err := filepath.Glob(filepath.Join(dir, "seg_*.m4s"))
@@ -127,15 +130,21 @@ func TestCaptionPublisherBoundsRollingWindow(t *testing.T) {
 	if !strings.Contains(string(playlist), "#EXT-X-MEDIA-SEQUENCE:3") {
 		t.Fatalf("window did not roll: %s", playlist)
 	}
+	if captions := captionRequest(t, c, captionPlaylist).Body.String(); !strings.Contains(captions, "#EXT-X-MEDIA-SEQUENCE:3") {
+		t.Fatalf("captions did not roll with the video: %s", captions)
+	}
+	if kept := cues.Snapshot(0, 5).Cues; len(kept) != 0 {
+		t.Errorf("cues before the window were kept: %v", kept)
+	}
 }
 
 func TestCaptionPublisherReturnsWhenOwnerInterruptsRead(t *testing.T) {
-	root, _ := captionRoot(t)
+	c, _ := captionWriter(t, &subtitle.Cues{}, 0)
 	reader, writer := io.Pipe()
 	defer writer.Close()
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	go func() { done <- publishCaptionHLS(ctx, root, reader, &subtitle.Cues{}, 0) }()
+	go func() { done <- c.write(ctx, reader) }()
 	cancel()
 	_ = reader.Close()
 	select {
@@ -149,11 +158,11 @@ func TestCaptionPublisherReturnsWhenOwnerInterruptsRead(t *testing.T) {
 }
 
 func TestCaptionPublisherCancellationRemovesUnsettledFragment(t *testing.T) {
-	root, dir := captionRoot(t)
+	c, dir := captionWriter(t, &subtitle.Cues{}, 0)
 	ctx, cancel := context.WithCancel(t.Context())
 	data := captionMP4(t, "8")
 	done := make(chan error, 1)
-	go func() { done <- publishCaptionHLS(ctx, root, io.NopCloser(bytes.NewReader(data)), &subtitle.Cues{}, 0) }()
+	go func() { done <- c.write(ctx, bytes.NewReader(data)) }()
 	awaitCaptionFile(t, filepath.Join(dir, "fragment.tmp"))
 	cancel()
 	select {
@@ -170,11 +179,11 @@ func TestCaptionPublisherCancellationRemovesUnsettledFragment(t *testing.T) {
 }
 
 func TestCaptionPublisherRejectsOversizedBoxBeforeReadingPayload(t *testing.T) {
-	root, _ := captionRoot(t)
+	c, _ := captionWriter(t, &subtitle.Cues{}, 0)
 	header := make([]byte, 8)
 	binary.BigEndian.PutUint32(header, uint32(SegmentDirectoryLimit+1))
 	copy(header[4:], "ftyp")
-	err := publishCaptionHLS(t.Context(), root, io.NopCloser(bytes.NewReader(header)), &subtitle.Cues{}, 0)
+	err := c.write(t.Context(), bytes.NewReader(header))
 	if !errors.Is(err, diskbudget.ErrLimit) {
 		t.Fatalf("oversized input: %v", err)
 	}
@@ -191,10 +200,10 @@ func TestCaptionPublisherNeverPublishesTruncatedFragment(t *testing.T) {
 		}
 		offset += size
 	}
-	root, dir := captionRoot(t)
 	cues := &subtitle.Cues{}
 	cues.Close()
-	if err := publishCaptionHLS(t.Context(), root, io.NopCloser(bytes.NewReader(data)), cues, 0); err == nil {
+	c, dir := captionWriter(t, cues, 0)
+	if err := c.write(t.Context(), bytes.NewReader(data)); err == nil {
 		t.Fatal("truncated media accepted")
 	}
 	for _, name := range []string{"stream.m3u8", "seg_00000.m4s", "fragment.tmp"} {
@@ -205,34 +214,41 @@ func TestCaptionPublisherNeverPublishesTruncatedFragment(t *testing.T) {
 }
 
 func TestCaptionFragmentRetentionHonorsPlaylistLifetime(t *testing.T) {
-	root, _ := captionRoot(t)
-	file, err := root.Create("old.m4s")
+	c, _ := captionWriter(t, &subtitle.Cues{}, 0)
+	file, err := c.root.Create("old.m4s")
 	if err != nil {
 		t.Fatal(err)
 	}
 	file.Close()
+	c.vtt["caption-0.vtt"] = "WEBVTT\n"
 	removed := time.Now()
 	expiry := removed.Add(4*time.Second + 32*time.Second)
-	fragments := []retiredCaptionFragment{{name: "old.m4s", expires: expiry}}
-	kept, err := expireCaptionFragments(root, fragments, expiry.Add(-time.Nanosecond))
+	fragments := []retiredCaptionFragment{{media: "old.m4s", captions: "caption-0.vtt", expires: expiry}}
+	kept, err := c.expire(fragments, expiry.Add(-time.Nanosecond))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(kept) != 1 {
 		t.Fatal("fragment expired before last advertised playlist lifetime")
 	}
-	if _, err := root.Stat("old.m4s"); err != nil {
+	if _, err := c.root.Stat("old.m4s"); err != nil {
 		t.Fatal(err)
 	}
-	kept, err = expireCaptionFragments(root, kept, expiry)
+	if got := captionRequest(t, c, "caption-0.vtt").Code; got != http.StatusOK {
+		t.Fatalf("captions of a fetchable fragment: %d", got)
+	}
+	kept, err = c.expire(kept, expiry)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(kept) != 0 {
 		t.Fatal("expired fragment retained")
 	}
-	if _, err := root.Stat("old.m4s"); !os.IsNotExist(err) {
+	if _, err := c.root.Stat("old.m4s"); !os.IsNotExist(err) {
 		t.Fatalf("expired media still present: %v", err)
+	}
+	if _, kept := c.vtt["caption-0.vtt"]; kept {
+		t.Fatal("captions retained after their video expired")
 	}
 }
 
@@ -246,10 +262,10 @@ func TestCaptionPublisherRefusesInventedVideoClock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root, dir := captionRoot(t)
 	cues := &subtitle.Cues{}
 	cues.Close()
-	err = publishCaptionHLS(t.Context(), root, io.NopCloser(bytes.NewReader(data)), cues, 6*time.Second)
+	c, dir := captionWriter(t, cues, 6*time.Second)
+	err = c.write(t.Context(), bytes.NewReader(data))
 	if err == nil || !strings.Contains(err.Error(), "no video clock") {
 		t.Fatalf("audio-only first fragment: %v", err)
 	}
