@@ -3,7 +3,20 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import test from "node:test";
 import { gzipSync } from "node:zlib";
+import { Code } from "@connectrpc/connect";
+import {
+  endStreamFlag,
+  endStreamFromJson,
+} from "@connectrpc/connect/protocol-connect";
 import { proxyWatch } from "../src/lib/watch-proxy.ts";
+
+// endedWith is the error a stream's client reads from the message ending response.
+async function endedWith(response) {
+  assert.equal(response.status, 200);
+  const frame = new Uint8Array(await response.arrayBuffer());
+  assert.equal(frame[0] & endStreamFlag, endStreamFlag);
+  return endStreamFromJson(frame.subarray(5)).error;
+}
 
 const watch = { name: "Watch", parent: { typeName: "castor.v1.CastService" } };
 
@@ -103,9 +116,8 @@ test("a watch redirect is refused before credentials reach another endpoint", as
     url,
     token: "server-token",
   });
-  assert.equal(response.status, 502);
   assert.deepEqual(paths, ["/castor.v1.CastService/Watch"]);
-  assert.equal((await response.json()).code, "unavailable");
+  assert.equal((await endedWith(response)).code, Code.Unavailable);
 });
 
 for (const cancelVia of ["response body", "request signal"]) {
@@ -150,8 +162,7 @@ test("an unavailable API returns a usable error without exposing the server toke
     request({ headers: { authorization: "Bearer browser-token" } }),
     { url, token: "secret-server-token" },
   );
-  assert.equal(response.status, 502);
-  const body = await response.json();
-  assert.equal(body.code, "unavailable");
-  assert.equal(JSON.stringify(body).includes("secret-server-token"), false);
+  const error = await endedWith(response);
+  assert.equal(error.code, Code.Unavailable);
+  assert.equal(error.message.includes("secret-server-token"), false);
 });

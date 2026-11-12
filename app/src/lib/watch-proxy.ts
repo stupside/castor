@@ -1,4 +1,11 @@
 import type { DescMethodServerStreaming } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { encodeEnvelope } from "@connectrpc/connect/protocol";
+import {
+  contentTypeStreamProto,
+  createEndStreamSerialization,
+  endStreamFlag,
+} from "@connectrpc/connect/protocol-connect";
 import { context, propagation } from "@opentelemetry/api";
 
 const protocolHeaders = [
@@ -90,15 +97,20 @@ export async function proxyWatch(
     });
   } catch {
     release();
-    return Response.json(
-      {
-        code: "unavailable",
-        message: "Can’t reach the Castor API. Try reconnecting.",
-      },
-      {
-        status: 502,
-        headers: { "cache-control": "no-store" },
-      },
-    );
+    return unavailable(req.headers.get("content-type"));
   }
+}
+
+// A stream's client reads an error only from the message that ends the stream, never from a failed response's body.
+function unavailable(contentType: string | null): Response {
+  const end = createEndStreamSerialization({}).serialize({
+    metadata: new Headers(),
+    error: new ConnectError("the Castor API is unreachable", Code.Unavailable),
+  });
+  return new Response(encodeEnvelope(endStreamFlag, end), {
+    headers: {
+      "content-type": contentType ?? contentTypeStreamProto,
+      "cache-control": "no-store",
+    },
+  });
 }
