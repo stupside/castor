@@ -80,7 +80,9 @@ func inspect(ctx context.Context, env source.Env, stream source.Stream, origin s
 	}
 	languages := env.AudioLanguages
 	origin.Renditions = ladder(doc, stream.Probe, languages...)
-	if env.MaxHeight > 0 && probeRendition != nil {
+	// A height matters only to a choice still to make: a lone rung or one settled earlier is read whatever its height.
+	_, settled := origin.Settled(subject.Chosen)
+	if env.MaxHeight > 0 && probeRendition != nil && len(origin.Renditions) > 1 && !settled {
 		for i := range origin.Renditions {
 			rung := &origin.Renditions[i]
 			if rung.Height != 0 || rung.URL == nil {

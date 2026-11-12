@@ -1,7 +1,9 @@
 package hls
 
 import (
+	"context"
 	"net/http"
+	"net/url"
 	"reflect"
 	"slices"
 	"testing"
@@ -241,6 +243,36 @@ func TestAPlaylistUnderDRMIsRefusedAndAClearKeyIsNot(t *testing.T) {
 		_, err := newTestResolver(&sourcetest.Document{Body: body, Status: http.StatusOK}).Resolve(t.Context(), hlsAt(t, "http://a.example/media.m3u8"), source.Rendition{}, 0)
 		if refused := err != nil; refused != tt.refused {
 			t.Errorf("%s: Resolve = %v, want refused %v", tt.key, err, tt.refused)
+		}
+	}
+}
+
+// A rung's height is measured only for a choice still to make, never again for a rung settled earlier, nor for a lone one.
+func TestHeightsAreMeasuredOnlyForAChoiceToMake(t *testing.T) {
+	client := &sourcetest.Documents{ByPath: map[string]string{
+		"/master.m3u8": "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000\nlow.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=6000000\nhigh.m3u8\n",
+		"/low.m3u8":    mediaPlaylist, "/high.m3u8": mediaPlaylist, "/media.m3u8": mediaPlaylist,
+	}}
+	var measured []string
+	resolver := source.NewResolver(client, 1080, nil, source.Formats{Format{ProbeRendition: func(_ context.Context, u *url.URL, _ http.Header) (media.ProbeInfo, error) {
+		measured = append(measured, u.Path)
+		return media.ProbeInfo{VideoHeight: 720}, nil
+	}}})
+	for _, tt := range []struct {
+		name, url string
+		chosen    source.Rendition
+		want      int
+	}{
+		{"a master to choose in", "https://origin.example/master.m3u8", source.Rendition{}, 2},
+		{"a master with a rung settled earlier", "https://origin.example/master.m3u8", source.Rendition{URL: sourcetest.URL(t, "https://origin.example/low.m3u8")}, 0},
+		{"a lone media playlist", "https://origin.example/media.m3u8", source.Rendition{}, 0},
+	} {
+		measured = nil
+		if _, err := resolver.Resolve(t.Context(), hlsAt(t, tt.url), tt.chosen, 0); err != nil {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+		if len(measured) != tt.want {
+			t.Errorf("%s: measured %v, want %d", tt.name, measured, tt.want)
 		}
 	}
 }

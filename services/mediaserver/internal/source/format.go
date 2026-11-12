@@ -48,15 +48,9 @@ type Env struct {
 
 // Choose is the rung a cast reads from origin, and says so: the one settled on earlier while the manifest still names it, else the best under the cast's ceiling by preferred.
 func (e Env) Choose(ctx context.Context, origin Origin, s Subject, preferred func(a, b Rendition) int) Rendition {
-	settled := s.Chosen
 	chosen := origin.Choose(e.MaxHeight, s.Ceiling, preferred)
-	if i := slices.IndexFunc(origin.Renditions, func(r Rendition) bool {
-		if settled.Representation != "" {
-			return r.Representation == settled.Representation
-		}
-		return settled.URL != nil && r.URL != nil && r.URL.String() == settled.URL.String()
-	}); i >= 0 {
-		chosen = origin.Renditions[i]
+	if settled, ok := origin.Settled(s.Chosen); ok {
+		chosen = settled
 	}
 	level, msg := slog.LevelInfo, "rendition selected"
 	if !e.MaxHeight.Admits(chosen.Height) {
@@ -67,6 +61,20 @@ func (e Env) Choose(ctx context.Context, origin Origin, s Subject, preferred fun
 		"representation", chosen.Representation,
 		"renditions", len(origin.Renditions))
 	return chosen
+}
+
+// Settled is the rung of o that settled names, while the manifest still lists it.
+func (o Origin) Settled(settled Rendition) (Rendition, bool) {
+	i := slices.IndexFunc(o.Renditions, func(r Rendition) bool {
+		if settled.Representation != "" {
+			return r.Representation == settled.Representation
+		}
+		return settled.URL != nil && r.URL != nil && r.URL.String() == settled.URL.String()
+	})
+	if i < 0 {
+		return Rendition{}, false
+	}
+	return o.Renditions[i], true
 }
 
 // Subject is the link a format resolves, what is known of its origin so far, the rung already settled on, and the most the device may be asked to take.
