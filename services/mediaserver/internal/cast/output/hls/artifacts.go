@@ -12,7 +12,7 @@ func artifactContentType(name string) (string, bool) {
 	switch strings.ToLower(path.Ext(name)) {
 	case ".m3u8":
 		return media.HLS, true
-	case ".m4s":
+	case segmentExt:
 		return "video/iso.segment", true
 	case ".mp4":
 		return media.MP4, true
@@ -24,5 +24,5 @@ func artifactContentType(name string) (string, bool) {
 // isMediaArtifact excludes initialization, playlists and temporary writes when
 // observing whether a receiver has fetched playable media.
 func isMediaArtifact(name string) bool {
-	return name == path.Base(name) && strings.HasPrefix(name, "seg_") && path.Ext(name) == ".m4s"
+	return name == path.Base(name) && strings.HasPrefix(name, segmentPrefix) && path.Ext(name) == segmentExt
 }

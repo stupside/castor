@@ -26,16 +26,26 @@ func (Adapter) Select(f media.FormatSupport, c *output.Captions) (output.Plan, b
 
 type hlsPlan struct{ captions *output.Captions }
 
+// Every playlist castor makes is cut into fragmented MP4: one init section beside numbered segments.
+const (
+	segmentContainer = media.MP4
+	segmentType      = "fmp4"
+	initSection      = "init.mp4"
+	segmentPrefix    = "seg_"
+	segmentExt       = ".m4s"
+	segmentNames     = segmentPrefix + "%05d" + segmentExt
+)
+
 func format() container.Format {
 	return container.Format{
-		ContentType: media.HLS, Extension: ".m3u8", Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand, Segments: media.MP4,
+		ContentType: media.HLS, Extension: ".m3u8", Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand, Segments: segmentContainer,
 		Tuning: container.Tuning{Args: []string{
 			"-hls_time", strconv.FormatFloat(CaptionSegmentDuration.Seconds(), 'f', -1, 64),
 			"-hls_list_size", strconv.Itoa(captionWindowSegments),
 			"-hls_flags", "delete_segments+independent_segments",
-			"-hls_segment_type", "fmp4",
-			"-hls_fmp4_init_filename", "init.mp4",
-			"-hls_segment_filename", "seg_%05d.m4s",
+			"-hls_segment_type", segmentType,
+			"-hls_fmp4_init_filename", initSection,
+			"-hls_segment_filename", segmentNames,
 		}, Output: "stream.m3u8"},
 	}
 }

@@ -63,7 +63,7 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 	if err := init.Close(); err != nil {
 		return err
 	}
-	if err := root.Rename("init.tmp", "init.mp4"); err != nil {
+	if err := root.Rename("init.tmp", initSection); err != nil {
 		return err
 	}
 	var playlist *m3u8.MediaPlaylist
@@ -116,7 +116,7 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 		if err = errors.Join(err, fragment.Close()); err != nil {
 			return err
 		}
-		timing, err := captionMedia(root, "init.mp4", "fragment.tmp")
+		timing, err := captionMedia(root, initSection, "fragment.tmp")
 		if err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		name := fmt.Sprintf("seg_%05d.m4s", sequence)
+		name := fmt.Sprintf(segmentNames, sequence)
 		if err := root.Rename("fragment.tmp", name); err != nil {
 			return err
 		}
@@ -174,7 +174,7 @@ func publishCaptionHLS(ctx context.Context, root *os.Root, producer io.Reader, c
 			return err
 		}
 		playlist.SeqNo = segments[0].media.SeqId
-		playlist.SetDefaultMap("init.mp4", 0, 0)
+		playlist.SetDefaultMap(initSection, 0, 0)
 		playlist.SetVersion(7)
 		playlist.SetTargetDuration(captionTargetDuration)
 		for _, segment := range segments {
