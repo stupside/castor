@@ -5,7 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/fetch"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/probe"
 	"github.com/stupside/castor/services/mediaserver/internal/source"
@@ -32,7 +33,8 @@ func (p candidateProbe) Inspect(ctx context.Context) (result source.Inspection, 
 	}
 	result.ContentType = stream.ContentType
 	if !media.IsSegmented(stream.ContentType) {
-		result.Info, result.Reach, err = p.binary.Link(probe.Link{URL: stream.URL, Headers: stream.Headers, InputArgs: formats.InputArgs(stream.ContentType, 0)}, fetchTimeout).Probe(ctx)
+		args := encoding.CandidateArgs(formats.InputArgs, stream.Headers, stream.ContentType, fetch.For(media.Fetch{}, readDeadline))
+		result.Info, result.Reach, err = p.binary.Link(probe.Link{URL: stream.URL, Args: args}, fetchTimeout).Probe(ctx)
 		if err == nil {
 			stream.ContentType = p.stream.MeasuredContentType(result.Info)
 			result.ContentType = stream.ContentType
@@ -60,8 +62,7 @@ func (p candidateProbe) Inspect(ctx context.Context) (result source.Inspection, 
 	result.Info, result.Reach, err = p.timelines.Probe(ctx, resolved.Program, func(program media.Program) media.Prober {
 		inputs := make([]probe.Input, 0, len(program.Inputs))
 		for _, in := range program.Inputs {
-			args := append(ffmpeg.ProtocolArgs(), ffmpeg.HeaderArgs(in.Headers)...)
-			args = append(args, formats.InputArgs(in.ContentType, 0)...)
+			args := encoding.CandidateArgs(formats.InputArgs, in.Headers, in.ContentType, fetch.For(in.Fetching(), readDeadline))
 			inputs = append(inputs, probe.Input{ID: in.ID, URL: in.URL.String(), Args: args})
 		}
 		return p.binary.Source(program, inputs)

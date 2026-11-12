@@ -10,6 +10,8 @@ import (
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/services/mediaserver/internal/cast"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/fetch"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/execute"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	hlsoutput "github.com/stupside/castor/services/mediaserver/internal/cast/output/hls"
@@ -174,7 +176,8 @@ func (k caster) Play(ctx context.Context, device execute.Device, publisher outpu
 
 func resolverWithProbe(client source.Client, height media.HeightCap, languages []string, binary probe.FFprobe) *source.Resolver {
 	measure := func(ctx context.Context, u *url.URL, h http.Header) (media.ProbeInfo, error) {
-		info, _, err := binary.Link(probe.Link{URL: u, Headers: h, InputArgs: formats.InputArgs(media.HLS, 0)}, fetchTimeout).Probe(ctx)
+		args := encoding.CandidateArgs(formats.InputArgs, h, media.HLS, fetch.For(media.Fetch{Segmented: true}, readDeadline))
+		info, _, err := binary.Link(probe.Link{URL: u, Args: args}, fetchTimeout).Probe(ctx)
 		return info, err
 	}
 	return source.NewResolver(client, height, languages, source.Formats{hls.Format{ProbeRendition: measure}, dash.Format{}})

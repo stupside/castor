@@ -10,9 +10,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/probe"
@@ -244,5 +248,48 @@ func TestTheLanguageAMasterDeclaresIsTheProbedSounds(t *testing.T) {
 	}
 	if tracks := inspection.Info.AudioTracks; len(tracks) != 1 || tracks[0].Language != "fr" {
 		t.Errorf("audio tracks = %+v, want the one sound tagged fr as the master declares", tracks)
+	}
+}
+
+// A candidate is measured as its reader opens it, with the same deadline and reconnects.
+func TestACandidateIsProbedWithTheTermsItsReaderOpensItWith(t *testing.T) {
+	dir := t.TempDir()
+	ffprobe, argv := filepath.Join(dir, "ffprobe"), filepath.Join(dir, "argv")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" > '" + argv + "'\n" +
+		`printf '%s\n' '{"streams":[{"codec_type":"video","codec_name":"h264","width":64,"height":64}],"format":{"format_name":"mov,mp4,m4a,3gp,3g2,mj2"}}'` + "\n"
+	if err := os.WriteFile(ffprobe, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse("https://origin.test/movie.mp4")
+	if _, err := (candidateProbe{stream: &source.Stream{URL: u, ContentType: media.MP4}, binary: probe.FFprobe(ffprobe)}).Inspect(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := os.ReadFile(argv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, term := range []string{"-protocol_whitelist", "-rw_timeout", "-reconnect"} {
+		if !strings.Contains(string(opened), term) {
+			t.Errorf("ffprobe opened the candidate with %q, without its reader's %s", opened, term)
+		}
+	}
+}
+
+func TestACandidateWhoseOriginKeepsRefusingIsAnsweredPromptly(t *testing.T) {
+	binary, err := exec.LookPath("ffprobe")
+	if err != nil {
+		t.Skip("ffprobe unavailable")
+	}
+	var asked atomic.Int32
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		asked.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer origin.Close()
+	u, _ := url.Parse(origin.URL + "/movie.mp4")
+	began := time.Now()
+	_, _ = candidateProbe{stream: &source.Stream{URL: u, ContentType: media.MP4}, binary: probe.FFprobe(binary)}.Inspect(t.Context())
+	if took := time.Since(began); took > 10*time.Second || asked.Load() < 2 {
+		t.Errorf("a candidate refused with 503 was answered after %v and %d requests, want it retried, then answered within seconds", took, asked.Load())
 	}
 }

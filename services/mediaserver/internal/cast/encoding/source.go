@@ -71,7 +71,7 @@ func (s ProgramSource) outputArgs() []string {
 func (s ProgramSource) ProbeInputs() []probe.Input {
 	out := make([]probe.Input, 0, len(s.program.Inputs))
 	for id, input := range s.inputs() {
-		out = append(out, probe.Input{ID: id, URL: input.url.String(), Args: s.openArgs(input)})
+		out = append(out, probe.Input{ID: id, URL: input.url.String(), Args: OpenArgs(s.open, input.headers, input.contentType, input.fetch)})
 	}
 	return out
 }
@@ -114,15 +114,27 @@ func formatSeconds(d time.Duration) string {
 	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64)
 }
 
-// openArgs is how both the read and its probe open one input: fetch terms, headers, and the manifest's demuxer.
-func (s ProgramSource) openArgs(input sourceInput) []string {
-	args := append(ffmpeg.ProtocolArgs(), readArgs(input.fetch)...)
-	args = append(args, ffmpeg.HeaderArgs(input.headers)...)
-	return append(args, s.open(input.contentType, input.fetch.SegmentRetries)...)
+// candidateBackoff is the longest a candidate's probe waits to reconnect, so it retries a transient refusal twice within a second, then answers.
+const candidateBackoff = 2 * time.Second
+
+// OpenArgs is how a reader opens an input: the protocols castor allows, its fetch terms, its headers and its format's demuxer.
+func OpenArgs(open InputArgs, headers http.Header, contentType string, policy fetch.Policy) []string {
+	return openArgs(open, headers, contentType, policy, fetch.BackoffMax)
 }
 
-// readArgs renders protocol-level fetch terms (deadline and reconnect).
-func readArgs(p fetch.Policy) []string {
+// CandidateArgs opens a candidate as its reader would, but one still refusing after candidateBackoff is unproven now, which is what choosing needs to know.
+func CandidateArgs(open InputArgs, headers http.Header, contentType string, policy fetch.Policy) []string {
+	return openArgs(open, headers, contentType, policy, candidateBackoff)
+}
+
+func openArgs(open InputArgs, headers http.Header, contentType string, policy fetch.Policy, backoff time.Duration) []string {
+	args := append(ffmpeg.ProtocolArgs(), readArgs(policy, backoff)...)
+	args = append(args, ffmpeg.HeaderArgs(headers)...)
+	return append(args, open(contentType, policy.SegmentRetries)...)
+}
+
+// readArgs renders protocol-level fetch terms: the deadline, and reconnects waiting at most backoff.
+func readArgs(p fetch.Policy, backoff time.Duration) []string {
 	var args []string
 	if p.Deadline > 0 {
 		args = append(args, "-rw_timeout", strconv.FormatInt(p.Deadline.Microseconds(), 10))
@@ -130,7 +142,7 @@ func readArgs(p fetch.Policy) []string {
 	return append(args,
 		"-reconnect", "1",
 		"-reconnect_streamed", "1",
-		"-reconnect_delay_max", strconv.Itoa(int(fetch.BackoffMax.Seconds())),
+		"-reconnect_delay_max", strconv.Itoa(int(backoff.Seconds())),
 		// Transient statuses are retried; any other refusal is the origin's answer.
 		"-reconnect_on_http_error", "429,500,502,503,504",
 	)
@@ -149,7 +161,7 @@ func sourceInputArgs(source ProgramSource, keepTimeline bool) []string {
 	for _, input := range source.inputs() {
 		args = append(args, demuxFlags...)
 		args = append(args, paceArgs(input.fetch.Pace, source.binary.Catchup)...)
-		args = append(args, source.openArgs(input)...)
+		args = append(args, OpenArgs(source.open, input.headers, input.contentType, input.fetch)...)
 		args = append(args, seekArgs(source.program.Start, input.offset, keepTimeline)...)
 		args = append(args, "-i", input.url.String())
 	}

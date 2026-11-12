@@ -3,20 +3,16 @@ package probe
 import (
 	"context"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-// Link is a found stream as castor would read it: where, with which headers, and what it says it is.
+// Link is a found stream as castor would read it: where, and the arguments its reader opens it with.
 type Link struct {
-	URL     *url.URL
-	Headers http.Header
-	// InputArgs is how the link's format opens it; nil reads it leniently.
-	InputArgs []string
+	URL  *url.URL
+	Args []string
 }
 
 // Link binds a found stream to this ffprobe, measured within timeout.
@@ -32,19 +28,11 @@ type linkProber struct {
 
 func (p linkProber) Probe(ctx context.Context) (media.ProbeInfo, media.Reach, error) {
 	l := p.link
-	args := append(ffmpeg.ProtocolArgs(), ffmpeg.HeaderArgs(l.Headers)...)
-	if l.InputArgs != nil {
-		args = append(args, l.InputArgs...)
-	} else {
-		args = append(args, ffmpeg.HLSTolerances(0)...)
-	}
-
-	slog.DebugContext(ctx, "running ffprobe", "host", l.URL.Host, "header_count", len(l.Headers))
-
+	slog.DebugContext(ctx, "running ffprobe", "host", l.URL.Host)
 	info, reach, err := pass{
 		ffprobePath: p.ffprobePath,
 		budget:      p.timeout,
-		inputArgs:   args,
+		inputArgs:   l.Args,
 		input:       l.URL.String(),
 	}.run(ctx)
 	if err != nil {
