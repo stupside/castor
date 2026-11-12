@@ -21,7 +21,7 @@ func (loopback) Publish(ctx context.Context, h http.Handler) (output.Publication
 	return testhttp.Publish(ctx, ln, h), nil
 }
 
-func TestStaticServesTheDocumentToAnyOrigin(t *testing.T) {
+func TestStaticServesTheDocument(t *testing.T) {
 	u, closeStatic, err := output.Static(t.Context(), loopback{}, "en.vtt", "text/vtt", "WEBVTT\n\n")
 	if err != nil {
 		t.Fatal(err)
@@ -33,8 +33,8 @@ func TestStaticServesTheDocumentToAnyOrigin(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	if string(body) != "WEBVTT\n\n" || resp.Header.Get("Content-Type") != "text/vtt" || resp.Header.Get("Access-Control-Allow-Origin") != "*" {
-		t.Errorf("served %q as %q with origin %q", body, resp.Header.Get("Content-Type"), resp.Header.Get("Access-Control-Allow-Origin"))
+	if string(body) != "WEBVTT\n\n" || resp.Header.Get("Content-Type") != "text/vtt" {
+		t.Errorf("served %q as %q", body, resp.Header.Get("Content-Type"))
 	}
 	for _, test := range []struct {
 		method string

@@ -25,15 +25,11 @@ type Publisher interface {
 	Publish(context.Context, http.Handler) (Publication, error)
 }
 
-// AllowWebReceivers lets a receiver that fetches by script from another origin read the response.
-func AllowWebReceivers(h http.Header) { h.Set("Access-Control-Allow-Origin", "*") }
-
 // Static publishes one small document, such as a caption file, until the returned func closes it.
 func Static(ctx context.Context, publisher Publisher, name, contentType, body string) (*url.URL, func() error, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /"+name, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", contentType)
-		AllowWebReceivers(w.Header())
 		http.ServeContent(w, r, name, time.Time{}, strings.NewReader(body))
 	})
 	pub, err := publisher.Publish(ctx, mux)

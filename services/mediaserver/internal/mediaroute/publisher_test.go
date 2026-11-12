@@ -152,3 +152,19 @@ func TestClosingPublicationCancelsAnActiveRequest(t *testing.T) {
 	<-left
 	<-finished
 }
+
+func TestEveryPublishedResponseMayBeReadByAWebReceiver(t *testing.T) {
+	d := NewPublisher(&url.URL{Scheme: "http", Host: "media.test"})
+	pub, err := d.Publish(t.Context(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "#EXTM3U\n")
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pub.Close()
+	response := httptest.NewRecorder()
+	d.ServeHTTP(response, httptest.NewRequest(http.MethodGet, pub.URL("stream.m3u8").String(), nil))
+	if got := response.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
+	}
+}

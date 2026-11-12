@@ -60,6 +60,8 @@ type publication struct {
 func (p *publication) URL(path string) *url.URL { return p.base.JoinPath(path) }
 
 func (p *publication) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// A web receiver fetches by script from another origin, so whatever a device is served it may read.
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	p.mu.Lock()
 	if p.life.Err() != nil {
 		p.mu.Unlock()
