@@ -33,6 +33,43 @@ func TestEncodedOutputMustMatchTheReceiverEnvelope(t *testing.T) {
 	}
 }
 
+func TestNativeOutputRetainsHEVCMain10HDRAndOriginalSurround(t *testing.T) {
+	original := media.ProbeInfo{
+		VideoCodec: media.CodecHEVC, VideoProfile: media.ProfileMain10, VideoLevel: 150,
+		VideoBitDepth: 10, VideoHeight: 1608, VideoHDR: true,
+		AudioCodec: media.CodecAC3, AudioChannels: 6, AudioSampleRate: 48000,
+	}
+	done := make(chan struct{})
+	close(done)
+	if err := ValidateOriginalOutput(t.Context(), outputProbe{info: original}, original, original.RequiredTracks(), done); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name   string
+		change func(*media.ProbeInfo)
+	}{
+		{"video converted", func(p *media.ProbeInfo) { p.VideoCodec = media.CodecH264 }},
+		{"profile changed", func(p *media.ProbeInfo) { p.VideoProfile = media.ProfileMain }},
+		{"level changed", func(p *media.ProbeInfo) { p.VideoLevel = 120 }},
+		{"bit depth reduced", func(p *media.ProbeInfo) { p.VideoBitDepth = 8 }},
+		{"resolution reduced", func(p *media.ProbeInfo) { p.VideoHeight = 804 }},
+		{"HDR lost", func(p *media.ProbeInfo) { p.VideoHDR = false }},
+		{"audio converted", func(p *media.ProbeInfo) { p.AudioCodec = media.CodecAAC }},
+		{"audio downmixed", func(p *media.ProbeInfo) { p.AudioChannels = 2 }},
+		{"audio resampled", func(p *media.ProbeInfo) { p.AudioSampleRate = 44100 }},
+		{"audio missing", func(p *media.ProbeInfo) { p.AudioCodec = "" }},
+		{"header only", func(p *media.ProbeInfo) { p.VideoBitDepth = 0 }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			measured := original
+			tc.change(&measured)
+			if err := ValidateOriginalOutput(t.Context(), outputProbe{info: measured}, original, original.RequiredTracks(), done); err == nil {
+				t.Fatal("native output accepted lost tracks, incomplete headers or altered source properties")
+			}
+		})
+	}
+}
+
 func TestEncodedOutputValidationEndsOnCancellationOrCompletedBadOutput(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

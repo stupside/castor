@@ -9,6 +9,7 @@ import (
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
@@ -20,6 +21,7 @@ type Segments struct {
 	served      atomic.Int64
 	mu          sync.Mutex
 	lastRequest time.Time
+	runtime     time.Duration
 }
 
 func newSegments(o output.Opening, dir string, captions *output.Captions) (*Segments, error) {
@@ -44,6 +46,9 @@ func (s *Segments) Write(ctx context.Context, producer io.Reader) error {
 }
 
 func (s *Segments) Path() string {
+	if s.runtime > 0 {
+		return "master.m3u8"
+	}
 	if s.store.captions != nil {
 		return "master.m3u8"
 	}
@@ -51,10 +56,29 @@ func (s *Segments) Path() string {
 }
 func (s *Segments) Served() int { return int(s.served.Load()) }
 func (s *Segments) Artifact() output.Artifact {
-	return output.Artifact{Path: s.store.playlist, Subject: "the HLS playlist", Landed: s.store.landed}
+	landed := s.store.landed
+	// A retained event starts at its beginning and a caption rendition has its own readiness; only a rolling window is joined at its edge.
+	if s.runtime == 0 && s.store.captions == nil {
+		landed = s.store.rollingLanded
+	}
+	return output.Artifact{Path: s.store.playlist, Subject: "the HLS playlist", Landed: landed}
 }
-func (s *Segments) WatchStorage(ctx context.Context) error { return monitorDirectory(ctx, s.store.dir) }
+func (s *Segments) WatchStorage(ctx context.Context) error {
+	if s.runtime > 0 {
+		// At most one segment per target interval, plus initialization, playlist,
+		// final partial fragment and the producer's atomic temporary writes.
+		files := min(int(s.runtime/CaptionSegmentDuration)+9, 16384)
+		return monitorDirectoryWithin(ctx, s.store.dir, storage.DefaultSpoolLimit, files)
+	}
+	return monitorDirectory(ctx, s.store.dir)
+}
 func (s *Segments) Wait(ctx context.Context, produced <-chan struct{}) error {
+	if s.runtime > 0 {
+		// A paused receiver makes no segment requests. Retained finite playback
+		// ends on its device verdict or cancellation, not on HTTP inactivity.
+		<-ctx.Done()
+		return context.Cause(ctx)
+	}
 	return output.Settle(ctx, produced, func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()

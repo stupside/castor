@@ -26,6 +26,8 @@ type Format struct {
 	Framing media.Framing
 	// Tuning: fixed options (not codec-dependent); on row to avoid silent drops.
 	Tuning Tuning
+	// DolbyVisionEntry marks a Dolby Vision copy dvh1 rather than hvc1, for a player that reads it only there.
+	DolbyVisionEntry bool
 	// Segments is the content type a segmented delivery is cut into.
 	Segments string
 	// ClockCuts is a delivery cut into fragments on the clock, each of which must open on a keyframe.

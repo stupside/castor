@@ -95,6 +95,34 @@ const lgC2Sink = "http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_BL_CIF15_AAC_520,http
 	"http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=AVC_TS_NA_T,http-get:*:video/x-ms-wmv:*,http-get:*:video/mpeg:*," +
 	"http-get:*:video/mp4:*,http-get:*:video/x-matroska:*,http-get:*:video/mp2t:*,http-get:*:video/x-msvideo:*"
 
+func TestContainersListedWithoutAProfileLeaveNativeTracksToTheRenderer(t *testing.T) {
+	caps, sinks := parseSinkProtocolInfo(lgC2Sink)
+	if !caps.GetNativePlaybackTrial() {
+		t.Fatal("a renderer naming containers without codecs must leave Native track support to its verdict")
+	}
+	var order []mediav1.ProgressiveSupport_Container
+	for _, f := range caps.Formats {
+		order = append(order, f.GetProgressive().GetContainer())
+	}
+	if want := []mediav1.ProgressiveSupport_Container{
+		mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
+		mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
+		mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
+		mediav1.ProgressiveSupport_CONTAINER_MP4,
+		mediav1.ProgressiveSupport_CONTAINER_MP4,
+		mediav1.ProgressiveSupport_CONTAINER_MKV,
+	}; !slices.Equal(order, want) {
+		t.Fatalf("containers %v, want %v: served output prefers MPEG-TS and never a Matroska still being muxed", order, want)
+	}
+	if got := sinks[mediav1.Container_CONTAINER_MKV]; got.mime != "video/x-matroska" || got.features != "*" {
+		t.Fatalf("Matroska sink entry = %+v", got)
+	}
+	// A profile naming codecs still stands on its own, without trial.
+	if profiled, _ := parseSinkProtocolInfo("http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_MP_HD_AAC"); profiled.GetNativePlaybackTrial() {
+		t.Fatal("a profile naming its codecs is not a trial")
+	}
+}
+
 func TestAContainerNamedWithoutAProfilePlaysTheFamilyDefault(t *testing.T) {
 	caps, sinks := parseSinkProtocolInfo(lgC2Sink)
 	fallback, _ := fallbackCaps()
@@ -135,7 +163,7 @@ func TestOnlyCastorsOwnContainerWithoutAProfileImpliesTheDefault(t *testing.T) {
 	for name, sink := range map[string]string{
 		"a profile naming another codec":   "http-get:*:video/vnd.dlna.mpeg-tts:DLNA.ORG_PN=MPEG_TS_HD_KO",
 		"192-byte timestamped MPEG-TS":     "http-get:*:video/vnd.dlna.mpeg-tts:*",
-		"a container castor does not make": "http-get:*:video/x-matroska:*",
+		"a container castor does not make": "http-get:*:video/x-msvideo:*",
 	} {
 		if got, _ := parseSinkProtocolInfo(sink); len(got.Formats) != 0 {
 			t.Errorf("%s yielded %v, want nothing castor makes", name, got.Formats)

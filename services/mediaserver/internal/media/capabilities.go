@@ -11,6 +11,9 @@ type Capabilities struct {
 	Provenance   string
 	SelfFetch    bool
 	Deinterlaces bool
+	// NativePlaybackTrial leaves unverified decoder limits to the receiver's playback verdict.
+	// It applies only to original-track delivery and forwards of the source file, never to encoding or direct-handoff eligibility.
+	NativePlaybackTrial bool
 }
 
 // Served is the headers a response serving contentType carries, from the first format that serves it.
@@ -138,6 +141,8 @@ type FormatSupport struct {
 	Captions      []CaptionFormat
 	ExtraSegments []HLSExtraSegmentFormat
 	ServedHeaders map[string]string
+	// DolbyVisionEntry is an HLS player that shows Dolby Vision only from a dvh1 sample entry.
+	DolbyVisionEntry bool
 }
 
 type HLSExtraSegmentFormat uint8
@@ -173,6 +178,30 @@ func (c Capabilities) CanPlaySourceIn(container string, p ProbeInfo) bool {
 		return c.canPlayHLSWith(p, HLSExtraSegmentTIKTIKPX)
 	}
 	return c.CanPlayIn(container, p)
+}
+
+// CanHandOff reports whether a self-fetching device may be pointed at the source itself. A Native trial
+// leaves the tracks, HDR included, to the receiver's verdict as a forwarded original does; an HLS source's
+// observed segment envelope still has to be one the device names.
+func (c Capabilities) CanHandOff(container string, p ProbeInfo, preserve bool) bool {
+	if !preserve || !c.NativePlaybackTrial {
+		return c.CanPlaySourceIn(container, p)
+	}
+	return (p.HasVideo() || p.HasAudio()) && slices.ContainsFunc(c.Formats, func(f FormatSupport) bool {
+		return f.Transport.ContentType() == container &&
+			(container != HLS || !p.SourceUnwrapped || slices.Contains(f.ExtraSegments, HLSExtraSegmentTIKTIKPX))
+	})
+}
+
+// AcceptsOriginal reports whether the device may be given the source file itself. A Native trial
+// leaves the tracks to the device's verdict, so only the container has to be one it names.
+func (c Capabilities) AcceptsOriginal(container string, p ProbeInfo, preserve bool) bool {
+	if preserve && c.NativePlaybackTrial {
+		return (p.HasVideo() || p.HasAudio()) && slices.ContainsFunc(c.Formats, func(f FormatSupport) bool {
+			return f.Transport.ContentType() == container
+		})
+	}
+	return c.CanPlaySourceIn(container, p)
 }
 
 func (c Capabilities) CanPlayIn(container string, p ProbeInfo) bool {

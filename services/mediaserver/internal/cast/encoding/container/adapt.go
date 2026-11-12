@@ -17,9 +17,10 @@ type Adaptation struct {
 	OutputArgs []string
 }
 
-// Adapt sums every adaptation a track of kind landing as codec in into needs; copying tells a pass-through from an encode.
-func Adapt(kind media.TrackKind, codec media.Codec, into Format, copying bool) Adaptation {
-	s := subject{codec: codec, into: into, copying: copying}
+// Adapt sums every adaptation a track of kind landing as codec in into needs; copying tells a pass-through from an
+// encode, and dolbyVision a picture carrying a Dolby Vision configuration.
+func Adapt(kind media.TrackKind, codec media.Codec, into Format, copying, dolbyVision bool) Adaptation {
+	s := subject{codec: codec, into: into, copying: copying, dolbyVision: dolbyVision}
 	table := videoAdaptations
 	if kind == media.TrackAudio {
 		table = audioAdaptations
@@ -38,9 +39,10 @@ func Adapt(kind media.TrackKind, codec media.Codec, into Format, copying bool) A
 
 // subject is what a row matches on; deliberately not the source container, which a spool re-frames.
 type subject struct {
-	codec   media.Codec
-	into    Format
-	copying bool
+	codec       media.Codec
+	into        Format
+	copying     bool
+	dolbyVision bool
 }
 
 // adaptation is one codec-to-container row; rows that apply add up.
@@ -64,6 +66,11 @@ func framedAs(f media.Framing) func(subject) bool {
 func muxedBy(muxers ...string) func(subject) bool {
 	return func(s subject) bool { return s.into.Muxer != "" && slices.Contains(muxers, s.into.Muxer) }
 }
+
+// dolbyVisionEntry is a copied Dolby Vision picture bound for a player that reads Dolby Vision only from dvh1.
+func dolbyVisionEntry(s subject) bool { return s.copying && s.dolbyVision && s.into.DolbyVisionEntry }
+
+func not(p func(subject) bool) func(subject) bool { return func(s subject) bool { return !p(s) } }
 
 func all(preds ...func(subject) bool) func(subject) bool {
 	return func(s subject) bool {
@@ -93,7 +100,12 @@ var audioAdaptations = []adaptation{
 var videoAdaptations = []adaptation{
 	{
 		// HEVC lands tagged hev1; Apple and Chromecast expect hvc1.
-		when:       all(codecIn(media.CodecHEVC), framedAs(media.FramingOutOfBand)),
+		when:       all(codecIn(media.CodecHEVC), framedAs(media.FramingOutOfBand), not(dolbyVisionEntry)),
 		outputArgs: []string{"-tag:v", "hvc1"},
+	},
+	{
+		// The dvvC/dvcC box rides along either way; only this sample entry makes such a player show it.
+		when:       all(codecIn(media.CodecHEVC), framedAs(media.FramingOutOfBand), dolbyVisionEntry),
+		outputArgs: []string{"-tag:v", "dvh1"},
 	},
 }

@@ -13,6 +13,14 @@ import (
 // renditionCodecs describes the produced bitstream, including copied HEVC/AV1,
 // rather than relying on a receiver's default assumption of AVC and AAC.
 func renditionCodecs(movie *mp4.MoovBox) (string, error) {
+	codecs, err := mediaCodecs(movie)
+	if err != nil {
+		return "", err
+	}
+	return codecs + ",wvtt", nil
+}
+
+func mediaCodecs(movie *mp4.MoovBox) (string, error) {
 	var codecs []string
 	for _, track := range movie.Traks {
 		if track.Mdia == nil || track.Mdia.Minf == nil || track.Mdia.Minf.Stbl == nil || track.Mdia.Minf.Stbl.Stsd == nil {
@@ -23,6 +31,10 @@ func renditionCodecs(movie *mp4.MoovBox) (string, error) {
 		case stsd.AvcX != nil && stsd.AvcX.AvcC != nil:
 			entry := stsd.AvcX
 			codecs = append(codecs, fmt.Sprintf("%s.%02x%02x%02x", entry.Type(), entry.AvcC.AVCProfileIndication, entry.AvcC.ProfileCompatibility, entry.AvcC.AVCLevelIndication))
+		case stsd.HvcX != nil && stsd.HvcX.DoViConfig != nil && (stsd.HvcX.Type() == "dvh1" || stsd.HvcX.Type() == "dvhe"):
+			// A Dolby Vision sample entry names its profile and level, as a player reading it expects.
+			dv := stsd.HvcX.DoViConfig
+			codecs = append(codecs, fmt.Sprintf("%s.%02d.%02d", stsd.HvcX.Type(), dv.DVProfile, dv.DVLevel))
 		case stsd.HvcX != nil && stsd.HvcX.HvcC != nil:
 			entry := stsd.HvcX
 			nalus := entry.HvcC.GetNalusForType(hevc.NALU_SPS)
@@ -63,7 +75,5 @@ func renditionCodecs(movie *mp4.MoovBox) (string, error) {
 			return "", fmt.Errorf("unsupported HLS sample description")
 		}
 	}
-	// WebVTT belongs to the subtitle rendition referenced by this variant.
-	codecs = append(codecs, "wvtt")
 	return strings.Join(codecs, ","), nil
 }

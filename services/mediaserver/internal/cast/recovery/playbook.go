@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // playbook is each fault kind's recoveries, cheapest first; switching candidate last; a kind absent here has none.
 var playbook = map[kind][]strategy{
+	// Only a live source may relax native quality, and only after planning established the need.
+	nativeIncompatible: {optimizeLive},
 	// Nothing about this link was established, so nothing on it is worth changing.
 	unreachable: {switchCandidate},
 
@@ -54,6 +57,9 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 	pos := f.resumeAt()
 	facts := change{intent: in, attempt: f.attempt, outcome: o, resolver: resolver}
 	for _, s := range playbook[f.kind] {
+		if in.PreserveSource && !keepsSource(s.action, f.attempt) {
+			continue
+		}
 		next, ok := s.apply(ctx, facts)
 		if !ok {
 			continue
@@ -68,6 +74,18 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 		return revision{attempt: next, action: s.action, offered: true}
 	}
 	return revision{}
+}
+
+// keepsSource is an action a cast that preserves its source may take: none of them chooses another source.
+// Once optimize-live has allowed the conversion, the encode it runs may be made again in software.
+func keepsSource(action Action, a Attempt) bool {
+	switch action {
+	case RelaxRead, ServeInstead, Stay, OptimizeLive:
+		return true
+	case SoftwareEncode:
+		return a.OptimizedLive
+	}
+	return false
 }
 
 // resumeAt is where the viewer got to: a cast that played is taken up there.
@@ -106,5 +124,5 @@ func revisable(o Outcome, k kind) bool {
 	if judged, ok := errors.AsType[*health.Fault](o.Err); ok {
 		return judged.Revise
 	}
-	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil || o.Evidence.EncodeErr != nil
+	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil || o.Evidence.EncodeErr != nil || errors.Is(o.Err, media.ErrNativeIncompatible)
 }

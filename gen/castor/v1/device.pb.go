@@ -22,6 +22,62 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Fidelity is how much of the source the device is handed unchanged, least first.
+type Fidelity int32
+
+const (
+	Fidelity_FIDELITY_UNSPECIFIED Fidelity = 0
+	// FIDELITY_CONVERTED re-encodes at least one track.
+	Fidelity_FIDELITY_CONVERTED Fidelity = 1
+	// FIDELITY_ORIGINAL_TRACKS copies every track into another container, which can drop container signaling such as Dolby Vision.
+	Fidelity_FIDELITY_ORIGINAL_TRACKS Fidelity = 2
+	// FIDELITY_ORIGINAL_FILE hands over the source file itself, with every track and signal it carries.
+	Fidelity_FIDELITY_ORIGINAL_FILE Fidelity = 3
+)
+
+// Enum value maps for Fidelity.
+var (
+	Fidelity_name = map[int32]string{
+		0: "FIDELITY_UNSPECIFIED",
+		1: "FIDELITY_CONVERTED",
+		2: "FIDELITY_ORIGINAL_TRACKS",
+		3: "FIDELITY_ORIGINAL_FILE",
+	}
+	Fidelity_value = map[string]int32{
+		"FIDELITY_UNSPECIFIED":     0,
+		"FIDELITY_CONVERTED":       1,
+		"FIDELITY_ORIGINAL_TRACKS": 2,
+		"FIDELITY_ORIGINAL_FILE":   3,
+	}
+)
+
+func (x Fidelity) Enum() *Fidelity {
+	p := new(Fidelity)
+	*p = x
+	return p
+}
+
+func (x Fidelity) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Fidelity) Descriptor() protoreflect.EnumDescriptor {
+	return file_castor_v1_device_proto_enumTypes[0].Descriptor()
+}
+
+func (Fidelity) Type() protoreflect.EnumType {
+	return &file_castor_v1_device_proto_enumTypes[0]
+}
+
+func (x Fidelity) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Fidelity.Descriptor instead.
+func (Fidelity) EnumDescriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{0}
+}
+
 type DeviceType int32
 
 const (
@@ -29,6 +85,8 @@ const (
 	DeviceType_DEVICE_TYPE_DLNA        DeviceType = 1
 	DeviceType_DEVICE_TYPE_CHROMECAST  DeviceType = 2
 	DeviceType_DEVICE_TYPE_ROKU        DeviceType = 3
+	// 4 is DEVICE_TYPE_FCAST, proposed in stupside/castor#84.
+	DeviceType_DEVICE_TYPE_AIRPLAY DeviceType = 5
 )
 
 // Enum value maps for DeviceType.
@@ -38,12 +96,14 @@ var (
 		1: "DEVICE_TYPE_DLNA",
 		2: "DEVICE_TYPE_CHROMECAST",
 		3: "DEVICE_TYPE_ROKU",
+		5: "DEVICE_TYPE_AIRPLAY",
 	}
 	DeviceType_value = map[string]int32{
 		"DEVICE_TYPE_UNSPECIFIED": 0,
 		"DEVICE_TYPE_DLNA":        1,
 		"DEVICE_TYPE_CHROMECAST":  2,
 		"DEVICE_TYPE_ROKU":        3,
+		"DEVICE_TYPE_AIRPLAY":     5,
 	}
 )
 
@@ -58,11 +118,11 @@ func (x DeviceType) String() string {
 }
 
 func (DeviceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_castor_v1_device_proto_enumTypes[0].Descriptor()
+	return file_castor_v1_device_proto_enumTypes[1].Descriptor()
 }
 
 func (DeviceType) Type() protoreflect.EnumType {
-	return &file_castor_v1_device_proto_enumTypes[0]
+	return &file_castor_v1_device_proto_enumTypes[1]
 }
 
 func (x DeviceType) Number() protoreflect.EnumNumber {
@@ -71,7 +131,363 @@ func (x DeviceType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeviceType.Descriptor instead.
 func (DeviceType) EnumDescriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{1}
+}
+
+type StartPairingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Target        *Target                `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartPairingRequest) Reset() {
+	*x = StartPairingRequest{}
+	mi := &file_castor_v1_device_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartPairingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartPairingRequest) ProtoMessage() {}
+
+func (x *StartPairingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartPairingRequest.ProtoReflect.Descriptor instead.
+func (*StartPairingRequest) Descriptor() ([]byte, []int) {
 	return file_castor_v1_device_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *StartPairingRequest) GetTarget() *Target {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+type StartPairingResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// pairing_id names the pairing the device now shows a PIN for, until it is finished, cancelled or expires.
+	PairingId     string `protobuf:"bytes,1,opt,name=pairing_id,json=pairingId,proto3" json:"pairing_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartPairingResponse) Reset() {
+	*x = StartPairingResponse{}
+	mi := &file_castor_v1_device_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartPairingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartPairingResponse) ProtoMessage() {}
+
+func (x *StartPairingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartPairingResponse.ProtoReflect.Descriptor instead.
+func (*StartPairingResponse) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *StartPairingResponse) GetPairingId() string {
+	if x != nil {
+		return x.PairingId
+	}
+	return ""
+}
+
+type FinishPairingRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	PairingId string                 `protobuf:"bytes,1,opt,name=pairing_id,json=pairingId,proto3" json:"pairing_id,omitempty"`
+	// pin is the one the device shows, a string since it may begin with zero.
+	Pin           string `protobuf:"bytes,2,opt,name=pin,proto3" json:"pin,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FinishPairingRequest) Reset() {
+	*x = FinishPairingRequest{}
+	mi := &file_castor_v1_device_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishPairingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishPairingRequest) ProtoMessage() {}
+
+func (x *FinishPairingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishPairingRequest.ProtoReflect.Descriptor instead.
+func (*FinishPairingRequest) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *FinishPairingRequest) GetPairingId() string {
+	if x != nil {
+		return x.PairingId
+	}
+	return ""
+}
+
+func (x *FinishPairingRequest) GetPin() string {
+	if x != nil {
+		return x.Pin
+	}
+	return ""
+}
+
+type FinishPairingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FinishPairingResponse) Reset() {
+	*x = FinishPairingResponse{}
+	mi := &file_castor_v1_device_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishPairingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishPairingResponse) ProtoMessage() {}
+
+func (x *FinishPairingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishPairingResponse.ProtoReflect.Descriptor instead.
+func (*FinishPairingResponse) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{3}
+}
+
+type CancelPairingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PairingId     string                 `protobuf:"bytes,1,opt,name=pairing_id,json=pairingId,proto3" json:"pairing_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelPairingRequest) Reset() {
+	*x = CancelPairingRequest{}
+	mi := &file_castor_v1_device_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelPairingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelPairingRequest) ProtoMessage() {}
+
+func (x *CancelPairingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelPairingRequest.ProtoReflect.Descriptor instead.
+func (*CancelPairingRequest) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CancelPairingRequest) GetPairingId() string {
+	if x != nil {
+		return x.PairingId
+	}
+	return ""
+}
+
+type CancelPairingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelPairingResponse) Reset() {
+	*x = CancelPairingResponse{}
+	mi := &file_castor_v1_device_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelPairingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelPairingResponse) ProtoMessage() {}
+
+func (x *CancelPairingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelPairingResponse.ProtoReflect.Descriptor instead.
+func (*CancelPairingResponse) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{5}
+}
+
+type DescribeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Target        *Target                `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DescribeRequest) Reset() {
+	*x = DescribeRequest{}
+	mi := &file_castor_v1_device_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DescribeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DescribeRequest) ProtoMessage() {}
+
+func (x *DescribeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DescribeRequest.ProtoReflect.Descriptor instead.
+func (*DescribeRequest) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DescribeRequest) GetTarget() *Target {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+type DescribeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// fidelity is what a Native cast keeps of a source whose tracks the device states nothing about.
+	Fidelity Fidelity `protobuf:"varint,1,opt,name=fidelity,proto3,enum=castor.v1.Fidelity" json:"fidelity,omitempty"`
+	// original_content_types are the containers the device is handed source files in unchanged, preferred first.
+	OriginalContentTypes []string `protobuf:"bytes,2,rep,name=original_content_types,json=originalContentTypes,proto3" json:"original_content_types,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *DescribeResponse) Reset() {
+	*x = DescribeResponse{}
+	mi := &file_castor_v1_device_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DescribeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DescribeResponse) ProtoMessage() {}
+
+func (x *DescribeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_v1_device_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DescribeResponse.ProtoReflect.Descriptor instead.
+func (*DescribeResponse) Descriptor() ([]byte, []int) {
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DescribeResponse) GetFidelity() Fidelity {
+	if x != nil {
+		return x.Fidelity
+	}
+	return Fidelity_FIDELITY_UNSPECIFIED
+}
+
+func (x *DescribeResponse) GetOriginalContentTypes() []string {
+	if x != nil {
+		return x.OriginalContentTypes
+	}
+	return nil
 }
 
 type ListDevicesRequest struct {
@@ -82,7 +498,7 @@ type ListDevicesRequest struct {
 
 func (x *ListDevicesRequest) Reset() {
 	*x = ListDevicesRequest{}
-	mi := &file_castor_v1_device_proto_msgTypes[0]
+	mi := &file_castor_v1_device_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -94,7 +510,7 @@ func (x *ListDevicesRequest) String() string {
 func (*ListDevicesRequest) ProtoMessage() {}
 
 func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[0]
+	mi := &file_castor_v1_device_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -107,7 +523,7 @@ func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDevicesRequest.ProtoReflect.Descriptor instead.
 func (*ListDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{0}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{8}
 }
 
 type ListDevicesResponse struct {
@@ -119,7 +535,7 @@ type ListDevicesResponse struct {
 
 func (x *ListDevicesResponse) Reset() {
 	*x = ListDevicesResponse{}
-	mi := &file_castor_v1_device_proto_msgTypes[1]
+	mi := &file_castor_v1_device_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -131,7 +547,7 @@ func (x *ListDevicesResponse) String() string {
 func (*ListDevicesResponse) ProtoMessage() {}
 
 func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[1]
+	mi := &file_castor_v1_device_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -144,7 +560,7 @@ func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDevicesResponse.ProtoReflect.Descriptor instead.
 func (*ListDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{1}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListDevicesResponse) GetDevices() []*Device {
@@ -162,7 +578,7 @@ type WatchDevicesRequest struct {
 
 func (x *WatchDevicesRequest) Reset() {
 	*x = WatchDevicesRequest{}
-	mi := &file_castor_v1_device_proto_msgTypes[2]
+	mi := &file_castor_v1_device_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -174,7 +590,7 @@ func (x *WatchDevicesRequest) String() string {
 func (*WatchDevicesRequest) ProtoMessage() {}
 
 func (x *WatchDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[2]
+	mi := &file_castor_v1_device_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -187,7 +603,7 @@ func (x *WatchDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchDevicesRequest.ProtoReflect.Descriptor instead.
 func (*WatchDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{2}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{10}
 }
 
 type WatchDevicesResponse struct {
@@ -199,7 +615,7 @@ type WatchDevicesResponse struct {
 
 func (x *WatchDevicesResponse) Reset() {
 	*x = WatchDevicesResponse{}
-	mi := &file_castor_v1_device_proto_msgTypes[3]
+	mi := &file_castor_v1_device_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -211,7 +627,7 @@ func (x *WatchDevicesResponse) String() string {
 func (*WatchDevicesResponse) ProtoMessage() {}
 
 func (x *WatchDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[3]
+	mi := &file_castor_v1_device_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -224,7 +640,7 @@ func (x *WatchDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchDevicesResponse.ProtoReflect.Descriptor instead.
 func (*WatchDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{3}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *WatchDevicesResponse) GetDevices() []*Device {
@@ -247,7 +663,7 @@ type Device struct {
 
 func (x *Device) Reset() {
 	*x = Device{}
-	mi := &file_castor_v1_device_proto_msgTypes[4]
+	mi := &file_castor_v1_device_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -259,7 +675,7 @@ func (x *Device) String() string {
 func (*Device) ProtoMessage() {}
 
 func (x *Device) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[4]
+	mi := &file_castor_v1_device_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -272,7 +688,7 @@ func (x *Device) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Device.ProtoReflect.Descriptor instead.
 func (*Device) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{4}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Device) GetId() string {
@@ -316,7 +732,7 @@ type Target struct {
 
 func (x *Target) Reset() {
 	*x = Target{}
-	mi := &file_castor_v1_device_proto_msgTypes[5]
+	mi := &file_castor_v1_device_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -328,7 +744,7 @@ func (x *Target) String() string {
 func (*Target) ProtoMessage() {}
 
 func (x *Target) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[5]
+	mi := &file_castor_v1_device_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -341,7 +757,7 @@ func (x *Target) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Target.ProtoReflect.Descriptor instead.
 func (*Target) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{5}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Target) GetTarget() isTarget_Target {
@@ -397,7 +813,7 @@ type Target_Pinned struct {
 
 func (x *Target_Pinned) Reset() {
 	*x = Target_Pinned{}
-	mi := &file_castor_v1_device_proto_msgTypes[6]
+	mi := &file_castor_v1_device_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -409,7 +825,7 @@ func (x *Target_Pinned) String() string {
 func (*Target_Pinned) ProtoMessage() {}
 
 func (x *Target_Pinned) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_v1_device_proto_msgTypes[6]
+	mi := &file_castor_v1_device_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -422,7 +838,7 @@ func (x *Target_Pinned) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Target_Pinned.ProtoReflect.Descriptor instead.
 func (*Target_Pinned) Descriptor() ([]byte, []int) {
-	return file_castor_v1_device_proto_rawDescGZIP(), []int{5, 0}
+	return file_castor_v1_device_proto_rawDescGZIP(), []int{13, 0}
 }
 
 func (x *Target_Pinned) GetType() DeviceType {
@@ -443,7 +859,26 @@ var File_castor_v1_device_proto protoreflect.FileDescriptor
 
 const file_castor_v1_device_proto_rawDesc = "" +
 	"\n" +
-	"\x16castor/v1/device.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"\x14\n" +
+	"\x16castor/v1/device.proto\x12\tcastor.v1\x1a\x1bbuf/validate/validate.proto\"H\n" +
+	"\x13StartPairingRequest\x121\n" +
+	"\x06target\x18\x01 \x01(\v2\x11.castor.v1.TargetB\x06\xbaH\x03\xc8\x01\x01R\x06target\"5\n" +
+	"\x14StartPairingResponse\x12\x1d\n" +
+	"\n" +
+	"pairing_id\x18\x01 \x01(\tR\tpairingId\"[\n" +
+	"\x14FinishPairingRequest\x12&\n" +
+	"\n" +
+	"pairing_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\tpairingId\x12\x1b\n" +
+	"\x03pin\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x10R\x03pin\"\x17\n" +
+	"\x15FinishPairingResponse\">\n" +
+	"\x14CancelPairingRequest\x12&\n" +
+	"\n" +
+	"pairing_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\tpairingId\"\x17\n" +
+	"\x15CancelPairingResponse\"D\n" +
+	"\x0fDescribeRequest\x121\n" +
+	"\x06target\x18\x01 \x01(\v2\x11.castor.v1.TargetB\x06\xbaH\x03\xc8\x01\x01R\x06target\"y\n" +
+	"\x10DescribeResponse\x12/\n" +
+	"\bfidelity\x18\x01 \x01(\x0e2\x13.castor.v1.FidelityR\bfidelity\x124\n" +
+	"\x16original_content_types\x18\x02 \x03(\tR\x14originalContentTypes\"\x14\n" +
 	"\x12ListDevicesRequest\"B\n" +
 	"\x13ListDevicesResponse\x12+\n" +
 	"\adevices\x18\x01 \x03(\v2\x11.castor.v1.DeviceR\adevices\"\x15\n" +
@@ -465,16 +900,26 @@ const file_castor_v1_device_proto_rawDesc = "" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04type\x12$\n" +
 	"\aaddress\x18\x02 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01(\x80@R\aaddressB\x0f\n" +
-	"\x06target\x12\x05\xbaH\x02\b\x01*q\n" +
+	"\x06target\x12\x05\xbaH\x02\b\x01*v\n" +
+	"\bFidelity\x12\x18\n" +
+	"\x14FIDELITY_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12FIDELITY_CONVERTED\x10\x01\x12\x1c\n" +
+	"\x18FIDELITY_ORIGINAL_TRACKS\x10\x02\x12\x1a\n" +
+	"\x16FIDELITY_ORIGINAL_FILE\x10\x03*\x8a\x01\n" +
 	"\n" +
 	"DeviceType\x12\x1b\n" +
 	"\x17DEVICE_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEVICE_TYPE_DLNA\x10\x01\x12\x1a\n" +
 	"\x16DEVICE_TYPE_CHROMECAST\x10\x02\x12\x14\n" +
-	"\x10DEVICE_TYPE_ROKU\x10\x032\xb0\x01\n" +
+	"\x10DEVICE_TYPE_ROKU\x10\x03\x12\x17\n" +
+	"\x13DEVICE_TYPE_AIRPLAY\x10\x052\xee\x03\n" +
 	"\rDeviceService\x12L\n" +
 	"\vListDevices\x12\x1d.castor.v1.ListDevicesRequest\x1a\x1e.castor.v1.ListDevicesResponse\x12Q\n" +
-	"\fWatchDevices\x12\x1e.castor.v1.WatchDevicesRequest\x1a\x1f.castor.v1.WatchDevicesResponse0\x01B\x94\x01\n" +
+	"\fWatchDevices\x12\x1e.castor.v1.WatchDevicesRequest\x1a\x1f.castor.v1.WatchDevicesResponse0\x01\x12C\n" +
+	"\bDescribe\x12\x1a.castor.v1.DescribeRequest\x1a\x1b.castor.v1.DescribeResponse\x12O\n" +
+	"\fStartPairing\x12\x1e.castor.v1.StartPairingRequest\x1a\x1f.castor.v1.StartPairingResponse\x12R\n" +
+	"\rFinishPairing\x12\x1f.castor.v1.FinishPairingRequest\x1a .castor.v1.FinishPairingResponse\x12R\n" +
+	"\rCancelPairing\x12\x1f.castor.v1.CancelPairingRequest\x1a .castor.v1.CancelPairingResponseB\x94\x01\n" +
 	"\rcom.castor.v1B\vDeviceProtoP\x01Z1github.com/stupside/castor/gen/castor/v1;castorv1\xa2\x02\x03CXX\xaa\x02\tCastor.V1\xca\x02\tCastor\\V1\xe2\x02\x15Castor\\V1\\GPBMetadata\xea\x02\n" +
 	"Castor::V1b\x06proto3"
 
@@ -490,33 +935,53 @@ func file_castor_v1_device_proto_rawDescGZIP() []byte {
 	return file_castor_v1_device_proto_rawDescData
 }
 
-var file_castor_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_castor_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_castor_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_castor_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_castor_v1_device_proto_goTypes = []any{
-	(DeviceType)(0),              // 0: castor.v1.DeviceType
-	(*ListDevicesRequest)(nil),   // 1: castor.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil),  // 2: castor.v1.ListDevicesResponse
-	(*WatchDevicesRequest)(nil),  // 3: castor.v1.WatchDevicesRequest
-	(*WatchDevicesResponse)(nil), // 4: castor.v1.WatchDevicesResponse
-	(*Device)(nil),               // 5: castor.v1.Device
-	(*Target)(nil),               // 6: castor.v1.Target
-	(*Target_Pinned)(nil),        // 7: castor.v1.Target.Pinned
+	(Fidelity)(0),                 // 0: castor.v1.Fidelity
+	(DeviceType)(0),               // 1: castor.v1.DeviceType
+	(*StartPairingRequest)(nil),   // 2: castor.v1.StartPairingRequest
+	(*StartPairingResponse)(nil),  // 3: castor.v1.StartPairingResponse
+	(*FinishPairingRequest)(nil),  // 4: castor.v1.FinishPairingRequest
+	(*FinishPairingResponse)(nil), // 5: castor.v1.FinishPairingResponse
+	(*CancelPairingRequest)(nil),  // 6: castor.v1.CancelPairingRequest
+	(*CancelPairingResponse)(nil), // 7: castor.v1.CancelPairingResponse
+	(*DescribeRequest)(nil),       // 8: castor.v1.DescribeRequest
+	(*DescribeResponse)(nil),      // 9: castor.v1.DescribeResponse
+	(*ListDevicesRequest)(nil),    // 10: castor.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil),   // 11: castor.v1.ListDevicesResponse
+	(*WatchDevicesRequest)(nil),   // 12: castor.v1.WatchDevicesRequest
+	(*WatchDevicesResponse)(nil),  // 13: castor.v1.WatchDevicesResponse
+	(*Device)(nil),                // 14: castor.v1.Device
+	(*Target)(nil),                // 15: castor.v1.Target
+	(*Target_Pinned)(nil),         // 16: castor.v1.Target.Pinned
 }
 var file_castor_v1_device_proto_depIdxs = []int32{
-	5, // 0: castor.v1.ListDevicesResponse.devices:type_name -> castor.v1.Device
-	5, // 1: castor.v1.WatchDevicesResponse.devices:type_name -> castor.v1.Device
-	0, // 2: castor.v1.Device.type:type_name -> castor.v1.DeviceType
-	7, // 3: castor.v1.Target.pinned:type_name -> castor.v1.Target.Pinned
-	0, // 4: castor.v1.Target.Pinned.type:type_name -> castor.v1.DeviceType
-	1, // 5: castor.v1.DeviceService.ListDevices:input_type -> castor.v1.ListDevicesRequest
-	3, // 6: castor.v1.DeviceService.WatchDevices:input_type -> castor.v1.WatchDevicesRequest
-	2, // 7: castor.v1.DeviceService.ListDevices:output_type -> castor.v1.ListDevicesResponse
-	4, // 8: castor.v1.DeviceService.WatchDevices:output_type -> castor.v1.WatchDevicesResponse
-	7, // [7:9] is the sub-list for method output_type
-	5, // [5:7] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	15, // 0: castor.v1.StartPairingRequest.target:type_name -> castor.v1.Target
+	15, // 1: castor.v1.DescribeRequest.target:type_name -> castor.v1.Target
+	0,  // 2: castor.v1.DescribeResponse.fidelity:type_name -> castor.v1.Fidelity
+	14, // 3: castor.v1.ListDevicesResponse.devices:type_name -> castor.v1.Device
+	14, // 4: castor.v1.WatchDevicesResponse.devices:type_name -> castor.v1.Device
+	1,  // 5: castor.v1.Device.type:type_name -> castor.v1.DeviceType
+	16, // 6: castor.v1.Target.pinned:type_name -> castor.v1.Target.Pinned
+	1,  // 7: castor.v1.Target.Pinned.type:type_name -> castor.v1.DeviceType
+	10, // 8: castor.v1.DeviceService.ListDevices:input_type -> castor.v1.ListDevicesRequest
+	12, // 9: castor.v1.DeviceService.WatchDevices:input_type -> castor.v1.WatchDevicesRequest
+	8,  // 10: castor.v1.DeviceService.Describe:input_type -> castor.v1.DescribeRequest
+	2,  // 11: castor.v1.DeviceService.StartPairing:input_type -> castor.v1.StartPairingRequest
+	4,  // 12: castor.v1.DeviceService.FinishPairing:input_type -> castor.v1.FinishPairingRequest
+	6,  // 13: castor.v1.DeviceService.CancelPairing:input_type -> castor.v1.CancelPairingRequest
+	11, // 14: castor.v1.DeviceService.ListDevices:output_type -> castor.v1.ListDevicesResponse
+	13, // 15: castor.v1.DeviceService.WatchDevices:output_type -> castor.v1.WatchDevicesResponse
+	9,  // 16: castor.v1.DeviceService.Describe:output_type -> castor.v1.DescribeResponse
+	3,  // 17: castor.v1.DeviceService.StartPairing:output_type -> castor.v1.StartPairingResponse
+	5,  // 18: castor.v1.DeviceService.FinishPairing:output_type -> castor.v1.FinishPairingResponse
+	7,  // 19: castor.v1.DeviceService.CancelPairing:output_type -> castor.v1.CancelPairingResponse
+	14, // [14:20] is the sub-list for method output_type
+	8,  // [8:14] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_castor_v1_device_proto_init() }
@@ -524,7 +989,7 @@ func file_castor_v1_device_proto_init() {
 	if File_castor_v1_device_proto != nil {
 		return
 	}
-	file_castor_v1_device_proto_msgTypes[5].OneofWrappers = []any{
+	file_castor_v1_device_proto_msgTypes[13].OneofWrappers = []any{
 		(*Target_DeviceId)(nil),
 		(*Target_Pinned_)(nil),
 	}
@@ -533,8 +998,8 @@ func file_castor_v1_device_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_v1_device_proto_rawDesc), len(file_castor_v1_device_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   7,
+			NumEnums:      2,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

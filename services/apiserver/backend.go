@@ -3,6 +3,7 @@ package apiserver
 import (
 	"github.com/stupside/castor/internal/transport"
 	"github.com/stupside/castor/services/apiserver/internal/device"
+	"github.com/stupside/castor/services/apiserver/internal/device/airplay"
 	"github.com/stupside/castor/services/apiserver/internal/device/chromecast"
 	"github.com/stupside/castor/services/apiserver/internal/device/dlna"
 	"github.com/stupside/castor/services/apiserver/internal/device/roku"
@@ -12,7 +13,7 @@ import (
 
 // backend is what the API server casts with, bound to c: every device family castor casts to, and the media server at media.
 func (c *Config) backend(media transport.Endpoint, scraping transport.Endpoint) Backend {
-	families := []device.Family{dlna.Family{}, chromecast.Family{}, roku.Family{Config: c.Servers.API.Devices.Roku}}
+	families := []device.Family{dlna.Family{}, chromecast.Family{}, roku.Family{Config: c.Servers.API.Devices.Roku}, airplay.Family{Pairings: airplay.NewPairings(c.Servers.API.Devices.AirPlay.Pairings)}}
 	return Backend{
 		Devices: device.Registry{
 			Families: families,

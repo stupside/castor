@@ -4,7 +4,7 @@
 device:
   # Two devices sharing a name are refused as ambiguous; pick one by the id `castor scan` prints.
   # id: "uuid:..."
-  # Run `castor scan` and paste the device's name and type (dlna, chromecast or roku).
+  # Run `castor scan` and paste the device's name and type (dlna, chromecast, roku or airplay).
   # name: "Samsung Q80CA 55 TV"
   # type: "dlna"
   # Reach the device by unicast where discovery can't (VLANs, Android/Termux); name becomes a label.
@@ -69,6 +69,8 @@ servers:
     # network:
     #   timeout: 5s        # device discovery and control
     # devices:
+    #   airplay:
+    #     pairings: "/path/to/airplay-pairings.json"  # default: castor/ in the user config directory
     #   roku:
     #     password: "<ROKU_DEVELOPER_PASSWORD>"  # for sideloading
     #     app_id: "<PUBLISHED_CHANNEL_ID>"  # use a published channel instead

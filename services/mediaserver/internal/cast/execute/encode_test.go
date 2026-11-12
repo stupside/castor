@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
@@ -104,4 +105,47 @@ func bufferedCast(t *testing.T, ffmpegPath, ffprobePath string) (*preparation, *
 	}
 	s := readingAttempt(t, realCast(&fakeDevice{}, ffmpegPath, ffprobePath), recovery.Attempt{})
 	return s, &buffered{reader: &pull{spool: sp, done: make(chan struct{})}}
+}
+
+func TestNativeFiniteDownloadPrefersSeekableHLSWithoutChangingLiveOrOptimized(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+	body, err := os.ReadFile(generateFixture(t, ffmpegPath, "seekable.ts", 1,
+		[]string{"-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-shortest", "-f", "mpegts"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name                string
+		native, trial, live bool
+		runtime             time.Duration
+		want                string
+	}{
+		{"finite native", true, true, false, time.Hour, media.HLS},
+		{"live native", true, true, true, time.Hour, media.MP4},
+		{"unknown duration", true, true, false, 0, media.MP4},
+		{"optimized", false, true, false, time.Hour, media.MP4},
+		{"other receiver", true, false, false, time.Hour, media.MP4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, buf := bufferedCast(t, ffmpegPath, ffprobePath)
+			t.Cleanup(func() { _ = buf.reader.spool.Close() })
+			if _, err := buf.reader.spool.Write(body); err != nil {
+				t.Fatal(err)
+			}
+			buf.reader.spool.CloseWrite(nil)
+			buf.live = tc.live
+			s.PreserveSource = tc.native
+			s.MaxHeight = 2147483647
+			s.attempt.Origin.Duration = tc.runtime
+			s.capabilities = chromecastLike(media.MP4, media.HLS)
+			s.capabilities.NativePlaybackTrial = tc.trial
+			opts, err := s.encode(feed{buffered: buf}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if opts.Format.ContentType != tc.want || opts.Video.Name() != "copy" || opts.Audio.Name() != "copy" {
+				t.Fatalf("delivery=%s video=%s audio=%s; want %s and original tracks", opts.Format.ContentType, opts.Video.Name(), opts.Audio.Name(), tc.want)
+			}
+		})
+	}
 }

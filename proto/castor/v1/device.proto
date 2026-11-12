@@ -9,6 +9,62 @@ service DeviceService {
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
   // WatchDevices sends the devices now, then the whole list again whenever one appears or stops answering.
   rpc WatchDevices(WatchDevicesRequest) returns (stream WatchDevicesResponse);
+  // Describe asks one device what it accepts, without casting, and reports the most of a source castor can hand it.
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+  // StartPairing asks a device that plays only for clients it paired with to show a PIN, which FinishPairing proves.
+  rpc StartPairing(StartPairingRequest) returns (StartPairingResponse);
+  // FinishPairing proves the PIN the device shows, completing the pairing StartPairing began.
+  rpc FinishPairing(FinishPairingRequest) returns (FinishPairingResponse);
+  // CancelPairing abandons a pairing StartPairing began, so the device stops showing its PIN.
+  rpc CancelPairing(CancelPairingRequest) returns (CancelPairingResponse);
+}
+
+message StartPairingRequest {
+  Target target = 1 [(buf.validate.field).required = true];
+}
+
+message StartPairingResponse {
+  // pairing_id names the pairing the device now shows a PIN for, until it is finished, cancelled or expires.
+  string pairing_id = 1;
+}
+
+message FinishPairingRequest {
+  string pairing_id = 1 [(buf.validate.field).string.min_len = 1];
+  // pin is the one the device shows, a string since it may begin with zero.
+  string pin = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 16
+  }];
+}
+
+message FinishPairingResponse {}
+
+message CancelPairingRequest {
+  string pairing_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message CancelPairingResponse {}
+
+message DescribeRequest {
+  Target target = 1 [(buf.validate.field).required = true];
+}
+
+message DescribeResponse {
+  // fidelity is what a Native cast keeps of a source whose tracks the device states nothing about.
+  Fidelity fidelity = 1;
+  // original_content_types are the containers the device is handed source files in unchanged, preferred first.
+  repeated string original_content_types = 2;
+}
+
+// Fidelity is how much of the source the device is handed unchanged, least first.
+enum Fidelity {
+  FIDELITY_UNSPECIFIED = 0;
+  // FIDELITY_CONVERTED re-encodes at least one track.
+  FIDELITY_CONVERTED = 1;
+  // FIDELITY_ORIGINAL_TRACKS copies every track into another container, which can drop container signaling such as Dolby Vision.
+  FIDELITY_ORIGINAL_TRACKS = 2;
+  // FIDELITY_ORIGINAL_FILE hands over the source file itself, with every track and signal it carries.
+  FIDELITY_ORIGINAL_FILE = 3;
 }
 
 message ListDevicesRequest {}
@@ -63,4 +119,6 @@ enum DeviceType {
   DEVICE_TYPE_DLNA = 1;
   DEVICE_TYPE_CHROMECAST = 2;
   DEVICE_TYPE_ROKU = 3;
+  // 4 is DEVICE_TYPE_FCAST, proposed in stupside/castor#84.
+  DEVICE_TYPE_AIRPLAY = 5;
 }

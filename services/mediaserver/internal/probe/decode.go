@@ -18,10 +18,13 @@ import (
 
 const showEntries = "format=format_name,bit_rate,duration,start_time:" +
 	"stream=index,start_time,codec_type,codec_name,profile,level,width,height,pix_fmt,color_transfer,field_order,avg_frame_rate,r_frame_rate,channels,sample_rate,bit_rate:" +
-	"stream_disposition=attached_pic,default:stream_side_data=rotation:" +
+	"stream_disposition=attached_pic,default:stream_side_data=side_data_type,rotation,dv_profile,dv_level,dv_bl_signal_compatibility_id:" +
 	"stream_tags=language:" +
 	"program=program_id:program_stream_disposition=attached_pic:" +
 	"frame=stream_index,interlaced_frame"
+
+// dolbyVisionRecord is how ffprobe names a stream's DOVI configuration side data.
+const dolbyVisionRecord = "DOVI configuration record"
 
 func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 	var result struct {
@@ -50,7 +53,11 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 				Default     int `json:"default"`
 			} `json:"disposition"`
 			SideData []struct {
-				Rotation int `json:"rotation"`
+				Type            string `json:"side_data_type"`
+				Rotation        int    `json:"rotation"`
+				DVProfile       int    `json:"dv_profile"`
+				DVLevel         int    `json:"dv_level"`
+				DVCompatibility int    `json:"dv_bl_signal_compatibility_id"`
 			} `json:"side_data_list"`
 		} `json:"streams"`
 		Programs []struct {
@@ -119,6 +126,9 @@ func decode(out []byte, videoIndex, audioIndex int) (media.ProbeInfo, error) {
 					})
 					for _, d := range s.SideData {
 						info.VideoRotation = cmp.Or(info.VideoRotation, d.Rotation)
+						if d.Type == dolbyVisionRecord {
+							info.VideoDolbyVision = &media.DolbyVision{Profile: d.DVProfile, Level: d.DVLevel, Compatibility: d.DVCompatibility}
+						}
 					}
 				}
 			}

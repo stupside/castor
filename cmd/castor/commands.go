@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/urfave/cli/v3"
@@ -76,7 +77,7 @@ func castCommand(local Local) *cli.Command {
 				return err
 			}
 			fmt.Printf("Casting: %s\n", sel.Title)
-			return cast.Run(ctx, api.casts, to, pages(urls), &castorv1.MediaInfo{Title: sel.Title, Synopsis: sel.Synopsis, ImageUrl: sel.ImageURL, ReleaseDate: sel.ReleaseDate}, start)
+			return cast.Paired(ctx, api.casts, api.devices, to, pages(urls), &castorv1.MediaInfo{Title: sel.Title, Synopsis: sel.Synopsis, ImageUrl: sel.ImageURL, ReleaseDate: sel.ReleaseDate}, start, cast.TerminalPIN(os.Stdin, os.Stdout))
 		},
 		Commands: []*cli.Command{
 			urlCommand(local),
@@ -188,7 +189,7 @@ func castSource(ctx context.Context, cmd *cli.Command, local Local, endpoint set
 	if err != nil {
 		return err
 	}
-	return cast.Run(ctx, api.casts, to, source, nil, start)
+	return cast.Paired(ctx, api.casts, api.devices, to, source, nil, start, cast.TerminalPIN(os.Stdin, os.Stdout))
 }
 
 func startAt(cmd *cli.Command, chosen time.Duration) (time.Duration, error) {

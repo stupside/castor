@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/awake"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/lend"
+	"github.com/stupside/castor/services/mediaserver/internal/media"
+	"github.com/stupside/castor/services/mediaserver/internal/wire"
 )
 
 // run finds the source's streams, readies them and casts them on d, then ends with how that went.
@@ -33,8 +36,21 @@ func (c *cast) play(d *lend.Device) error {
 	return c.caster.Play(c.ctx, d, c.publisher, ready, c.start, c, c.seeks)
 }
 
-// seek moves the cast to at in its media, refused while no attempt plays it.
-func (c *cast) seek(at time.Duration) error {
+// seek moves the cast to at in its media, refused while no attempt plays it. An original file the
+// device fetches is sought by the device; any other stream is prepared again from at.
+func (c *cast) seek(ctx context.Context, at time.Duration) error {
+	if c.ctx.Err() != nil {
+		return errEnded
+	}
+	if d := c.device.Load(); d != nil {
+		err := d.Seek(ctx, at)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, lend.ErrNotNative) && !errors.Is(err, lend.ErrNotPlaying) {
+			slog.InfoContext(ctx, "the device did not seek within its stream, so castor prepares one from there", "at", at, "error", err)
+		}
+	}
 	accepted := make(chan error, 1)
 	select {
 	case c.seeks <- recovery.Seek{At: at, Accepted: accepted}:
@@ -87,13 +103,23 @@ func (c *cast) Attempting(try int) {
 // Revising shows the action the cast is revising its attempt with, and why.
 func (c *cast) Revising(action recovery.Action, why string) {
 	c.fire(eventRevise, func(next *view) {
+		if action == recovery.OptimizeLive {
+			next.status.GetCasting().OptimizedLive = true
+		}
 		next.status.GetCasting().Revision = &castorv1.Revision{Action: recoveryAction(action), Why: why}
 	})
+}
+
+// Delivering shows how much of the source the playing attempt handed the device.
+func (c *cast) Delivering(d media.Delivery) {
+	c.fire(eventDeliver, func(next *view) { next.status.GetCasting().Handover = wire.Handover(d) })
 }
 
 // recoveryAction translates the engine's actions at the contract edge.
 func recoveryAction(action recovery.Action) castorv1.RecoveryAction {
 	switch action {
+	case recovery.OptimizeLive:
+		return castorv1.RecoveryAction_RECOVERY_ACTION_OPTIMIZE_LIVE
 	case recovery.SwitchCandidate:
 		return castorv1.RecoveryAction_RECOVERY_ACTION_SWITCH_CANDIDATE
 	case recovery.DecodeAxis:

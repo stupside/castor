@@ -44,6 +44,22 @@ func (s *scanDevices) ListDevices(context.Context, *castorv1.ListDevicesRequest)
 	return &castorv1.ListDevicesResponse{}, nil
 }
 
+func (*scanDevices) Describe(context.Context, *castorv1.DescribeRequest) (*castorv1.DescribeResponse, error) {
+	return &castorv1.DescribeResponse{}, nil
+}
+
+func (*scanDevices) StartPairing(context.Context, *castorv1.StartPairingRequest) (*castorv1.StartPairingResponse, error) {
+	return &castorv1.StartPairingResponse{}, nil
+}
+
+func (*scanDevices) FinishPairing(context.Context, *castorv1.FinishPairingRequest) (*castorv1.FinishPairingResponse, error) {
+	return &castorv1.FinishPairingResponse{}, nil
+}
+
+func (*scanDevices) CancelPairing(context.Context, *castorv1.CancelPairingRequest) (*castorv1.CancelPairingResponse, error) {
+	return &castorv1.CancelPairingResponse{}, nil
+}
+
 func TestScanUsesTheConfiguredAPIWithoutRequiringACastDevice(t *testing.T) {
 	devices := &scanDevices{}
 	_, handler := castorv1connect.NewDeviceServiceHandler(devices)

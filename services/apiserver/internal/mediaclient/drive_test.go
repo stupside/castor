@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -284,3 +285,36 @@ func (*lentDevice) Stop(context.Context) error   { return nil }
 func (*lentDevice) Close() error                 { return nil }
 func (*lentDevice) Pause(context.Context) error  { return nil }
 func (*lentDevice) Resume(context.Context) error { return nil }
+
+// seekingDevice is a lent device that seeks the stream it plays.
+type seekingDevice struct {
+	*lentDevice
+	sought chan time.Duration
+}
+
+func (*seekingDevice) Controls() device.Controls { return device.Controls{Pause: true, Seek: true} }
+
+func (s *seekingDevice) Seek(_ context.Context, at time.Duration) error {
+	s.sought <- at
+	return nil
+}
+
+func TestASeekMovesADeviceThatSeeksAndIsRefusedByOneThatCannot(t *testing.T) {
+	seek := &mediav1.DeviceCommand{Command: &mediav1.DeviceCommand_Call_{Call: &mediav1.DeviceCommand_Call{Id: "seek", Operation: &mediav1.DeviceCommand_Call_Seek{Seek: &mediav1.DeviceCommand_Seek{Position: durationpb.New(42 * time.Second)}}}}}
+	c, m := serve(t, seek)
+	seeking := &seekingDevice{lentDevice: newLentDevice(), sought: make(chan time.Duration, 1)}
+	if _, driven := cast(t, c, seeking); driven != nil {
+		t.Errorf("the drive ended with %v", driven)
+	}
+	if got := taken(t, m.answered); got.GetDone() == nil || len(seeking.sought) != 1 || <-seeking.sought != 42*time.Second {
+		t.Errorf("the seek was answered %v, want the device moved to 42s", got)
+	}
+
+	c, m = serve(t, seek)
+	if _, driven := cast(t, c, newLentDevice()); driven != nil {
+		t.Errorf("the drive ended with %v", driven)
+	}
+	if got := taken(t, m.answered); got.GetError() == nil {
+		t.Errorf("a device that cannot seek answered %v, want an error the media server falls back on", got)
+	}
+}

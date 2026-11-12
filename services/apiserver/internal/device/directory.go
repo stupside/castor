@@ -35,6 +35,8 @@ type Directory struct {
 	leases map[string]*lease
 
 	watchers *semaphore.Weighted
+
+	pairings pairings
 }
 
 // NewDirectory lists devices from find and lends them through reach.

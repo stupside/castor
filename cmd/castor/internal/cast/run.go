@@ -4,6 +4,7 @@ package cast
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -79,6 +80,9 @@ func outcome(ended *castorv1.Ended) error {
 	case *castorv1.Ended_Stopped:
 		return errStopped
 	case *castorv1.Ended_Failed:
+		if result.Failed.GetCode() == castorv1.FailureCode_FAILURE_CODE_PAIRING_REQUIRED {
+			return fmt.Errorf("%w: %s", ErrPairingRequired, result.Failed.GetMessage())
+		}
 		return errors.New(result.Failed.GetMessage())
 	default:
 		return errors.New("the cast ended without saying how it did")

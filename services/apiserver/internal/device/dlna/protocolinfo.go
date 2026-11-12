@@ -97,7 +97,7 @@ func audioSupportFor(codec mediav1.AudioCodec) *mediav1.AudioSupport {
 
 // parseSinkProtocolInfo maps a ConnectionManager Sink protocolInfo CSV into capabilities and the device's own entry per container.
 func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Container]sinkEntry) {
-	r := &mediav1.Capabilities{Provenance: "receiver ConnectionManager protocolInfo; video envelope uses conservative family defaults"}
+	r := &mediav1.Capabilities{Provenance: "receiver ConnectionManager protocolInfo; video envelope uses conservative family defaults; containers listed without a profile leave Native track support to the receiver"}
 	sinks := map[mediav1.Container]sinkEntry{}
 	var captions []mediav1.CaptionFormat
 	for entry := range strings.SplitSeq(sink, ",") {
@@ -116,8 +116,10 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 		video := videoFromProfile(mime, pn)
 		audios := audioFromProfile(mime, pn)
 		if cok && video == nil && mime == device.MIME(ct) && !strings.Contains(pn, "DLNA.ORG_PN=") {
-			// A container named by its contract MIME and no profile plays the family default.
+			// A container named by its contract MIME and no profile plays the family default,
+			// and Native leaves the tracks it carries to the renderer's verdict.
 			video, audios = device.H264Support(), []mediav1.AudioCodec{mediav1.AudioCodec_AUDIO_CODEC_AAC}
+			r.NativePlaybackTrial = true
 		}
 		// A separate audio-only profile says nothing about this video container.
 		if !cok || video == nil || len(audios) == 0 {
@@ -137,10 +139,7 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 		if hevc := video.GetHevc(); hevc != nil && strings.Contains(pn, "_MP_") {
 			hevc.Profiles = []mediav1.HEVCSupport_Profile{mediav1.HEVCSupport_PROFILE_MAIN}
 		}
-		progressive := mediav1.ProgressiveSupport_CONTAINER_MP4
-		if ct == mediav1.Container_CONTAINER_MPEGTS {
-			progressive = mediav1.ProgressiveSupport_CONTAINER_MPEGTS
-		}
+		progressive := progressiveContainers[ct]
 		for _, a := range audios {
 			format := &mediav1.FormatSupport{Transport: &mediav1.FormatSupport_Progressive{Progressive: &mediav1.ProgressiveSupport{Container: progressive}}, Tracks: &mediav1.FormatSupport_Av{Av: &mediav1.AVSupport{Video: video, Audio: audioSupportFor(a)}}}
 			duplicate := slices.ContainsFunc(r.Formats, func(existing *mediav1.FormatSupport) bool { return proto.Equal(existing, format) })
@@ -159,9 +158,13 @@ func parseSinkProtocolInfo(sink string) (*mediav1.Capabilities, map[mediav1.Cont
 			}
 		}
 	}
-	// Prefer MPEG-TS, then MP4, keeping each receiver-advertised tuple intact.
+	// Prefer MPEG-TS, then MP4, keeping each receiver-advertised tuple intact. Matroska
+	// comes last: a renderer may play a finished file yet refuse one still being muxed.
 	slices.SortStableFunc(r.Formats, func(a, b *mediav1.FormatSupport) int {
-		return cmp.Compare(b.GetProgressive().GetContainer(), a.GetProgressive().GetContainer())
+		rank := func(f *mediav1.FormatSupport) int {
+			return slices.Index(servedPreference, f.GetProgressive().GetContainer())
+		}
+		return cmp.Compare(rank(a), rank(b))
 	})
 	for _, f := range r.Formats {
 		f.Captions = slices.Clone(captions)
@@ -200,13 +203,28 @@ func audioFromProfile(mime, pn string) []mediav1.AudioCodec {
 	return nil
 }
 
-// containerFromMIME reads the DLNA MIME spellings of the containers castor serves.
+// containerFromMIME reads the DLNA MIME spellings of the containers castor serves or forwards.
 func containerFromMIME(mime string) (mediav1.Container, bool) {
 	switch mime {
 	case "video/mp2t", "video/vnd.dlna.mpeg-tts", "video/x-mpegts":
 		return mediav1.Container_CONTAINER_MPEGTS, true
 	case "video/mp4":
 		return mediav1.Container_CONTAINER_MP4, true
+	case "video/x-matroska", "video/x-mkv":
+		return mediav1.Container_CONTAINER_MKV, true
 	}
 	return mediav1.Container_CONTAINER_UNSPECIFIED, false
+}
+
+var progressiveContainers = map[mediav1.Container]mediav1.ProgressiveSupport_Container{
+	mediav1.Container_CONTAINER_MPEGTS: mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
+	mediav1.Container_CONTAINER_MP4:    mediav1.ProgressiveSupport_CONTAINER_MP4,
+	mediav1.Container_CONTAINER_MKV:    mediav1.ProgressiveSupport_CONTAINER_MKV,
+}
+
+// servedPreference orders the progressive containers castor would serve a renderer.
+var servedPreference = []mediav1.ProgressiveSupport_Container{
+	mediav1.ProgressiveSupport_CONTAINER_MPEGTS,
+	mediav1.ProgressiveSupport_CONTAINER_MP4,
+	mediav1.ProgressiveSupport_CONTAINER_MKV,
 }

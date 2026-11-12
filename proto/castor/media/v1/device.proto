@@ -58,6 +58,10 @@ message Capabilities {
   reserved "served_headers";
   // self_fetch is a device that can fetch the source itself.
   bool self_fetch = 5;
+  // A preserve_source cast may try measured original tracks in an admitted
+  // transport when model/firmware codec support is unknown. The receiver's
+  // playback verdict decides compatibility; this never permits conversion.
+  bool native_playback_trial = 6;
 }
 
 message FormatSupport {
@@ -131,6 +135,9 @@ message HLSSupport {
       }
     }
   }];
+  // dolby_vision_entry is a player that shows Dolby Vision only from a dvh1 sample entry, as LG's AirPlay
+  // player does: castor marks a Dolby Vision copy dvh1 for it rather than the hvc1 every other player takes.
+  bool dolby_vision_entry = 3;
 }
 
 message VideoSupport {
@@ -254,6 +261,7 @@ message DeviceCommand {
       Pause pause = 4;
       Resume resume = 5;
       Position position = 6;
+      Seek seek = 7;
     }
   }
 
@@ -346,6 +354,14 @@ message DeviceCommand {
   message Resume {}
 
   message Position {}
+
+  // Seek moves the device within the stream it plays, from that stream's own start.
+  message Seek {
+    google.protobuf.Duration position = 1 [
+      (buf.validate.field).required = true,
+      (buf.validate.field).duration.gte = {}
+    ];
+  }
 
   message Cancel {
     string command_id = 1 [(buf.validate.field).string.min_len = 1];

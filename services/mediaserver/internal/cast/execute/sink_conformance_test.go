@@ -45,7 +45,7 @@ type mechanism struct {
 // opened builds a sink the way a cast does, for the format named.
 func opened(t *testing.T, contentType string) (*testSink, *io.PipeWriter) {
 	t.Helper()
-	selected, err := testOutputs().Select(chromecastLike(contentType), nil)
+	selected, err := testOutputs().Select(chromecastLike(contentType), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func relayed(t *testing.T) (*testSink, *io.PipeWriter) {
 		sp.CloseWrite(err)
 	}()
 	t.Cleanup(func() { _ = pw.Close(); <-drained })
-	selected, err := testOutputs().Select(chromecastLike(media.MPEGTS), nil)
+	selected, err := testOutputs().Select(chromecastLike(media.MPEGTS), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,6 +19,32 @@ func ValidateOutput(ctx context.Context, prober media.Prober, caps media.Capabil
 	})
 }
 
+// ValidateOriginalOutput checks a native trial against its source, not unverified
+// receiver defaults. Missing tracks and incomplete codec headers still fail readiness.
+func ValidateOriginalOutput(ctx context.Context, prober media.Prober, original media.ProbeInfo, expected media.TrackRequirements, done <-chan struct{}) error {
+	return validateTracks(ctx, prober, expected, done, func(measured media.ProbeInfo) error {
+		for _, check := range []struct {
+			field     string
+			unchanged bool
+		}{
+			{"video codec", original.VideoCodec == "" || original.VideoCodec == measured.VideoCodec},
+			{"video profile", original.VideoProfile == "" || original.VideoProfile == measured.VideoProfile},
+			{"video level", original.VideoLevel <= 0 || original.VideoLevel == measured.VideoLevel},
+			{"video bit depth", original.VideoBitDepth == 0 || original.VideoBitDepth == measured.VideoBitDepth},
+			{"video height", original.VideoHeight == 0 || original.VideoHeight == measured.VideoHeight},
+			{"HDR", !original.VideoHDR || measured.VideoHDR},
+			{"audio codec", original.AudioCodec == "" || original.AudioCodec == measured.AudioCodec},
+			{"audio channels", original.AudioChannels == 0 || original.AudioChannels == measured.AudioChannels},
+			{"audio sample rate", original.AudioSampleRate == 0 || original.AudioSampleRate == measured.AudioSampleRate},
+		} {
+			if !check.unchanged {
+				return fmt.Errorf("native output changed the source's %s", check.field)
+			}
+		}
+		return nil
+	})
+}
+
 // Mismatch is an output the receiver cannot play; Refused names the halves it refuses.
 type Mismatch struct {
 	Refused  media.Axes

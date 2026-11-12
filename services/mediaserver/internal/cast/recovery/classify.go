@@ -1,10 +1,12 @@
 package recovery
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // kind classifies attempt failures: two failures share a kind exactly when the same change would answer both.
@@ -13,6 +15,7 @@ type kind int
 const (
 	// unclassified is a real verdict before any row has spoken, not an error.
 	unclassified kind = iota
+	nativeIncompatible
 	// cancelled is the cast's context ending, not a failure.
 	cancelled
 	resourceExhausted
@@ -40,6 +43,8 @@ const (
 
 func (k kind) String() string {
 	switch k {
+	case nativeIncompatible:
+		return "native-incompatible"
 	case resourceExhausted:
 		return "resource-exhausted"
 	case cancelled:
@@ -163,6 +168,9 @@ var unrecognised = classRule{
 // classify names what failed, after the strategies already tried.
 func classify(a Attempt, o Outcome, tried []string) *fault {
 	r := classFor(o.Evidence)
+	if r.kind == unclassified && errors.Is(o.Err, media.ErrNativeIncompatible) {
+		r = classRule{kind: nativeIncompatible, why: "the source requires conversion"}
+	}
 	return &fault{
 		kind:     r.kind,
 		why:      r.why,

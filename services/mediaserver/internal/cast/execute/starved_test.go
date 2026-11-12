@@ -24,7 +24,7 @@ func TestADeviceThatEndsHavingTakenEverythingTheUnfinishedReadMadeIsStarved(t *t
 	}
 	madeBytes := int64(len(body))
 	progress := func() media.Progress { return media.Progress{Position: time.Minute, Bytes: madeBytes} }
-	selected, err := testOutputs().Select(chromecastLike(media.MPEGTS), nil)
+	selected, err := testOutputs().Select(chromecastLike(media.MPEGTS), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

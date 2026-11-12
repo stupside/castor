@@ -74,7 +74,7 @@ Give castor a page that plays a video: it finds the stream, converts what your T
    ```yaml
    device:
      name: "Living Room TV"
-     type: dlna   # dlna, chromecast, or roku
+     type: dlna   # dlna, chromecast, roku, or airplay
    ```
 
 3. Cast a page, or a direct stream or video file:
@@ -169,6 +169,7 @@ Keep secrets, like your TMDB key, in a git-ignored `config.local.yaml` next to t
 | DLNA / UPnP | Main target | Samsung Q70 and Q80 ([#15](https://github.com/stupside/castor/issues/15)), Philips 50PUD6654 ([#23](https://github.com/stupside/castor/pull/23)) |
 | Chromecast | Experimental | Xiaomi TV Box ([#5](https://github.com/stupside/castor/issues/5)), LG C2 in Chromecast mode, from the Android client ([#68](https://github.com/stupside/castor/pull/68)) |
 | Roku | Experimental | Not tested on hardware yet |
+| AirPlay | Experimental | LG C2 (video v2, webOS AirPlay); Apple TV (video v1) not tested on hardware yet |
 
 Also reported working, without saying which protocol:
 
@@ -183,6 +184,14 @@ Cast to another TV? Tell us how it went in the [What device do you cast to?](htt
 1. Enable Developer Mode: on the remote, press <kbd>Home</kbd> three times, <kbd>Up</kbd> twice, then <kbd>Right</kbd> <kbd>Left</kbd> <kbd>Right</kbd> <kbd>Left</kbd> <kbd>Right</kbd>, and set a web server password.
 2. Put that password in `servers.api.devices.roku.password` in `config.local.yaml`.
 3. Cast: castor installs its channel the first time.
+
+</details>
+
+<details>
+
+<summary>Pairing an AirPlay TV</summary>
+
+Most AirPlay TVs play only for a sender they paired with. The first cast to one fails asking for pairing: `castor cast` then asks for the PIN the TV shows and casts again, and a client calls `StartPairing` and `FinishPairing`. Castor keeps the pairing in `castor/airplay-pairings.json` in your user config directory (`servers.api.devices.airplay.pairings` to move it). Apple TVs get the URL through `/play`; other TVs, which announce AirPlay video v2 only, get it queued on a remote control stream. The protocol logic follows [pyatv](https://github.com/postlund/pyatv) (MIT).
 
 </details>
 

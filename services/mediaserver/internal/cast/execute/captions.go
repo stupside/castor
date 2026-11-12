@@ -113,6 +113,6 @@ func (s *preparation) nativeOutput(f feed) (output.Selection, bool) {
 	}
 	selected, err := s.Outputs.Select(s.playbackCapabilities(), &output.Captions{
 		Cues: f.buffered.transcript.Cues(), VideoOffset: *f.buffered.captionVideoOffset,
-	})
+	}, 0)
 	return selected, err == nil
 }
