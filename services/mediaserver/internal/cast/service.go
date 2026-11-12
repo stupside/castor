@@ -13,6 +13,7 @@ import (
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/admission"
 	"github.com/stupside/castor/internal/registry"
 	"github.com/stupside/castor/internal/telemetry"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/execute"
@@ -39,7 +40,7 @@ type Caster interface {
 // Service runs every cast behind the media contract: it starts, stops and follows them, takes the device each is lent, and ranks streams without casting.
 type Service struct {
 	watchers    *semaphore.Weighted
-	resolutions *semaphore.Weighted
+	resolutions *admission.Gate
 	ctx         context.Context
 	shut        context.CancelCauseFunc
 	caster      func(asked *mediav1.PlaybackSettings) Caster
@@ -51,7 +52,7 @@ type Service struct {
 func New(caster func(asked *mediav1.PlaybackSettings) Caster, publisher output.Publisher) *Service {
 	// Casts outlive the request that started them, and end only once the server shuts down.
 	ctx, shut := context.WithCancelCause(context.Background())
-	return &Service{watchers: semaphore.NewWeighted(256), resolutions: semaphore.NewWeighted(resolutionCapacity), ctx: ctx, shut: shut, caster: caster, publisher: publisher, casts: registry.New[*cast](linger)}
+	return &Service{watchers: semaphore.NewWeighted(256), resolutions: admission.New(ctx, resolutionCapacity), ctx: ctx, shut: shut, caster: caster, publisher: publisher, casts: registry.New[*cast](linger)}
 }
 
 func (s *Service) Start(ctx context.Context, req *mediav1.StartRequest) (*mediav1.StartResponse, error) {
@@ -135,9 +136,7 @@ func (s *Service) Drain(ctx context.Context) {
 	s.shut(errShutdown)
 	s.casts.Drain(ctx)
 	// Resolution requests own probes and source readers too; shutdown must join them.
-	if s.resolutions.Acquire(ctx, resolutionCapacity) == nil {
-		s.resolutions.Release(resolutionCapacity)
-	}
+	_ = s.resolutions.Wait(ctx)
 }
 
 func (s *Service) find(id string) (*cast, error) {

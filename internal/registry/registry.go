@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/semaphore"
+	"github.com/stupside/castor/internal/admission"
 )
 
 var (
@@ -25,7 +25,8 @@ var (
 type Registry[V any] struct {
 	linger time.Duration
 	limits limits
-	slots  *semaphore.Weighted
+	// active lets values in while the registry lasts, as many running as limits.Active.
+	active *admission.Gate
 
 	mu       sync.Mutex
 	byID     map[string]V
@@ -51,29 +52,32 @@ func newWithLimits[V any](linger time.Duration, limits limits) *Registry[V] {
 		panic("invalid registry capacity limits")
 	}
 	lifetime, stop := context.WithCancel(context.Background())
-	return &Registry[V]{linger: linger, limits: limits, slots: semaphore.NewWeighted(int64(limits.Active)), byID: map[string]V{}, lifetime: lifetime, stop: stop}
+	return &Registry[V]{linger: linger, limits: limits, active: admission.New(lifetime, int64(limits.Active)), byID: map[string]V{}, lifetime: lifetime, stop: stop}
 }
 
 // Add keeps v under id until linger after done closes, unless the registry is draining or the id is taken.
 func (r *Registry[V]) Add(id string, v V, done <-chan struct{}) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.lifetime.Err() != nil {
+	release, err := r.active.Take()
+	switch {
+	case errors.Is(err, admission.ErrFull):
+		return ErrCapacity
+	case err != nil:
 		return ErrDraining
 	}
 	if _, taken := r.byID[id]; taken {
+		release()
 		return ErrTaken
 	}
 	if len(r.byID) >= r.limits.Retained {
-		return ErrCapacity
-	}
-	if !r.slots.TryAcquire(1) {
+		release()
 		return ErrCapacity
 	}
 	r.byID[id] = v
 	r.workers.Go(func() {
 		<-done
-		r.slots.Release(1)
+		release()
 		timer := time.NewTimer(r.linger)
 		defer timer.Stop()
 		select {
@@ -112,10 +116,8 @@ func (r *Registry[V]) Drain(ctx context.Context) {
 	r.mu.Lock()
 	r.stop()
 	r.mu.Unlock()
-	// The same slots bound admission and join completion. A canceled drain
-	// leaves no extra goroutine waiting for work that may never finish.
-	if r.slots.Acquire(ctx, int64(r.limits.Active)) == nil {
-		r.slots.Release(int64(r.limits.Active))
+	// A canceled drain leaves no extra goroutine waiting for work that may never finish.
+	if r.active.Wait(ctx) == nil {
 		r.workers.Wait()
 	}
 }

@@ -3,9 +3,11 @@ package cast
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"connectrpc.com/connect"
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -43,6 +45,47 @@ func TestACastCancelledWhileFindingItsTargetDoesNotStart(t *testing.T) {
 	response, err := s.Cast(ctx, &castorv1.CastRequest{})
 	if !errors.Is(err, context.Canceled) || response != nil {
 		t.Fatalf("Cast = %v, %v; started an unacknowledged cast after the request was cancelled", response, err)
+	}
+}
+
+type abandonedTarget struct{ interruptedTarget }
+
+func (d abandonedTarget) Target(ctx context.Context, _ *castorv1.Target) (device.Info, error) {
+	d.cancel()
+	return device.Info{}, connect.NewError(connect.CodeUnavailable, fmt.Errorf("discovering devices: %w", ctx.Err()))
+}
+
+func TestACastWhoseCallerGaveUpDuringDiscoveryAnswersTheCallersEnd(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	s := New(&mediav1.PlaybackSettings{}, abandonedTarget{interruptedTarget{cancel: cancel}}, nil, nil)
+	defer s.Drain(t.Context())
+	if _, err := s.Cast(ctx, &castorv1.CastRequest{}); !errors.Is(err, context.Canceled) || connect.CodeOf(err) == connect.CodeUnavailable {
+		t.Fatalf("Cast = %v, want the caller's end rather than a discovery failure", err)
+	}
+}
+
+type panickingTarget struct{ interruptedTarget }
+
+func (panickingTarget) Target(context.Context, *castorv1.Target) (device.Info, error) {
+	panic("discovery broke")
+}
+
+func TestADiscoveryThatPanickedGivesBackItsSlot(t *testing.T) {
+	s := New(&mediav1.PlaybackSettings{}, panickingTarget{}, nil, nil)
+	draining, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	defer s.Drain(draining)
+	func() {
+		defer func() { _ = recover() }()
+		_, _ = s.Cast(t.Context(), &castorv1.CastRequest{})
+	}()
+	for range resolutionCapacity {
+		release, err := s.resolutions.Take()
+		if err != nil {
+			t.Fatalf("a slot is still held by the discovery that panicked: %v", err)
+		}
+		defer release()
 	}
 }
 

@@ -159,3 +159,16 @@ func TestDrainEndsRetentionWorkersWithoutWaitingForLinger(t *testing.T) {
 		}
 	})
 }
+
+func TestADrainingRegistryFullOfLingeringValuesSaysItIsDraining(t *testing.T) {
+	r := newWithLimits[int](time.Minute, limits{Active: 1, Retained: 1})
+	done := make(chan struct{})
+	close(done)
+	if err := r.Add("first", 1, done); err != nil {
+		t.Fatal(err)
+	}
+	r.Drain(t.Context())
+	if err := r.Add("second", 2, done); !errors.Is(err, ErrDraining) {
+		t.Errorf("a value offered while draining with retention full: %v, want ErrDraining", err)
+	}
+}

@@ -15,6 +15,7 @@ import (
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/admission"
 	"github.com/stupside/castor/internal/awake"
 	"github.com/stupside/castor/internal/castid"
 	"github.com/stupside/castor/internal/registry"
@@ -46,7 +47,7 @@ type Resolver interface {
 // Service runs every cast on the device it targets, each played through the media server.
 type Service struct {
 	watchers    *semaphore.Weighted
-	resolutions *semaphore.Weighted
+	resolutions *admission.Gate
 	ctx         context.Context
 	shut        context.CancelCauseFunc
 	media       *mediaclient.Client
@@ -60,43 +61,31 @@ type Service struct {
 func New(defaults *mediav1.PlaybackSettings, devices Devices, media *mediaclient.Client, scraping Resolver) *Service {
 	// Casts outlive the request that started them, and end only once the server shuts down.
 	running, shut := context.WithCancelCause(context.Background())
-	return &Service{watchers: semaphore.NewWeighted(256), resolutions: semaphore.NewWeighted(resolutionCapacity), ctx: running, shut: shut, media: media, scraping: scraping, defaults: proto.CloneOf(defaults), devices: devices, casts: registry.New[*cast](linger)}
+	return &Service{watchers: semaphore.NewWeighted(256), resolutions: admission.New(running, resolutionCapacity), ctx: running, shut: shut, media: media, scraping: scraping, defaults: proto.CloneOf(defaults), devices: devices, casts: registry.New[*cast](linger)}
 }
 
-// admit starts work under ctx that the server's shutdown also ends; finish releases it and says how it went, as a shutdown once the server shut down.
-func (s *Service) admit(ctx context.Context) (working context.Context, finish func(error) error, err error) {
-	if s.ctx.Err() != nil {
-		return nil, nil, connect.NewError(connect.CodeUnavailable, errShutdown)
-	}
-	if !s.resolutions.TryAcquire(1) {
+// admit lets in work under ctx that the server's shutdown also ends, or names why it cannot.
+func (s *Service) admit(ctx context.Context) (working context.Context, leave func(), err error) {
+	working, leave, err = s.resolutions.Enter(ctx)
+	switch {
+	case errors.Is(err, admission.ErrFull):
 		return nil, nil, connect.NewError(connect.CodeResourceExhausted, errors.New("concurrent resolutions capacity exhausted"))
-	}
-	if s.ctx.Err() != nil {
-		s.resolutions.Release(1)
+	case err != nil:
 		return nil, nil, connect.NewError(connect.CodeUnavailable, errShutdown)
 	}
-	working, cancel := context.WithCancel(ctx)
-	stop := context.AfterFunc(s.ctx, cancel)
-	return working, func(err error) error {
-		stop()
-		cancel()
-		s.resolutions.Release(1)
-		if s.ctx.Err() != nil {
-			return connect.NewError(connect.CodeUnavailable, errShutdown)
-		}
-		return err
-	}, nil
+	return working, leave, nil
 }
 
 func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv1.CastResponse, error) {
 	// Target discovery is accepted service work even before a cast is registered.
-	finding, finish, err := s.admit(ctx)
+	finding, leave, err := s.admit(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer leave()
 	target, err := s.devices.Target(finding, req.GetTarget())
-	if err := finish(err); err != nil {
-		return nil, err
+	if err != nil {
+		return nil, s.resolutions.Answer(finding, err)
 	}
 	// A cast outlives its request, so none starts for a request already given up.
 	if err := ctx.Err(); err != nil {
@@ -144,9 +133,7 @@ func result(ended *castorv1.Ended) string {
 func (s *Service) Drain(ctx context.Context) {
 	s.shut(errShutdown)
 	s.casts.Drain(ctx)
-	if s.resolutions.Acquire(ctx, resolutionCapacity) == nil {
-		s.resolutions.Release(resolutionCapacity)
-	}
+	_ = s.resolutions.Wait(ctx)
 }
 
 // asked is what a cast asks: the server's defaults, overridden field by field by the request's.
@@ -170,18 +157,18 @@ func (s *Service) asked(p *castorv1.Preferences) *mediav1.PlaybackSettings {
 }
 
 func (s *Service) Resolve(ctx context.Context, req *castorv1.ResolveRequest) (*castorv1.ResolveResponse, error) {
-	working, finish, err := s.admit(ctx)
+	working, leave, err := s.admit(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer leave()
 	source, err := s.resolve(working, req.GetSource())
-	var ranked []*castorv1.RankedStream
-	if err == nil {
-		ranked, err = s.media.Rank(working, source, s.asked(req.GetPreferences()))
-		err = fromMedia(err)
+	if err != nil {
+		return nil, s.resolutions.Answer(working, err)
 	}
-	if err := finish(err); err != nil {
-		return nil, err
+	ranked, err := s.media.Rank(working, source, s.asked(req.GetPreferences()))
+	if err != nil {
+		return nil, s.resolutions.Answer(working, fromMedia(err))
 	}
 	return &castorv1.ResolveResponse{Ranked: ranked}, nil
 }
