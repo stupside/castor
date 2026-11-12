@@ -125,4 +125,15 @@ func (c *Cursor) Stop(at int64) bool {
 	return true
 }
 
+// Unstop lifts a stop the cursor has not reached yet, reporting whether it reads on.
+func (c *Cursor) Unstop() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.limit < 0 || c.next >= c.limit {
+		return false
+	}
+	c.limit = -1
+	return true
+}
+
 func (c *Cursor) Close() error { return c.tail.Close() }

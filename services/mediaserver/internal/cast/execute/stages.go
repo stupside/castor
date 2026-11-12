@@ -196,8 +196,13 @@ func (f *stages) Switch(ctx context.Context, ceiling media.Bitrate) (int64, erro
 		return 0, err
 	}
 	if !change.moved() && change.makes(cur.opts) {
-		// What the stage makes already is what is asked: a cut would change nothing the device sees.
-		return 0, nil
+		// What the stage makes already is what is asked, so a cut still waiting to replace it on the same read is withdrawn.
+		if waiting, settled := f.withdraw(cur); settled {
+			if waiting != nil {
+				f.discard(waiting)
+			}
+			return 0, nil
+		}
 	}
 	// An encoder that runs ahead while the new one warms up is cut further on the next time.
 	for attempt := range cutAttempts {
@@ -234,6 +239,23 @@ func (f *stages) current() *stage {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.cur
+}
+
+// withdraw drops the cut waiting to replace cur on cur's own read while cur can still read on; settled is that no cut is left to make.
+func (f *stages) withdraw(cur *stage) (waiting *stage, settled bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// A stage on another read stands: the read cur makes from stopped when that stage was cut in.
+	switch {
+	case f.cur != cur:
+		return nil, f.cur.src != cur.src
+	case f.next == nil, f.next.src != cur.src:
+		return nil, true
+	case !cur.in.Unstop():
+		return nil, false
+	}
+	waiting, f.next = f.next, nil
+	return waiting, true
 }
 
 // cutIn has next take over from cur at byte at, refusing where cur moved on or cannot stop there.

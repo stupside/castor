@@ -3,6 +3,7 @@ package execute
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -298,5 +299,55 @@ func TestACastOnALighterRungGoesBackToTheHeavyOne(t *testing.T) {
 	out, err := exec.Command(ffmpegPath, "-v", "error", "-i", file, "-t", strconv.Itoa(last-3), "-f", "null", "-").CombinedOutput()
 	if err != nil || strings.TrimSpace(string(out)) != "" {
 		t.Errorf("decoding what was served: %v\n%s", err, out)
+	}
+}
+
+// failingResolver can read no rung of the source again.
+type failingResolver struct{}
+
+func (failingResolver) Resolve(context.Context, *source.Stream, source.Rendition, media.Bitrate) (source.Resolution, error) {
+	return source.Resolution{}, errors.New("origin unreachable now")
+}
+
+// A move to another rung still waiting stands when the rate made is asked again, since the read it leaves has stopped.
+func TestAMoveToAnotherRungStillWaitingStands(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+	ladder := serveLadder(t, ffmpegPath)
+	c := realCast(&fakeDevice{caps: ac3Only()}, ffmpegPath, ffprobePath)
+	c.Resolver = ladder
+	program := ladder.programs[ladder.hi.URL.String()]
+	ctx, cancel := context.WithTimeout(t.Context(), castTimeout)
+	defer cancel()
+	s := testPreparation(ctx, c, recovery.Attempt{
+		Try: 1, Program: program, Fetch: ladderPlan(program),
+		Stream: &source.Stream{URL: ladder.hi.URL, ContentType: media.HLS}, Origin: source.Origin{Renditions: []source.Rendition{ladder.hi, ladder.lo}}, Rendition: ladder.hi,
+	})
+	t.Cleanup(func() { _ = s.releases.release() })
+	p, err := s.preparePresentation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := p.delivery.rate.(*adjustable)
+	chain, _ := a.chain()
+	time.Sleep(3 * time.Second)
+	if _, err := chain.Switch(ctx, 1_200_000); err != nil {
+		t.Fatalf("switching to the lighter rung: %v", err)
+	}
+	chain.mu.Lock()
+	waiting := chain.next
+	chain.mu.Unlock()
+	if waiting == nil || waiting.src == chain.current().src {
+		t.Fatal("no move to another rung is waiting for the device")
+	}
+	// The heavy rung cannot be read again, so the ask is planned on the read the move left.
+	s.Resolver = failingResolver{}
+	if _, err := chain.Switch(ctx, a.Ceiling()); err != nil {
+		t.Fatalf("asking for the rate made: %v", err)
+	}
+	chain.mu.Lock()
+	pending := chain.next
+	chain.mu.Unlock()
+	if pending != waiting {
+		t.Error("the waiting move was withdrawn, leaving the delivery to end on the read it stopped")
 	}
 }
