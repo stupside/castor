@@ -13,6 +13,7 @@ import (
 	"github.com/stupside/castor/cmd/castor/internal/sources"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/settings"
+	"github.com/stupside/castor/internal/transport"
 )
 
 const (
@@ -171,7 +172,7 @@ func pages(urls []string) *castorv1.Source {
 }
 
 // castSource casts source to device, or asks the API to resolve it for a dry run.
-func castSource(ctx context.Context, cmd *cli.Command, local Local, endpoint settings.Endpoint, device cast.Device, source *castorv1.Source) error {
+func castSource(ctx context.Context, cmd *cli.Command, local Local, endpoint transport.Endpoint, device cast.Device, source *castorv1.Source) error {
 	api, release, err := dial(ctx, cmd, endpoint, local)
 	if err != nil {
 		return err
@@ -206,7 +207,7 @@ func scanCommand(local Local) *cli.Command {
 			// Scanning needs only the API endpoint; a device is what it discovers.
 			cfg, err := settings.Load(cmd, struct {
 				Servers struct {
-					API settings.Endpoint `yaml:"api"`
+					API transport.Endpoint `yaml:"api"`
 				} `yaml:"servers"`
 			}{})
 			if err != nil {

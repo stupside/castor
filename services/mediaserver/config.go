@@ -1,7 +1,7 @@
 package mediaserver
 
 import (
-	"github.com/stupside/castor/internal/settings"
+	"github.com/stupside/castor/internal/transport"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/source/rank"
 	"github.com/stupside/castor/services/mediaserver/internal/subtitle/whisper"
@@ -28,8 +28,8 @@ type ResolverConfig struct {
 
 // ServerConfig is where `castor media-server` listens, where devices reach it, and the token its API asks for.
 type ServerConfig struct {
-	settings.Endpoint `yaml:",inline"`
-	Listen            string `yaml:"listen" validate:"required,hostname_port|startswith=:"`
+	transport.Endpoint `yaml:",inline"`
+	Listen             string `yaml:"listen" validate:"required,hostname_port|startswith=:"`
 	// Advertise is where devices reach this server from outside its network.
 	Advertise string `yaml:"advertise" validate:"omitempty,http_url"`
 	// FFmpeg names the tools installed on this host.

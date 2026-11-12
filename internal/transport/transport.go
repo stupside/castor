@@ -13,10 +13,10 @@ import (
 	"github.com/stupside/castor/internal/telemetry"
 )
 
-// Endpoint is where a server answers, and the token it asks for.
+// Endpoint is where a server answers, and the token it asks for; a service's own command reads only its token.
 type Endpoint struct {
-	URL   string
-	Token string
+	URL   string `yaml:"url" validate:"omitempty,http_url"`
+	Token string `yaml:"token"`
 }
 
 // Client is a client of e, carrying its token.

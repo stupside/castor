@@ -35,8 +35,9 @@ func Command() *cli.Command {
 			if cfg.Servers.Media.URL == "" {
 				return errors.New("servers.media.url is required: the API server casts through a media server (`castor media-server`)")
 			}
-			scraping := transport.Endpoint{URL: cmp.Or(cfg.Servers.Scraping.URL, "http://localhost:8412"), Token: cfg.Servers.Scraping.Token}
-			srv, err := New(cfg.backend(transport.Endpoint{URL: cfg.Servers.Media.URL, Token: cfg.Servers.Media.Token}, scraping), cfg.Cast)
+			scraping := cfg.Servers.Scraping
+			scraping.URL = cmp.Or(scraping.URL, "http://localhost:8412")
+			srv, err := New(cfg.backend(cfg.Servers.Media, scraping), cfg.Cast)
 			if err != nil {
 				return fmt.Errorf("validating config: %w", err)
 			}
@@ -81,13 +82,13 @@ func EmbeddedWithDiscovery(media Media, scraping Scraping, discovery DeviceDisco
 
 // server is the API server cfg describes, casting through the media server it names, or one media runs here; stop ends the one run here.
 func (c *Config) server(ctx context.Context, cmd *cli.Command, media Media, resolver Scraping, discovery DeviceDiscovery) (srv *Server, stop func(), err error) {
-	at, stop := transport.Endpoint{URL: c.Servers.Media.URL, Token: c.Servers.Media.Token}, func() {}
+	at, stop := c.Servers.Media, func() {}
 	if at.URL == "" {
 		if at, stop, err = media(ctx, cmd); err != nil {
 			return nil, nil, err
 		}
 	}
-	scraping := transport.Endpoint{URL: c.Servers.Scraping.URL, Token: c.Servers.Scraping.Token}
+	scraping := c.Servers.Scraping
 	stopScraping := func() {}
 	if scraping.URL == "" {
 		if scraping, stopScraping, err = resolver(ctx, cmd); err != nil {

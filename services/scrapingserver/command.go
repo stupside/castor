@@ -10,8 +10,8 @@ import (
 )
 
 type ServerConfig struct {
-	settings.Endpoint `yaml:",inline"`
-	Listen            string `yaml:"listen" validate:"required,hostname_port|startswith=:"`
+	transport.Endpoint `yaml:",inline"`
+	Listen             string `yaml:"listen" validate:"required,hostname_port|startswith=:"`
 }
 
 type ServiceConfig struct {

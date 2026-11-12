@@ -6,7 +6,7 @@ import (
 	"github.com/stupside/castor/cmd/castor/internal/browse/tmdb"
 	"github.com/stupside/castor/cmd/castor/internal/cast"
 	"github.com/stupside/castor/cmd/castor/internal/sources"
-	"github.com/stupside/castor/internal/settings"
+	"github.com/stupside/castor/internal/transport"
 )
 
 // Config is the command line's sections of castor's configuration.
@@ -18,7 +18,7 @@ type Config struct {
 }
 
 type apiServers struct {
-	API settings.Endpoint `yaml:"api"`
+	API transport.Endpoint `yaml:"api"`
 }
 
 // Commands decode only the sections they need. A dry run never needs a device,
