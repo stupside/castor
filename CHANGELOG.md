@@ -1,5 +1,97 @@
 # Changelog
 
+## [2.6.0](https://github.com/stupside/castor/compare/v2.5.0...v2.6.0) (2026-11-13)
+
+
+### Features
+
+* **app:** rebuild the admin on StyleX ([60eb66a](https://github.com/stupside/castor/commit/60eb66ac5fa8a00c411d0a7aefb29f0c65f031d1))
+* **cast:** keep the machine from idling to sleep while casting ([8d34486](https://github.com/stupside/castor/commit/8d34486281a9b6b101555eb14c08051f80232b12))
+* **cast:** pause, resume and seek a cast through the API ([6922786](https://github.com/stupside/castor/commit/69227865d9dc5530a177a75620b6571bcc36218d))
+* **cast:** replace the cast playing on a busy device ([96a7720](https://github.com/stupside/castor/commit/96a77201f1cb517875114e8d5d5439c44396b6c6))
+* **cast:** show the captions a stream is given with ([27944e6](https://github.com/stupside/castor/commit/27944e61023ea79178028825eec48e51619041ef))
+* **device:** follow the devices as they come and go ([26b87ac](https://github.com/stupside/castor/commit/26b87acebf85bc71de4de4d25eac74fc986657d9))
+* **encoding:** encode on MediaCodec where the host declares it ([3423ba1](https://github.com/stupside/castor/commit/3423ba127a2855e3b211a9430e7a8ef4e402ccb1))
+
+
+### Bug Fixes
+
+* **app:** hold a seek until the device reports where it moved ([41e6342](https://github.com/stupside/castor/commit/41e6342f42ed111f5c785a370701cbddf949a6cf))
+* **app:** keep the player's shortcuts after a player button was clicked ([84683b2](https://github.com/stupside/castor/commit/84683b2725f1985d9dd4ff0b56a8e7e9899b9c23))
+* **app:** keep the time played since the device's last report across a pause ([1e89dd8](https://github.com/stupside/castor/commit/1e89dd82f48a9f6550bf0208c1c8695405bddd35))
+* **app:** tell a stream's client why the API cannot be reached ([d06bc63](https://github.com/stupside/castor/commit/d06bc6324ee1e5d6563d036d9e1fa3d6268c88a5))
+* **cast:** answer a resolution the shutdown cut off as the shutdown it was ([b6b3b0d](https://github.com/stupside/castor/commit/b6b3b0dd7d447c44f4fcb4e10758fd4323a04b5b))
+* **cast:** begin a watch from the rate its delivery is made at ([1f77123](https://github.com/stupside/castor/commit/1f7712359c3f50c36680b47e3b559e557eb9e134))
+* **cast:** blame a wedge on the encoder making the delivery when it wedged ([74096df](https://github.com/stupside/castor/commit/74096dfaa92fa628dec0f1e3271f2a0ca1525a40))
+* **cast:** cut a rate change no later than the cut it replaces ([723e2fd](https://github.com/stupside/castor/commit/723e2fda6e73d3b9f922891d2401db09d10ed6dd))
+* **cast:** let web receivers read the HLS castor makes ([0e2c20f](https://github.com/stupside/castor/commit/0e2c20fbdca132b943366e671f4d94365b652870))
+* **cast:** make an encode that fails or hangs again in software ([0e8fb69](https://github.com/stupside/castor/commit/0e8fb691b1999b3e5b4729ea2a059127deb2a0de))
+* **chromecast:** leave a newer cast playing when an earlier load is cancelled ([1315ace](https://github.com/stupside/castor/commit/1315aceb7a3e750e85a3edb92e069647d0a060c1))
+* **chromecast:** log the error code the receiver gives for a failure ([c26d7b4](https://github.com/stupside/castor/commit/c26d7b460e9fdc88345890a8d4432ac15204defa))
+* **chromecast:** say when a playlist is cut into fMP4 ([cc6f462](https://github.com/stupside/castor/commit/cc6f46249e274a76492da2a5ffba98a8212b8797))
+* **cli:** preselect in the picker the device a cast would target ([467e97a](https://github.com/stupside/castor/commit/467e97adf9b9139351398f870402cb1495ce5344))
+* **deps:** move to Go 1.27.4 for a known vulnerability ([876a0cb](https://github.com/stupside/castor/commit/876a0cb1412a240a9749d0f3c5b434fba6718202))
+* **dlna:** admit the sound an SCTE transport stream profile allows ([b3fc905](https://github.com/stupside/castor/commit/b3fc9051c4d8cf9b20f31b6432be99ef7f7424e9))
+* **dlna:** carry a cancel's cause from where the end of the context is seen ([5bcbb90](https://github.com/stupside/castor/commit/5bcbb9029b02dbdea9b191f2627c667fa786b73f))
+* **dlna:** count a playhead seen moving only for the stream it was asked of ([dfd43f6](https://github.com/stupside/castor/commit/dfd43f6f324a56b589d69e331626a19005b7b7cb))
+* **dlna:** give a container named without a profile the family default ([abb371d](https://github.com/stupside/castor/commit/abb371db9117186b4e033211c608378041dfd1ff))
+* **dlna:** ignore a stopped renderer's position and replace a paused stream ([4fd5f76](https://github.com/stupside/castor/commit/4fd5f76ee5fabe374e8886260a54d2cafc794196))
+* **dlna:** keep a bracketed IPv6 host whole when searching it over SSDP ([4e5526c](https://github.com/stupside/castor/commit/4e5526c9a5a71c39e24b8082d2e50c75f5e17416))
+* **dlna:** keep a renderer's own entry for a profile that admits several sounds ([82a7b1c](https://github.com/stupside/castor/commit/82a7b1cbf2b55867d2b6f7bae5830a721862b602))
+* **dlna:** search a typed address on SSDP's own port ([95cbe34](https://github.com/stupside/castor/commit/95cbe34de88868cee1aad228a022c03af6981245))
+* **dlna:** stop only castor's stream when a cast ends ([d5d53d9](https://github.com/stupside/castor/commit/d5d53d9a42952d3f60556a85bbbd6a8b6c83277f))
+* **encoding:** encode segments without their config in software on MediaCodec ([2cda636](https://github.com/stupside/castor/commit/2cda6369f8ad63bda76e8c936101f078a734d4d1))
+* **encoding:** tone-map HDR once frames are shrunk ([267187b](https://github.com/stupside/castor/commit/267187b5fdeff03022a2764cbed339c122188760))
+* **execute:** give a read's timeline back when the read ends, and join the seek it replaced ([d69f292](https://github.com/stupside/castor/commit/d69f292aab29eae9f2536df012923bc5d523dfe7))
+* **execute:** quote an encoder's complaints once in the fault it ends a cast with ([e41683a](https://github.com/stupside/castor/commit/e41683af67b954059c67b58c2e9e9ba19898a95d))
+* **execute:** read a seamed program on a clock ffmpeg rebases ([2fb0e85](https://github.com/stupside/castor/commit/2fb0e857eb59ba72b489d90339f404abbafa870b))
+* **execute:** withdraw a rate change still waiting once the rate made is asked again ([47dfe1b](https://github.com/stupside/castor/commit/47dfe1ba60c786570bf6dc070620fa63f0ecb38e))
+* **lend:** drop what a device said when asked before castor pressed it or handed it a stream ([0e8fa8d](https://github.com/stupside/castor/commit/0e8fa8d61cac16449a2f161a369698aa0323aa30))
+* **lend:** let a device's own remote hold the pause it made ([9f8efbe](https://github.com/stupside/castor/commit/9f8efbe60a1d1be4587b6e2dcba4cf6137ff9774))
+* **mediaclient:** name a stop grace that ran out once ([6dfd88a](https://github.com/stupside/castor/commit/6dfd88a72db1edb56119b5e7db3873521239e7e6))
+* **media:** play sound above what devices play nowhere, handed over or copied ([6f9b26f](https://github.com/stupside/castor/commit/6f9b26f81eb767cc6a55a7bdc9ecb627543f3083))
+* **probe:** record only the input starts ffprobe measured ([0cf286c](https://github.com/stupside/castor/commit/0cf286c6fff4fbd2e8db37cda0842cfa9610a78e))
+* **progressive:** serve a live delivery that declines ranges whole, whatever range is asked ([6d4c106](https://github.com/stupside/castor/commit/6d4c106c3c6874949cd2c37457f523dfeca109ec))
+* **progressive:** serve a live stream whole for a range it cannot read ([45fb18b](https://github.com/stupside/castor/commit/45fb18b63e888c6178b6ae10f369bb0441667b06))
+* **roku:** leave a channel the viewer moved to when a cast ends ([9423cf9](https://github.com/stupside/castor/commit/9423cf9b69e615caaba60fed8b38e0bc401fdfbc))
+* **scraping:** answer an extraction the shutdown cut off as the shutdown it was ([537528f](https://github.com/stupside/castor/commit/537528f6e6f4fcdd155925b8c6b0d7dba83af079))
+* **scraping:** let a link the contract refuses cost only itself ([b631f81](https://github.com/stupside/castor/commit/b631f816b81a204df64f06520a9e7830d42e2ce9))
+* **subtitles:** ask Whisper for the two-letter code of a three-letter preference ([7c64bfb](https://github.com/stupside/castor/commit/7c64bfb2db544a98a29828572015152653ca480f))
+* **tui:** end on a signal as a stop, not an application error ([40cca13](https://github.com/stupside/castor/commit/40cca130993ad2afef5a989cb2ad5af621bee32f))
+* **tui:** leave a show still loading behind when the genres open ([35a0afd](https://github.com/stupside/castor/commit/35a0afd38527263e3fccd2c85e314a51327aa582))
+* **tui:** restore a tab's cursor only from rows it showed ([edae8c2](https://github.com/stupside/castor/commit/edae8c26a4cbff0d8bb6d8baadc71d3759d5f3ec))
+* **tui:** start no program on a done context ([b0846d9](https://github.com/stupside/castor/commit/b0846d906defba76b49e89fe44d132d90664ae47))
+
+
+### Performance
+
+* **hls:** measure a rung's height only for a choice still to make ([c67d4d7](https://github.com/stupside/castor/commit/c67d4d7246f37c26d949a853c9535e323fe90e4b))
+
+
+### Refactors
+
+* **admission:** let work in and join it through one gate ([2df7750](https://github.com/stupside/castor/commit/2df7750edc97b4626af37167c165993f1f9ff175))
+* **cast:** let web receivers read every response from where all are published ([9e47660](https://github.com/stupside/castor/commit/9e47660adb779960bdaeddb16553bb6aeae4645e))
+* **device:** name a pinned device's endpoint in its family, not the lease ([fc41e7c](https://github.com/stupside/castor/commit/fc41e7c2237a45f32a5cea0b1d891206ae484a3e))
+* **dlna:** ask the UPnP error code directly where a locked transport is retried ([072721e](https://github.com/stupside/castor/commit/072721e67fddaf63060457da0c40bc81f2d2a07a))
+* **dlna:** drop a container check the next one already makes ([183a618](https://github.com/stupside/castor/commit/183a618186c228d409ebc9aba390f256be087c0d))
+* **encoding:** drop the clock-cut rule the segment rule already covers ([5f311b0](https://github.com/stupside/castor/commit/5f311b06c2c6cb2bfe96f9c3584cfd54f7660896))
+* **encoding:** leave the quality target out of the average-rate guard ([7bbfd31](https://github.com/stupside/castor/commit/7bbfd3122a1db92758b98cbdf07ed684bbb2c290))
+* **hls:** serve the captions the writer settled, never recompute them ([f1e6e73](https://github.com/stupside/castor/commit/f1e6e733cf9195dd82c38281c3a65376a9f7a38b))
+* **hls:** state once that castor cuts its playlists into fragmented MP4 ([8b1b094](https://github.com/stupside/castor/commit/8b1b0943a2a6bc8db8315c2d5978ed5de2891ba1))
+* **media:** open every source with the arguments its reader opens it with ([a870c67](https://github.com/stupside/castor/commit/a870c675395e9e66032e82d85606b3c4ddc943e3))
+* **media:** state once that only a deinterlacing device plays an interlaced picture ([14e3fe3](https://github.com/stupside/castor/commit/14e3fe3ec5b95ebeb6635540119630be29394baf))
+* **proto:** state the contract's rules with protovalidate's built-in checks ([9fd7afa](https://github.com/stupside/castor/commit/9fd7afaea7e07d84b7eb69939b9f7cab9290ee5f))
+* **settings:** spell proto enums in configuration by their contract names ([5a7f456](https://github.com/stupside/castor/commit/5a7f4560bbab0a9b2073c98e7e576011ea10b6aa))
+* **transport:** name a server's address and token with one type ([2418ab2](https://github.com/stupside/castor/commit/2418ab28bc0a3cbf4bbd800a90a0dea01f1fb024))
+
+
+### Documentation
+
+* **config:** show where a host declares its hardware encoders ([42e0fc7](https://github.com/stupside/castor/commit/42e0fc75f59542ab4b189d638384dfca6656f1e1))
+* **readme:** list the LG C2 as tested over DLNA ([e09399b](https://github.com/stupside/castor/commit/e09399b8036505be1c1a1d74490d8efbb9a02da2))
+* **readme:** redraw the mascot as a gopher in a beaver costume ([a879ed2](https://github.com/stupside/castor/commit/a879ed2d42c22d23048b00a0e1034ba6de846eaa))
+
 ## [2.5.0](https://github.com/stupside/castor/compare/v2.4.0...v2.5.0) (2026-10-27)
 
 
