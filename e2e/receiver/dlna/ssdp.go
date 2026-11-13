@@ -3,13 +3,20 @@ package dlna
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"strings"
 	"testing"
 )
 
-// answerSearches answers unicast M-SEARCHes on a UDP port with the description's LOCATION, as a device's SSDP stack does.
+// answerSearches answers unicast M-SEARCHes on SSDP's own port with the description's LOCATION, as a device's SSDP stack does, and pins its HTTP host:port.
 func answerSearches(t *testing.T, description string) (string, error) {
-	conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	u, err := url.Parse(description)
+	if err != nil {
+		return "", err
+	}
+	// The port is shared with any SSDP stack already on this machine, which listens on every address, not this one.
+	listen := net.ListenConfig{Control: sharePort}
+	conn, err := listen.ListenPacket(t.Context(), "udp4", "127.0.0.1:1900")
 	if err != nil {
 		return "", fmt.Errorf("listening for SSDP searches: %w", err)
 	}
@@ -31,5 +38,5 @@ func answerSearches(t *testing.T, description string) (string, error) {
 			_, _ = conn.WriteTo([]byte(reply), from)
 		}
 	}()
-	return conn.LocalAddr().String(), nil
+	return u.Host, nil
 }

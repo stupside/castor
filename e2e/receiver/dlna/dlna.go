@@ -25,7 +25,7 @@ type Pin string
 const (
 	// Description pins device.host to the description URL itself.
 	Description Pin = "description"
-	// SSDP pins device.host to a host:port castor sends one unicast M-SEARCH to.
+	// SSDP pins device.host to the device's HTTP host:port, which castor finds with one unicast M-SEARCH on SSDP's own port.
 	SSDP Pin = "ssdp"
 )
 
