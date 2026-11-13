@@ -104,7 +104,8 @@ func (s *preparation) produce(work string, f feed, opts encodePlan, burn burnRen
 	}
 	splices := f.buffered != nil && f.buffered.reader.index != nil && burn == nil && opts.delivery.Plan.Splices()
 	var rungs *ladder
-	if splices && f.buffered.transcript == nil {
+	// Another rung carries the read on from its clock, so only a read keeping the source's clock gets one.
+	if splices && f.buffered.reader.timeline {
 		rungs = s.ladder(work)
 	}
 	dir := filepath.Join(work, "delivery")

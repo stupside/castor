@@ -209,6 +209,37 @@ func TestAStreamServedAsItIsMovesToALighterRungOfItsSource(t *testing.T) {
 	}
 }
 
+// A seamed program has no one clock another rung's read could join, so a lighter ceiling is made from the rung it reads.
+func TestASeamedProgramIsNeverCarriedOnFromAnotherRung(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+	ladder := serveLadder(t, ffmpegPath)
+	for _, program := range ladder.programs {
+		for i := range program.Inputs {
+			program.Inputs[i].Fetch.Spliced = true
+		}
+	}
+	c := realCast(&fakeDevice{caps: dlnaLike()}, ffmpegPath, ffprobePath)
+	c.Resolver = ladder
+	program := ladder.programs[ladder.hi.URL.String()]
+	ctx, cancel := context.WithTimeout(t.Context(), castTimeout)
+	defer cancel()
+	s := testPreparation(ctx, c, recovery.Attempt{
+		Try: 1, Program: program, Fetch: ladderPlan(program),
+		Stream: &source.Stream{URL: ladder.hi.URL, ContentType: media.HLS}, Origin: source.Origin{Renditions: []source.Rendition{ladder.hi, ladder.lo}}, Rendition: ladder.hi,
+	})
+	t.Cleanup(func() { _ = s.releases.release() })
+	p, err := s.preparePresentation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.delivery.rate.Switch(ctx, 1_200_000); err != nil {
+		t.Fatalf("switching to a lighter ceiling: %v", err)
+	}
+	if p.reached.reader.tail() != p.reached.reader {
+		t.Error("the seamed read was carried on by another rung")
+	}
+}
+
 // The same, from a read well into the program, which the lighter rung is started a little before.
 func TestAStreamFarIntoTheProgramMovesToALighterRungToo(t *testing.T) {
 	served, _, _ := moved(t, dlnaLike(), 9<<20, 3<<20, 1_200_000)

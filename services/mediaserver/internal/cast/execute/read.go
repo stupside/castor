@@ -70,8 +70,8 @@ func (s *preparation) read(work string, program media.Program) (*buffered, error
 		spoolPath:  filepath.Join(work, "spool"+encoding.SpoolFormat.Extension),
 		floor:      floor,
 		pcmRate:    pcmRate,
-		// A read that can be carried on from another rung or another position keeps the source's clock, which all of them share.
-		keepTimeline: !live && transcript == nil,
+		// A read carried on from another rung or position keeps the source's clock; a seamed program has none, each seam restarts it.
+		keepTimeline: !live && transcript == nil && !program.Seamed(),
 		begins:       program.Start,
 	})
 	if err != nil {
