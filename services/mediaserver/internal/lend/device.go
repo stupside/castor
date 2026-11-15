@@ -79,27 +79,38 @@ func played(p execute.Playback) *mediav1.DeviceCommand_Play {
 	}
 	switch s := p.Stream.(type) {
 	case execute.Source:
-		play.Stream = &mediav1.DeviceCommand_Play_Source_{Source: &mediav1.DeviceCommand_Play_Source{Container: wire.Container(s.ContentType), Duration: runtime(s.Runtime)}}
+		source := &mediav1.DeviceCommand_Play_Source{Container: wire.Container(s.ContentType)}
+		switch {
+		case s.Live:
+			source.Length = &mediav1.DeviceCommand_Play_Source_Live{Live: &mediav1.DeviceCommand_Play_Live{}}
+		case s.Runtime > 0:
+			source.Length = &mediav1.DeviceCommand_Play_Source_Duration{Duration: durationpb.New(s.Runtime)}
+		}
+		play.Stream = &mediav1.DeviceCommand_Play_Source_{Source: source}
 	case execute.Served:
 		served := &mediav1.DeviceCommand_Play_Progressive{Container: wire.Container(s.ContentType)}
-		if r := s.Runtime; r != nil {
-			served.Runtime = &mediav1.DeviceCommand_Play_Runtime{Duration: durationpb.New(r.Length), Seek: mediav1.DeviceCommand_Play_Runtime_SEEK_START}
-			if r.TimeSeek {
-				served.Runtime.Seek = mediav1.DeviceCommand_Play_Runtime_SEEK_TIME
+		switch {
+		case s.Live:
+			served.Timeline = &mediav1.DeviceCommand_Play_Progressive_Live{Live: &mediav1.DeviceCommand_Play_Live{}}
+		case s.Runtime != nil:
+			runtime := &mediav1.DeviceCommand_Play_Runtime{Duration: durationpb.New(s.Runtime.Length), Seek: mediav1.DeviceCommand_Play_Runtime_SEEK_START}
+			if s.Runtime.TimeSeek {
+				runtime.Seek = mediav1.DeviceCommand_Play_Runtime_SEEK_TIME
 			}
+			served.Timeline = &mediav1.DeviceCommand_Play_Progressive_Runtime{Runtime: runtime}
 		}
 		play.Stream = &mediav1.DeviceCommand_Play_Progressive_{Progressive: served}
 	case execute.Playlist:
-		play.Stream = &mediav1.DeviceCommand_Play_Playlist_{Playlist: &mediav1.DeviceCommand_Play_Playlist{Duration: runtime(s.Runtime), Segments: wire.Container(s.Segments)}}
+		playlist := &mediav1.DeviceCommand_Play_Playlist{Segments: wire.Container(s.Segments)}
+		switch {
+		case s.Live:
+			playlist.Length = &mediav1.DeviceCommand_Play_Playlist_Live{Live: &mediav1.DeviceCommand_Play_Live{}}
+		case s.Runtime > 0:
+			playlist.Length = &mediav1.DeviceCommand_Play_Playlist_Duration{Duration: durationpb.New(s.Runtime)}
+		}
+		play.Stream = &mediav1.DeviceCommand_Play_Playlist_{Playlist: playlist}
 	}
 	return play
-}
-
-func runtime(d time.Duration) *durationpb.Duration {
-	if d <= 0 {
-		return nil
-	}
-	return durationpb.New(d)
 }
 
 // AwaitEnd waits for the device's end; once its lender has left, the cast's deliveries decide it.

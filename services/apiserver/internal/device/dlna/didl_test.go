@@ -100,6 +100,38 @@ func TestClock(t *testing.T) {
 	}
 }
 
+func TestALiveStreamIsAnnouncedWithALengthTheRendererCounts(t *testing.T) {
+	_, sinks := parseSinkProtocolInfo("http-get:*:video/mp4:*")
+	stream := &url.URL{Scheme: "http", Host: "192.0.2.1:8080", Path: "/stream"}
+	for _, tt := range []struct {
+		name string
+		play *mediav1.DeviceCommand_Play
+		want string
+	}{
+		{"a live source", devicetest.Live(devicetest.Source(mediav1.Container_CONTAINER_MP4)), `duration="23:59:59"`},
+		{"a live served stream", devicetest.Live(devicetest.Served(mediav1.Container_CONTAINER_MP4, 0, 0)), `duration="23:59:59"`},
+		{"a live playlist", devicetest.Live(devicetest.Playlist(mediav1.Container_CONTAINER_MP4)), `duration="23:59:59"`},
+		{"a stream with its own length", devicetest.Served(mediav1.Container_CONTAINER_MP4, 90*time.Minute, mediav1.DeviceCommand_Play_Runtime_SEEK_START), `duration="1:30:00"`},
+		{"a finite stream of no declared length", devicetest.Source(mediav1.Container_CONTAINER_MP4), ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			metadata, err := buildDIDLMetadata(sinks[mediav1.Container_CONTAINER_MP4], device.Playback{URL: stream, Play: tt.play})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.want == "" {
+				if strings.Contains(metadata, "duration=") {
+					t.Errorf("metadata = %s, want no duration", metadata)
+				}
+				return
+			}
+			if !strings.Contains(metadata, tt.want) {
+				t.Errorf("metadata = %s, want %s", metadata, tt.want)
+			}
+		})
+	}
+}
+
 func TestAStreamServedFromAnyTimeIsAnnouncedSeekableOverItsRuntime(t *testing.T) {
 	_, sinks := parseSinkProtocolInfo("http-get:*:video/mp4:*")
 	stream := &url.URL{Scheme: "http", Host: "192.0.2.1:8080", Path: "/stream"}

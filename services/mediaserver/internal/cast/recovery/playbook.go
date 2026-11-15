@@ -73,7 +73,7 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 // resumeAt is where the viewer got to: a cast that played is taken up there.
 func (f *fault) resumeAt() time.Duration {
 	switch {
-	case f.attempt.live():
+	case f.attempt.Live():
 		// A live program has no position to go back to, only its edge.
 		return 0
 	case f.evidence.Reached >= health.Playing:

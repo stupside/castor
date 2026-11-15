@@ -139,15 +139,21 @@ func programIdentity(program media.Program) string {
 // at begins a at pos; a live source, or a position past its end, has no such place.
 func (a Attempt) at(pos time.Duration) (Attempt, bool) {
 	a.Program.Start = pos
-	return a, pos <= 0 || !a.live() && (a.Origin.Duration == 0 || pos < a.Origin.Duration)
+	return a, pos <= 0 || !a.Live() && (a.Origin.Duration == 0 || pos < a.Origin.Duration)
 }
 
-func (a Attempt) live() bool {
+// Live is a program with no end, which has no runtime.
+func (a Attempt) Live() bool {
 	return slices.ContainsFunc(a.Program.Inputs, func(input media.Input) bool { return input.Fetching().Live })
 }
 
-// Runtime is what is left to play of the program from where the attempt begins, zero where the source declared none.
-func (a Attempt) Runtime() time.Duration { return max(0, a.Origin.Duration-a.Program.Start) }
+// Runtime is what is left to play of the program from where the attempt begins, zero where the source declared none or has no end.
+func (a Attempt) Runtime() time.Duration {
+	if a.Live() {
+		return 0
+	}
+	return max(0, a.Origin.Duration-a.Program.Start)
+}
 
 // reading binds a resolution to the attempt with a fetch plan derived for its program.
 func (a Attempt) reading(r source.Resolution, deadline time.Duration) Attempt {

@@ -101,7 +101,7 @@ func buildDIDLMetadata(entry sinkEntry, playback device.Playback) (string, error
 			Res: []didlRes{{
 				ProtocolInfo: fmt.Sprintf("http-get:*:%s:%s", entry.mime, stated(entry, playback.Play)),
 				Value:        playback.URL.String(),
-				Duration:     clock(playback.Duration()),
+				Duration:     clock(announcedLength(playback)),
 			}},
 		},
 	}
@@ -114,6 +114,17 @@ func buildDIDLMetadata(entry sinkEntry, playback device.Playback) (string, error
 		return "", fmt.Errorf("marshaling DIDL-Lite: %w", err)
 	}
 	return string(data), nil
+}
+
+// liveLength stands in for the length of a live stream: a renderer told none reports no position and may not start the next stream.
+const liveLength = 24*time.Hour - time.Second
+
+// announcedLength is the length the renderer is told, zero where the source declared none.
+func announcedLength(playback device.Playback) time.Duration {
+	if playback.Live() {
+		return liveLength
+	}
+	return playback.Duration()
 }
 
 func clock(d time.Duration) string {

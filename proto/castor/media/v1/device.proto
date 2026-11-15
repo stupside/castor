@@ -279,7 +279,11 @@ message DeviceCommand {
         defined_only: true
         not_in: [0]
       }];
-      google.protobuf.Duration duration = 2 [(buf.validate.field).duration.gt = {}];
+      // length is absent where the source declared none and is not live.
+      oneof length {
+        google.protobuf.Duration duration = 2 [(buf.validate.field).duration.gt = {}];
+        Live live = 3;
+      }
     }
 
     message Progressive {
@@ -290,8 +294,11 @@ message DeviceCommand {
           3
         ]
       }];
-      // runtime is absent for a stream served from its start only.
-      Runtime runtime = 2;
+      // timeline is absent for a stream served from its start only, one that is not live and declared no length.
+      oneof timeline {
+        Runtime runtime = 2;
+        Live live = 3;
+      }
     }
 
     message Runtime {
@@ -312,7 +319,11 @@ message DeviceCommand {
 
     // Playlist is an HLS playlist the media server makes.
     message Playlist {
-      google.protobuf.Duration duration = 1 [(buf.validate.field).duration.gt = {}];
+      // length is absent where the source declared none and is not live.
+      oneof length {
+        google.protobuf.Duration duration = 1 [(buf.validate.field).duration.gt = {}];
+        Live live = 3;
+      }
       // segments is the container the playlist is cut into.
       Container segments = 2 [(buf.validate.field).enum = {
         in: [
@@ -321,6 +332,9 @@ message DeviceCommand {
         ]
       }];
     }
+
+    // Live is a stream with no end, so no length.
+    message Live {}
   }
 
   message Caption {

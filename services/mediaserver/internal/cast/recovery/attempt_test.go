@@ -62,4 +62,25 @@ func TestRuntimeIsWhatIsLeftFromWhereItBegins(t *testing.T) {
 	if got := (Attempt{Program: media.Program{Start: time.Hour}}).Runtime(); got != 0 {
 		t.Errorf("Runtime without a declared duration = %v, want 0", got)
 	}
+	live := Attempt{Origin: source.Origin{Duration: 2 * time.Hour}, Program: media.Program{Inputs: []media.Input{{Fetch: media.Fetch{Live: true}}}}}
+	if got := live.Runtime(); got != 0 {
+		t.Errorf("Runtime of a program with no end = %v, want 0 whatever duration it was given", got)
+	}
+}
+
+func TestAnAttemptIsLiveWhenAnyInputHasNoEnd(t *testing.T) {
+	input := func(live bool) media.Input { return media.Input{Fetch: media.Fetch{Live: live}} }
+	for name, tt := range map[string]struct {
+		inputs []media.Input
+		want   bool
+	}{
+		"one input that ends":                   {[]media.Input{input(false)}, false},
+		"one input with no end":                 {[]media.Input{input(true)}, true},
+		"audio with no end beside video ending": {[]media.Input{input(false), input(true)}, true},
+		"no input":                              {nil, false},
+	} {
+		if got := (Attempt{Program: media.Program{Inputs: tt.inputs}}).Live(); got != tt.want {
+			t.Errorf("%s: Live = %v, want %v", name, got, tt.want)
+		}
+	}
 }

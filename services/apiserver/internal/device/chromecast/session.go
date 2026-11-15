@@ -59,7 +59,11 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 	s.watchMu.Unlock()
 	load := &loadCommand{
 		Type: msgLoad, Autoplay: true,
-		Media: mediaItem{MediaItem: castmedia.MediaItem{ContentId: stream, ContentType: device.MIME(playback.Container()), StreamType: "BUFFERED", Duration: float32(playback.Duration().Seconds())}},
+		Media: mediaItem{MediaItem: castmedia.MediaItem{ContentId: stream, ContentType: device.MIME(playback.Container()), StreamType: streamBuffered, Duration: float32(playback.Duration().Seconds())}},
+	}
+	if playback.Live() {
+		// A live stream has no end for the receiver to buffer toward or seek to.
+		load.Media.StreamType = streamLive
 	}
 	load.Media.Metadata = castmedia.MediaMetadata{Title: info.GetTitle(), Subtitle: info.GetSynopsis(), ReleaseDate: info.GetReleaseDate()}
 	if imageURL := info.GetImageUrl(); imageURL != "" {

@@ -1,6 +1,7 @@
 package lend
 
 import (
+	"cmp"
 	"errors"
 	"net/url"
 	"slices"
@@ -135,6 +136,43 @@ func TestAPlaylistTellsTheDeviceWhatItIsCutInto(t *testing.T) {
 			t.Errorf("segments = %v, want MP4", got)
 		}
 	})
+}
+
+func TestAStreamTellsTheDeviceWhetherItEndsAndHowLong(t *testing.T) {
+	told := func(p *mediav1.DeviceCommand_Play) (live bool, length time.Duration) {
+		live = p.GetSource().GetLive() != nil || p.GetProgressive().GetLive() != nil || p.GetPlaylist().GetLive() != nil
+		length = cmp.Or(p.GetSource().GetDuration(), p.GetProgressive().GetRuntime().GetDuration(), p.GetPlaylist().GetDuration()).AsDuration()
+		return live, length
+	}
+	for _, tt := range []struct {
+		name   string
+		stream execute.Stream
+		live   bool
+		length time.Duration
+	}{
+		{name: "a source of an hour", stream: execute.Source{Runtime: time.Hour}, length: time.Hour},
+		{name: "a live source", stream: execute.Source{Live: true}, live: true},
+		{name: "a source that declared none", stream: execute.Source{}},
+		{name: "a served stream of an hour", stream: execute.Served{Runtime: &execute.Runtime{Length: time.Hour}}, length: time.Hour},
+		{name: "a live served stream", stream: execute.Served{Live: true}, live: true},
+		{name: "a served stream that declared none", stream: execute.Served{}},
+		{name: "a playlist of an hour", stream: execute.Playlist{Runtime: time.Hour, Segments: media.MP4}, length: time.Hour},
+		{name: "a live playlist", stream: execute.Playlist{Live: true, Segments: media.MP4}, live: true},
+		{name: "a playlist that declared none", stream: execute.Playlist{Segments: media.MP4}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				r := &remote{}
+				d := r.device(t, 0)
+				if err := d.Play(t.Context(), execute.Playback{URL: &url.URL{Scheme: "http", Host: "castor"}, Stream: tt.stream}); err != nil {
+					t.Fatal(err)
+				}
+				if live, length := told(r.plays[0]); live != tt.live || length != tt.length {
+					t.Errorf("the device was told live=%v and length %v, want live=%v and length %v", live, length, tt.live, tt.length)
+				}
+			})
+		})
+	}
 }
 
 func TestTheViewerResumesADeviceItsOwnRemotePaused(t *testing.T) {

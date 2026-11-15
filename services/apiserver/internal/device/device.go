@@ -38,6 +38,11 @@ func (p Playback) Duration() time.Duration {
 	return cmp.Or(p.Play.GetSource().GetDuration(), p.Play.GetProgressive().GetRuntime().GetDuration(), p.Play.GetPlaylist().GetDuration()).AsDuration()
 }
 
+// Live is a stream with no end, whichever way it reaches the device, and so no Duration.
+func (p Playback) Live() bool {
+	return p.Play.GetSource().GetLive() != nil || p.Play.GetProgressive().GetLive() != nil || p.Play.GetPlaylist().GetLive() != nil
+}
+
 // Device is a connected device, ready to play; whoever connected it closes it.
 type Device interface {
 	// Play points the device at the requested media.

@@ -93,14 +93,17 @@ func TestAPlayIsRefusedAStreamItsKindCannotHold(t *testing.T) {
 		"no stream":            {},
 		"a served playlist":    devicetest.Served(mediav1.Container_CONTAINER_HLS, 0, 0),
 		"a runtime unstated":   devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, time.Hour, 0),
-		"a runtime of nothing": {Stream: &mediav1.DeviceCommand_Play_Progressive_{Progressive: &mediav1.DeviceCommand_Play_Progressive{Container: mediav1.Container_CONTAINER_MPEGTS, Runtime: &mediav1.DeviceCommand_Play_Runtime{Seek: timed}}}},
+		"a runtime of nothing": {Stream: &mediav1.DeviceCommand_Play_Progressive_{Progressive: &mediav1.DeviceCommand_Play_Progressive{Container: mediav1.Container_CONTAINER_MPEGTS, Timeline: &mediav1.DeviceCommand_Play_Progressive_Runtime{Runtime: &mediav1.DeviceCommand_Play_Runtime{Seek: timed}}}}},
 	} {
 		play.Url = "http://192.0.2.1/stream"
 		if err := protovalidate.Validate(play); err == nil {
 			t.Errorf("a play of %s was accepted", name)
 		}
 	}
-	for _, play := range []*mediav1.DeviceCommand_Play{devicetest.Source(mediav1.Container_CONTAINER_HLS), devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, time.Hour, timed), devicetest.Playlist(mediav1.Container_CONTAINER_MP4)} {
+	for _, play := range []*mediav1.DeviceCommand_Play{
+		devicetest.Source(mediav1.Container_CONTAINER_HLS), devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, time.Hour, timed), devicetest.Playlist(mediav1.Container_CONTAINER_MP4),
+		devicetest.Live(devicetest.Source(mediav1.Container_CONTAINER_HLS)), devicetest.Live(devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, 0, 0)), devicetest.Live(devicetest.Playlist(mediav1.Container_CONTAINER_MP4)),
+	} {
 		play.Url = "http://192.0.2.1/stream"
 		if err := protovalidate.Validate(play); err != nil {
 			t.Errorf("a play of %v was refused: %v", play, err)

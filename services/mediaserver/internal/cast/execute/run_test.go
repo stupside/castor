@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/stupside/castor/internal/machine"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/compose"
@@ -48,6 +49,31 @@ func TestAHandoffBuildsNoLocalMachinery(t *testing.T) {
 	}
 	if got.Evidence.Reached != health.Delivered {
 		t.Errorf("reached %s, want %s", got.Evidence.Reached, health.Delivered)
+	}
+}
+
+func TestADeviceIsHandedWhetherTheSourceItFetchesEnds(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		live    bool
+		runtime time.Duration
+	}{
+		{"a source with an end", false, time.Hour},
+		{"a source with no end", true, 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			program := programFromStream(t, handoffStream())
+			program.Inputs[0].Fetch.Live = tt.live
+			dev := &fakeDevice{caps: chromecastLike(media.MP4), ended: true}
+			got := Cast{Timelines: direct{}, Outputs: testOutputs(), MaxHeight: 1080, Device: dev, Publisher: countedPublisher{asked: new(atomic.Int64)}}.Run(t.Context(),
+				recovery.Attempt{Program: program, Origin: source.Origin{Live: tt.live, Duration: tt.runtime}})
+			if got.Err != nil {
+				t.Fatal(got.Err)
+			}
+			if handed, _ := dev.handed.Stream.(Source); handed.Live != tt.live || handed.Runtime != tt.runtime {
+				t.Errorf("the device was handed %+v, want live=%v and a runtime of %v", dev.handed.Stream, tt.live, tt.runtime)
+			}
+		})
 	}
 }
 

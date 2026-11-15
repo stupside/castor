@@ -236,6 +236,35 @@ func TestALoadSaysWhenAPlaylistIsCutIntoFMP4(t *testing.T) {
 	}
 }
 
+func TestALoadSaysWhetherTheStreamEnds(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		play *mediav1.DeviceCommand_Play
+		want string
+	}{
+		{"a source with an end", devicetest.Source(mediav1.Container_CONTAINER_MP4), "BUFFERED"},
+		{"a served stream with an end", devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, time.Hour, mediav1.DeviceCommand_Play_Runtime_SEEK_START), "BUFFERED"},
+		{"a playlist with an end", devicetest.Playlist(mediav1.Container_CONTAINER_MP4), "BUFFERED"},
+		{"a live source", devicetest.Live(devicetest.Source(mediav1.Container_CONTAINER_HLS)), "LIVE"},
+		{"a live served stream", devicetest.Live(devicetest.Served(mediav1.Container_CONTAINER_MPEGTS, 0, 0)), "LIVE"},
+		{"a live playlist", devicetest.Live(devicetest.Playlist(mediav1.Container_CONTAINER_MP4)), "LIVE"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			loaded := make(chan mediaItem, 1)
+			dev := receiverAnswering(t, func(id int, load mediaItem) []any {
+				loaded <- load
+				return []any{mediaStatus(id, load.ContentId, "BUFFERING", "")}
+			})
+			if err := dev.Play(t.Context(), device.Playback{URL: &url.URL{Scheme: "http", Host: "media.test", Path: "/stream"}, Play: tt.play}); err != nil {
+				t.Fatal(err)
+			}
+			if got := <-loaded; got.StreamType != tt.want {
+				t.Errorf("stream type = %q, want %q", got.StreamType, tt.want)
+			}
+		})
+	}
+}
+
 func TestAPlayRetriedAfterARefusedOneIsAwaitedToItsOwnEnd(t *testing.T) {
 	refused := &url.URL{Scheme: "http", Host: "media.test", Path: "/attempt-1.mp4"}
 	retried := &url.URL{Scheme: "http", Host: "media.test", Path: "/attempt-2.mp4"}

@@ -35,6 +35,8 @@ const (
 	msgPong        = "PONG"
 	stateIdle      = "IDLE"
 	idleError      = "ERROR"
+	streamBuffered = "BUFFERED"
+	streamLive     = "LIVE"
 )
 
 const (

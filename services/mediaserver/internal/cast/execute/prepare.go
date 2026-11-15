@@ -58,7 +58,9 @@ type presentation struct {
 	segments    string
 	source      bool
 	// runtime is what is left of the program from where the attempt begins, zero where the source declared none.
-	runtime   time.Duration
+	runtime time.Duration
+	// live is a program with no end, which has no runtime.
+	live      bool
 	readiness presentationReadiness
 	delivery  *delivery
 	feed      feed
@@ -89,7 +91,7 @@ func (s *preparation) inspectPresentation() (p inspectedPresentation, err error)
 		return p, err
 	}
 	p.kind = s.compose()
-	p.runtime, p.reached.began = s.attempt.Runtime(), s.attempt.Program.Start
+	p.runtime, p.live, p.reached.began = s.attempt.Runtime(), s.attempt.Live(), s.attempt.Program.Start
 	p.captions = s.shownCaptions()
 	if p.kind == compose.Handoff {
 		primary, _ := s.attempt.Program.PrimaryInput()
