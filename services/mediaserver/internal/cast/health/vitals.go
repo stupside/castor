@@ -11,7 +11,7 @@ import (
 
 // Vitals is one reading of a watched cast: its measurements and terminal states.
 type Vitals struct {
-	// Landed is the bytes of artifact available now.
+	// Landed is the bytes of artifact a device can start on now.
 	Landed int64
 
 	// sinceGrowth is how long no new media has arrived: Position when the producer states one, else Landed.

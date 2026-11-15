@@ -133,6 +133,7 @@ type Artifact struct {
 	// Subject names it in a log line and in a fault ("the stream output", "the HLS playlist").
 	Subject string
 
+	// Landed is the artifact's size once a device can start on it, zero until then.
 	Landed func() (int64, error)
 
 	Grace time.Duration
