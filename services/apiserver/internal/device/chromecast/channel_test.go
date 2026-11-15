@@ -15,7 +15,7 @@ import (
 func TestAReceiverThatAnswersNoPingIsDroppedAfterThreeMissedBeats(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		near, far := net.Pipe()
-		sender := newChannel(near, func([]byte) {})
+		sender := newChannel(near, func(messageHeader, []byte) {})
 		// Reads every frame and answers none.
 		silent := &channel{conn: far, gone: make(chan struct{})}
 		go func() {
@@ -45,7 +45,7 @@ func TestAReceiverThatAnswersNoPingIsDroppedAfterThreeMissedBeats(t *testing.T) 
 func TestAReceiverThatAnswersEachPingKeepsItsConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		near, far := net.Pipe()
-		sender := newChannel(near, func([]byte) {})
+		sender := newChannel(near, func(messageHeader, []byte) {})
 		peer := &channel{conn: far, writing: make(chan struct{}, 1)}
 		go func() {
 			for {
@@ -76,7 +76,7 @@ func TestAReceiversErrorCodeIsLoggedAsItArrives(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(prev) })
 	near, far := net.Pipe()
 	observed := make(chan struct{})
-	sender := newChannel(near, func([]byte) { observed <- struct{}{} })
+	sender := newChannel(near, func(messageHeader, []byte) { observed <- struct{}{} })
 	t.Cleanup(func() { _ = sender.Close(); _ = far.Close() })
 	peer := &channel{conn: far, writing: make(chan struct{}, 1)}
 	for _, message := range []any{map[string]any{"type": "ERROR", "detailedErrorCode": 104}, castmedia.PayloadHeader{Type: msgMediaStatus}} {

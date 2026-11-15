@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"sync"
 
 	castmedia "github.com/vishen/go-chromecast/cast"
@@ -41,21 +42,24 @@ func (s *session) AwaitEnd(ctx context.Context) error {
 	}
 }
 
-func (s *session) watchMessage(payload []byte) {
+func (s *session) watchMessage(h messageHeader, payload []byte) {
 	var response castmedia.MediaStatusResponse
-	if err := json.Unmarshal(payload, &response); err != nil {
+	decoded := json.Unmarshal(payload, &response)
+	s.watchMu.Lock()
+	defer s.watchMu.Unlock()
+	if h.DetailedErrorCode != 0 {
+		s.watch.receiverCode = h.DetailedErrorCode
+	}
+	if decoded != nil {
 		return
 	}
-	s.watchMu.Lock()
-	over, playErr := playbackOutcome(&s.watch, &response)
-	if over {
+	if over, playErr := playbackOutcome(&s.watch, &response); over {
 		e := s.ending
 		e.once.Do(func() {
-			e.err = playErr
+			e.err = s.watch.named(playErr)
 			close(e.done)
 		})
 	}
-	s.watchMu.Unlock()
 }
 
 // playback follows the one Play the device was last handed, from its load to its end.
@@ -64,20 +68,20 @@ type playback struct {
 	content      string
 	mediaSession int
 	active       bool
+	// receiverCode is the detailed code of the last error the receiver sent since begin, zero when it sent none.
+	receiverCode int
 }
 
-func (w *playback) begin(content string) {
-	w.armed = true
-	w.content = content
-	w.mediaSession = 0
-	w.active = false
-}
+func (w *playback) begin(content string) { *w = playback{armed: true, content: content} }
 
-func (w *playback) disarm() {
-	w.armed = false
-	w.content = ""
-	w.mediaSession = 0
-	w.active = false
+func (w *playback) disarm() { *w = playback{} }
+
+// named is err with the receiver's own code for why it failed, when it gave one.
+func (w *playback) named(err error) error {
+	if err == nil || w.receiverCode == 0 {
+		return err
+	}
+	return fmt.Errorf("%w (receiver error code %d)", err, w.receiverCode)
 }
 
 func (w *playback) observe(status castmedia.Media) (bool, error) {

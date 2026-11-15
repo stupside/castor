@@ -65,7 +65,7 @@ var wire = json.JoinOptions(jsonv1.OmitEmptyWithLegacySemantics(true), json.Form
 // channel is one Cast v2 connection: its reader alone delivers what arrives, so closing it never races a send.
 type channel struct {
 	conn    net.Conn
-	observe func(payload []byte)
+	observe func(h messageHeader, payload []byte)
 	writing chan struct{}
 
 	mu      sync.Mutex
@@ -80,7 +80,7 @@ type channel struct {
 }
 
 // dial opens the channel; observe sees every message the receiver sends, from the reader's goroutine.
-func dial(ctx context.Context, address string, observe func([]byte)) (*channel, error) {
+func dial(ctx context.Context, address string, observe func(messageHeader, []byte)) (*channel, error) {
 	// Cast devices present certificates no public root signs.
 	dialer := tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true}}
 	conn, err := dialer.DialContext(ctx, "tcp", address)
@@ -90,7 +90,7 @@ func dial(ctx context.Context, address string, observe func([]byte)) (*channel, 
 	return newChannel(conn, observe), nil
 }
 
-func newChannel(conn net.Conn, observe func([]byte)) *channel {
+func newChannel(conn net.Conn, observe func(messageHeader, []byte)) *channel {
 	ch := &channel{conn: conn, observe: observe, writing: make(chan struct{}, 1), waiting: map[int]chan []byte{}, gone: make(chan struct{})}
 	ch.closeConn = sync.OnceValue(conn.Close)
 	ch.heard.Store(time.Now().UnixNano())
@@ -127,27 +127,30 @@ func (ch *channel) read() {
 		}
 		ch.heard.Store(time.Now().UnixNano())
 		payload := []byte(msg.GetPayloadUtf8())
-		var header struct {
-			Type      string `json:"type"`
-			RequestID int    `json:"requestId"`
-			// DetailedErrorCode is why the receiver failed, in its error messages; 0 in any other.
-			DetailedErrorCode int `json:"detailedErrorCode"`
-		}
-		if json.Unmarshal(payload, &header) != nil {
+		var h messageHeader
+		if json.Unmarshal(payload, &h) != nil {
 			continue
 		}
 		if msg.GetNamespace() == nsHeartbeat {
-			if header.Type == msgPing {
+			if h.Type == msgPing {
 				_ = ch.send(context.Background(), msg.GetSourceId(), nsHeartbeat, &castmedia.PayloadHeader{Type: msgPong})
 			}
 			continue
 		}
-		if header.DetailedErrorCode != 0 {
-			slog.Warn("chromecast receiver reported an error", "address", ch.conn.RemoteAddr().String(), "type", header.Type, "detailed_error_code", header.DetailedErrorCode)
+		if h.DetailedErrorCode != 0 {
+			slog.Warn("chromecast receiver reported an error", "address", ch.conn.RemoteAddr().String(), "type", h.Type, "detailed_error_code", h.DetailedErrorCode)
 		}
-		ch.observe(payload)
-		ch.answer(header.RequestID, payload)
+		ch.observe(h, payload)
+		ch.answer(h.RequestID, payload)
 	}
+}
+
+// messageHeader is what a receiver's message says of itself.
+type messageHeader struct {
+	Type      string `json:"type"`
+	RequestID int    `json:"requestId"`
+	// DetailedErrorCode is why the receiver failed, in its error messages; 0 in any other.
+	DetailedErrorCode int `json:"detailedErrorCode"`
 }
 
 func (ch *channel) receive() (*pb.CastMessage, error) {

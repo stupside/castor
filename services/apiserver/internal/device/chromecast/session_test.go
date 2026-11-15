@@ -44,7 +44,7 @@ func receiverSaying(t *testing.T, status func(requestID int) any, loadAnswers fu
 	dev := &session{ending: newEnding()}
 	dev.ch = newChannel(near, dev.watchMessage)
 	var receiver *channel
-	receiver = newChannel(far, func(payload []byte) {
+	receiver = newChannel(far, func(_ messageHeader, payload []byte) {
 		var req struct {
 			Type      string    `json:"type"`
 			RequestID int       `json:"requestId"`
@@ -265,6 +265,67 @@ func TestALoadSaysWhetherTheStreamEnds(t *testing.T) {
 	}
 }
 
+func TestAnErrorTheReceiverGaveEndsTheCastNamingItsCode(t *testing.T) {
+	stream := &url.URL{Scheme: "http", Host: "media.test", Path: "/stream.m3u8"}
+	play := func(dev *session) error {
+		return dev.Play(t.Context(), device.Playback{URL: stream, Play: devicetest.Source(mediav1.Container_CONTAINER_HLS)})
+	}
+	t.Run("a refused load", func(t *testing.T) {
+		dev := receiverAnswering(t, func(id int, _ mediaItem) []any {
+			return []any{map[string]any{"type": "LOAD_FAILED", "requestId": id, "detailedErrorCode": 104}}
+		})
+		if err := play(dev); err == nil || !strings.Contains(err.Error(), "receiver error code 104") {
+			t.Errorf("Play = %v, want the refusal to name the receiver's code 104", err)
+		}
+	})
+	t.Run("a cast failing while it plays", func(t *testing.T) {
+		dev := receiverAnswering(t, func(id int, load mediaItem) []any {
+			return []any{
+				mediaStatus(id, load.ContentId, "PLAYING", ""),
+				map[string]any{"type": "ERROR", "detailedErrorCode": 905},
+				mediaStatus(0, load.ContentId, "IDLE", "ERROR"),
+			}
+		})
+		if err := play(dev); err != nil {
+			t.Fatal(err)
+		}
+		if err := dev.AwaitEnd(t.Context()); err == nil || !strings.Contains(err.Error(), "receiver error code 905") {
+			t.Errorf("AwaitEnd = %v, want the end to name the receiver's code 905", err)
+		}
+	})
+	t.Run("a refusal that gave none", func(t *testing.T) {
+		dev := receiverAnswering(t, func(id int, _ mediaItem) []any {
+			return []any{castmedia.PayloadHeader{Type: "LOAD_FAILED", RequestId: id}}
+		})
+		if err := play(dev); err == nil || strings.Contains(err.Error(), "receiver error code") {
+			t.Errorf("Play = %v, want a refusal naming no code", err)
+		}
+	})
+	t.Run("a code of an earlier play", func(t *testing.T) {
+		loads := 0
+		dev := receiverAnswering(t, func(id int, load mediaItem) []any {
+			loads++
+			if loads == 1 {
+				return []any{
+					mediaStatus(id, load.ContentId, "PLAYING", ""),
+					map[string]any{"type": "ERROR", "detailedErrorCode": 905},
+					mediaStatus(0, load.ContentId, "IDLE", "FINISHED"),
+				}
+			}
+			return []any{castmedia.PayloadHeader{Type: "LOAD_FAILED", RequestId: id}}
+		})
+		if err := play(dev); err != nil {
+			t.Fatal(err)
+		}
+		if err := dev.AwaitEnd(t.Context()); err != nil {
+			t.Fatalf("the first cast ended with %v, want a clean end", err)
+		}
+		if err := play(dev); err == nil || strings.Contains(err.Error(), "receiver error code") {
+			t.Errorf("Play = %v, want the second refusal not to name the first cast's code", err)
+		}
+	})
+}
+
 func TestAPlayRetriedAfterARefusedOneIsAwaitedToItsOwnEnd(t *testing.T) {
 	refused := &url.URL{Scheme: "http", Host: "media.test", Path: "/attempt-1.mp4"}
 	retried := &url.URL{Scheme: "http", Host: "media.test", Path: "/attempt-2.mp4"}
@@ -401,7 +462,7 @@ func TestCancellingABlockedCastWriteLeavesTheChannelUsable(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		near, far := net.Pipe()
 		writing := &writingConn{Conn: near, started: make(chan struct{})}
-		ch := newChannel(writing, func([]byte) {})
+		ch := newChannel(writing, func(messageHeader, []byte) {})
 		t.Cleanup(func() { _ = ch.Close() })
 		t.Cleanup(func() { _ = far.Close() })
 		ctx, cancel := context.WithCancelCause(t.Context())
@@ -424,7 +485,7 @@ func TestCancellingABlockedCastWriteLeavesTheChannelUsable(t *testing.T) {
 		}
 		// A cancelled sender must not leave a deadline on the next Play's write.
 		received := make(chan struct{})
-		peer := newChannel(far, func([]byte) { close(received) })
+		peer := newChannel(far, func(messageHeader, []byte) { close(received) })
 		t.Cleanup(func() { _ = peer.Close() })
 		if err := ch.send(t.Context(), receiverID, nsConnection, &castmedia.PayloadHeader{Type: msgConnect}); err != nil {
 			t.Fatalf("send after cancellation = %v", err)
@@ -436,7 +497,7 @@ func TestCancellingABlockedCastWriteLeavesTheChannelUsable(t *testing.T) {
 func TestCancellingAPartialCastFrameClosesTheConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		near, far := net.Pipe()
-		ch := newChannel(near, func([]byte) {})
+		ch := newChannel(near, func(messageHeader, []byte) {})
 		t.Cleanup(func() { _ = ch.Close() })
 		t.Cleanup(func() { _ = far.Close() })
 		ctx, cancel := context.WithCancel(t.Context())
@@ -469,7 +530,7 @@ func TestCancellingAPartialCastFrameClosesTheConnection(t *testing.T) {
 func TestAnInvalidCastFrameClosesTheSocket(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		near, far := net.Pipe()
-		ch := newChannel(near, func([]byte) {})
+		ch := newChannel(near, func(messageHeader, []byte) {})
 		t.Cleanup(func() { _ = ch.Close() })
 		t.Cleanup(func() { _ = far.Close() })
 		// Install the deadline before the invalid header can close the socket.

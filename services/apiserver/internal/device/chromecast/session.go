@@ -80,8 +80,9 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 	}
 	if err != nil {
 		s.watchMu.Lock()
-		// A Play begun since owns the watch now; this one's failure is not its to clear.
+		// A Play begun since owns the watch now; this one's failure is not its to clear or name.
 		if s.ending == mine {
+			err = s.watch.named(err)
 			s.watch.disarm()
 		}
 		s.watchMu.Unlock()
