@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"os/signal"
 
 	wcpp "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 	"github.com/stupside/castor/services/mediaserver/internal/subtitle"
@@ -26,6 +27,8 @@ const (
 // is only an IPC worker: it does not initialize services or process CLI options.
 func init() {
 	if len(os.Args) == 2 && os.Args[1] == workerArgument {
+		// The terminal's interrupt reaches this child with its parent, which ends it by closing its input.
+		signal.Ignore(os.Interrupt)
 		if err := serveWorker(os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
