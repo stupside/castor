@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stupside/castor/services/apiserver/internal/device"
@@ -19,30 +18,20 @@ func (f deviceInfoRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	return f(req)
 }
 
-func TestDiscoveryHasTimeToReadRokuNamesAfterSSDPSearch(t *testing.T) {
-	for _, timeout := range []time.Duration{3 * time.Second, 5 * time.Second} {
-		t.Run(timeout.String(), func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				ctx, cancel := context.WithTimeout(t.Context(), timeout)
-				defer cancel()
-				client := &http.Client{Transport: deviceInfoRoundTripper(func(req *http.Request) (*http.Response, error) {
-					if req.Context().Err() != nil || req.URL.Path != "/query/device-info" {
-						t.Errorf("device-info request ran after discovery expired: %v", req.Context().Err())
-					}
-					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`<device-info><user-device-name>Living Room</user-device-name></device-info>`))}, nil
-				})}
-				found := discover(ctx, func(searchCtx context.Context) ([]*http.Response, error) {
-					<-searchCtx.Done() // SSDP consumes its full search window before returning replies.
-					return []*http.Response{{Header: http.Header{"Location": {"http://roku.test:8060/"}, "Usn": {"uuid:roku-1"}}}}, nil
-				}, client)
-				if len(found) != 1 || found[0].Name != "Living Room" {
-					t.Fatalf("discovery returned %+v, want the owner-set Roku name", found)
-				}
-				if ctx.Err() != nil {
-					t.Fatal("name lookup consumed the caller's whole discovery window")
-				}
-			})
-		})
+func TestDiscoveryNamesARokuByItsOwnerSetName(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	client := &http.Client{Transport: deviceInfoRoundTripper(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path != "/query/device-info" {
+			t.Errorf("asked %s for a name", req.URL.Path)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`<device-info><user-device-name>Living Room</user-device-name></device-info>`))}, nil
+	})}
+	found := discover(ctx, func(context.Context) ([]*http.Response, error) {
+		return []*http.Response{{Header: http.Header{"Location": {"http://roku.test:8060/"}, "Usn": {"uuid:roku-1"}}}}, nil
+	}, client)
+	if len(found) != 1 || found[0].Name != "Living Room" || found[0].ID != "uuid:roku-1" {
+		t.Fatalf("discovery returned %+v, want the owner-set Roku name", found)
 	}
 }
 

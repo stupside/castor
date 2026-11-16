@@ -15,19 +15,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huin/goupnp/httpu"
-	"github.com/huin/goupnp/ssdp"
-
 	"github.com/stupside/castor/services/apiserver/internal/device"
+	"github.com/stupside/castor/services/apiserver/internal/device/ssdp"
 )
 
 const (
-	searchTarget   = "roku:ecp"
-	discoverySends = 3
-	devAppID       = "dev"
-	devUser        = "rokudev"
-	httpTimeout    = 10 * time.Second
-	// Leave time in the directory's discovery window to fetch owner-set names.
+	searchTarget = "roku:ecp"
+	devAppID     = "dev"
+	devUser      = "rokudev"
+	httpTimeout  = 10 * time.Second
+	// searchTimeout caps the SSDP wait; the rest of the discovery window fetches owner-set names.
 	searchTimeout = 3 * time.Second
 	ecpPort       = "8060"
 )
@@ -52,28 +49,14 @@ var _ device.Family = Family{}
 
 // Discover finds Rokus over SSDP, naming each once however often it answered.
 func (Family) Discover(ctx context.Context) []device.Info {
-	hc, err := httpu.NewHTTPUClient()
-	if err != nil {
-		slog.WarnContext(ctx, "roku discovery", "error", err)
-		return nil
-	}
-	defer hc.Close()
-	return discover(ctx, func(searchCtx context.Context) ([]*http.Response, error) {
-		return ssdp.RawSearch(searchCtx, hc, searchTarget, discoverySends)
+	return discover(ctx, func(ctx context.Context) ([]*http.Response, error) {
+		return ssdp.Search(ctx, searchTarget, searchTimeout)
 	}, &http.Client{Timeout: httpTimeout})
 }
 
-// discover keeps SSDP's wait separate from the name lookups. RawSearch normally
-// uses its entire context deadline before returning the responses it collected.
+// discover names each Roku that search found, over what time the search left.
 func discover(ctx context.Context, search func(context.Context) ([]*http.Response, error), client *http.Client) []device.Info {
-	searchWindow := searchTimeout
-	if deadline, ok := ctx.Deadline(); ok {
-		// Reserve the last third of a shorter caller window for device-info.
-		searchWindow = min(searchWindow, time.Until(deadline)*2/3)
-	}
-	searchCtx, cancel := context.WithTimeout(ctx, searchWindow)
-	responses, err := search(searchCtx)
-	cancel()
+	responses, err := search(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "roku discovery", "error", err)
 		return nil
