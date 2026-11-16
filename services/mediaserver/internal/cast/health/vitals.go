@@ -149,37 +149,57 @@ func (h Vitals) roomy() bool {
 	return h.intakeKnown && h.weight > 0 && h.intake >= chokedBelow*h.weight && h.took >= h.at()
 }
 
-const noRoom = "no heavier rate is allowed or known to be carried"
+// whyNotLifted is why a cast that stood long enough is not asked for a heavier rate.
+type whyNotLifted string
 
-// unlifted is why a cast that stood long enough is not asked for more; detail is the measurement, which moves while why holds.
-func (h Vitals) unlifted() (why, detail string) {
+const (
+	deliveryFixed      whyNotLifted = "the delivery cannot change while the device plays it"
+	deviceHeld         whyNotLifted = "the device is held"
+	intakeUnmeasured   whyNotLifted = "what the device takes is not measured yet"
+	intakeBelowWeight  whyNotLifted = "the device takes less than the cast weighs"
+	tookLessThanPlayed whyNotLifted = "the device has taken less than it has played"
+	playsBelowRealTime whyNotLifted = "the device plays slower than real time"
+	atSourceWeight     whyNotLifted = "the cast already weighs what the source does"
+	rateOnTrial        whyNotLifted = "a heavier rate is on trial"
+	rateDidNotHold     whyNotLifted = "a heavier rate did not hold lately"
+	noRoom             whyNotLifted = "no heavier rate is allowed or known to be carried"
+)
+
+// notLifted is why a cast is not asked for more, and the measurement that moves while that holds; the zero value is nothing in the way.
+type notLifted struct {
+	why    whyNotLifted
+	detail string
+}
+
+// unlifted is why a cast that stood long enough is not asked for more.
+func (h Vitals) unlifted() notLifted {
 	switch {
 	case !h.switchable:
-		return "the delivery cannot change while the device plays it", ""
+		return notLifted{why: deliveryFixed}
 	case h.paused:
-		return "the device is held", ""
+		return notLifted{why: deviceHeld}
 	case h.paceKnown:
 		return h.unliftedByPace()
 	case !h.intakeKnown || h.weight <= 0:
-		return "what the device takes is not measured yet", ""
+		return notLifted{why: intakeUnmeasured}
 	case h.intake < chokedBelow*h.weight:
-		return "the device takes less than the cast weighs", fmt.Sprintf("%s of %s", h.Intake(), media.Bitrate(h.weight*8))
+		return notLifted{why: intakeBelowWeight, detail: fmt.Sprintf("%s of %s", h.Intake(), media.Bitrate(h.weight*8))}
 	case h.took < h.at():
-		return "the device has taken less than it has played", (h.took - h.at()).Round(time.Second).String()
+		return notLifted{why: tookLessThanPlayed, detail: (h.took - h.at()).Round(time.Second).String()}
 	case !h.room:
-		return noRoom, ""
+		return notLifted{why: noRoom}
 	}
-	return "", ""
+	return notLifted{}
 }
 
-func (h Vitals) unliftedByPace() (why, detail string) {
+func (h Vitals) unliftedByPace() notLifted {
 	switch {
 	case h.pace < keepsAbove:
-		return "the device plays slower than real time", fmt.Sprintf("%.2fx", h.pace)
+		return notLifted{why: playsBelowRealTime, detail: fmt.Sprintf("%.2fx", h.pace)}
 	case !h.room:
-		return noRoom, ""
+		return notLifted{why: noRoom}
 	}
-	return "", ""
+	return notLifted{}
 }
 
 // playable reports that there is something to hand a device.

@@ -137,25 +137,26 @@ func roomy() Vitals {
 
 func TestACastNotLiftedSaysWhy(t *testing.T) {
 	for _, tt := range []struct {
-		name         string
-		change       func(*Vitals)
-		want, detail string
+		name   string
+		change func(*Vitals)
+		want   whyNotLifted
+		detail string
 	}{
 		{"nothing in the way", func(*Vitals) {}, "", ""},
-		{"a delivery that cannot change", func(v *Vitals) { v.switchable = false }, "the delivery cannot change while the device plays it", ""},
-		{"a held device", func(v *Vitals) { v.paused = true }, "the device is held", ""},
-		{"an intake not covered yet", func(v *Vitals) { v.intakeKnown = false }, "what the device takes is not measured yet", ""},
-		{"a device taking less than the cast weighs", func(v *Vitals) { v.intake = 500_000 }, "the device takes less than the cast weighs", "4.0 Mbit/s of 6.4 Mbit/s"},
+		{"a delivery that cannot change", func(v *Vitals) { v.switchable = false }, deliveryFixed, ""},
+		{"a held device", func(v *Vitals) { v.paused = true }, deviceHeld, ""},
+		{"an intake not covered yet", func(v *Vitals) { v.intakeKnown = false }, intakeUnmeasured, ""},
+		{"a device taking less than the cast weighs", func(v *Vitals) { v.intake = 500_000 }, intakeBelowWeight, "4.0 Mbit/s of 6.4 Mbit/s"},
 		{"a device with little buffered still has room", func(v *Vitals) { v.took = v.played + time.Second }, "", ""},
-		{"a device that took less than it played", func(v *Vitals) { v.took = v.played - time.Second }, "the device has taken less than it has played", "-1s"},
-		{"a device that has stalled for minutes", func(v *Vitals) { v.took = v.played - 2*time.Minute }, "the device has taken less than it has played", "-2m0s"},
+		{"a device that took less than it played", func(v *Vitals) { v.took = v.played - time.Second }, tookLessThanPlayed, "-1s"},
+		{"a device that has stalled for minutes", func(v *Vitals) { v.took = v.played - 2*time.Minute }, tookLessThanPlayed, "-2m0s"},
 		{"no room above", func(v *Vitals) { v.room = false }, noRoom, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			v := roomy()
 			tt.change(&v)
-			if got, detail := v.unlifted(); got != tt.want || detail != tt.detail {
-				t.Errorf("unlifted = %q (%q), want %q (%q)", got, detail, tt.want, tt.detail)
+			if got := v.unlifted(); got.why != tt.want || got.detail != tt.detail {
+				t.Errorf("unlifted = %q (%q), want %q (%q)", got.why, got.detail, tt.want, tt.detail)
 			}
 		})
 	}

@@ -55,7 +55,7 @@ type Observer struct {
 	// floored is a link too poor to send a cast over at any rate worth sending, said once.
 	floored bool
 	// said is why a cast was last found not lifted, so it is said once for as long as it holds.
-	said string
+	said whyNotLifted
 	// last is the latest reading, read once the watch is over.
 	last Vitals
 }
@@ -140,17 +140,17 @@ func (o *Observer) explain(ctx context.Context, h Vitals) {
 	if o.asked.at == 0 || o.asked.onTrial() || h.sinceChange < o.asked.wait() || o.asked.policy != 0 && o.asked.at >= o.asked.policy {
 		return
 	}
-	why, detail := h.unlifted()
-	if _, _, refused := o.asked.lift(time.Now()); why == noRoom && refused != "" {
-		why = refused
+	blocked := h.unlifted()
+	if _, _, refused := o.asked.lift(time.Now()); blocked.why == noRoom && refused.why != "" {
+		blocked = refused
 	}
-	if why == "" || why == o.said {
+	if blocked.why == "" || blocked.why == o.said {
 		return
 	}
-	o.said = why
-	attrs := []any{"gate", o.m.Subject, "why", why, "at", o.asked.at.String()}
-	if detail != "" {
-		attrs = append(attrs, "detail", detail)
+	o.said = blocked.why
+	attrs := []any{"gate", o.m.Subject, "why", blocked.why, "at", o.asked.at.String()}
+	if blocked.detail != "" {
+		attrs = append(attrs, "detail", blocked.detail)
 	}
 	slog.InfoContext(ctx, "the cast is not asked for more", attrs...)
 }

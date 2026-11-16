@@ -3,7 +3,6 @@ package health
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"math"
 	"time"
 
@@ -161,13 +160,13 @@ func (p *pacing) lighten(h Vitals) (change, bool) {
 	return change{move: rateLightened, to: target, weighed: media.Bitrate(h.weight * 8)}, true
 }
 
-// lift is the heavier rate to try on a device that ran well; why says what leaves no room.
-func (p *pacing) lift(now time.Time) (c change, ok bool, why string) {
+// lift is the heavier rate to try on a device that ran well; refused says what leaves no room.
+func (p *pacing) lift(now time.Time) (c change, ok bool, refused notLifted) {
 	switch {
 	case p.at == 0:
-		return change{}, false, "the cast already weighs what the source does"
+		return change{}, false, notLifted{why: atSourceWeight}
 	case p.onTrial():
-		return change{}, false, "a heavier rate is on trial"
+		return change{}, false, notLifted{why: rateOnTrial}
 	}
 	target := media.Bitrate(float64(p.at)*liftBy) / step * step
 	known := p.bad != 0 && now.Before(p.until)
@@ -183,11 +182,11 @@ func (p *pacing) lift(now time.Time) (c change, ok bool, why string) {
 	}
 	switch {
 	case target == p.at || weighs(target) < weighs(p.at) || known && target < p.at+step:
-		return change{}, false, noRoom
+		return change{}, false, notLifted{why: noRoom}
 	case known && weighs(target) >= weighs(p.bad):
-		return change{}, false, fmt.Sprintf("%s did not hold lately", p.bad)
+		return change{}, false, notLifted{why: rateDidNotHold, detail: p.bad.String()}
 	}
-	return change{move: rateLifted, to: target}, true, ""
+	return change{move: rateLifted, to: target}, true, notLifted{}
 }
 
 // commit makes c the rate asked, once the rate machine allows its move.

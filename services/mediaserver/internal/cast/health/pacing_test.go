@@ -125,7 +125,18 @@ func TestACastLiftedPastWhatItWeighsUnaskedIsAskedForNoBound(t *testing.T) {
 // A watch begun on a delivery already made lighter than the ceiling starts from what it is made at, so it can lift it again.
 func TestAWatchStartsFromTheRateTheDeliveryIsMadeAt(t *testing.T) {
 	o := Observe(Monitor{Subject: "the playing cast", Phase: Playing, Switchable: true, MaxBitrate: 6_000_000, Asked: 3_000_000})
-	if c, ok, why := o.asked.lift(time.Now()); !ok || c.to <= 3_000_000 {
-		t.Errorf("lift = %+v, %t (%s), want above the 3 Mbit/s the delivery is made at", c, ok, why)
+	if c, ok, refused := o.asked.lift(time.Now()); !ok || c.to <= 3_000_000 {
+		t.Errorf("lift = %+v, %t (%+v), want above the 3 Mbit/s the delivery is made at", c, ok, refused)
+	}
+}
+
+func TestARateThatDidNotHoldIsRefusedWithTheRateAsItsMeasurement(t *testing.T) {
+	now := time.Now()
+	p := newPacing(0, 0)
+	// The middle of 2.0 and 3.0 reaches the full rate, so the policy's 4.0 is next, which is heavier than the 3.0 that did not hold.
+	p.at, p.full, p.policy, p.bad, p.until = 2_000_000, 2_500_000, 4_000_000, 3_000_000, now.Add(time.Minute)
+	_, ok, refused := p.lift(now)
+	if want := (notLifted{why: rateDidNotHold, detail: media.Bitrate(3_000_000).String()}); ok || refused != want {
+		t.Errorf("lift = %t, %+v, want a refusal %+v", ok, refused, want)
 	}
 }
