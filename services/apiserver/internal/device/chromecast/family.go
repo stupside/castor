@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 	"strconv"
 	"sync"
 
 	castmedia "github.com/vishen/go-chromecast/cast"
-	castdns "github.com/vishen/go-chromecast/dns"
 
 	"github.com/stupside/castor/services/apiserver/internal/device"
+	"github.com/stupside/castor/services/apiserver/internal/device/lan"
 )
 
 const (
@@ -73,62 +74,18 @@ func named(host string, port int) string {
 	return host
 }
 
-// Discover browses mDNS (_googlecast._tcp) until ctx expires.
+// Discover browses mDNS on every LAN interface until ctx expires.
 func (Family) Discover(ctx context.Context) []device.Info {
-	interfaces, err := net.Interfaces()
+	interfaces, err := lan.Interfaces()
 	if err != nil {
 		slog.WarnContext(ctx, "chromecast interfaces", "error", err)
 		return nil
 	}
-	var mu sync.Mutex
+	found := make([][]device.Info, len(interfaces))
 	var wg sync.WaitGroup
-	var devices []device.Info
-	for _, iface := range interfaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagMulticast == 0 {
-			continue
-		}
-		wg.Go(func() {
-			entries, err := castdns.DiscoverCastDNSEntries(ctx, &iface)
-			if err != nil {
-				slog.DebugContext(ctx, "chromecast discovery", "interface", iface.Name, "error", err)
-				return
-			}
-			for entry := range entries {
-				if found, ok := infoOnInterface(entry, iface.Name); ok {
-					mu.Lock()
-					devices = append(devices, found)
-					mu.Unlock()
-				}
-			}
-		})
+	for i, iface := range interfaces {
+		wg.Go(func() { found[i] = discoverOn(ctx, iface) })
 	}
 	wg.Wait()
-	return devices
-}
-
-func infoOnInterface(entry castdns.CastEntry, zone string) (device.Info, bool) {
-	var host string
-	switch {
-	case entry.AddrV4 != nil:
-		host = entry.AddrV4.String()
-	case entry.AddrV6 != nil:
-		host = entry.AddrV6.String()
-		if entry.AddrV6.IsLinkLocalUnicast() {
-			if zone == "" {
-				return device.Info{}, false
-			}
-			host += "%" + zone
-		}
-	default:
-		return device.Info{}, false
-	}
-
-	address := named(host, entry.Port)
-
-	return device.Info{
-		ID:      cmp.Or(entry.UUID, address),
-		Name:    cmp.Or(entry.DeviceName, entry.Name, entry.Host),
-		Type:    familyType,
-		Address: address,
-	}, true
+	return slices.Concat(found...)
 }
