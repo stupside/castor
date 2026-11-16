@@ -20,7 +20,7 @@ type recognizer struct {
 	vadModelPath string
 }
 
-func (r recognizer) Recognize(ctx context.Context, samples []float32, offset float64, prompt string) ([]subtitle.Word, error) {
+func (r recognizer) Recognize(ctx context.Context, samples []float32, offset float64) ([]subtitle.Word, error) {
 	if err := context.Cause(ctx); err != nil {
 		return nil, err
 	}
@@ -40,14 +40,10 @@ func (r recognizer) Recognize(ctx context.Context, samples []float32, offset flo
 	wctx.SetVAD(true)
 	wctx.SetVADModelPath(r.vadModelPath)
 
-	// One word per segment, since LocalAgreement matches word by word.
+	// One token per segment: a segment's times are mapped back from the VAD's, a token's are not,
+	// and words are rebuilt from the tokens so scripts written without spaces work too.
 	wctx.SetTokenTimestamps(true)
-	wctx.SetSplitOnWord(true)
 	wctx.SetMaxSegmentLength(1)
-
-	if prompt != "" {
-		wctx.SetInitialPrompt(prompt)
-	}
 
 	if err := wctx.Process(samples, func() bool { return ctx.Err() == nil }, nil, nil); err != nil {
 		if cause := context.Cause(ctx); cause != nil {
@@ -59,7 +55,7 @@ func (r recognizer) Recognize(ctx context.Context, samples []float32, offset flo
 		return nil, err
 	}
 
-	var words []subtitle.Word
+	var pieces []subtitle.Piece
 	for {
 		seg, err := wctx.NextSegment()
 		if errors.Is(err, io.EOF) {
@@ -68,16 +64,15 @@ func (r recognizer) Recognize(ctx context.Context, samples []float32, offset flo
 		if err != nil {
 			return nil, fmt.Errorf("whisper segment: %w", err)
 		}
-		if isNoise(seg.Text) {
-			continue
+		var text strings.Builder
+		for _, token := range seg.Tokens {
+			if wctx.IsText(token) {
+				text.WriteString(token.Text)
+			}
 		}
-		words = append(words, subtitle.Word{
-			Start: seg.Start.Seconds() + offset,
-			End:   seg.End.Seconds() + offset,
-			Text:  seg.Text,
-		})
+		pieces = append(pieces, subtitle.Piece{Start: seg.Start.Seconds() + offset, End: seg.End.Seconds() + offset, Text: text.String()})
 	}
-	return words, nil
+	return withoutAnnotations(subtitle.GroupPieces(pieces)), nil
 }
 
 // checkLanguage refuses a language an English-only model cannot transcribe, once, as the model loads.
@@ -88,10 +83,27 @@ func checkLanguage(model wcpp.Model, language string) error {
 	return nil
 }
 
-// isNoise is whisper's annotation of what is not speech, or the empty text of borderline audio.
-func isNoise(s string) bool {
-	if s == "" {
-		return true
+// withoutAnnotations drops whisper's bracketed notes about what is not speech, such as [Music] or (laughs), and its music notes.
+func withoutAnnotations(words []subtitle.Word) []subtitle.Word {
+	var kept []subtitle.Word
+	closer := "" // set inside a bracketed note, until the word that closes it
+	for _, w := range words {
+		if closer == "" {
+			switch {
+			case strings.HasPrefix(w.Text, "["):
+				closer = "]"
+			case strings.HasPrefix(w.Text, "("):
+				closer = ")"
+			case strings.HasPrefix(w.Text, "♪"):
+				continue
+			default:
+				kept = append(kept, w)
+				continue
+			}
+		}
+		if strings.HasSuffix(w.Text, closer) {
+			closer = ""
+		}
 	}
-	return s[0] == '[' || s[0] == '(' || strings.HasPrefix(s, "♪")
+	return kept
 }

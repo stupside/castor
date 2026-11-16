@@ -44,7 +44,6 @@ type workerRequest struct {
 	workerConfig
 	Samples []float32
 	Offset  float64
-	Prompt  string
 }
 type workerResponse struct {
 	Words []subtitle.Word
@@ -80,7 +79,7 @@ func readFrame(r io.Reader, value any) error {
 	return json.Unmarshal(payload, value)
 }
 func (r workerRequest) validate() error {
-	if len(r.Samples) > 30*subtitle.SampleRate || len(r.Prompt) > 4096 || len(r.ModelPath) > 8192 || len(r.VADPath) > 8192 || len(r.Language) > 32 || math.IsNaN(r.Offset) || math.IsInf(r.Offset, 0) {
+	if len(r.Samples) > 30*subtitle.SampleRate || len(r.ModelPath) > 8192 || len(r.VADPath) > 8192 || len(r.Language) > 32 || math.IsNaN(r.Offset) || math.IsInf(r.Offset, 0) {
 		return errors.New("native recognition request exceeds limits")
 	}
 	return nil
@@ -121,7 +120,7 @@ func serveWorker(in io.Reader, out io.Writer) error {
 		if req.workerConfig != config {
 			return errors.New("native worker configuration changed")
 		}
-		words, err := (recognizer{model: model, language: req.Language, vadModelPath: req.VADPath}).Recognize(context.Background(), req.Samples, req.Offset, req.Prompt)
+		words, err := (recognizer{model: model, language: req.Language, vadModelPath: req.VADPath}).Recognize(context.Background(), req.Samples, req.Offset)
 		response := workerResponse{Words: words}
 		if err != nil {
 			response.Error = err.Error()

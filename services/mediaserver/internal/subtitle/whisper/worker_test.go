@@ -55,7 +55,7 @@ func TestWorkerRoundTripAndRecycling(t *testing.T) {
 	start := r.start
 	r.start = func() *exec.Cmd { starts++; return start() }
 	for range workerWindows + 1 {
-		words, err := r.Recognize(t.Context(), []float32{0}, 4, "")
+		words, err := r.Recognize(t.Context(), []float32{0}, 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func TestWorkerDeadlineAndCrashAreBounded(t *testing.T) {
 			r.timeout = 100 * time.Millisecond
 			defer r.Close()
 			start := time.Now()
-			_, err := r.Recognize(t.Context(), []float32{0}, 0, "")
+			_, err := r.Recognize(t.Context(), []float32{0}, 0)
 			if err == nil {
 				t.Fatal("worker failure lost")
 			}
@@ -96,7 +96,7 @@ func TestRequestCancellationReapsInFlightInference(t *testing.T) {
 	defer r.Close()
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	go func() { _, err := r.Recognize(ctx, []float32{0}, 0, ""); done <- err }()
+	go func() { _, err := r.Recognize(ctx, []float32{0}, 0); done <- err }()
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 	if err := <-done; !errors.Is(err, context.Canceled) {
@@ -115,7 +115,7 @@ func TestWorkerFramesAndRequestsAreBounded(t *testing.T) {
 	if err := readFrame(strings.NewReader("\x00\x00\x00\x05x"), &workerRequest{}); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatal(err)
 	}
-	if err := (workerRequest{Prompt: strings.Repeat("x", 4097)}).validate(); err == nil {
-		t.Fatal("unbounded prompt accepted")
+	if err := (workerRequest{ModelPath: strings.Repeat("x", 8193)}).validate(); err == nil {
+		t.Fatal("unbounded model path accepted")
 	}
 }

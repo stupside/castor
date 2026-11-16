@@ -40,11 +40,11 @@ func (r *workerRecognizer) Close() {
 	}
 }
 
-func (r *workerRecognizer) Recognize(ctx context.Context, samples []float32, offset float64, prompt string) ([]subtitle.Word, error) {
+func (r *workerRecognizer) Recognize(ctx context.Context, samples []float32, offset float64) ([]subtitle.Word, error) {
 	if err := context.Cause(ctx); err != nil {
 		return nil, err
 	}
-	req := workerRequest{workerConfig: r.config, Samples: samples, Offset: offset, Prompt: prompt}
+	req := workerRequest{workerConfig: r.config, Samples: samples, Offset: offset}
 	if err := req.validate(); err != nil {
 		return nil, err
 	}

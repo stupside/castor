@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	wcpp "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
+
+	"github.com/stupside/castor/services/mediaserver/internal/subtitle"
 )
 
 type languageContext struct {
@@ -36,7 +38,7 @@ func TestAutomaticRecognitionEnablesLanguageDetection(t *testing.T) {
 	// whisper_full_default_params starts with English pinned, even for a multilingual model.
 	ctx := &languageContext{language: "en"}
 	r := recognizer{model: languageModel{context: ctx}, language: "auto"}
-	if _, err := r.Recognize(t.Context(), make([]float32, 1600), 0, ""); err != nil {
+	if _, err := r.Recognize(t.Context(), make([]float32, 1600), 0); err != nil {
 		t.Fatal(err)
 	}
 	if ctx.language != "auto" {
@@ -63,5 +65,19 @@ func TestAnEnglishOnlyModelIsRefusedAtLoadForAnyOtherLanguage(t *testing.T) {
 		if (err != nil) != tc.refused || (err != nil && !strings.Contains(err.Error(), "supports English only")) {
 			t.Errorf("multilingual %v, language %q: checkLanguage = %v, want refused %v", tc.multilingual, tc.language, err, tc.refused)
 		}
+	}
+}
+
+func TestAnnotationsOfWhatIsNotSpeechAreDropped(t *testing.T) {
+	var words []subtitle.Word
+	for w := range strings.FieldsSeq("[Music] Hello (he laughs) there ♪ [BLANK_AUDIO] (speaking in foreign language) friend") {
+		words = append(words, subtitle.Word{Text: w})
+	}
+	var got []string
+	for _, w := range withoutAnnotations(words) {
+		got = append(got, w.Text)
+	}
+	if want := "Hello there friend"; strings.Join(got, " ") != want {
+		t.Errorf("withoutAnnotations = %q, want %q", got, want)
 	}
 }

@@ -38,7 +38,7 @@ func TestNativeWorkerRealRecognition(t *testing.T) {
 			r := newWorker(workerConfig{ModelPath: model, VADPath: vad, Language: "en"})
 			defer r.Close()
 			for window := range windows {
-				words, err := r.Recognize(t.Context(), samples, 0, "President Kennedy")
+				words, err := r.Recognize(t.Context(), samples, 0)
 				if err != nil {
 					t.Fatal(err)
 				}
