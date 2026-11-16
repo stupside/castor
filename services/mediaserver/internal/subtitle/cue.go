@@ -11,7 +11,6 @@ const (
 	cueGapSeconds = 1.0
 	cueMinSeconds = 1.2
 	cueMaxSeconds = 6.0
-	cueMaxChars   = 84 // two 42-column broadcast lines
 
 	cuePauseSeconds = 0.4
 
@@ -66,15 +65,15 @@ func (c *Cues) Commit(words []Word, settledTo float64) {
 	}
 	silentTail := len(c.pending) > 0 &&
 		settledTo-c.pending[len(c.pending)-1].End >= cueGapSeconds
-	var committed []Cue
-	c.pending, committed = closeCues(c.pending, silentTail)
 	c.settledTo = max(c.settledTo, settledTo)
+	var committed []Cue
+	c.pending, committed = closeCues(c.pending, c.settledTo, silentTail)
 	c.publish(committed, false)
 }
 
 // Close flushes every remaining word into cues. Call it once, after the final Commit.
 func (c *Cues) Close() {
-	remaining, committed := closeCues(c.pending, true)
+	remaining, committed := closeCues(c.pending, c.settledTo, true)
 	c.pending = remaining
 	c.publish(committed, true)
 }
@@ -167,7 +166,8 @@ func (c *Cues) cueAt(tSec float64) string {
 	return ""
 }
 
-func closeCues(pending []Word, final bool) ([]Word, []Cue) {
+// closeCues cuts the words that form complete cues; a cue may stay on screen until the next word or settled.
+func closeCues(pending []Word, settled float64, final bool) ([]Word, []Cue) {
 	var committed []Cue
 	for len(pending) > 0 {
 		cut := cueCut(pending)
@@ -177,46 +177,42 @@ func closeCues(pending []Word, final bool) ([]Word, []Cue) {
 			}
 			cut = len(pending)
 		}
-		committed = append(committed, makeCue(pending[:cut]))
+		limit := settled
+		if cut < len(pending) {
+			limit = pending[cut].Start
+		}
+		committed = append(committed, makeCue(pending[:cut], limit))
 		pending = pending[cut:]
 	}
 	return pending, committed
 }
 
-func makeCue(words []Word) Cue {
-	var sb strings.Builder
-	for i, w := range words {
-		if i > 0 {
-			sb.WriteByte(' ')
-		}
-		sb.WriteString(w.Text)
-	}
+// makeCue ends the cue late enough to read at cueColumnsPerSecond, but never past limit.
+func makeCue(words []Word, limit float64) Cue {
+	text := cueText(words)
 	start, end := trimCueEdges(words[0].Start, words[len(words)-1].End)
-	return Cue{Start: start, End: end, Text: sb.String()}
+	end = max(end, min(start+float64(columns(text))/cueColumnsPerSecond, limit))
+	return Cue{Start: start, End: end, Text: text}
 }
 
 func cueCut(pending []Word) int {
-	chars := 0
 	lastBreak := 0 // words up to the most recent clause break or pause
 	for i, w := range pending {
 		if i > 0 && w.Start-pending[i-1].End >= cueGapSeconds {
 			return i
 		}
-		chars += utf8.RuneCountInString(w.Text)
-		if i > 0 {
-			chars++ // joining space
-		}
+		fits := fitsLines(pending[:i+1])
 		span := w.End - pending[0].Start
 
 		// Over budget: end the line at a natural boundary, not mid-phrase.
-		if (chars > cueMaxChars || span >= cueMaxSeconds) && i > 0 {
-			if chars <= cueMaxChars && clauseEnd(w.Text) {
+		if (!fits || span >= cueMaxSeconds) && i > 0 {
+			if fits && clauseEnd(w.Text) {
 				return i + 1
 			}
 			if lastBreak > 0 {
 				return lastBreak
 			}
-			if chars > cueMaxChars {
+			if !fits {
 				return i
 			}
 			return i + 1
@@ -247,12 +243,12 @@ func trimCueEdges(start, end float64) (float64, float64) {
 func sentenceEnd(s string) bool {
 	s = strings.TrimRight(s, `"')]`+"”’")
 	r, _ := utf8.DecodeLastRuneInString(s)
-	return strings.ContainsRune(".?!…", r)
+	return strings.ContainsRune(".?!…。！？", r)
 }
 
 // clauseEnd reports whether a word ends a clause, ignoring trailing quotes and brackets.
 func clauseEnd(s string) bool {
 	s = strings.TrimRight(s, `"')]`+"”’")
 	r, _ := utf8.DecodeLastRuneInString(s)
-	return strings.ContainsRune(".?!…,;:—", r)
+	return strings.ContainsRune(".?!…,;:—。！？，、；：", r)
 }

@@ -209,7 +209,7 @@ func TestCaptionTimelinePreservesAudioBeforeVideo(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := captionRequest(t, c, "caption-0.vtt").Body.String()
-	if !strings.Contains(text, "00:00:00.450 --> 00:00:01.400") || !strings.Contains(text, "Before the picture.") || !strings.Contains(text, "00:00:02.650 --> 00:00:03.300") {
+	if !strings.Contains(text, "00:00:00.450 --> 00:00:01.400") || !strings.Contains(text, "Before the picture.") || !strings.Contains(text, "00:00:02.650 --> 00:00:03.698") {
 		t.Fatalf("cue lost source clock: %s", text)
 	}
 	var ticks int64

@@ -1,6 +1,7 @@
 package subtitle
 
 import (
+	"strings"
 	"sync"
 	"testing"
 )
@@ -211,5 +212,65 @@ func TestConcurrentPruningDoesNotRestoreConsumedPrefix(t *testing.T) {
 	c.DiscardBefore(2994)
 	if got := c.Snapshot(0, 4000); len(got.Cues) != 2 || !got.Complete {
 		t.Fatalf("concurrent prune retained %d cues complete=%v", len(got.Cues), got.Complete)
+	}
+}
+
+func wordsOf(widths ...int) []Word {
+	words := make([]Word, len(widths))
+	for i, n := range widths {
+		start := float64(i) * 0.5
+		words[i] = Word{Start: start, End: start + 0.4, Text: strings.Repeat("x", n)}
+	}
+	return words
+}
+
+func TestACueNeverNeedsMoreThanTwoLines(t *testing.T) {
+	// 68 columns in all, under two lines' worth, but three 22-column words only wrap onto three lines.
+	words := wordsOf(22, 22, 22)
+	if fitsLines(words) {
+		t.Fatal("three 22-column words fit on two 42-column lines")
+	}
+	if got := cueCut(words); got != 2 {
+		t.Fatalf("cueCut = %d, want the cue cut before the word that needs a third line", got)
+	}
+	if !fitsLines(wordsOf(20, 20, 20, 20)) {
+		t.Fatal("four 20-column words need only two lines")
+	}
+}
+
+func TestCueTextBreaksAtTheBetterBoundary(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		text string
+		want string
+	}{
+		{"a short cue stays on one line", "Let's start with the basics.", "Let's start with the basics."},
+		{"lines are balanced", "We have better maps of Mars than of our own seafloor", "We have better maps of Mars\nthan of our own seafloor"},
+		{"a clause end is the better break", "At nine o'clock this morning, Mission Control lost contact", "At nine o'clock this morning,\nMission Control lost contact"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var words []Word
+			for w := range strings.FieldsSeq(tt.text) {
+				words = append(words, Word{Text: w})
+			}
+			if got := cueText(words); got != tt.want {
+				t.Errorf("cueText = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestACueStaysUpLongEnoughToReadButNeverOverTheNextWord(t *testing.T) {
+	words := []Word{{Start: 10, End: 10.6, Text: "I'm"}, {Start: 10.6, End: 11, Text: "sorry,"}, {Start: 11, End: 11.9, Text: "Dave, I can't do that."}}
+	// 33 columns need 1.57s at 21 per second, more than the 1.55s the edge-trimmed words span.
+	got := makeCue(words, 20)
+	if want := float64(columns(got.Text)) / cueColumnsPerSecond; got.End-got.Start < want-1e-9 {
+		t.Errorf("cue lasts %.2fs, want the %.2fs its text needs", got.End-got.Start, want)
+	}
+	if got := makeCue(words, 11.71); got.End != 11.71 {
+		t.Errorf("cue ends at %.2f, want it held back by the next word at 11.71", got.End)
+	}
+	if got := makeCue(wordsOf(5), 99); got.End != 0.4 {
+		t.Errorf("an easily read cue now ends at %.2f, want its words' own 0.4", got.End)
 	}
 }
