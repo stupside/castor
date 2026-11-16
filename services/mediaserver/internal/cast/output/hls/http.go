@@ -1,6 +1,7 @@
 package hls
 
 import (
+	"log/slog"
 	"net/http"
 	"path"
 	"strings"
@@ -22,6 +23,7 @@ func (s *Segments) Handler() http.Handler {
 			return
 		}
 		if s.store.captions != nil && s.store.captions.serve(w, r) {
+			slog.DebugContext(r.Context(), "answered a request for the captions", "path", r.URL.Path, "status", w.Status, "bytes", w.Bytes)
 			return
 		}
 		// Go doesn't register .m3u8/.m4s; set type before ServeContent sniffs.
