@@ -14,6 +14,8 @@ const (
 	searchTarget  = "urn:schemas-upnp-org:device:MediaRenderer:1"
 	ssdpPort      = "1900"
 	searchTimeout = 3 * time.Second
+	// multicastSearchTimeout is how long a multicast search waits for answers.
+	multicastSearchTimeout = 2 * time.Second
 )
 
 // ssdpTarget is address on SSDP's own port; a typed port is the device's HTTP server.

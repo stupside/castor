@@ -6,12 +6,19 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/huin/goupnp"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/stupside/castor/services/apiserver/internal/device"
+	"github.com/stupside/castor/services/apiserver/internal/device/ssdp"
 )
+
+// descriptionReaders bounds the descriptions read at once, however many devices answer.
+const descriptionReaders = 16
 
 // serviceVersions: UPnP service versions (newest first); many implement :3, not just :1.
 var serviceVersions = []int{3, 2, 1}
@@ -27,32 +34,41 @@ func (Family) Type() device.Type { return familyType }
 var _ device.Family = Family{}
 
 func (Family) Discover(ctx context.Context) []device.Info {
-	results, err := goupnp.DiscoverDevicesCtx(ctx, searchTarget)
+	responses, err := ssdp.Search(ctx, searchTarget, multicastSearchTimeout)
 	if err != nil {
 		slog.WarnContext(ctx, "dlna discovery error", "error", err)
 		return nil
 	}
-
-	var devices []device.Info
-	for _, result := range results {
-		if info, ok := info(result); ok {
-			devices = append(devices, info)
-		}
-	}
-	return devices
+	return readDescriptions(ctx, responses, goupnp.DeviceByURLCtx)
 }
 
-func info(result goupnp.MaybeRootDevice) (device.Info, bool) {
-	if result.Root == nil || result.Location == nil {
-		return device.Info{}, false
+// readDescriptions reads the answering devices' descriptions together, so one that never answers hides no other.
+func readDescriptions(ctx context.Context, responses []*http.Response, read func(context.Context, *url.URL) (*goupnp.RootDevice, error)) []device.Info {
+	found := make([]device.Info, len(responses))
+	var readers errgroup.Group
+	readers.SetLimit(descriptionReaders)
+	for i, response := range responses {
+		readers.Go(func() error {
+			location, err := response.Location()
+			if err != nil || ctx.Err() != nil {
+				return nil
+			}
+			root, err := read(ctx, location)
+			if err != nil {
+				slog.WarnContext(ctx, "dlna device answered without describing itself", "location", location.String(), "error", err)
+				return nil
+			}
+			found[i] = device.Info{
+				ID:      cmp.Or(response.Header.Get("USN"), location.String()),
+				Name:    root.Device.FriendlyName,
+				Type:    familyType,
+				Address: location.String(),
+			}
+			return nil
+		})
 	}
-
-	return device.Info{
-		ID:      cmp.Or(result.USN, result.Location.String()),
-		Name:    result.Root.Device.FriendlyName,
-		Type:    familyType,
-		Address: result.Location.String(),
-	}, true
+	_ = readers.Wait() // no reader reports an error: a device that fails is only left out
+	return slices.DeleteFunc(found, func(info device.Info) bool { return info == device.Info{} })
 }
 
 // Locate trusts an HTTP address and finds any other with a unicast M-SEARCH, no multicast.

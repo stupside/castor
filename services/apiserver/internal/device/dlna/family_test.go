@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"net/url"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/huin/goupnp"
@@ -95,4 +97,32 @@ func TestSSDPSearchWithoutCallerDeadlineStillEnds(t *testing.T) {
 	if elapsed := time.Since(started); elapsed > searchTimeout+time.Second {
 		t.Fatalf("unanswered SSDP search waited %s beyond its %s budget", elapsed, searchTimeout)
 	}
+}
+
+func TestADeviceThatNeverDescribesItselfHidesNoOtherDevice(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		answer := func(usn, location string) *http.Response {
+			return &http.Response{Header: http.Header{"Usn": {usn}, "Location": {location}}}
+		}
+		// The device that hangs answers first: read one after the other, it would leave the others no time.
+		responses := []*http.Response{answer("uuid:asleep", "http://asleep.test/d.xml"), answer("uuid:tv", "http://tv.test/d.xml"), answer("uuid:gone", "http://gone.test/d.xml")}
+		found := readDescriptions(ctx, responses, func(ctx context.Context, location *url.URL) (*goupnp.RootDevice, error) {
+			switch location.Host {
+			case "asleep.test":
+				<-ctx.Done()
+				return nil, ctx.Err()
+			case "gone.test":
+				return nil, errors.New("connection refused")
+			}
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			return &goupnp.RootDevice{Device: goupnp.Device{FriendlyName: "Living Room TV"}}, nil
+		})
+		if len(found) != 1 || found[0].Name != "Living Room TV" || found[0].ID != "uuid:tv" || found[0].Address != "http://tv.test/d.xml" {
+			t.Fatalf("readDescriptions = %+v, want only the living room TV", found)
+		}
+	})
 }
