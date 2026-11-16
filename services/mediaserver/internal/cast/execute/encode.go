@@ -26,6 +26,8 @@ import (
 type encodePlan struct {
 	encoding.EncodeOptions
 	delivery output.Selection
+	// captioned is a delivery that carries the generated captions in its own playlist.
+	captioned bool
 }
 
 // encode decides codecs within the envelope accepted by the output adapter.
@@ -61,7 +63,7 @@ func (s *preparation) encode(f feed, burn burnRenderer) (encodePlan, error) {
 			planningErr = errors.Join(planningErr, fmt.Errorf("%s: %w", into.ContentType, err))
 			continue
 		}
-		return encodePlan{delivery: selected,
+		return encodePlan{delivery: selected, captioned: captions != nil,
 			Input: input, Format: into, Probe: facts.probe,
 			Video: decided.Video, Audio: decided.Audio}, nil
 	}

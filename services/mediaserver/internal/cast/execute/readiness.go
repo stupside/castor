@@ -51,7 +51,7 @@ func (p presentation) stream() Stream {
 	case p.source:
 		return Source{ContentType: p.contentType, Runtime: p.runtime, Live: p.live}
 	case p.contentType == media.HLS:
-		return Playlist{Runtime: p.runtime, Segments: p.segments, Live: p.live}
+		return Playlist{Runtime: p.runtime, Segments: p.segments, Live: p.live, EmbeddedCaptions: p.embeddedCaptions}
 	}
 	served := Served{ContentType: p.contentType, Live: p.live}
 	if p.runtime > 0 {

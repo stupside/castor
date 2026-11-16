@@ -2435,9 +2435,11 @@ type DeviceCommand_Play_Playlist struct {
 	//	*DeviceCommand_Play_Playlist_Live
 	Length isDeviceCommand_Play_Playlist_Length `protobuf_oneof:"length"`
 	// segments is the container the playlist is cut into.
-	Segments      Container `protobuf:"varint,2,opt,name=segments,proto3,enum=castor.media.v1.Container" json:"segments,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Segments Container `protobuf:"varint,2,opt,name=segments,proto3,enum=castor.media.v1.Container" json:"segments,omitempty"`
+	// embedded_captions is present where the playlist itself carries a caption track, which the device is to show.
+	EmbeddedCaptions *DeviceCommand_Play_EmbeddedCaptions `protobuf:"bytes,4,opt,name=embedded_captions,json=embeddedCaptions,proto3" json:"embedded_captions,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *DeviceCommand_Play_Playlist) Reset() {
@@ -2502,6 +2504,13 @@ func (x *DeviceCommand_Play_Playlist) GetSegments() Container {
 	return Container_CONTAINER_UNSPECIFIED
 }
 
+func (x *DeviceCommand_Play_Playlist) GetEmbeddedCaptions() *DeviceCommand_Play_EmbeddedCaptions {
+	if x != nil {
+		return x.EmbeddedCaptions
+	}
+	return nil
+}
+
 type isDeviceCommand_Play_Playlist_Length interface {
 	isDeviceCommand_Play_Playlist_Length()
 }
@@ -2518,6 +2527,43 @@ func (*DeviceCommand_Play_Playlist_Duration) isDeviceCommand_Play_Playlist_Lengt
 
 func (*DeviceCommand_Play_Playlist_Live) isDeviceCommand_Play_Playlist_Length() {}
 
+// EmbeddedCaptions is a caption track a playlist lists itself, beside any captions the Play names.
+type DeviceCommand_Play_EmbeddedCaptions struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeviceCommand_Play_EmbeddedCaptions) Reset() {
+	*x = DeviceCommand_Play_EmbeddedCaptions{}
+	mi := &file_castor_media_v1_device_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeviceCommand_Play_EmbeddedCaptions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeviceCommand_Play_EmbeddedCaptions) ProtoMessage() {}
+
+func (x *DeviceCommand_Play_EmbeddedCaptions) ProtoReflect() protoreflect.Message {
+	mi := &file_castor_media_v1_device_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeviceCommand_Play_EmbeddedCaptions.ProtoReflect.Descriptor instead.
+func (*DeviceCommand_Play_EmbeddedCaptions) Descriptor() ([]byte, []int) {
+	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{14, 1, 4}
+}
+
 // Live is a stream with no end, so no length.
 type DeviceCommand_Play_Live struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2527,7 +2573,7 @@ type DeviceCommand_Play_Live struct {
 
 func (x *DeviceCommand_Play_Live) Reset() {
 	*x = DeviceCommand_Play_Live{}
-	mi := &file_castor_media_v1_device_proto_msgTypes[31]
+	mi := &file_castor_media_v1_device_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2539,7 +2585,7 @@ func (x *DeviceCommand_Play_Live) String() string {
 func (*DeviceCommand_Play_Live) ProtoMessage() {}
 
 func (x *DeviceCommand_Play_Live) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_device_proto_msgTypes[31]
+	mi := &file_castor_media_v1_device_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2552,7 +2598,7 @@ func (x *DeviceCommand_Play_Live) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceCommand_Play_Live.ProtoReflect.Descriptor instead.
 func (*DeviceCommand_Play_Live) Descriptor() ([]byte, []int) {
-	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{14, 1, 4}
+	return file_castor_media_v1_device_proto_rawDescGZIP(), []int{14, 1, 5}
 }
 
 type DeviceError_Gone struct {
@@ -2566,7 +2612,7 @@ type DeviceError_Gone struct {
 
 func (x *DeviceError_Gone) Reset() {
 	*x = DeviceError_Gone{}
-	mi := &file_castor_media_v1_device_proto_msgTypes[32]
+	mi := &file_castor_media_v1_device_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2578,7 +2624,7 @@ func (x *DeviceError_Gone) String() string {
 func (*DeviceError_Gone) ProtoMessage() {}
 
 func (x *DeviceError_Gone) ProtoReflect() protoreflect.Message {
-	mi := &file_castor_media_v1_device_proto_msgTypes[32]
+	mi := &file_castor_media_v1_device_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2729,7 +2775,7 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\fAudioSupport\x12=\n" +
 	"\x05codec\x18\x01 \x01(\x0e2\x1b.castor.media.v1.AudioCodecB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x05codec\x12!\n" +
-	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\xeb\x10\n" +
+	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\xe2\x11\n" +
 	"\rDeviceCommand\x129\n" +
 	"\x04call\x18\x01 \x01(\v2#.castor.media.v1.DeviceCommand.CallH\x00R\x04call\x12?\n" +
 	"\x06cancel\x18\x02 \x01(\v2%.castor.media.v1.DeviceCommand.CancelH\x00R\x06cancel\x1a\xfc\x02\n" +
@@ -2740,8 +2786,7 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\x05pause\x18\x04 \x01(\v2$.castor.media.v1.DeviceCommand.PauseH\x00R\x05pause\x12?\n" +
 	"\x06resume\x18\x05 \x01(\v2%.castor.media.v1.DeviceCommand.ResumeH\x00R\x06resume\x12E\n" +
 	"\bposition\x18\x06 \x01(\v2'.castor.media.v1.DeviceCommand.PositionH\x00R\bpositionB\x12\n" +
-	"\toperation\x12\x05\xbaH\x02\b\x01\x1a\xaa\n" +
-	"\n" +
+	"\toperation\x12\x05\xbaH\x02\b\x01\x1a\xa1\v\n" +
 	"\x04Play\x12)\n" +
 	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
 	"^https?://\x88\x01\x01R\x03url\x12B\n" +
@@ -2769,13 +2814,15 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\x10SEEK_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"SEEK_START\x10\x01\x12\r\n" +
-	"\tSEEK_TIME\x10\x02\x1a\xdb\x01\n" +
+	"\tSEEK_TIME\x10\x02\x1a\xbe\x02\n" +
 	"\bPlaylist\x12A\n" +
 	"\bduration\x18\x01 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00H\x00R\bduration\x12>\n" +
 	"\x04live\x18\x03 \x01(\v2(.castor.media.v1.DeviceCommand.Play.LiveH\x00R\x04live\x12B\n" +
 	"\bsegments\x18\x02 \x01(\x0e2\x1a.castor.media.v1.ContainerB\n" +
-	"\xbaH\a\x82\x01\x04\x18\x01\x18\x02R\bsegmentsB\b\n" +
-	"\x06length\x1a\x06\n" +
+	"\xbaH\a\x82\x01\x04\x18\x01\x18\x02R\bsegments\x12a\n" +
+	"\x11embedded_captions\x18\x04 \x01(\v24.castor.media.v1.DeviceCommand.Play.EmbeddedCaptionsR\x10embeddedCaptionsB\b\n" +
+	"\x06length\x1a\x12\n" +
+	"\x10EmbeddedCaptions\x1a\x06\n" +
 	"\x04LiveB\x0f\n" +
 	"\x06stream\x12\x05\xbaH\x02\b\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\tcontainerR\bdurationR\x04seek\x1a\xc2\x01\n" +
 	"\aCaption\x12)\n" +
@@ -2844,52 +2891,53 @@ func file_castor_media_v1_device_proto_rawDescGZIP() []byte {
 }
 
 var file_castor_media_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
-var file_castor_media_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_castor_media_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_castor_media_v1_device_proto_goTypes = []any{
-	(CaptionFormat)(0),                     // 0: castor.media.v1.CaptionFormat
-	(Container)(0),                         // 1: castor.media.v1.Container
-	(AudioCodec)(0),                        // 2: castor.media.v1.AudioCodec
-	(ProgressiveSupport_Container)(0),      // 3: castor.media.v1.ProgressiveSupport.Container
-	(HLSSupport_Subtitles)(0),              // 4: castor.media.v1.HLSSupport.Subtitles
-	(HLSSupport_ExtraSegmentFormat)(0),     // 5: castor.media.v1.HLSSupport.ExtraSegmentFormat
-	(H264Support_Profile)(0),               // 6: castor.media.v1.H264Support.Profile
-	(HEVCSupport_Profile)(0),               // 7: castor.media.v1.HEVCSupport.Profile
-	(DeviceCommand_Play_Runtime_Seek)(0),   // 8: castor.media.v1.DeviceCommand.Play.Runtime.Seek
-	(*DriveRequest)(nil),                   // 9: castor.media.v1.DriveRequest
-	(*DriveResponse)(nil),                  // 10: castor.media.v1.DriveResponse
-	(*AnswerRequest)(nil),                  // 11: castor.media.v1.AnswerRequest
-	(*AnswerResponse)(nil),                 // 12: castor.media.v1.AnswerResponse
-	(*Capabilities)(nil),                   // 13: castor.media.v1.Capabilities
-	(*FormatSupport)(nil),                  // 14: castor.media.v1.FormatSupport
-	(*AVSupport)(nil),                      // 15: castor.media.v1.AVSupport
-	(*ProgressiveSupport)(nil),             // 16: castor.media.v1.ProgressiveSupport
-	(*HLSSupport)(nil),                     // 17: castor.media.v1.HLSSupport
-	(*VideoSupport)(nil),                   // 18: castor.media.v1.VideoSupport
-	(*H264Support)(nil),                    // 19: castor.media.v1.H264Support
-	(*HEVCSupport)(nil),                    // 20: castor.media.v1.HEVCSupport
-	(*VP8Support)(nil),                     // 21: castor.media.v1.VP8Support
-	(*AudioSupport)(nil),                   // 22: castor.media.v1.AudioSupport
-	(*DeviceCommand)(nil),                  // 23: castor.media.v1.DeviceCommand
-	(*DeviceError)(nil),                    // 24: castor.media.v1.DeviceError
-	(*AnswerRequest_Done)(nil),             // 25: castor.media.v1.AnswerRequest.Done
-	(*AnswerRequest_Position)(nil),         // 26: castor.media.v1.AnswerRequest.Position
-	nil,                                    // 27: castor.media.v1.ProgressiveSupport.ServedHeadersEntry
-	(*DeviceCommand_Call)(nil),             // 28: castor.media.v1.DeviceCommand.Call
-	(*DeviceCommand_Play)(nil),             // 29: castor.media.v1.DeviceCommand.Play
-	(*DeviceCommand_Caption)(nil),          // 30: castor.media.v1.DeviceCommand.Caption
-	(*DeviceCommand_AwaitEnd)(nil),         // 31: castor.media.v1.DeviceCommand.AwaitEnd
-	(*DeviceCommand_Pause)(nil),            // 32: castor.media.v1.DeviceCommand.Pause
-	(*DeviceCommand_Resume)(nil),           // 33: castor.media.v1.DeviceCommand.Resume
-	(*DeviceCommand_Position)(nil),         // 34: castor.media.v1.DeviceCommand.Position
-	(*DeviceCommand_Cancel)(nil),           // 35: castor.media.v1.DeviceCommand.Cancel
-	(*DeviceCommand_Play_Source)(nil),      // 36: castor.media.v1.DeviceCommand.Play.Source
-	(*DeviceCommand_Play_Progressive)(nil), // 37: castor.media.v1.DeviceCommand.Play.Progressive
-	(*DeviceCommand_Play_Runtime)(nil),     // 38: castor.media.v1.DeviceCommand.Play.Runtime
-	(*DeviceCommand_Play_Playlist)(nil),    // 39: castor.media.v1.DeviceCommand.Play.Playlist
-	(*DeviceCommand_Play_Live)(nil),        // 40: castor.media.v1.DeviceCommand.Play.Live
-	(*DeviceError_Gone)(nil),               // 41: castor.media.v1.DeviceError.Gone
-	(*durationpb.Duration)(nil),            // 42: google.protobuf.Duration
-	(*descriptorpb.EnumValueOptions)(nil),  // 43: google.protobuf.EnumValueOptions
+	(CaptionFormat)(0),                          // 0: castor.media.v1.CaptionFormat
+	(Container)(0),                              // 1: castor.media.v1.Container
+	(AudioCodec)(0),                             // 2: castor.media.v1.AudioCodec
+	(ProgressiveSupport_Container)(0),           // 3: castor.media.v1.ProgressiveSupport.Container
+	(HLSSupport_Subtitles)(0),                   // 4: castor.media.v1.HLSSupport.Subtitles
+	(HLSSupport_ExtraSegmentFormat)(0),          // 5: castor.media.v1.HLSSupport.ExtraSegmentFormat
+	(H264Support_Profile)(0),                    // 6: castor.media.v1.H264Support.Profile
+	(HEVCSupport_Profile)(0),                    // 7: castor.media.v1.HEVCSupport.Profile
+	(DeviceCommand_Play_Runtime_Seek)(0),        // 8: castor.media.v1.DeviceCommand.Play.Runtime.Seek
+	(*DriveRequest)(nil),                        // 9: castor.media.v1.DriveRequest
+	(*DriveResponse)(nil),                       // 10: castor.media.v1.DriveResponse
+	(*AnswerRequest)(nil),                       // 11: castor.media.v1.AnswerRequest
+	(*AnswerResponse)(nil),                      // 12: castor.media.v1.AnswerResponse
+	(*Capabilities)(nil),                        // 13: castor.media.v1.Capabilities
+	(*FormatSupport)(nil),                       // 14: castor.media.v1.FormatSupport
+	(*AVSupport)(nil),                           // 15: castor.media.v1.AVSupport
+	(*ProgressiveSupport)(nil),                  // 16: castor.media.v1.ProgressiveSupport
+	(*HLSSupport)(nil),                          // 17: castor.media.v1.HLSSupport
+	(*VideoSupport)(nil),                        // 18: castor.media.v1.VideoSupport
+	(*H264Support)(nil),                         // 19: castor.media.v1.H264Support
+	(*HEVCSupport)(nil),                         // 20: castor.media.v1.HEVCSupport
+	(*VP8Support)(nil),                          // 21: castor.media.v1.VP8Support
+	(*AudioSupport)(nil),                        // 22: castor.media.v1.AudioSupport
+	(*DeviceCommand)(nil),                       // 23: castor.media.v1.DeviceCommand
+	(*DeviceError)(nil),                         // 24: castor.media.v1.DeviceError
+	(*AnswerRequest_Done)(nil),                  // 25: castor.media.v1.AnswerRequest.Done
+	(*AnswerRequest_Position)(nil),              // 26: castor.media.v1.AnswerRequest.Position
+	nil,                                         // 27: castor.media.v1.ProgressiveSupport.ServedHeadersEntry
+	(*DeviceCommand_Call)(nil),                  // 28: castor.media.v1.DeviceCommand.Call
+	(*DeviceCommand_Play)(nil),                  // 29: castor.media.v1.DeviceCommand.Play
+	(*DeviceCommand_Caption)(nil),               // 30: castor.media.v1.DeviceCommand.Caption
+	(*DeviceCommand_AwaitEnd)(nil),              // 31: castor.media.v1.DeviceCommand.AwaitEnd
+	(*DeviceCommand_Pause)(nil),                 // 32: castor.media.v1.DeviceCommand.Pause
+	(*DeviceCommand_Resume)(nil),                // 33: castor.media.v1.DeviceCommand.Resume
+	(*DeviceCommand_Position)(nil),              // 34: castor.media.v1.DeviceCommand.Position
+	(*DeviceCommand_Cancel)(nil),                // 35: castor.media.v1.DeviceCommand.Cancel
+	(*DeviceCommand_Play_Source)(nil),           // 36: castor.media.v1.DeviceCommand.Play.Source
+	(*DeviceCommand_Play_Progressive)(nil),      // 37: castor.media.v1.DeviceCommand.Play.Progressive
+	(*DeviceCommand_Play_Runtime)(nil),          // 38: castor.media.v1.DeviceCommand.Play.Runtime
+	(*DeviceCommand_Play_Playlist)(nil),         // 39: castor.media.v1.DeviceCommand.Play.Playlist
+	(*DeviceCommand_Play_EmbeddedCaptions)(nil), // 40: castor.media.v1.DeviceCommand.Play.EmbeddedCaptions
+	(*DeviceCommand_Play_Live)(nil),             // 41: castor.media.v1.DeviceCommand.Play.Live
+	(*DeviceError_Gone)(nil),                    // 42: castor.media.v1.DeviceError.Gone
+	(*durationpb.Duration)(nil),                 // 43: google.protobuf.Duration
+	(*descriptorpb.EnumValueOptions)(nil),       // 44: google.protobuf.EnumValueOptions
 }
 var file_castor_media_v1_device_proto_depIdxs = []int32{
 	13, // 0: castor.media.v1.DriveRequest.capabilities:type_name -> castor.media.v1.Capabilities
@@ -2918,8 +2966,8 @@ var file_castor_media_v1_device_proto_depIdxs = []int32{
 	2,  // 23: castor.media.v1.AudioSupport.codec:type_name -> castor.media.v1.AudioCodec
 	28, // 24: castor.media.v1.DeviceCommand.call:type_name -> castor.media.v1.DeviceCommand.Call
 	35, // 25: castor.media.v1.DeviceCommand.cancel:type_name -> castor.media.v1.DeviceCommand.Cancel
-	41, // 26: castor.media.v1.DeviceError.gone:type_name -> castor.media.v1.DeviceError.Gone
-	42, // 27: castor.media.v1.AnswerRequest.Position.at:type_name -> google.protobuf.Duration
+	42, // 26: castor.media.v1.DeviceError.gone:type_name -> castor.media.v1.DeviceError.Gone
+	43, // 27: castor.media.v1.AnswerRequest.Position.at:type_name -> google.protobuf.Duration
 	29, // 28: castor.media.v1.DeviceCommand.Call.play:type_name -> castor.media.v1.DeviceCommand.Play
 	31, // 29: castor.media.v1.DeviceCommand.Call.await_end:type_name -> castor.media.v1.DeviceCommand.AwaitEnd
 	32, // 30: castor.media.v1.DeviceCommand.Call.pause:type_name -> castor.media.v1.DeviceCommand.Pause
@@ -2931,26 +2979,27 @@ var file_castor_media_v1_device_proto_depIdxs = []int32{
 	39, // 36: castor.media.v1.DeviceCommand.Play.playlist:type_name -> castor.media.v1.DeviceCommand.Play.Playlist
 	0,  // 37: castor.media.v1.DeviceCommand.Caption.format:type_name -> castor.media.v1.CaptionFormat
 	1,  // 38: castor.media.v1.DeviceCommand.Play.Source.container:type_name -> castor.media.v1.Container
-	42, // 39: castor.media.v1.DeviceCommand.Play.Source.duration:type_name -> google.protobuf.Duration
-	40, // 40: castor.media.v1.DeviceCommand.Play.Source.live:type_name -> castor.media.v1.DeviceCommand.Play.Live
+	43, // 39: castor.media.v1.DeviceCommand.Play.Source.duration:type_name -> google.protobuf.Duration
+	41, // 40: castor.media.v1.DeviceCommand.Play.Source.live:type_name -> castor.media.v1.DeviceCommand.Play.Live
 	1,  // 41: castor.media.v1.DeviceCommand.Play.Progressive.container:type_name -> castor.media.v1.Container
 	38, // 42: castor.media.v1.DeviceCommand.Play.Progressive.runtime:type_name -> castor.media.v1.DeviceCommand.Play.Runtime
-	40, // 43: castor.media.v1.DeviceCommand.Play.Progressive.live:type_name -> castor.media.v1.DeviceCommand.Play.Live
-	42, // 44: castor.media.v1.DeviceCommand.Play.Runtime.duration:type_name -> google.protobuf.Duration
+	41, // 43: castor.media.v1.DeviceCommand.Play.Progressive.live:type_name -> castor.media.v1.DeviceCommand.Play.Live
+	43, // 44: castor.media.v1.DeviceCommand.Play.Runtime.duration:type_name -> google.protobuf.Duration
 	8,  // 45: castor.media.v1.DeviceCommand.Play.Runtime.seek:type_name -> castor.media.v1.DeviceCommand.Play.Runtime.Seek
-	42, // 46: castor.media.v1.DeviceCommand.Play.Playlist.duration:type_name -> google.protobuf.Duration
-	40, // 47: castor.media.v1.DeviceCommand.Play.Playlist.live:type_name -> castor.media.v1.DeviceCommand.Play.Live
+	43, // 46: castor.media.v1.DeviceCommand.Play.Playlist.duration:type_name -> google.protobuf.Duration
+	41, // 47: castor.media.v1.DeviceCommand.Play.Playlist.live:type_name -> castor.media.v1.DeviceCommand.Play.Live
 	1,  // 48: castor.media.v1.DeviceCommand.Play.Playlist.segments:type_name -> castor.media.v1.Container
-	43, // 49: castor.media.v1.mime:extendee -> google.protobuf.EnumValueOptions
-	9,  // 50: castor.media.v1.DeviceService.Drive:input_type -> castor.media.v1.DriveRequest
-	11, // 51: castor.media.v1.DeviceService.Answer:input_type -> castor.media.v1.AnswerRequest
-	10, // 52: castor.media.v1.DeviceService.Drive:output_type -> castor.media.v1.DriveResponse
-	12, // 53: castor.media.v1.DeviceService.Answer:output_type -> castor.media.v1.AnswerResponse
-	52, // [52:54] is the sub-list for method output_type
-	50, // [50:52] is the sub-list for method input_type
-	50, // [50:50] is the sub-list for extension type_name
-	49, // [49:50] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+	40, // 49: castor.media.v1.DeviceCommand.Play.Playlist.embedded_captions:type_name -> castor.media.v1.DeviceCommand.Play.EmbeddedCaptions
+	44, // 50: castor.media.v1.mime:extendee -> google.protobuf.EnumValueOptions
+	9,  // 51: castor.media.v1.DeviceService.Drive:input_type -> castor.media.v1.DriveRequest
+	11, // 52: castor.media.v1.DeviceService.Answer:input_type -> castor.media.v1.AnswerRequest
+	10, // 53: castor.media.v1.DeviceService.Drive:output_type -> castor.media.v1.DriveResponse
+	12, // 54: castor.media.v1.DeviceService.Answer:output_type -> castor.media.v1.AnswerResponse
+	53, // [53:55] is the sub-list for method output_type
+	51, // [51:53] is the sub-list for method input_type
+	51, // [51:51] is the sub-list for extension type_name
+	50, // [50:51] is the sub-list for extension extendee
+	0,  // [0:50] is the sub-list for field type_name
 }
 
 func init() { file_castor_media_v1_device_proto_init() }
@@ -3013,7 +3062,7 @@ func file_castor_media_v1_device_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_castor_media_v1_device_proto_rawDesc), len(file_castor_media_v1_device_proto_rawDesc)),
 			NumEnums:      9,
-			NumMessages:   33,
+			NumMessages:   34,
 			NumExtensions: 1,
 			NumServices:   1,
 		},

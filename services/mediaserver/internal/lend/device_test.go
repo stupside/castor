@@ -321,3 +321,27 @@ func TestCastorsHoldOverARemotePauseIsPressedOnceTheRemotePlaysOn(t *testing.T) 
 		}
 	})
 }
+
+func TestAPlaylistTellsTheDeviceWhenItListsItsOwnCaptions(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		playlist execute.Playlist
+		want     bool
+	}{
+		{"a playlist that lists the generated captions", execute.Playlist{Segments: media.MP4, EmbeddedCaptions: true}, true},
+		{"a playlist that lists none", execute.Playlist{Segments: media.MP4}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				r := &remote{}
+				d := r.device(t, 0)
+				if err := d.Play(t.Context(), execute.Playback{URL: &url.URL{Scheme: "http", Host: "castor"}, Stream: tt.playlist}); err != nil {
+					t.Fatal(err)
+				}
+				if got := r.plays[0].GetPlaylist().GetEmbeddedCaptions() != nil; got != tt.want {
+					t.Errorf("the device was told its playlist lists captions = %v, want %v", got, tt.want)
+				}
+			})
+		})
+	}
+}

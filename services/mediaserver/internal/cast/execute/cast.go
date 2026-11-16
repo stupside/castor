@@ -124,6 +124,8 @@ type Playlist struct {
 	Segments string
 	// Live is a playlist with no end, which has no Runtime.
 	Live bool
+	// EmbeddedCaptions is a playlist that lists the generated captions itself, for the device to show.
+	EmbeddedCaptions bool
 }
 
 func (s Source) Length() time.Duration   { return s.Runtime }

@@ -108,6 +108,9 @@ func played(p execute.Playback) *mediav1.DeviceCommand_Play {
 		case s.Runtime > 0:
 			playlist.Length = &mediav1.DeviceCommand_Play_Playlist_Duration{Duration: durationpb.New(s.Runtime)}
 		}
+		if s.EmbeddedCaptions {
+			playlist.EmbeddedCaptions = &mediav1.DeviceCommand_Play_EmbeddedCaptions{}
+		}
 		play.Stream = &mediav1.DeviceCommand_Play_Playlist_{Playlist: playlist}
 	}
 	return play

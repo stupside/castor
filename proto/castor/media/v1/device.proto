@@ -331,7 +331,12 @@ message DeviceCommand {
           2
         ]
       }];
+      // embedded_captions is present where the playlist itself carries a caption track, which the device is to show.
+      EmbeddedCaptions embedded_captions = 4;
     }
+
+    // EmbeddedCaptions is a caption track a playlist lists itself, beside any captions the Play names.
+    message EmbeddedCaptions {}
 
     // Live is a stream with no end, so no length.
     message Live {}

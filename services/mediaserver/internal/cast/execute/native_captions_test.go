@@ -50,6 +50,9 @@ func TestGeneratedNativeCaptionsCopyVideoAndServeAnHLSRendition(t *testing.T) {
 	if opts.Format.ContentType != media.HLS || opts.Video.Name() != "copy" {
 		t.Fatalf("native captions selected %s / %s", opts.Format.ContentType, opts.Video.Name())
 	}
+	if !opts.captioned {
+		t.Fatal("a delivery that lists the generated captions does not say so")
+	}
 	cmd, err := encoding.EncodeArgs(opts.EncodeOptions)
 	if err != nil {
 		t.Fatal(err)
@@ -178,6 +181,9 @@ func TestSixSecondVideoDelaySelectsBurnBeforeEncoding(t *testing.T) {
 	opts, err := s.encode(f, burn)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if opts.captioned {
+		t.Fatal("a burned-in cast says its playlist lists the captions")
 	}
 	args, err := encoding.EncodeArgs(opts.EncodeOptions)
 	if err != nil {

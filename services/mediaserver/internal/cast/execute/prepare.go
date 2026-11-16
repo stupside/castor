@@ -56,7 +56,9 @@ type presentation struct {
 	target      *url.URL
 	contentType string
 	segments    string
-	source      bool
+	// embeddedCaptions is a playlist that lists the generated captions itself.
+	embeddedCaptions bool
+	source           bool
 	// runtime is what is left of the program from where the attempt begins, zero where the source declared none.
 	runtime time.Duration
 	// live is a program with no end, which has no runtime.
@@ -162,6 +164,7 @@ func (s *preparation) producePresentation(planned plannedPresentation) (presenta
 		return p, err
 	}
 	p.target, p.contentType, p.segments = d.URL(), planned.options.Format.ContentType, planned.options.Format.Segments
+	p.embeddedCaptions = planned.options.captioned
 	p.readiness = outputValidated
 	return p, nil
 }
