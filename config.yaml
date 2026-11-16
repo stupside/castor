@@ -92,7 +92,7 @@ servers:
     # resolver:
     #   probe_max_concurrency: 2
     whisper:
-      # Downloads ggml-tiny.en for English, multilingual ggml-tiny for other languages or auto.
+      # Downloads ggml-base.en for English, multilingual ggml-base for other languages or auto.
       # Point at a larger model to trade speed for accuracy.
       # model_path: ""
 

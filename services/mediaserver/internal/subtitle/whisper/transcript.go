@@ -15,7 +15,7 @@ import (
 
 // Config holds settings for the isolated whisper.cpp transcriber.
 type Config struct {
-	ModelPath string `yaml:"model_path"` // override the auto-downloaded tiny model (tiny.en for English)
+	ModelPath string `yaml:"model_path"` // override the auto-downloaded base model (base.en for English)
 }
 
 // Transcript owns speech recognition and its committed captions. Burn-in is an optional consumer.

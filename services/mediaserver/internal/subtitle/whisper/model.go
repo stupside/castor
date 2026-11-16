@@ -15,22 +15,22 @@ import (
 )
 
 const (
-	defaultModelName      = "ggml-tiny.en.bin"
-	multilingualModelName = "ggml-tiny.bin"
+	defaultModelName      = "ggml-base.en.bin"
+	multilingualModelName = "ggml-base.bin"
 	modelBaseURL          = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 
 	vadModelName    = "ggml-silero-v5.1.2.bin"
 	vadModelBaseURL = "https://huggingface.co/ggml-org/whisper-vad/resolve/main"
 
 	downloadTimeout = 10 * time.Minute
-	// maxModelBytes bounds a download before its checksum is known; the largest pinned model is about 78 MB.
+	// maxModelBytes bounds a download before its checksum is known; the largest pinned model is about 148 MB.
 	maxModelBytes = 256 << 20
 )
 
 // modelSHA256 pins each model to the LFS digest Hugging Face publishes for it.
 var modelSHA256 = map[string]string{
-	defaultModelName:      "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f",
-	multilingualModelName: "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
+	defaultModelName:      "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002",
+	multilingualModelName: "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
 	vadModelName:          "29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf",
 }
 
