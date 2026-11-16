@@ -128,6 +128,7 @@ func confirm(ctx context.Context, r Recognizer, buf []float32, bufStart float64,
 		return nil, prev, fmt.Errorf("recognizing speech: %w", err)
 	}
 	fresh := dropRepeated(dropBefore(collapseLoops(words), frontier), committed)
+	slog.DebugContext(ctx, "recognized a window", "from", bufStart, "heard", len(words), "new", len(fresh))
 	// The final window has no successor to agree with, so it is committed whole.
 	if atEOF {
 		return fresh, nil, nil
