@@ -29,6 +29,10 @@ const (
 	trimAfterSeconds = 15
 	maxBufferSeconds = 28
 
+	// A word two hypotheses have not agreed on this long before the audio's end is committed as last heard,
+	// so one that never settles cannot hold back what follows it until the cap drops it.
+	overdueSeconds = trimAfterSeconds
+
 	// A cut searches this much committed audio for its quietest stretch.
 	cutZoneSeconds  = 6
 	cutQuietSeconds = 0.2
@@ -70,9 +74,15 @@ func Transcribe(ctx context.Context, pcm io.Reader, recognizer Recognizer, sink 
 			return err
 		}
 		buf = appendPCM(buf, step[:n])
+		var overdue []Word
 		if !atEOF {
+			overdue, prev = overdueBefore(prev, bufStart+float64(len(buf))/SampleRate-overdueSeconds)
+			if len(overdue) > 0 {
+				frontier = overdue[len(overdue)-1].End
+				tail = lastCommitted(tail, overdue)
+			}
 			// Trimmed before recognizing, so the window never outgrows the recognizer's.
-			buf, bufStart = trimBuffer(ctx, buf, bufStart, confirmedTo(frontier, bufStart, buf, prev))
+			buf, bufStart = trimBuffer(buf, bufStart, confirmedTo(frontier, bufStart, buf, prev))
 			// Words of trimmed audio would never be agreed again, and would stall the commit.
 			prev = dropBefore(prev, bufStart)
 		}
@@ -86,8 +96,7 @@ func Transcribe(ctx context.Context, pcm io.Reader, recognizer Recognizer, sink 
 			}
 			if len(agreed) > 0 {
 				frontier = agreed[len(agreed)-1].End
-				tail = append(tail, agreed...)
-				tail = tail[max(0, len(tail)-repeatedWordsMax):]
+				tail = lastCommitted(tail, agreed)
 			}
 		}
 
@@ -96,7 +105,7 @@ func Transcribe(ctx context.Context, pcm io.Reader, recognizer Recognizer, sink 
 			// Silence also needs a successor window before it becomes immutable.
 			settled = max(frontier, settled-stepSeconds)
 		}
-		sink.Commit(agreed, settled)
+		sink.Commit(slices.Concat(overdue, agreed), settled)
 
 		if atEOF {
 			slog.InfoContext(ctx, "transcription finished", "transcribed_seconds", int(frontier))
@@ -137,13 +146,25 @@ func confirm(ctx context.Context, r Recognizer, buf []float32, bufStart float64,
 	return agreed, fresh[len(agreed):], nil
 }
 
-// confirmedTo is how far the audio holds nothing still to commit: the frontier while a tail is pending,
+// confirmedTo is how far the audio holds nothing still to commit: up to the first word still pending,
 // else everything the last window heard, which leaves out the step just read.
-func confirmedTo(frontier, bufStart float64, buf []float32, tail []Word) float64 {
-	if len(tail) > 0 {
-		return frontier
+func confirmedTo(frontier, bufStart float64, buf []float32, pending []Word) float64 {
+	if len(pending) > 0 {
+		return max(frontier, pending[0].Start)
 	}
 	return max(frontier, bufStart+float64(len(buf))/SampleRate-stepSeconds)
+}
+
+// lastCommitted is the committed words kept to drop what a later window repeats: tail, then words, the last few.
+func lastCommitted(tail, words []Word) []Word {
+	tail = append(tail, words...)
+	return tail[max(0, len(tail)-repeatedWordsMax):]
+}
+
+// overdueBefore splits pending at horizon: the words centred before it, and the rest.
+func overdueBefore(pending []Word, horizon float64) (overdue, rest []Word) {
+	rest = dropBefore(pending, horizon)
+	return pending[:len(pending)-len(rest)], rest
 }
 
 // settledTo is how far the cues are settled: the frontier while a tail is pending, the buffer's end otherwise.
@@ -219,8 +240,8 @@ func normalizeWord(s string) string {
 	})
 }
 
-// trimBuffer drops old audio at the quietest point of what is confirmed.
-func trimBuffer(ctx context.Context, buf []float32, bufStart, confirmed float64) ([]float32, float64) {
+// trimBuffer drops old audio at the quietest point of what is confirmed, never keeping more than the cap.
+func trimBuffer(buf []float32, bufStart, confirmed float64) ([]float32, float64) {
 	dur := float64(len(buf)) / SampleRate
 	if dur <= trimAfterSeconds {
 		return buf, bufStart
@@ -228,11 +249,7 @@ func trimBuffer(ctx context.Context, buf []float32, bufStart, confirmed float64)
 
 	// Word timestamps run up to a second off, so the cut is placed by the audio's own energy.
 	lo := max(bufStart, bufStart+dur-maxBufferSeconds)
-	hi := min(confirmed, bufStart+dur)
-	if hi < lo {
-		slog.WarnContext(ctx, "dropping unconfirmed audio", "seconds", lo-hi)
-		hi = lo
-	}
+	hi := max(lo, min(confirmed, bufStart+dur))
 	cut := quietestPoint(buf, bufStart, max(lo, hi-cutZoneSeconds), hi)
 	if cut <= bufStart {
 		return buf, bufStart

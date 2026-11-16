@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -101,20 +103,20 @@ func TestQuietestPointIsInsideThePause(t *testing.T) {
 
 func TestTrimBufferCutsInThePauseOfTheCommittedTail(t *testing.T) {
 	buf := loudWithSilence(20, 9.9, 10.5)
-	trimmed, start := trimBuffer(t.Context(), buf, 100, 112)
+	trimmed, start := trimBuffer(buf, 100, 112)
 	if start < 109.9 || start > 110.5 {
 		t.Fatalf("buffer now starts at %.2f, want inside the pause [109.9, 110.5]", start)
 	}
 	if want := 20*SampleRate - int(math.Round((start-100)*SampleRate)); len(trimmed) != want {
 		t.Fatalf("kept %d samples, want %d", len(trimmed), want)
 	}
-	if _, start := trimBuffer(t.Context(), loudWithSilence(10, 4, 5), 100, 108); start != 100 {
+	if _, start := trimBuffer(loudWithSilence(10, 4, 5), 100, 108); start != 100 {
 		t.Fatalf("a buffer under the trim threshold moved to %.2f", start)
 	}
 }
 
 func TestTrimBufferDropsUnconfirmedAudioOnlyToStayUnderTheCap(t *testing.T) {
-	trimmed, start := trimBuffer(t.Context(), loudWithSilence(30, 0, 0), 100, 101)
+	trimmed, start := trimBuffer(loudWithSilence(30, 0, 0), 100, 101)
 	if got := float64(len(trimmed)) / SampleRate; got > maxBufferSeconds {
 		t.Fatalf("buffer kept %.1fs, over the %ds cap", got, maxBufferSeconds)
 	}
@@ -173,5 +175,80 @@ func TestSilenceNeverFillsTheWindow(t *testing.T) {
 	}
 	if got := float64(longest) / SampleRate; got > trimAfterSeconds+stepSeconds {
 		t.Fatalf("a silent window grew to %.0fs, want it trimmed past %ds", got, trimAfterSeconds)
+	}
+}
+
+// A speaker says one word every half second. The recognizer hears each one the same way in every window, except one that
+// it hears differently every time, so no two hypotheses ever agree on it.
+func TestAWordTheHypothesesNeverAgreeOnDoesNotHoldBackTheWordsAfterIt(t *testing.T) {
+	const words, unstable = 240, 130
+	calls := 0
+	r := recognitionFunc(func(_ context.Context, samples []float32, offset float64) ([]Word, error) {
+		calls++
+		end := offset + float64(len(samples))/SampleRate
+		var heard []Word
+		for k := range words {
+			start := float64(k) / 2
+			if start < offset || start+0.4 > end {
+				continue
+			}
+			text := fmt.Sprintf("w%d", k)
+			if k == unstable {
+				text = fmt.Sprintf("unsure%d", calls)
+			}
+			heard = append(heard, Word{Start: start, End: start + 0.4, Text: text})
+		}
+		return heard, nil
+	})
+	cues := &Cues{}
+	if err := Transcribe(t.Context(), bytes.NewReader(make([]byte, words/2*bytesPerSec)), r, cues); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, c := range cues.Snapshot(0, 1e9).Cues {
+		for w := range strings.FieldsSeq(c.Text) {
+			if strings.HasPrefix(w, "w") {
+				got = append(got, w)
+			}
+		}
+	}
+	var want []string
+	for k := range words {
+		if k != unstable {
+			want = append(want, fmt.Sprintf("w%d", k))
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("committed %d of the %d steady words, want every one in order; first missing: %v", len(got), len(want), firstMissing(want, got))
+	}
+}
+
+// firstMissing is the first of want that got lacks.
+func firstMissing(want, got []string) string {
+	for _, w := range want {
+		if !slices.Contains(got, w) {
+			return w
+		}
+	}
+	return ""
+}
+
+func TestAudioIsConfirmedUpToTheFirstWordStillPending(t *testing.T) {
+	buf := make([]float32, 20*SampleRate)
+	for _, tt := range []struct {
+		name     string
+		frontier float64
+		pending  []Word
+		want     float64
+	}{
+		{"words pending long after the last one committed", 10, []Word{{Start: 112, End: 112.4, Text: "late"}}, 112},
+		{"words pending before the frontier", 114, []Word{{Start: 112, End: 112.4, Text: "late"}}, 114},
+		{"nothing pending: all but the step just read", 10, nil, 117},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := confirmedTo(tt.frontier, 100, buf, tt.pending); got != tt.want {
+				t.Errorf("confirmedTo = %.1f, want %.1f", got, tt.want)
+			}
+		})
 	}
 }
