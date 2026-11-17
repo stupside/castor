@@ -135,7 +135,8 @@ func (s *session) settle(p *playback) {
 	}
 }
 
-// Play returns once the receiver echoes the media back, so a refused one fails the hand-off; a dropped connection is gone.
+// Play returns once the receiver plays the media it echoed back, so one it refuses or never starts fails the
+// hand-off, which the cast falls back from by serving the media itself; a dropped connection is gone.
 func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	if err := s.play(ctx, playback); err != nil {
 		select {
@@ -179,7 +180,7 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 }
 
 func (s *session) verdict(ctx context.Context, p *playback) error {
-	ctx, cancel := context.WithTimeoutCause(ctx, answerWithin, fmt.Errorf("the fcast receiver did not take the media within %s: %w", answerWithin, context.DeadlineExceeded))
+	ctx, cancel := context.WithTimeoutCause(ctx, startupTimeout, fmt.Errorf("the fcast receiver did not take the media and start playing it within %s: %w", startupTimeout, context.DeadlineExceeded))
 	defer cancel()
 	select {
 	case err := <-p.verdict:

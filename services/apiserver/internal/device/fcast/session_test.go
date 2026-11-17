@@ -170,6 +170,11 @@ func echoes(then ...packet) func(r *fakeReceiver, url string) {
 	}
 }
 
+// plays echoes every Play and starts playing it, before sending then.
+func plays(then ...packet) func(r *fakeReceiver, url string) {
+	return echoes(append([]packet{update(statePlaying, 0)}, then...)...)
+}
+
 func playUpdate(url string) string {
 	return fmt.Sprintf(`{"generationTime":1700000000000,"playData":{"container":"video/mp4","url":%q}}`, url)
 }
@@ -248,7 +253,7 @@ func TestAPlayCarriesTheMediaAndItsDetailsButNothingTheReceiverWouldApply(t *tes
 		{"nothing to show", nil, map[string]any{"container": "application/vnd.apple.mpegurl", "url": stream}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			dev, r, err := connectReceiver(t, 3, greets(echoes()))
+			dev, r, err := connectReceiver(t, 3, greets(plays()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -323,10 +328,15 @@ func TestPlayReturnsTheReceiversAnswerToIt(t *testing.T) {
 		onPlay  func(r *fakeReceiver, url string)
 		wantErr string
 	}{
-		{"its echo takes it", echoes(), ""},
+		{"playing what it echoed takes it", plays(), ""},
+		{"pausing what it echoed takes it", echoes(update(statePaused, 0)), ""},
 		{"an error before its echo refuses it", func(r *fakeReceiver, _ string) {
 			r.say(failure("unsupported scheme"))
 		}, "unsupported scheme"},
+		// A receiver echoes media it cannot decode: only playing it takes it, so the cast can fall back.
+		{"an error after its echo but before it plays refuses it", echoes(failure("unsupported codec")), "unsupported codec"},
+		{"the idle a player starts in, then playing, takes it", echoes(update(stateIdle, 0), update(statePlaying, 1)), ""},
+		{"an echo never played refuses it in time", echoes(), "did not take the media"},
 		{"the failure of what played before does not refuse it", func(r *fakeReceiver, url string) {
 			r.say(update(stateIdle, 0), failure("the previous stream broke"))
 			echoes(update(statePlaying, 1))(r, url)
@@ -442,6 +452,8 @@ func TestUpdatesBeforeTheEchoAreThoseOfWhatPlayedBefore(t *testing.T) {
 		case opPlay:
 			r.say(update(statePlaying, 500))
 			r.send(opPlayUpdate, playUpdate(stream))
+			// Playing, with no time yet.
+			r.say(packet{opPlaybackUpdate, `{"state":1}`})
 		}
 	})
 	if err != nil {
@@ -452,7 +464,7 @@ func TestUpdatesBeforeTheEchoAreThoseOfWhatPlayedBefore(t *testing.T) {
 	}
 	r.flush(t)
 	if got, err := dev.Position(t.Context()); !errors.Is(err, device.ErrNoPosition) {
-		t.Errorf("Position = %v, %v before any update of the handed media, want ErrNoPosition", got, err)
+		t.Errorf("Position = %v, %v before the handed media reported a time, want ErrNoPosition", got, err)
 	}
 	r.say(update(statePlaying, 12.5))
 	r.flush(t)
@@ -529,8 +541,7 @@ func TestAwaitEndFollowsTheHandedMediaToItsEnd(t *testing.T) {
 		{"a stop after playing ends it", []packet{update(statePlaying, 1), update(stateIdle, 0)}, ended},
 		{"an error right behind the stop fails it", []packet{update(statePlaying, 1), update(stateIdle, 0), failure("decoder error")}, failed},
 		{"an error while playing fails it", []packet{update(statePlaying, 1), failure("network error")}, failed},
-		{"an error before playing fails it", []packet{failure("unsupported codec")}, failed},
-		{"the idle a player starts in does not end it", []packet{update(stateIdle, 0)}, running},
+		{"the idle a player starts in does not end it", []packet{update(stateIdle, 0), update(statePlaying, 1)}, running},
 		{"another sender's media ends it", []packet{update(statePlaying, 1), {opPlayUpdate, playUpdate("http://other.test/clip.mp4")}}, ended},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -588,31 +599,28 @@ func TestAnItemEndBeforeTheEchoIsWhatPlayedBefore(t *testing.T) {
 	})
 }
 
-func TestAReceiverThatNeverStartsFailsTheCast(t *testing.T) {
+func TestAPlayTheReceiverNeverStartsIsRefusedOnceItsTimeIsUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		dev, _, err := connectReceiver(t, 3, greets(echoes()))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := dev.Play(t.Context(), mp4(t)); err != nil {
-			t.Fatal(err)
-		}
 		result := make(chan error, 1)
-		go func() { result <- dev.AwaitEnd(t.Context()) }()
+		go func() { result <- dev.Play(t.Context(), mp4(t)) }()
 		time.Sleep(startupTimeout - time.Second)
 		select {
 		case err := <-result:
-			t.Fatalf("AwaitEnd = %v before the receiver had its time to start", err)
+			t.Fatalf("Play = %v before the receiver had its time to start", err)
 		default:
 		}
 		time.Sleep(2 * time.Second)
 		select {
 		case err := <-result:
-			if _, refused := errors.AsType[*device.PlaybackError](err); !refused {
-				t.Errorf("AwaitEnd = %v, want a playback error", err)
+			if err == nil || !strings.Contains(err.Error(), "did not take the media") {
+				t.Errorf("Play = %v, want it refused for never starting", err)
 			}
 		default:
-			t.Fatal("a receiver that never started still holds the cast")
+			t.Fatal("a receiver that never started still holds the Play")
 		}
 	})
 }
@@ -666,3 +674,4 @@ func TestCapabilitiesDeclareNoCaptionsSinceV3CannotCarryThem(t *testing.T) {
 		}
 	}
 }
+

@@ -25,7 +25,7 @@ const (
 	// Receivers report a failure as Idle, then the error; an Idle only ends playback once no error has followed it.
 	idleSettle = 2 * time.Second
 
-	// A receiver that never plays may be waiting on its viewer to allow it, so the cast does not wait on it forever.
+	// A receiver that never plays may be waiting on its viewer to allow it, so a Play does not wait on it forever.
 	startupTimeout = 30 * time.Second
 
 	// Anything past a year is no position in a cast, and would overflow a duration.
@@ -73,7 +73,8 @@ func (e *ending) finish(err error) {
 // playback follows one Play: only what the receiver says after echoing it back is this Play's.
 type playback struct {
 	url string
-	// verdict carries the receiver's answer to the Play: nil once it echoes the URL, else the error it sent first.
+	// verdict carries the receiver's answer to the Play: nil once it plays or pauses the URL it echoed, else the
+	// error it sent first. A receiver echoes media it cannot decode, so only playing it takes it.
 	verdict  chan error
 	answered bool
 
@@ -109,9 +110,9 @@ func (p *playback) observe(op opcode, body []byte) bool {
 		switch {
 		case update.PlayData.URL == p.url:
 			p.loaded = true
-			p.answer(nil)
 		case p.loaded:
 			// Another sender's media took the receiver.
+			p.answer(errors.New("another sender's media took the fcast receiver before it played this one"))
 			p.ending.finish(nil)
 		}
 	case opPlaybackUpdate:
@@ -128,6 +129,7 @@ func (p *playback) observe(op opcode, body []byte) bool {
 		case statePlaying, statePaused:
 			p.active, p.idle = true, false
 			p.head, p.placed = playhead(update)
+			p.answer(nil)
 		case stateIdle:
 			p.placed = false
 			if p.active && !p.idle {
@@ -146,7 +148,10 @@ func (p *playback) observe(op opcode, body []byte) bool {
 		case p.active:
 			p.ending.finish(&device.PlaybackError{Err: fmt.Errorf("fcast playback failed: %s", failure.Message)})
 		default:
-			p.ending.finish(&device.PlaybackError{Err: fmt.Errorf("the fcast receiver refused the media: %s", failure.Message)})
+			// Echoed but never played: the Play is refused, so the cast can fall back to media castor serves.
+			refused := fmt.Errorf("the fcast receiver refused the media: %s", failure.Message)
+			p.answer(refused)
+			p.ending.finish(&device.PlaybackError{Err: refused})
 		}
 	case opEvent:
 		var event eventMessage
@@ -164,7 +169,7 @@ func playhead(update playbackUpdateMessage) (device.Playhead, bool) {
 	return device.Playhead{At: time.Duration(*update.Time * float64(time.Second)), Paused: update.State == statePaused}, true
 }
 
-// AwaitEnd observes the FCast connection rather than polling it.
+// AwaitEnd observes the FCast connection rather than polling it; the Play it follows has already started.
 func (s *session) AwaitEnd(ctx context.Context) error {
 	s.mu.Lock()
 	p := s.current
@@ -172,29 +177,18 @@ func (s *session) AwaitEnd(ctx context.Context) error {
 	if p == nil {
 		return errors.New("nothing has been played on this fcast receiver")
 	}
-	startup := time.NewTimer(startupTimeout)
-	defer startup.Stop()
-	for {
+	select {
+	case <-p.ending.done:
+		return p.ending.err
+	case <-s.ch.gone:
+		// An end read before the connection dropped still decides it.
 		select {
 		case <-p.ending.done:
 			return p.ending.err
-		case <-s.ch.gone:
-			// An end read before the connection dropped still decides it.
-			select {
-			case <-p.ending.done:
-				return p.ending.err
-			default:
-			}
-			return &device.Gone{Device: s.name, Observed: "the FCast connection closed while the cast was playing"}
-		case <-ctx.Done():
-			return context.Cause(ctx)
-		case <-startup.C:
-			s.mu.Lock()
-			active := p.active
-			s.mu.Unlock()
-			if !active {
-				return &device.PlaybackError{Err: fmt.Errorf("the fcast receiver did not start playback within %s", startupTimeout)}
-			}
+		default:
 		}
+		return &device.Gone{Device: s.name, Observed: "the FCast connection closed while the cast was playing"}
+	case <-ctx.Done():
+		return context.Cause(ctx)
 	}
 }
