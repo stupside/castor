@@ -156,14 +156,14 @@ type videoV2 struct {
 	waiting map[uint64]chan struct{}
 }
 
-func playV2(ctx context.Context, l *link, secret []byte, receiverID string, playback device.Playback) (*videoV2, error) {
+func playV2(ctx context.Context, l *link, secret []byte, receiverID string, playback device.Playback, asFile bool) (*videoV2, error) {
 	v := &videoV2{item: newUUID(), head: newPlayhead(), waiting: map[uint64]chan struct{}{}}
 	s, err := startAP2(ctx, l, secret, func(c map[string]any) { v.head.v2Command(v.item, c, v.answered) })
 	if err != nil {
 		return nil, err
 	}
 	v.s = s
-	if err := v.queue(ctx, receiverID, playback); err != nil {
+	if err := v.queue(ctx, receiverID, playback, asFile); err != nil {
 		s.close()
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func playV2(ctx context.Context, l *link, secret []byte, receiverID string, play
 	return v, nil
 }
 
-func (v *videoV2) queue(ctx context.Context, receiverID string, playback device.Playback) error {
+func (v *videoV2) queue(ctx context.Context, receiverID string, playback device.Playback, asFile bool) error {
 	resp, err := v.s.l.exchangePlist(ctx, "SETUP", "", protoRTSP, nil, map[string]any{"streams": []any{map[string]any{
 		"type":           remoteControlStream,
 		"controlType":    videoControl,
@@ -209,7 +209,7 @@ func (v *videoV2) queue(ctx context.Context, receiverID string, playback device.
 	}
 	v.stream = setup.Streams[0].StreamID
 	for _, command := range []map[string]any{
-		{"type": "insertPlayQueueItem", "item": queueItem(v.item, playback)},
+		{"type": "insertPlayQueueItem", "item": queueItem(v.item, playback, asFile)},
 		// Hold the last picture at the end, as iOS and macOS do, so the end is reported rather than skipped past.
 		{"type": "setProperty", "property": "actionAtItemEnd", "value": 1},
 		{"type": "setRate", "rate": 1.0},
@@ -225,7 +225,8 @@ func (v *videoV2) queue(ctx context.Context, receiverID string, playback device.
 var invalidTime = map[string]any{"flags": 0, "value": 0, "epoch": 0, "timescale": 0}
 
 // queueItem is the item insertPlayQueueItem takes, as macOS sends it: HLS as streaming, which a live playlist needs, the rest as a file.
-func queueItem(id string, playback device.Playback) map[string]any {
+// asFile hands a playlist as a file too, for a receiver that plays it only so.
+func queueItem(id string, playback device.Playback, asFile bool) map[string]any {
 	item := map[string]any{
 		"uuid":                             id,
 		"Content-Location":                 playback.URL.String(),
@@ -236,7 +237,7 @@ func queueItem(id string, playback device.Playback) map[string]any {
 		"snapTimeToPausePlayback":          false,
 		"clientBundleID":                   bundleID,
 	}
-	if playback.Container() == mediav1.Container_CONTAINER_HLS {
+	if playback.Container() == mediav1.Container_CONTAINER_HLS && !asFile {
 		item["mediaType"] = "streaming"
 		item["timeToPausePlayback"] = invalidTime
 		item["timeToPauseBuffering"] = invalidTime

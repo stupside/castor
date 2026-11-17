@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -41,6 +42,8 @@ type session struct {
 	spareSecret []byte
 	current     player
 	closed      bool
+	// playlistAsFile is a receiver that played a playlist only once it was handed as a file.
+	playlistAsFile bool
 }
 
 var _ device.Device = (*session)(nil)
@@ -95,17 +98,28 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 		s.mu.Unlock()
 		return errors.New("the AirPlay session is closed")
 	}
-	previous, spare, spareSecret := s.current, s.spare, s.spareSecret
+	previous, spare, spareSecret, asFile := s.current, s.spare, s.spareSecret, s.playlistAsFile
 	s.current, s.spare, s.spareSecret = nil, nil, nil
 	s.mu.Unlock()
 	// Leaving the previous item first is what makes the receiver take the next one at once.
 	if previous != nil {
 		previous.close()
 	}
-	p, err := s.start(ctx, spare, spareSecret, playback)
+	p, err := s.start(ctx, spare, spareSecret, playback, asFile)
 	if err != nil && spare != nil && ctx.Err() == nil && !errors.Is(err, errRefused) {
 		// The link Connect proved may have idled out while the stream was prepared: a fresh one decides.
-		p, err = s.start(ctx, nil, nil, playback)
+		p, err = s.start(ctx, nil, nil, playback, asFile)
+	}
+	// An older receiver (an LG C1's AirPlay 2.3) cannot play any playlist handed as streaming, whatever its codecs,
+	// yet plays one handed as a file; a newer one (an LG C2's) plays it as streaming, which a live playlist needs. Only
+	// a playlist it fetched and could not play is handed again: one it could not fetch would fail as a file too.
+	if err != nil && ctx.Err() == nil && !asFile && playback.Container() == mediav1.Container_CONTAINER_HLS && errors.Is(err, errCouldNotPlay) {
+		slog.InfoContext(ctx, "the receiver could not play the playlist as streaming, so castor hands it as a file", "error", err)
+		if p, err = s.start(ctx, nil, nil, playback, true); err == nil {
+			s.mu.Lock()
+			s.playlistAsFile = true
+			s.mu.Unlock()
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("starting AirPlay playback: %w", err)
@@ -120,8 +134,8 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	return nil
 }
 
-// start hands playback to the receiver on l, or on a new link where l is nil.
-func (s *session) start(ctx context.Context, l *link, secret []byte, playback device.Playback) (player, error) {
+// start hands playback to the receiver on l, or on a new link where l is nil; asFile hands a playlist as a file.
+func (s *session) start(ctx context.Context, l *link, secret []byte, playback device.Playback, asFile bool) (player, error) {
 	if l == nil {
 		var err error
 		if l, secret, err = s.connect(ctx); err != nil {
@@ -132,7 +146,7 @@ func (s *session) start(ctx context.Context, l *link, secret []byte, playback de
 	var err error
 	switch s.r.features.videoMethod() {
 	case methodVideoV2:
-		p, err = playV2(ctx, l, secret, s.r.deviceID, playback)
+		p, err = playV2(ctx, l, secret, s.r.deviceID, playback, asFile)
 	case methodVideoV1:
 		p, err = playV1(ctx, l, secret, playback)
 	default:

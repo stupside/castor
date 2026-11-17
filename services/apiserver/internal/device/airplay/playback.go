@@ -76,6 +76,9 @@ func (p *playhead) over(err error) {
 // errRefused is a receiver that would not play what castor handed it, as opposed to a link that failed.
 var errRefused = errors.New("the receiver refused the media")
 
+// errCouldNotPlay is a receiver that reported an error playing the media, as opposed to one that could not fetch it.
+var errCouldNotPlay = errors.New("the receiver could not play the media")
+
 // verdict waits for the receiver to play the item, or for its refusal.
 func (p *playhead) verdict(ctx context.Context) error {
 	timer := time.NewTimer(verdictWithin)
@@ -247,7 +250,7 @@ func (p *playhead) v2Command(item string, c map[string]any, answered func(uint64
 		if e, ok := c["error"].(map[string]any); ok {
 			code = fmt.Sprint(e["code"])
 		}
-		p.over(fmt.Errorf("the receiver could not play the media (error %s)", code))
+		p.over(fmt.Errorf("%w (error %s)", errCouldNotPlay, code))
 	case "unhandledURL":
 		// The receiver asks the sender to fetch what it could not reach itself, which castor does not do.
 		if key, _ := nested(c, "request", "FCUP_Response_IsContentKeyRequest").(bool); key {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -68,11 +69,16 @@ func TestTheVideoMethodComesFromTheFeatures(t *testing.T) {
 
 func TestHLSIsQueuedAsStreamingAndTheRestAsAFile(t *testing.T) {
 	u, _ := url.Parse("http://castor.example/stream.m3u8")
-	hls := queueItem("ID", device.Playback{URL: u, Play: &mediav1.DeviceCommand_Play{Stream: &mediav1.DeviceCommand_Play_Playlist_{Playlist: &mediav1.DeviceCommand_Play_Playlist{}}}})
+	playlist := device.Playback{URL: u, Play: &mediav1.DeviceCommand_Play{Stream: &mediav1.DeviceCommand_Play_Playlist_{Playlist: &mediav1.DeviceCommand_Play_Playlist{}}}}
+	hls := queueItem("ID", playlist, false)
 	if hls["mediaType"] != "streaming" || hls["timeToPausePlayback"] == nil || hls["Start-Position"] != nil {
 		t.Errorf("HLS item = %v; a live playlist queued as a file stays loading", hls)
 	}
-	file := queueItem("ID", device.Playback{URL: u, Play: &mediav1.DeviceCommand_Play{Stream: &mediav1.DeviceCommand_Play_Progressive_{Progressive: &mediav1.DeviceCommand_Play_Progressive{Container: mediav1.Container_CONTAINER_MP4}}}})
+	// A receiver that plays a playlist only as a file is handed it so.
+	if asFile := queueItem("ID", playlist, true); asFile["mediaType"] != "file" || asFile["Start-Position"] == nil || asFile["timeToPausePlayback"] != nil {
+		t.Errorf("HLS item as a file = %v", asFile)
+	}
+	file := queueItem("ID", device.Playback{URL: u, Play: &mediav1.DeviceCommand_Play{Stream: &mediav1.DeviceCommand_Play_Progressive_{Progressive: &mediav1.DeviceCommand_Play_Progressive{Container: mediav1.Container_CONTAINER_MP4}}}}, false)
 	if file["mediaType"] != "file" || file["Start-Position"] == nil || file["Content-Location"] != u.String() {
 		t.Errorf("MP4 item = %v", file)
 	}
@@ -223,6 +229,51 @@ func TestAPlayingItemTheReceiverGivesUpOnEndsWithItsError(t *testing.T) {
 	if err := awaitEnd(t, dev); err == nil || !strings.Contains(err.Error(), "-60009") {
 		t.Errorf("AwaitEnd = %v, want the receiver's error", err)
 	}
+}
+
+func TestAPlaylistAnOlderReceiverCannotPlayAsStreamingIsHandedAsAFile(t *testing.T) {
+	r := newFakeReceiver(t, lgFeatures, lgStatus)
+	// As an LG C1's AirPlay 2.3: an error for any playlist queued as streaming, playback for one queued as a file.
+	r.script = scenario(t, "refused")[1:]
+	r.fileScript = scenario(t, "hls_plays")
+	dev := connect(t, pairedFamily(t, r), r)
+	if err := dev.Play(t.Context(), hlsPlayback()); err != nil {
+		t.Fatalf("Play = %v, want the playlist handed again as a file to play", err)
+	}
+	if got := mediaTypes(r); !slices.Equal(got, []string{"streaming", "file"}) {
+		t.Errorf("queued %v, want streaming then file", got)
+	}
+	// The receiver is known now: a later Play, a seek's reload say, goes to it as a file at once.
+	if err := dev.Play(t.Context(), hlsPlayback()); err != nil {
+		t.Fatal(err)
+	}
+	if got := mediaTypes(r); !slices.Equal(got, []string{"streaming", "file", "file"}) {
+		t.Errorf("queued %v, want the next playlist as a file straight away", got)
+	}
+}
+
+func TestAPlaylistTheReceiverCannotFetchIsNotHandedAgainAsAFile(t *testing.T) {
+	r := newFakeReceiver(t, lgFeatures, lgStatus)
+	r.script = scenario(t, "refused")
+	dev := connect(t, pairedFamily(t, r), r)
+	if err := dev.Play(t.Context(), hlsPlayback()); err == nil {
+		t.Fatal("Play = nil, though the receiver could not fetch the playlist")
+	}
+	if got := mediaTypes(r); !slices.Equal(got, []string{"streaming"}) {
+		t.Errorf("queued %v; a playlist the receiver cannot reach would fail as a file too", got)
+	}
+}
+
+// mediaTypes is how castor queued each item, in order.
+func mediaTypes(r *fakeReceiver) []string {
+	var types []string
+	for _, c := range r.sent("insertPlayQueueItem") {
+		if item, ok := c["item"].(map[string]any); ok {
+			kind, _ := item["mediaType"].(string)
+			types = append(types, kind)
+		}
+	}
+	return types
 }
 
 func TestAnItemTheReceiverGaveUpOnFails(t *testing.T) {

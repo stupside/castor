@@ -36,6 +36,8 @@ type fakeReceiver struct {
 
 	// script is what a video v2 receiver reports once castor sets the rate to play, ITEM standing for the item queued.
 	script []map[string]any
+	// fileScript, where set, is what it reports instead for an item queued as a file.
+	fileScript []map[string]any
 	// plays answers each /play in turn, then 200; infos are /playback-info's answers in turn, the last repeated.
 	plays []int
 	infos []map[string]any
@@ -45,6 +47,7 @@ type fakeReceiver struct {
 	commands  []map[string]any
 	item      string
 	queued    bool
+	asFile    bool
 	lastInfo  map[string]any
 	eventConn net.Conn
 	eventSeq  int
@@ -272,16 +275,22 @@ func (r *fakeReceiver) command(c map[string]any) {
 		if item, ok := c["item"].(map[string]any); ok {
 			r.item, _ = item["uuid"].(string)
 			r.queued = true
+			r.asFile = item["mediaType"] == "file"
 		}
 	case "setRate":
 		// Each queued item plays the script once; a later rate change is a pause or a resume.
 		if rate, _ := number(c["rate"]); rate == 1 && r.queued {
 			script := r.script
+			if r.asFile && r.fileScript != nil {
+				script = r.fileScript
+			}
 			r.queued = false
+			// A script speaks of the item it began for, also once a later item is queued.
+			item := r.item
 			r.mu.Unlock()
 			go func() {
 				for _, ev := range script {
-					r.emit(ev)
+					r.emitFor(ev, item)
 					time.Sleep(5 * time.Millisecond)
 				}
 			}()
@@ -303,7 +312,15 @@ func (r *fakeReceiver) command(c map[string]any) {
 // emit sends ev on the event channel, as a request castor answers, ITEM replaced by the item castor queued.
 func (r *fakeReceiver) emit(ev map[string]any) {
 	r.mu.Lock()
-	ev = withItem(ev, r.item).(map[string]any)
+	item := r.item
+	r.mu.Unlock()
+	r.emitFor(ev, item)
+}
+
+// emitFor is emit about item.
+func (r *fakeReceiver) emitFor(ev map[string]any, item string) {
+	r.mu.Lock()
+	ev = withItem(ev, item).(map[string]any)
 	if info, ok := ev["info"].(map[string]any); ok {
 		r.lastInfo = info
 	}
