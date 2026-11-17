@@ -1,6 +1,8 @@
 package codec
 
 import (
+	"time"
+
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -98,6 +100,9 @@ type VideoEncode struct {
 	MaxFrameRate float64
 	// FrameRate is the rate frames reach the encoder at: the source's, under MaxFrameRate.
 	FrameRate float64
+
+	// From is the source time the picture begins at, on a kept timeline: earlier frames are decoded only to reach it.
+	From time.Duration
 }
 
 func (e VideoEncode) name() string { return e.Encoder.Name }

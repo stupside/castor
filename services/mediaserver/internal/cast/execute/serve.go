@@ -1,6 +1,7 @@
 package execute
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -276,7 +277,7 @@ const (
 )
 
 func (s *preparation) stageSpec(opts encodePlan, dir string, rungs *ladder) stageSpec {
-	return stageSpec{
+	spec := stageSpec{
 		plan: func(src *pull, ceiling media.Bitrate) (encoding.EncodeOptions, error) {
 			facts := s.bufferedFacts(src)
 			decided, err := s.decide(opts.delivery.Capabilities, opts.delivery.Plan.Format(), facts, "", false, ceiling, carried(opts.EncodeOptions))
@@ -292,6 +293,14 @@ func (s *preparation) stageSpec(opts encodePlan, dir string, rungs *ladder) stag
 		ladder: rungs,
 		warm:   &warmth{},
 	}
+	if s.CarryOn {
+		spec.soft = func(src *pull, ceiling media.Bitrate) (encoding.EncodeOptions, error) {
+			software := *s
+			software.attempt.Software = true
+			return software.stageSpec(opts, dir, rungs).plan(src, cmp.Or(ceiling, s.MaxBitrate))
+		}
+	}
+	return spec
 }
 
 // produceChain makes a delivery by encoders in turn over the read's buffer, each cut in where the last stopped.

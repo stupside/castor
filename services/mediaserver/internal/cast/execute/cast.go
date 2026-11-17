@@ -35,6 +35,10 @@ type Machinery struct {
 
 	// InputArgs is how ffmpeg opens an input, as its source format says.
 	InputArgs encoding.InputArgs
+
+	// CarryOn carries an MPEG-TS chain on in software in the same stream when its hardware encoder fails, instead of
+	// making the cast again.
+	CarryOn bool
 }
 
 // Cast is what one cast's attempts run with, on the machinery every cast shares.
