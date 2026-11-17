@@ -43,11 +43,13 @@ const (
 // backend is the machinery the media server casts with, bound to c.
 func (c *Config) backend() func(*mediav1.PlaybackSettings) cast.Caster {
 	ffmpegBinary, ffprobeBinary := c.Servers.Media.FFmpeg.Path, c.Servers.Media.FFmpeg.ProbePath
+	// A hardware encode that crashed or hung keeps hardware video out of later casts.
+	retirement := &execute.Retirement{}
 	machinery := execute.Machinery{
 		Outputs:    output.Factory{progressive.Adapter{}, hlsoutput.Adapter{}},
 		FFmpegPath: ffmpegBinary,
 		Binary:     ffmpeg.Inspect(ffmpegBinary),
-		Encoders:   ffmpeg.Encoders(ffmpegBinary, c.Servers.Media.FFmpeg.HardwareEncoders),
+		Encoders:   retirement.Encoders(ffmpeg.Encoders(ffmpegBinary, c.Servers.Media.FFmpeg.HardwareEncoders)),
 		Probes:     probe.FFprobe(ffprobeBinary),
 		InputArgs:  formats.InputArgs,
 	}
@@ -61,6 +63,7 @@ func (c *Config) backend() func(*mediav1.PlaybackSettings) cast.Caster {
 				return (candidateProbe{stream: s, client: client, resolver: resolver, timelines: timelines, binary: machinery.Probes}).Inspect(ctx)
 			}),
 			machinery:     machinery,
+			retirement:    retirement,
 			client:        client,
 			resolver:      resolver,
 			timelines:     timelines,
@@ -121,6 +124,7 @@ func (k caster) captions(selection *castorv1.SubtitleSelection) *execute.Caption
 type caster struct {
 	*rank.Ranker
 	machinery     execute.Machinery
+	retirement    *execute.Retirement
 	client        source.Client
 	resolver      *source.Resolver
 	timelines     execute.Timelines
@@ -171,7 +175,7 @@ func (k caster) Play(ctx context.Context, device execute.Device, publisher outpu
 		Start:      start,
 		Turns:      turns,
 		Seeks:      seeks,
-	}, run, k.resolver)
+	}, k.retirement.Runner(run), k.resolver)
 }
 
 func resolverWithProbe(client source.Client, height media.HeightCap, languages []string, binary probe.FFprobe) *source.Resolver {
