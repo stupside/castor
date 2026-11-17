@@ -36,6 +36,13 @@ func (s *preparation) encode(f feed, burn burnRenderer) (encodePlan, error) {
 		captions = &output.Captions{Cues: f.buffered.transcript.Cues(), VideoOffset: *f.buffered.captionVideoOffset}
 	}
 	selections := s.Outputs.Selections(s.playbackCapabilities(), captions)
+	if f.live() {
+		// A live cast is served as HLS where the device takes it, whatever order the device lists its formats in: the
+		// playlist lists only complete fragments, where a growing progressive file leaves a receiver stalling at its edge.
+		slices.SortStableFunc(selections, func(a, b output.Selection) int {
+			return cmp.Compare(notHLS(a), notHLS(b))
+		})
+	}
 	if len(selections) == 0 {
 		return encodePlan{}, fmt.Errorf("no delivery adapter accepts the requested playback envelopes")
 	}
@@ -214,3 +221,11 @@ type encoderFailed struct {
 
 func (e *encoderFailed) Error() string { return e.err.Error() }
 func (e *encoderFailed) Unwrap() error { return e.err }
+
+// notHLS orders an HLS selection before the others.
+func notHLS(s output.Selection) int {
+	if s.Plan.Format().ContentType == media.HLS {
+		return 0
+	}
+	return 1
+}
