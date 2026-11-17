@@ -105,3 +105,40 @@ func bufferedCast(t *testing.T, ffmpegPath, ffprobePath string) (*preparation, *
 	s := readingAttempt(t, realCast(&fakeDevice{}, ffmpegPath, ffprobePath), recovery.Attempt{})
 	return s, &buffered{reader: &pull{spool: sp, done: make(chan struct{})}}
 }
+
+func TestALiveCastIsServedAsHLSWhereTheDeviceTakesIt(t *testing.T) {
+	ffmpegPath, ffprobePath := requireFFmpegTools(t)
+	body, err := os.ReadFile(generateFixture(t, ffmpegPath, "live.ts", 1,
+		[]string{"-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-shortest", "-f", "mpegts"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		live bool
+		want string
+	}{
+		{"live", true, media.HLS},
+		{"finite", false, media.MP4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, buf := bufferedCast(t, ffmpegPath, ffprobePath)
+			t.Cleanup(func() { _ = buf.reader.spool.Close() })
+			if _, err := buf.reader.spool.Write(body); err != nil {
+				t.Fatal(err)
+			}
+			buf.reader.spool.CloseWrite(nil)
+			buf.live = tc.live
+			s.MaxHeight = 2147483647
+			// The device lists MP4 first.
+			s.capabilities = chromecastLike(media.MP4, media.HLS)
+			opts, err := s.encode(feed{buffered: buf}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if opts.Format.ContentType != tc.want {
+				t.Fatalf("delivery %s, want %s", opts.Format.ContentType, tc.want)
+			}
+		})
+	}
+}
