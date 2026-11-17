@@ -674,4 +674,3 @@ func TestCapabilitiesDeclareNoCaptionsSinceV3CannotCarryThem(t *testing.T) {
 		}
 	}
 }
-
