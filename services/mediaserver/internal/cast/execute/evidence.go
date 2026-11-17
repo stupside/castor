@@ -35,6 +35,10 @@ func evidence(r ran, err error, cancelled bool) recovery.Evidence {
 	if failed, ok := errors.AsType[*encoderFailed](err); ok {
 		e.EncodeErr, e.Hardware, e.Lines = failed.err, failed.hardware, failed.lines
 	}
+	// A read its own hardware encoder failed is an encode software may make again (hardware_errors.go).
+	if p := r.reader; p != nil && e.EncodeErr == nil && e.ReadErr != nil && p.hardwareFailed() {
+		e.EncodeErr, e.Hardware = e.ReadErr, true
+	}
 	if undelivered, ok := errors.AsType[*health.Undelivered](err); ok {
 		e.Undelivered = undelivered
 	}

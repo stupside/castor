@@ -194,6 +194,10 @@ func encoderResult(ctx context.Context, proc *ffmpeg.Process, hardware, buffered
 		// The cast's fault quotes the encoder's lines itself.
 		return &encoderFailed{err: err, hardware: hardware, lines: evidence.Lines}
 	}
+	// Over the source, a hardware encoder's own error lines still make the exit its own (hardware_errors.go).
+	if hardware && evidence.ExitStatus > 0 && hardwareFailedItself(evidence.Lines) {
+		return &encoderFailed{err: err, hardware: hardware, lines: evidence.Lines}
+	}
 	return quoting(err, evidence.Lines)
 }
 
