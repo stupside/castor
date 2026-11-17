@@ -43,11 +43,13 @@ type stage struct {
 	out  *bufio.Reader
 	// passed is the bytes of its output the delivery took.
 	passed int64
+	// carry is what a failed hardware encoder is carried on from (carryon.go).
+	carry *carryState
 }
 
 func newStage(proc *ffmpeg.Process, in *splice.Cursor, src *pull, opts encoding.EncodeOptions) *stage {
 	made := &awaited{Reader: proc.Stdout}
-	return &stage{proc: proc, in: in, src: src, opts: opts, made: made, out: bufio.NewReaderSize(made, 64<<10)}
+	return &stage{proc: proc, in: in, src: src, opts: opts, made: made, out: bufio.NewReaderSize(made, 64<<10), carry: newCarryState(opts)}
 }
 
 func (f *stage) kill() {
@@ -70,6 +72,8 @@ type stageSpec struct {
 	// ladder moves the read between the source's rungs, nil where it has one.
 	ladder *ladder
 	warm   *warmth
+	// soft plans what plan would in software, for a hardware encoder that fails mid-stream; nil where nothing carries one on.
+	soft func(src *pull, ceiling media.Bitrate) (encoding.EncodeOptions, error)
 }
 
 // stages is a chain of encoders over one buffer, each cut in where the last stopped, served as one stream no more than lead ahead of the device.
@@ -101,6 +105,9 @@ type stages struct {
 	withheld atomic.Bool
 	origin   atomic.Int64
 	origined atomic.Bool
+
+	// ceiling is the rate the chain was last cut for, which software carrying it on is made for too.
+	ceiling atomic.Int64
 }
 
 // startStages starts the chain at first, from where in the program it begins, writing what it makes through write.
@@ -109,6 +116,7 @@ func startStages(parent context.Context, reader *pull, first *stage, from time.D
 	f := &stages{ctx: ctx, reader: reader, spec: spec, from: from, handed: handed, cur: first, done: make(chan struct{}), taken: media.Trail{Span: takeSpan}}
 	f.stop = func() { cancel(); f.killAll() }
 	stopped := context.AfterFunc(ctx, f.killAll)
+	go f.watchHang(ctx)
 	go func() {
 		defer close(f.done)
 		defer cancel()
@@ -145,7 +153,7 @@ func (f *stages) release() {
 func (f *stages) results() error {
 	var err error
 	for _, each := range f.all() {
-		err = errors.Join(err, encoderResult(f.ctx, each.proc, onHardware(each.opts.Video), true))
+		err = errors.Join(err, each.result(f.ctx))
 	}
 	return err
 }
@@ -162,11 +170,17 @@ func (f *stages) Read(p []byte) (int, error) {
 		n, err := cur.out.Read(p)
 		if n > 0 {
 			cur.passed += int64(n)
+			cur.carry.saw(p[:n])
 			f.passed.Add(int64(n))
 			return n, nil
 		}
 		if errors.Is(err, io.EOF) && f.advance() {
 			continue
+		}
+		if onward, failure := f.carryOn(cur); onward {
+			continue
+		} else if failure != nil {
+			return 0, failure
 		}
 		return 0, err
 	}
@@ -218,6 +232,7 @@ func (f *stages) Switch(ctx context.Context, ceiling media.Bitrate) (int64, erro
 				f.discard(superseded)
 			}
 			change.done()
+			f.ceiling.Store(int64(ceiling))
 			slog.InfoContext(ctx, "the delivery is cut to a new encoder", append([]any{"at", cut.PTS.Round(time.Millisecond), "offset", cut.Offset, "ceiling", ceiling.String()}, change.attrs()...)...)
 			return 0, nil
 		}
@@ -281,6 +296,7 @@ func cutStage(ctx, life context.Context, src *pull, spec stageSpec, opts encodin
 		return nil, err
 	}
 	next := newStage(proc, in, src, opts)
+	next.carry.from = cut.PTS
 	began := time.Now()
 	made := make(chan error, 1)
 	go func() { _, err := next.out.Peek(1); made <- err }()

@@ -50,6 +50,8 @@ func (c *Config) backend() func(*mediav1.PlaybackSettings) cast.Caster {
 		Encoders:   ffmpeg.Encoders(ffmpegBinary, c.Servers.Media.FFmpeg.HardwareEncoders),
 		Probes:     probe.FFprobe(ffprobeBinary),
 		InputArgs:  formats.InputArgs,
+		// A DLNA TV fed MPEG-TS goes on with one stream when the hardware encoder fails.
+		CarryOn: true,
 	}
 	resolverConfig, whisperConfig := c.Servers.Media.Resolver.Config, c.Servers.Media.Whisper
 	return func(asked *mediav1.PlaybackSettings) cast.Caster {

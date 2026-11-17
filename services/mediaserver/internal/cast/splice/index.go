@@ -117,6 +117,18 @@ func (x *Index) First() (time.Duration, bool) {
 	return x.cuts[0].PTS, true
 }
 
+// Before is the last cut whose picture is at or before pts, if the stream has one.
+func (x *Index) Before(pts time.Duration) (Cut, bool) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	for i := len(x.cuts) - 1; i >= 0; i-- {
+		if x.cuts[i].PTS <= pts {
+			return x.cuts[i], true
+		}
+	}
+	return Cut{}, false
+}
+
 // After is the first cut at or past offset, if the stream has reached one.
 func (x *Index) After(offset int64) (Cut, bool) {
 	x.mu.Lock()

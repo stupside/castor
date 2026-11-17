@@ -25,6 +25,10 @@ const toneMap = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap
 // videoFilters is a re-encode's -vf chain in frame order, shrinking frames before the float RGB tone map.
 func videoFilters(venc codec.VideoEncode) []string {
 	var filters []string
+	if venc.From > 0 {
+		// First, so no later filter spends work on, or holds state from, a frame that is not sent.
+		filters = append(filters, fmt.Sprintf("select='gte(t,%s)'", strconv.FormatFloat(venc.From.Seconds(), 'f', 6, 64)))
+	}
 	if venc.Deinterlace {
 		filters = append(filters, "bwdif=mode=send_frame")
 	}
