@@ -83,6 +83,11 @@ var encoders = []Encoder{
 // known is every encoder castor knows: those it tries on its own, and MediaCodec, which it does not probe; the Android host declares the ones its phone backs with hardware.
 var known = slices.Concat(encoders, []Encoder{h264MediaCodec, hevcMediaCodec})
 
+// HardwareEncoder reports whether name is a hardware encoder castor knows.
+func HardwareEncoder(name string) bool {
+	return slices.ContainsFunc(known, func(e Encoder) bool { return e.Hardware && e.Name == name })
+}
+
 // Declared is a hardware encoder the host says its ffmpeg has, configured by its name and tried first.
 type Declared Encoder
 
