@@ -42,9 +42,14 @@ func (e Encoder) Level(level string) string {
 
 const vaapiRenderNode = "/dev/dri/renderD128"
 
+// handheldPreset is the software preset of a host that declares MediaCodec encoders, which only a handheld's build
+// offers: its cores hold veryfast only just ahead of a 1080p50 read and fall behind it once they warm, which starves a
+// live cast, while this one keeps about twice realtime.
+const handheldPreset = "superfast"
+
 // pix_fmt is fixed on CPU encoders; VA-API converts on the GPU instead.
 var (
-	// veryfast keeps the software encoders ahead of realtime in the live pipeline.
+	// veryfast keeps the software encoders ahead of realtime in the live pipeline on a desktop's cores; a handheld takes handheldPreset.
 	softwareFlags     = []string{"-preset", "veryfast", "-pix_fmt", "yuv420p"}
 	videotoolboxFlags = []string{"-pix_fmt", "yuv420p", "-g", "600"}
 	vaapiFilters      = []string{"format=nv12", "hwupload"}
@@ -95,15 +100,40 @@ func (d *Declared) UnmarshalText(name []byte) error {
 	return nil
 }
 
-// candidates is the declared encoders, then encoders plus VA-API on every other render node this host has.
+// candidates is the declared encoders, then encoders plus VA-API on every other render node this host has; a handheld's software encoders take its preset.
 func candidates(declared []Encoder) []Encoder {
-	out := slices.Concat(declared, encoders)
+	known := encoders
+	if handheld(declared) {
+		known = lightened(encoders)
+	}
+	out := slices.Concat(declared, known)
 	nodes, _ := filepath.Glob("/dev/dri/renderD*")
 	for _, node := range nodes {
 		if node == vaapiRenderNode {
 			continue
 		}
 		out = append(out, vaapiEncoder("h264_vaapi", media.CodecH264, node), vaapiEncoder("hevc_vaapi", media.CodecHEVC, node))
+	}
+	return out
+}
+
+// handheld reports a host that declares MediaCodec encoders.
+func handheld(declared []Encoder) bool {
+	return slices.ContainsFunc(declared, func(e Encoder) bool { return strings.HasSuffix(e.Name, "_mediacodec") })
+}
+
+// lightened is list with every software encoder on handheldPreset; list itself is not edited.
+func lightened(list []Encoder) []Encoder {
+	out := slices.Clone(list)
+	for i, e := range out {
+		if e.Hardware {
+			continue
+		}
+		flags := slices.Clone(e.Flags)
+		if at := slices.Index(flags, "-preset"); at >= 0 && at+1 < len(flags) {
+			flags[at+1] = handheldPreset
+		}
+		out[i].Flags = flags
 	}
 	return out
 }
