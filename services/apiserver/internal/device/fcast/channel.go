@@ -35,8 +35,13 @@ const (
 	// A v3 packet, opcode included, is at most this long; Android receivers drop the connection over it.
 	maxPacket = 32000
 
-	// answerWithin bounds a write, the handshake, and the receiver's echo of a Play.
+	// answerWithin bounds a write and the handshake; a Play has its start-up limit instead.
 	answerWithin = 10 * time.Second
+
+	// A receiver relaunching after a Play refuses connections for a few seconds (3.5 s for an LG C1's): each attempt is
+	// short, and they repeat until the Play's start-up limit.
+	reconnectDial  = time.Second
+	reconnectEvery = 500 * time.Millisecond
 
 	// A receiver heard from in none of heartbeatMisses beats is gone, however open its socket looks.
 	heartbeatEvery  = 5 * time.Second

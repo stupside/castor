@@ -177,10 +177,11 @@ func (s *session) AwaitEnd(ctx context.Context) error {
 	if p == nil {
 		return errors.New("nothing has been played on this fcast receiver")
 	}
+	ch := s.link()
 	select {
 	case <-p.ending.done:
 		return p.ending.err
-	case <-s.ch.gone:
+	case <-ch.gone:
 		// An end read before the connection dropped still decides it.
 		select {
 		case <-p.ending.done:

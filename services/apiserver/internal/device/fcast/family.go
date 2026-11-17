@@ -35,11 +35,21 @@ func (Family) Connect(ctx context.Context, info device.Info) (device.Device, err
 	dialCtx, cancel := context.WithTimeout(ctx, answerWithin)
 	defer cancel()
 	var dialer net.Dialer
-	conn, err := dialer.DialContext(dialCtx, "tcp", device.WithPort(info.Address, strconv.Itoa(defaultPort)))
+	address := device.WithPort(info.Address, strconv.Itoa(defaultPort))
+	conn, err := dialer.DialContext(dialCtx, "tcp", address)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to fcast receiver: %w", err)
 	}
-	return open(ctx, conn, cmp.Or(info.Name, info.Address))
+	s, err := open(ctx, conn, cmp.Or(info.Name, info.Address))
+	if err != nil {
+		return nil, err
+	}
+	s.redial = func(ctx context.Context) (net.Conn, error) {
+		ctx, cancel := context.WithTimeout(ctx, reconnectDial)
+		defer cancel()
+		return dialer.DialContext(ctx, "tcp", address)
+	}
+	return s, nil
 }
 
 // Locate names a pinned device as discovery does, so both lease the same endpoint.

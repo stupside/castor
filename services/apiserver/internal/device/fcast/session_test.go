@@ -56,6 +56,18 @@ func connectReceiver(t *testing.T, version int, answer func(r *fakeReceiver, p p
 	return dev, r, err
 }
 
+// receiverAt is a fake v3 receiver on the far end of a fresh pipe, for a session connecting again; the near end is castor's.
+func receiverAt(t *testing.T, answer func(r *fakeReceiver, p packet)) (net.Conn, *fakeReceiver) {
+	t.Helper()
+	near, far := net.Pipe()
+	r := &fakeReceiver{conn: far, flushes: make(chan chan struct{}, 1)}
+	incoming := make(chan packet, 256)
+	go r.read(incoming)
+	go r.serve(3, incoming, answer)
+	t.Cleanup(func() { _ = far.Close() })
+	return near, r
+}
+
 // serve answers castor from one goroutine, so a flush's ping always follows the answers sent before it.
 func (r *fakeReceiver) serve(version int, incoming <-chan packet, answer func(*fakeReceiver, packet)) {
 	if version > 0 {
@@ -405,6 +417,92 @@ func TestAPlayOnADroppedConnectionIsGone(t *testing.T) {
 	<-dev.ch.gone
 	if _, gone := errors.AsType[*device.Gone](dev.Play(t.Context(), mp4(t))); !gone {
 		t.Error("a Play on a connection the receiver dropped is not reported gone, so its lender never connects again")
+	}
+}
+
+func TestAReceiverThatRelaunchesOnceHandedTheMediaIsFollowedOnItsNewConnection(t *testing.T) {
+	// An LG C1's receiver echoes the Play, closes the connection, refuses connections while its player starts,
+	// then reports the media it plays to any sender, without naming it again.
+	dev, _, err := connectReceiver(t, 3, greets(func(r *fakeReceiver, url string) {
+		r.send(opPlayUpdate, playUpdate(url))
+		_ = r.conn.Close()
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var relaunched *fakeReceiver
+	attempts := 0
+	dev.redial = func(context.Context) (net.Conn, error) {
+		attempts++
+		if attempts == 1 {
+			return nil, errors.New("connection refused while the receiver relaunches")
+		}
+		conn, r := receiverAt(t, func(r *fakeReceiver, p packet) {
+			if p.op == opSubscribeEvent {
+				r.say(update(statePlaying, 2))
+			}
+		})
+		relaunched = r
+		return conn, nil
+	}
+	if err := dev.Play(t.Context(), mp4(t)); err != nil {
+		t.Fatalf("Play = %v, want the relaunched receiver's playing to take it", err)
+	}
+	if attempts != 2 {
+		t.Errorf("connected again %d times, want a refused attempt then one that held", attempts)
+	}
+	if head, err := dev.Position(t.Context()); err != nil || head.At != 2*time.Second {
+		t.Errorf("Position = %v, %v; want the 2s the relaunched receiver reported", head, err)
+	}
+	if err := dev.Pause(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	relaunched.flush(t)
+	if sent := relaunched.sent(); sent[len(sent)-1].op != opPause {
+		t.Errorf("the receiver's new connection got %v, want the pause there", sent)
+	}
+}
+
+func TestAReceiverThatNeverComesBackAfterHangingUpRefusesThePlayInTime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		dev, _, err := connectReceiver(t, 3, greets(func(r *fakeReceiver, url string) {
+			r.send(opPlayUpdate, playUpdate(url))
+			_ = r.conn.Close()
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dev.redial = func(context.Context) (net.Conn, error) { return nil, errors.New("connection refused") }
+		err = dev.Play(t.Context(), mp4(t))
+		if _, gone := errors.AsType[*device.Gone](err); gone || !errors.Is(err, errDroppedAfterPlay) {
+			t.Errorf("Play = %v, want a refusal the cast falls back from", err)
+		}
+	})
+}
+
+func TestAReceiverThatHangsUpOnceHandedTheMediaRefusesIt(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		onPlay func(r *fakeReceiver, url string)
+	}{
+		// A session that cannot connect again, as connectReceiver's, has nothing to follow it to.
+		{"with an echo", func(r *fakeReceiver, url string) {
+			r.send(opPlayUpdate, playUpdate(url))
+			_ = r.conn.Close()
+		}},
+		{"without one", func(r *fakeReceiver, _ string) { _ = r.conn.Close() }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dev, _, err := connectReceiver(t, 3, greets(tt.onPlay))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = dev.Play(t.Context(), mp4(t))
+			// Gone would end the cast, though the receiver took the Play and a stream castor serves may still reach it.
+			if _, gone := errors.AsType[*device.Gone](err); gone || !errors.Is(err, errDroppedAfterPlay) {
+				t.Errorf("Play = %v, want the hang-up as a refusal the cast falls back from", err)
+			}
+		})
 	}
 }
 

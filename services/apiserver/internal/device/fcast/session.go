@@ -28,15 +28,26 @@ func containerName(container mediav1.Container) string {
 	return device.MIME(container)
 }
 
-// session is one FCast connection to a receiver, following the Play it was last handed.
+// session is one FCast receiver, following the Play it was last handed. Its connection is replaced when a receiver
+// that took a Play relaunches, so it is read through link.
 type session struct {
-	ch   *channel
 	name string
 	// announced carries the version the receiver states on connecting.
 	announced chan uint64
+	// redial connects to the receiver again; nil where the session cannot.
+	redial func(context.Context) (net.Conn, error)
 
 	mu      sync.Mutex
+	ch      *channel
+	closed  bool
 	current *playback
+}
+
+// link is the connection castor speaks to the receiver on now.
+func (s *session) link() *channel {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ch
 }
 
 var _ device.Device = (*session)(nil)
@@ -73,24 +84,25 @@ type metadata struct {
 func open(ctx context.Context, conn net.Conn, name string) (*session, error) {
 	s := &session{name: name, announced: make(chan uint64, 1)}
 	s.ch = newChannel(conn, s.observe)
-	ctx, cancel := context.WithTimeoutCause(ctx, answerWithin, fmt.Errorf("the fcast receiver did not finish the handshake within %s: %w", answerWithin, context.DeadlineExceeded))
-	defer cancel()
-	if err := s.handshake(ctx); err != nil {
+	if err := s.handshake(ctx, s.ch); err != nil {
 		_ = s.ch.Close()
 		return nil, fmt.Errorf("connecting to fcast receiver: %w", err)
 	}
 	return s, nil
 }
 
-func (s *session) handshake(ctx context.Context) error {
+// handshake takes ch through the v3 greeting.
+func (s *session) handshake(ctx context.Context, ch *channel) error {
+	ctx, cancel := context.WithTimeoutCause(ctx, answerWithin, fmt.Errorf("the fcast receiver did not finish the handshake within %s: %w", answerWithin, context.DeadlineExceeded))
+	defer cancel()
 	// Version goes first: a receiver takes any other opening packet for a v1 sender.
-	if err := s.ch.sendJSON(ctx, opVersion, versionMessage{Version: protocolVersion}); err != nil {
+	if err := ch.sendJSON(ctx, opVersion, versionMessage{Version: protocolVersion}); err != nil {
 		return err
 	}
 	var theirs uint64
 	select {
 	case theirs = <-s.announced:
-	case <-s.ch.gone:
+	case <-ch.gone:
 		return errors.New("the receiver closed the connection before announcing its version")
 	case <-ctx.Done():
 		return context.Cause(ctx)
@@ -98,13 +110,48 @@ func (s *session) handshake(ctx context.Context) error {
 	if theirs < protocolVersion {
 		return fmt.Errorf("the receiver speaks FCast v%d; castor needs v%d", theirs, protocolVersion)
 	}
-	if err := s.ch.sendJSON(ctx, opInitial, initialMessage{AppName: "Castor"}); err != nil {
+	if err := ch.sendJSON(ctx, opInitial, initialMessage{AppName: "Castor"}); err != nil {
 		return err
 	}
 	// Receivers report a finished item as paused; only this event tells its end.
 	var subscribe subscribeMessage
 	subscribe.Event.Type = eventMediaItemEnd
-	return s.ch.sendJSON(ctx, opSubscribeEvent, subscribe)
+	return ch.sendJSON(ctx, opSubscribeEvent, subscribe)
+}
+
+// reconnect waits for a receiver that closed the connection after echoing a Play to come back, as an LG C1's does: it
+// relaunches its player, refuses connections for some seconds, then reports the media it plays to every sender.
+func (s *session) reconnect(ctx context.Context) error {
+	if s.redial == nil {
+		return errors.New("this session cannot connect again")
+	}
+	retry := time.NewTicker(reconnectEvery)
+	defer retry.Stop()
+	for {
+		conn, err := s.redial(ctx)
+		if err == nil {
+			ch := newChannel(conn, s.observe)
+			if err = s.handshake(ctx, ch); err == nil {
+				s.mu.Lock()
+				if s.closed {
+					s.mu.Unlock()
+					_ = ch.Close()
+					return errors.New("the session was closed")
+				}
+				stale := s.ch
+				s.ch = ch
+				s.mu.Unlock()
+				_ = stale.Close()
+				return nil
+			}
+			_ = ch.Close()
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%w (last attempt: %v)", context.Cause(ctx), err)
+		case <-retry.C:
+		}
+	}
 }
 
 // observe routes what the receiver says, from the reader's goroutine.
@@ -136,20 +183,32 @@ func (s *session) settle(p *playback) {
 }
 
 // Play returns once the receiver plays the media it echoed back, so one it refuses or never starts fails the
-// hand-off, which the cast falls back from by serving the media itself; a dropped connection is gone.
+// hand-off, which the cast falls back from by serving the media itself. A receiver that closes the connection once it
+// echoed the media may be relaunching to play it, as an LG C1's does: the session connects again and follows it there.
+// One that closes before echoing, or never comes back, refuses the media. A connection closed before the Play went out
+// is gone.
 func (s *session) Play(ctx context.Context, playback device.Playback) error {
-	if err := s.play(ctx, playback); err != nil {
-		select {
-		case <-s.ch.gone:
-			return &device.Gone{Device: s.name, Observed: "the FCast connection closed before the receiver took the media", Err: err}
-		default:
-			return err
-		}
+	err := s.play(ctx, playback)
+	if err == nil || errors.Is(err, errDroppedAfterPlay) {
+		return err
 	}
-	return nil
+	select {
+	case <-s.link().gone:
+		return &device.Gone{Device: s.name, Observed: "the FCast connection closed before the receiver was handed the media", Err: err}
+	default:
+		return err
+	}
 }
 
+// errDroppedAfterPlay is a receiver that closed the connection once handed the media, without playing it here.
+var errDroppedAfterPlay = errors.New("the fcast receiver closed the connection once handed the media, without playing it where castor can follow")
+
 func (s *session) play(ctx context.Context, playback device.Playback) error {
+	select {
+	case <-s.link().gone:
+		return errors.New("the fcast connection is closed")
+	default:
+	}
 	stream, info := playback.URL.String(), playback.Info
 	container := containerName(playback.Container())
 	if container == "" {
@@ -163,7 +222,7 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 	s.mu.Lock()
 	s.current = mine
 	s.mu.Unlock()
-	err := s.ch.sendJSON(ctx, opPlay, message)
+	err := s.link().sendJSON(ctx, opPlay, message)
 	if err == nil {
 		err = s.verdict(ctx, mine)
 	}
@@ -182,14 +241,30 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 func (s *session) verdict(ctx context.Context, p *playback) error {
 	ctx, cancel := context.WithTimeoutCause(ctx, startupTimeout, fmt.Errorf("the fcast receiver did not take the media and start playing it within %s: %w", startupTimeout, context.DeadlineExceeded))
 	defer cancel()
-	select {
-	case err := <-p.verdict:
-		return err
-	case <-s.ch.gone:
-		return errors.New("the fcast receiver closed the connection before taking the media")
-	case <-ctx.Done():
-		return context.Cause(ctx)
+	for {
+		ch := s.link()
+		select {
+		case err := <-p.verdict:
+			return err
+		case <-ch.gone:
+			if !s.echoed(p) {
+				return errDroppedAfterPlay
+			}
+			// The receiver took the Play and dropped the connection: it may be relaunching to play it.
+			if err := s.reconnect(ctx); err != nil {
+				return fmt.Errorf("%w; connecting again: %w", errDroppedAfterPlay, err)
+			}
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		}
 	}
+}
+
+// echoed is whether the receiver echoed p back.
+func (s *session) echoed(p *playback) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return p.loaded
 }
 
 func (s *session) Pause(ctx context.Context) error { return s.command(ctx, opPause, "pausing") }
@@ -200,7 +275,7 @@ func (s *session) Resume(ctx context.Context) error { return s.command(ctx, opRe
 func (s *session) Stop(ctx context.Context) error { return s.command(ctx, opStop, "stopping") }
 
 func (s *session) command(ctx context.Context, op opcode, doing string) error {
-	if err := s.ch.send(ctx, op, nil); err != nil {
+	if err := s.link().send(ctx, op, nil); err != nil {
 		return fmt.Errorf("%s the fcast receiver: %w", doing, err)
 	}
 	return nil
@@ -217,7 +292,11 @@ func (s *session) Position(context.Context) (device.Playhead, error) {
 }
 
 func (s *session) Close() error {
-	return s.ch.Close()
+	s.mu.Lock()
+	s.closed = true
+	ch := s.ch
+	s.mu.Unlock()
+	return ch.Close()
 }
 
 // Capabilities is what every FCast receiver app is expected to play; v3 carries no subtitle tracks, so captions are burnt in.
