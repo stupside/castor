@@ -211,20 +211,35 @@ func (s *session) Position(ctx context.Context) (device.Playhead, error) {
 
 // AwaitEnd polls the player until it closes or stops after having played.
 func (s *session) AwaitEnd(ctx context.Context) error {
-	var active bool
-	started := time.Now()
-	return device.AwaitPolledEnd(ctx, s.name, mediaPlayerQuery, func(ctx context.Context) (bool, error) {
-		player, err := s.player(ctx)
-		if err != nil {
-			return false, err
-		}
-		state := player.State
-		active = active || state.holdsStream()
-		if !active && time.Since(started) >= startupTimeout {
-			return false, &device.PlaybackError{Err: fmt.Errorf("roku did not start playback within %s (state %q)", startupTimeout, state)}
-		}
-		return active && state.over(), nil
-	})
+	return device.AwaitPlayback(ctx, familyType, s.name, mediaPlayerQuery, playerPoll{s})
+}
+
+// phase is what the player's state says of the stream.
+func (s playerState) phase() device.Phase {
+	switch {
+	case s.holdsStream():
+		return device.Holding
+	case s.over():
+		return device.Idle
+	}
+	return device.Settling
+}
+
+// playerPoll is the media player as a polled device.
+type playerPoll struct{ s *session }
+
+func (p playerPoll) Read(ctx context.Context) (device.Reading, error) {
+	player, err := p.s.player(ctx)
+	if err != nil {
+		return device.Reading{}, err
+	}
+	return device.Reading{Phase: player.State.phase(), Observed: string(player.State)}, nil
+}
+
+func (playerPoll) Patience() device.Patience { return device.Within(startupTimeout) }
+
+func (playerPoll) Refusal(last device.Reading) error {
+	return &device.PlaybackError{Err: fmt.Errorf("roku did not start playback within %s (state %q)", startupTimeout, last.Observed)}
 }
 
 // Capabilities describes what Castor's channel plays.

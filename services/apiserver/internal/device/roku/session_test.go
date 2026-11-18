@@ -138,6 +138,18 @@ func TestRokuEndsWhenThePlayerClosesAfterPlaying(t *testing.T) {
 	})
 }
 
+func TestRokuTakesAPausedPlayerForOneThatStartedAndEndsWhenItCloses(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ecp := &scriptedECP{states: []string{"startup", "pause", "close"}}
+		if err := scriptedSession(ecp).AwaitEnd(t.Context()); err != nil {
+			t.Fatalf("AwaitEnd = %v, want a clean end", err)
+		}
+		if ecp.polls != len(ecp.states) {
+			t.Errorf("polled %d times, want %d: a player held paused has started", ecp.polls, len(ecp.states))
+		}
+	})
+}
+
 func TestRokuEndsCleanlyWhenAnotherChannelTakesThePlayer(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
