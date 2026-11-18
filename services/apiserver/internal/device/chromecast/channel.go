@@ -31,6 +31,7 @@ const (
 	msgStop        = "STOP"
 	msgClose       = "CLOSE"
 	msgMediaStatus = "MEDIA_STATUS"
+	msgEditTracks  = "EDIT_TRACKS_INFO"
 	msgPing        = "PING"
 	msgPong        = "PONG"
 	streamBuffered = "BUFFERED"
@@ -198,8 +199,7 @@ func (ch *channel) request(ctx context.Context, destination, namespace string, p
 	defer cancel()
 	reply := make(chan []byte, 1)
 	ch.mu.Lock()
-	ch.next++
-	id := ch.next
+	id := ch.nextRequestID()
 	ch.waiting[id] = reply
 	ch.mu.Unlock()
 	defer func() {
@@ -220,6 +220,21 @@ func (ch *channel) request(ctx context.Context, destination, namespace string, p
 	case <-ctx.Done():
 		return nil, context.Cause(ctx)
 	}
+}
+
+// nextRequestID is a request id no other request of this connection has; the caller holds mu.
+func (ch *channel) nextRequestID() int {
+	ch.next++
+	return ch.next
+}
+
+// post sends payload under a fresh request id and leaves the receiver's answer to its next status.
+func (ch *channel) post(ctx context.Context, destination, namespace string, payload castmedia.Payload) error {
+	ch.mu.Lock()
+	id := ch.nextRequestID()
+	ch.mu.Unlock()
+	payload.SetRequestId(id)
+	return ch.send(ctx, destination, namespace, payload)
 }
 
 func (ch *channel) send(ctx context.Context, destination, namespace string, payload any) error {

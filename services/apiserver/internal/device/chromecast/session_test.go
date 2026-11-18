@@ -670,3 +670,35 @@ func TestAMediaCommandGoesToTheTransportThePlayLoadedOn(t *testing.T) {
 		t.Errorf("the receiver heard %+v, want one PAUSE addressed to the transport the Play loaded on", got)
 	}
 }
+
+func TestAPlaylistsOwnCaptionsAreShownOnceTheReceiverReportsThem(t *testing.T) {
+	reportsItsTrack := func(requestID int, load mediaItem) []any {
+		withTrack := jsontext.Value(fmt.Sprintf(`{"type":"MEDIA_STATUS","status":[{"mediaSessionId":1,"playerState":"PLAYING","activeTrackIds":[],"media":{"contentId":%q,"tracks":[{"trackId":1,"type":"TEXT","language":"und","name":"Transcription"}]}}],"requestId":0}`, load.ContentId))
+		// The track is reported more than once, as a receiver repeats its media in later statuses.
+		return []any{mediaStatus(requestID, load.ContentId, "BUFFERING", ""), withTrack, withTrack}
+	}
+	for _, tt := range []struct {
+		name     string
+		captions *mediav1.DeviceCommand_Play_EmbeddedCaptions
+		want     []mediaCommand
+	}{
+		{"a playlist that lists its own captions", &mediav1.DeviceCommand_Play_EmbeddedCaptions{}, []mediaCommand{{Type: "EDIT_TRACKS_INFO", Destination: "transport-1", MediaSessionID: 1, ActiveTrackIDs: []int{1}}}},
+		{"a playlist that lists none", nil, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				dev, heard := receiverRecording(t, reportsItsTrack)
+				play := &mediav1.DeviceCommand_Play{Stream: &mediav1.DeviceCommand_Play_Playlist_{Playlist: &mediav1.DeviceCommand_Play_Playlist{Segments: mediav1.Container_CONTAINER_MP4, EmbeddedCaptions: tt.captions}}}
+				if err := dev.Play(t.Context(), device.Playback{URL: &url.URL{Scheme: "http", Host: "media.test", Path: "/master.m3u8"}, Play: play}); err != nil {
+					t.Fatal(err)
+				}
+				synctest.Wait()
+				if got := heard(); !slices.EqualFunc(got, tt.want, func(a, b mediaCommand) bool {
+					return a.Type == b.Type && a.Destination == b.Destination && a.MediaSessionID == b.MediaSessionID && slices.Equal(a.ActiveTrackIDs, b.ActiveTrackIDs)
+				}) {
+					t.Errorf("the receiver heard %+v, want %+v", got, tt.want)
+				}
+			})
+		})
+	}
+}
