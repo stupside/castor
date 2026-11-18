@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
@@ -20,9 +20,9 @@ func TestMeasuredAbsentTrackDoesNotRequestAnEncoderAtASplice(t *testing.T) {
 			encoderCalls := 0
 			in := Inputs{
 				Probe: tt.probe, Measured: true, Spliced: true,
-				Encoders: func(context.Context, media.Codec, bool) (ffmpeg.Encoder, bool) {
+				Encoders: func(context.Context, media.Codec, bool) (encoder.Encoder, bool) {
 					encoderCalls++
-					return ffmpeg.Encoder{}, false
+					return encoder.Encoder{}, false
 				},
 			}
 			if tt.probe.VideoCodec == "" {

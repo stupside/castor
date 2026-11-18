@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/container"
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
@@ -71,7 +71,7 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 	if len(refused) == 0 {
 		return CopyVideo(), nil, nil
 	}
-	host := func(c media.Codec) (ffmpeg.Encoder, bool) {
+	host := func(c media.Codec) (encoder.Encoder, bool) {
 		e, ok := in.Encoders(ctx, c, in.Software)
 		if ok && !everySegmentStartsOnIDR(e, in.Into) {
 			return in.Encoders(ctx, c, true)
@@ -121,7 +121,7 @@ func decideVideo(ctx context.Context, in Inputs, sound media.Bitrate) (Track[Vid
 }
 
 // everySegmentStartsOnIDR reports whether every segment of into that e encodes starts on a frame a device can start decoding at.
-func everySegmentStartsOnIDR(e ffmpeg.Encoder, into container.Format) bool {
+func everySegmentStartsOnIDR(e encoder.Encoder, into container.Format) bool {
 	if e.SingleIDROutOfBand && into.Delivery == container.DeliverSegmented && into.Framing == media.FramingOutOfBand {
 		// A device may start at any segment, and none carries the decoder config.
 		return false
@@ -132,7 +132,7 @@ func everySegmentStartsOnIDR(e ffmpeg.Encoder, into container.Format) bool {
 // playbackFrameRate is the most any device castor serves shows in a second; above it a re-encode drops frames.
 const playbackFrameRate = 60
 
-func selectVideoEncoder(caps media.Capabilities, selectEncoder func(media.Codec) (ffmpeg.Encoder, bool)) (ffmpeg.Encoder, videoTarget, bool) {
+func selectVideoEncoder(caps media.Capabilities, selectEncoder func(media.Codec) (encoder.Encoder, bool)) (encoder.Encoder, videoTarget, bool) {
 	for _, t := range videoTargets {
 		for _, format := range caps.Formats {
 			support := format.Video
@@ -149,10 +149,10 @@ func selectVideoEncoder(caps media.Capabilities, selectEncoder func(media.Codec)
 		}
 	}
 	// No common strategy is safer than inventing support the device never advertised.
-	return ffmpeg.Encoder{}, videoTarget{}, false
+	return encoder.Encoder{}, videoTarget{}, false
 }
 
-func holdsRealtime(enc ffmpeg.Encoder, codec media.Codec) bool {
+func holdsRealtime(enc encoder.Encoder, codec media.Codec) bool {
 	return enc.Hardware || codec == media.CodecH264
 }
 

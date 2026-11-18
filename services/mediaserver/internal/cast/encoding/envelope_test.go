@@ -10,15 +10,15 @@ import (
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/container"
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 func TestActualEncodeHonorsBaselineLevelAndDimensions(t *testing.T) {
 	caps := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264, Profiles: []media.Profile{media.ProfileBaseline}, MaxLevel: 31}, Audio: media.AudioSupport{Codec: media.CodecAAC}}}}
 	format, _ := container.For(media.MP4)
-	plan, err := codec.Served(t.Context(), codec.Inputs{Caps: caps, Into: format, Measured: true, MaxHeight: 2160, Probe: media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: media.ProfileHigh, VideoHeight: 2160, VideoBitDepth: 8}, Encoders: func(context.Context, media.Codec, bool) (ffmpeg.Encoder, bool) {
-		return ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264, Flags: []string{"-preset", "veryfast", "-pix_fmt", "yuv420p"}}, true
+	plan, err := codec.Served(t.Context(), codec.Inputs{Caps: caps, Into: format, Measured: true, MaxHeight: 2160, Probe: media.ProbeInfo{VideoCodec: media.CodecH264, VideoProfile: media.ProfileHigh, VideoHeight: 2160, VideoBitDepth: 8}, Encoders: func(context.Context, media.Codec, bool) (encoder.Encoder, bool) {
+		return encoder.Encoder{Name: "libx264", Codec: media.CodecH264, Flags: []string{"-preset", "veryfast", "-pix_fmt", "yuv420p"}}, true
 	}})
 	if err != nil {
 		t.Fatal(err)

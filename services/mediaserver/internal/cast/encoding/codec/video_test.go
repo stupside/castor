@@ -6,18 +6,19 @@ import (
 	"testing"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/container"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-func hostEncoders(_ context.Context, codec media.Codec, software bool) (ffmpeg.Encoder, bool) {
+func hostEncoders(_ context.Context, codec media.Codec, software bool) (encoder.Encoder, bool) {
 	switch {
 	case codec == media.CodecHEVC && !software:
-		return ffmpeg.Encoder{Name: "hevc_videotoolbox", Codec: media.CodecHEVC, Hardware: true}, true
+		return encoder.Encoder{Name: "hevc_videotoolbox", Codec: media.CodecHEVC, Hardware: true}, true
 	case codec == media.CodecH264:
-		return ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264}, true
+		return encoder.Encoder{Name: "libx264", Codec: media.CodecH264}, true
 	}
-	return ffmpeg.Encoder{}, false
+	return encoder.Encoder{}, false
 }
 
 func TestSelectVideoEncoder(t *testing.T) {
@@ -28,24 +29,24 @@ func TestSelectVideoEncoder(t *testing.T) {
 		}
 		return r
 	}
-	hevcHW := ffmpeg.Encoder{Name: "hevc_videotoolbox", Codec: media.CodecHEVC, Hardware: true}
-	hevcSW := ffmpeg.Encoder{Name: "libx265", Codec: media.CodecHEVC}
-	h264HW := ffmpeg.Encoder{Name: "h264_videotoolbox", Codec: media.CodecH264, Hardware: true}
-	h264SW := ffmpeg.Encoder{Name: "libx264", Codec: media.CodecH264}
+	hevcHW := encoder.Encoder{Name: "hevc_videotoolbox", Codec: media.CodecHEVC, Hardware: true}
+	hevcSW := encoder.Encoder{Name: "libx265", Codec: media.CodecHEVC}
+	h264HW := encoder.Encoder{Name: "h264_videotoolbox", Codec: media.CodecH264, Hardware: true}
+	h264SW := encoder.Encoder{Name: "libx264", Codec: media.CodecH264}
 
 	for _, tt := range []struct {
 		name  string
 		caps  media.Capabilities
-		avail map[media.Codec]ffmpeg.Encoder
+		avail map[media.Codec]encoder.Encoder
 		want  string
 	}{
-		{"hardware HEVC first", decodes(media.CodecHEVC, media.CodecH264), map[media.Codec]ffmpeg.Encoder{media.CodecHEVC: hevcHW, media.CodecH264: h264HW}, "hevc_videotoolbox"},
-		{"software HEVC is never run live", decodes(media.CodecHEVC, media.CodecH264), map[media.Codec]ffmpeg.Encoder{media.CodecHEVC: hevcSW, media.CodecH264: h264HW}, "h264_videotoolbox"},
-		{"only what the device decodes", decodes(media.CodecH264), map[media.Codec]ffmpeg.Encoder{media.CodecHEVC: hevcHW, media.CodecH264: h264SW}, "libx264"},
-		{"nothing in common", decodes(media.CodecVP8), map[media.Codec]ffmpeg.Encoder{media.CodecH264: h264SW}, ""},
+		{"hardware HEVC first", decodes(media.CodecHEVC, media.CodecH264), map[media.Codec]encoder.Encoder{media.CodecHEVC: hevcHW, media.CodecH264: h264HW}, "hevc_videotoolbox"},
+		{"software HEVC is never run live", decodes(media.CodecHEVC, media.CodecH264), map[media.Codec]encoder.Encoder{media.CodecHEVC: hevcSW, media.CodecH264: h264HW}, "h264_videotoolbox"},
+		{"only what the device decodes", decodes(media.CodecH264), map[media.Codec]encoder.Encoder{media.CodecHEVC: hevcHW, media.CodecH264: h264SW}, "libx264"},
+		{"nothing in common", decodes(media.CodecVP8), map[media.Codec]encoder.Encoder{media.CodecH264: h264SW}, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _, _ := selectVideoEncoder(tt.caps, func(c media.Codec) (ffmpeg.Encoder, bool) { e, ok := tt.avail[c]; return e, ok })
+			got, _, _ := selectVideoEncoder(tt.caps, func(c media.Codec) (encoder.Encoder, bool) { e, ok := tt.avail[c]; return e, ok })
 			if got.Name != tt.want {
 				t.Errorf("selectVideoEncoder = %q, want %q", got.Name, tt.want)
 			}
@@ -221,26 +222,26 @@ func TestTheEncoderIsToldTheRateFramesReachItAt(t *testing.T) {
 
 // A hardware encoder is passed over for software where a segment it encodes would not start on an IDR.
 func TestSoftwareEncodesWhereAHardwareSegmentWouldNotStartOnAnIDR(t *testing.T) {
-	singleIDR := ffmpeg.Encoder{Name: "single-idr", Codec: media.CodecH264, Hardware: true, SingleIDROutOfBand: true}
+	singleIDR := encoder.Encoder{Name: "single-idr", Codec: media.CodecH264, Hardware: true, SingleIDROutOfBand: true}
 	segmented := container.Format{ContentType: media.HLS, Muxer: ffmpeg.FormatHLS, Delivery: container.DeliverSegmented, Framing: media.FramingOutOfBand}
 	inBandSegments := segmented
 	inBandSegments.Framing = media.FramingInBand
 	for _, tt := range []struct {
-		name    string
-		encoder ffmpeg.Encoder
-		into    container.Format
-		want    string
+		name     string
+		hardware encoder.Encoder
+		into     container.Format
+		want     string
 	}{
 		{"a single IDR on segments with the config out of band", singleIDR, segmented, "libx264"},
 		{"a single IDR on segments that carry the config", singleIDR, inBandSegments, "single-idr"},
 		{"a single IDR on a stream with the config out of band", singleIDR, testFormat(t, media.MP4), "single-idr"},
-		{"an encoder that keys anywhere on segments with the config out of band", ffmpeg.Encoder{Name: "keys-anywhere", Codec: media.CodecH264, Hardware: true}, segmented, "keys-anywhere"},
+		{"an encoder that keys anywhere on segments with the config out of band", encoder.Encoder{Name: "keys-anywhere", Codec: media.CodecH264, Hardware: true}, segmented, "keys-anywhere"},
 	} {
-		host := func(_ context.Context, c media.Codec, software bool) (ffmpeg.Encoder, bool) {
+		host := func(_ context.Context, c media.Codec, software bool) (encoder.Encoder, bool) {
 			if software {
-				return ffmpeg.Encoder{Name: "libx264", Codec: c}, true
+				return encoder.Encoder{Name: "libx264", Codec: c}, true
 			}
-			return tt.encoder, true
+			return tt.hardware, true
 		}
 		in := Inputs{Caps: h264OnlyCaps(), Probe: media.ProbeInfo{VideoCodec: media.CodecHEVC, VideoHeight: 1080, VideoBitDepth: 8}, Into: tt.into, MaxHeight: 1080, Encoders: host}
 		track, _, err := decideVideo(t.Context(), in, 0)

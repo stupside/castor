@@ -10,18 +10,18 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/stupside/castor/internal/settings"
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/software"
 )
 
 func TestDesktopToolPathsStillUseInstalledNames(t *testing.T) {
-	want := FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe", SoftwarePreset: ffmpeg.PresetVeryfast}
+	want := FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe", SoftwarePreset: software.Veryfast}
 	if got := defaults().Servers.Media.FFmpeg; !reflect.DeepEqual(got, want) {
 		t.Fatalf("default tool paths = %#v, want %#v", got, want)
 	}
 }
 
 func TestConfiguredToolPaths(t *testing.T) {
-	want := FFmpegConfig{Path: "/opt/castor/ffmpeg", ProbePath: "/opt/castor/ffprobe", SoftwarePreset: ffmpeg.PresetVeryfast}
+	want := FFmpegConfig{Path: "/opt/castor/ffmpeg", ProbePath: "/opt/castor/ffprobe", SoftwarePreset: software.Veryfast}
 	t.Setenv("CASTOR_SERVERS__MEDIA__FFMPEG__PATH", want.Path)
 	t.Setenv("CASTOR_SERVERS__MEDIA__FFMPEG__PROBE_PATH", want.ProbePath)
 	cmd := &cli.Command{Flags: []cli.Flag{settings.Flag}}
@@ -82,12 +82,12 @@ func TestTheHostDeclaresItsHardwareEncodersByName(t *testing.T) {
 func TestTheHostPicksItsSoftwarePresetFromAFixedList(t *testing.T) {
 	for _, tt := range []struct {
 		preset  string
-		want    ffmpeg.Preset
+		want    software.Preset
 		refused bool
 	}{
-		{"superfast", ffmpeg.PresetSuperfast, false},
-		{"ultrafast", ffmpeg.PresetUltrafast, false},
-		{"veryfast", ffmpeg.PresetVeryfast, false},
+		{"superfast", software.Superfast, false},
+		{"ultrafast", software.Ultrafast, false},
+		{"veryfast", software.Veryfast, false},
 		{"fast", "", true},
 		{"placebo", "", true},
 	} {

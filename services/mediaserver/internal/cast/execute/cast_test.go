@@ -20,6 +20,8 @@ import (
 	hlsoutput "github.com/stupside/castor/services/mediaserver/internal/cast/output/hls"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/progressive"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/software"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/probe"
@@ -266,7 +268,7 @@ func realCast(dev Device, ffmpegPath, ffprobePath string) Cast {
 		Outputs:    testOutputs(),
 		FFmpegPath: ffmpegPath,
 		Binary:     ffmpeg.Inspect(ffmpegPath),
-		Encoders:   ffmpeg.Encoders(ffmpegPath, nil, ffmpeg.PresetVeryfast),
+		Encoders:   encoder.Best(ffmpegPath, nil, software.Family{Preset: software.Veryfast}),
 		Probes:     probe.FFprobe(ffprobePath),
 		Timelines:  direct{},
 		InputArgs:  formats.InputArgs,

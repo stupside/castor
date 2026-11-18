@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -17,6 +18,14 @@ import (
 	hlsoutput "github.com/stupside/castor/services/mediaserver/internal/cast/output/hls"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/progressive"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/amf"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/mediacodec"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/nvenc"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/qsv"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/software"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/vaapi"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/videotoolbox"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/probe"
@@ -33,6 +42,9 @@ import (
 // formats is every source format castor reads, in the order a source is offered to them.
 var formats = source.Formats{hls.Format{}, dash.Format{}}
 
+// hardwareFamilies is every hardware encoder family castor knows, in the order they are tried.
+var hardwareFamilies = []encoder.Family{videotoolbox.Family{}, nvenc.Family{}, qsv.Family{}, vaapi.Family{}, amf.Family{}, mediacodec.Family{}}
+
 const (
 	// fetchTimeout bounds each playlist fetch and each probe.
 	fetchTimeout = 30 * time.Second
@@ -42,12 +54,18 @@ const (
 
 // backend is the machinery the media server casts with, bound to c.
 func (c *Config) backend() func(*mediav1.PlaybackSettings) cast.Caster {
-	ffmpegBinary, ffprobeBinary := c.Servers.Media.FFmpeg.Path, c.Servers.Media.FFmpeg.ProbePath
+	tools := c.Servers.Media.FFmpeg
+	ffmpegBinary, ffprobeBinary := tools.Path, tools.ProbePath
+	var declared []encoder.Encoder
+	for _, d := range tools.HardwareEncoders {
+		declared = append(declared, encoder.Encoder(d))
+	}
+	families := append(slices.Clone(hardwareFamilies), software.Family{Preset: tools.SoftwarePreset})
 	machinery := execute.Machinery{
 		Outputs:    output.Factory{progressive.Adapter{}, hlsoutput.Adapter{}},
 		FFmpegPath: ffmpegBinary,
 		Binary:     ffmpeg.Inspect(ffmpegBinary),
-		Encoders:   ffmpeg.Encoders(ffmpegBinary, c.Servers.Media.FFmpeg.HardwareEncoders, c.Servers.Media.FFmpeg.SoftwarePreset),
+		Encoders:   encoder.Best(ffmpegBinary, declared, families...),
 		Probes:     probe.FFprobe(ffprobeBinary),
 		InputArgs:  formats.InputArgs,
 	}

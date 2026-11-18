@@ -8,12 +8,12 @@ import (
 	"slices"
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/container"
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // Encoders finds the host's working encoder for a codec, software only if asked.
-type Encoders func(ctx context.Context, codec media.Codec, software bool) (ffmpeg.Encoder, bool)
+type Encoders func(ctx context.Context, codec media.Codec, software bool) (encoder.Encoder, bool)
 
 // Inputs is everything a plan is decided against.
 type Inputs struct {

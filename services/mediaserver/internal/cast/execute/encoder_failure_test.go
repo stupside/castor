@@ -19,6 +19,8 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/software"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/source"
@@ -103,8 +105,8 @@ func (r *revisions) Revising(action recovery.Action, _ string) {
 	r.actions = append(r.actions, action)
 }
 
-// faultCast casts links through testdata/ffmpeg-fault, with encoder as the hardware H.264 encoder.
-func faultCast(t *testing.T, dev Device, encoder string, links ...*source.Stream) (actions []recovery.Action, ran []recovery.Attempt, outcomes []recovery.Outcome, err error) {
+// faultCast casts links through testdata/ffmpeg-fault, with hardwareName as the hardware H.264 encoder.
+func faultCast(t *testing.T, dev Device, hardwareName string, links ...*source.Stream) (actions []recovery.Action, ran []recovery.Attempt, outcomes []recovery.Outcome, err error) {
 	t.Helper()
 	ffmpegPath, ffprobePath := requireFFmpegTools(t)
 	faulty, err := filepath.Abs("testdata/ffmpeg-fault")
@@ -112,12 +114,12 @@ func faultCast(t *testing.T, dev Device, encoder string, links ...*source.Stream
 		t.Fatal(err)
 	}
 	c := realCast(dev, faulty, ffprobePath)
-	software := ffmpeg.Encoders(ffmpegPath, nil, ffmpeg.PresetVeryfast)
-	c.Encoders = func(ctx context.Context, codec media.Codec, soft bool) (ffmpeg.Encoder, bool) {
+	inSoftware := encoder.Best(ffmpegPath, nil, software.Family{Preset: software.Veryfast})
+	c.Encoders = func(ctx context.Context, codec media.Codec, soft bool) (encoder.Encoder, bool) {
 		if soft || codec != media.CodecH264 {
-			return software(ctx, codec, true)
+			return inSoftware(ctx, codec, true)
 		}
-		return ffmpeg.Encoder{Name: encoder, Codec: media.CodecH264, Hardware: true, Flags: []string{"-pix_fmt", "yuv420p"}}, true
+		return encoder.Encoder{Name: hardwareName, Codec: media.CodecH264, Hardware: true, Flags: []string{"-pix_fmt", "yuv420p"}}, true
 	}
 	var mu sync.Mutex
 	runner := runnerFunc(func(ctx context.Context, a recovery.Attempt) recovery.Outcome {
@@ -157,9 +159,9 @@ func TestAHardwareEncoderThatFailsOnRealInputIsReplacedBySoftware(t *testing.T) 
 	stream := sourceOf(t, generateFixture(t, ffmpegPath, "movie.ts", 60, []string{"-vf", "noise=alls=40:allf=t", "-c:v", "mpeg4", "-c:a", "aac", "-ac", "2", "-shortest", "-f", "mpegts"}))
 
 	for _, tt := range []struct {
-		name    string
-		encoder string
-		caps    media.Capabilities
+		name     string
+		hardware string
+		caps     media.Capabilities
 		// resumed: the retry starts past 0; wedged: the first attempt ended Wedged.
 		slow, held, resumed, wedged bool
 		want                        []recovery.Action
@@ -175,7 +177,7 @@ func TestAHardwareEncoderThatFailsOnRealInputIsReplacedBySoftware(t *testing.T) 
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			actions, ran, outcomes, err := faultCast(t, &fetchingDevice{caps: tt.caps, slow: tt.slow, held: tt.held}, tt.encoder, stream)
+			actions, ran, outcomes, err := faultCast(t, &fetchingDevice{caps: tt.caps, slow: tt.slow, held: tt.held}, tt.hardware, stream)
 			if err != nil {
 				t.Fatalf("the cast failed instead of going on in software: %v", err)
 			}
@@ -243,7 +245,7 @@ func mp4Only() media.Capabilities {
 }
 
 func TestAnOutputTheReceiverRefusesIsTheEncodesOnlyWhereItEncodedWhatWasRefused(t *testing.T) {
-	hardware := codec.Encode(codec.VideoEncode{Encoder: ffmpeg.Encoder{Name: "h264_videotoolbox", Hardware: true}})
+	hardware := codec.Encode(codec.VideoEncode{Encoder: encoder.Encoder{Name: "h264_videotoolbox", Hardware: true}})
 	sound := codec.Encode(codec.AudioEncode{Codec: media.CodecAAC})
 	refused := func(axes media.Axes) error { return fmt.Errorf("validating: %w", &encoding.Mismatch{Refused: axes}) }
 	for _, tt := range []struct {

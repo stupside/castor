@@ -1,7 +1,7 @@
 package codec
 
 import (
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
@@ -68,7 +68,7 @@ func (t Track[E]) Name() string {
 
 // VideoEncode is the video re-encode: the encoder and the picture it produces.
 type VideoEncode struct {
-	Encoder  ffmpeg.Encoder
+	Encoder  encoder.Encoder
 	Profile  string
 	Level    string
 	MaxWidth int

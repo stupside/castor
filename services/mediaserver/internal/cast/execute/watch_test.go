@@ -13,7 +13,7 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
-	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
 )
 
 // fakeLead mocks transcriber for gate testing without whisper model.
@@ -196,7 +196,7 @@ func TestCancellationJoinsHealthControlBeforeReleasingResources(t *testing.T) {
 
 // A relayed cast copies at first, so what wedges is the encoder a change of rate cut in, not the plan it began with.
 func TestAWedgeIsBlamedOnTheEncoderMakingTheDeliveryWhenItWedged(t *testing.T) {
-	hardware := encoding.EncodeOptions{Video: codec.Encode(codec.VideoEncode{Encoder: ffmpeg.Encoder{Name: "h264_videotoolbox", Hardware: true}})}
+	hardware := encoding.EncodeOptions{Video: codec.Encode(codec.VideoEncode{Encoder: encoder.Encoder{Name: "h264_videotoolbox", Hardware: true}})}
 	relayed := &adjustable{reader: &pull{proc: finished(t)}}
 	for _, tt := range []struct {
 		name  string

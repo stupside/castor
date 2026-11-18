@@ -21,6 +21,8 @@ import (
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder"
+	"github.com/stupside/castor/services/mediaserver/internal/encoder/software"
 	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/probe"
@@ -372,7 +374,7 @@ func programHead(t *testing.T, ffmpegPath string) []byte {
 func servingAttempt(t *testing.T, ffmpegPath string) *preparation {
 	t.Helper()
 	s := testPreparation(t.Context(),
-		Cast{FFmpegPath: ffmpegPath, Encoders: ffmpeg.Encoders(ffmpegPath, nil, ffmpeg.PresetVeryfast), InputArgs: formats.InputArgs, Outputs: testOutputs(), Publisher: loopback{}, Timelines: direct{}},
+		Cast{FFmpegPath: ffmpegPath, Encoders: encoder.Best(ffmpegPath, nil, software.Family{Preset: software.Veryfast}), InputArgs: formats.InputArgs, Outputs: testOutputs(), Publisher: loopback{}, Timelines: direct{}},
 		recovery.Attempt{})
 	t.Cleanup(func() { _ = s.releases.release() })
 	return s
