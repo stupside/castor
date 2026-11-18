@@ -77,12 +77,27 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	return nil
 }
 
-// statePause is what /query/media-player reports of a paused player.
-const statePause = "pause"
+// playerState is what /query/media-player reports of the player.
+type playerState string
 
-func playing(state string) bool { return state == "play" || state == "buffer" || state == "startup" }
+const (
+	statePlay    playerState = "play"
+	stateBuffer  playerState = "buffer"
+	stateStartup playerState = "startup"
+	statePause   playerState = "pause"
+	stateClose   playerState = "close"
+	stateStop    playerState = "stop"
+	stateNone    playerState = "none"
+)
 
-func over(state string) bool { return state == "close" || state == "stop" || state == "none" }
+// playing is a player that plays, or is about to.
+func (s playerState) playing() bool { return s == statePlay || s == stateBuffer || s == stateStartup }
+
+// holdsStream is a player that has the stream: playing it or paused on it.
+func (s playerState) holdsStream() bool { return s == statePlay || s == statePause }
+
+// over is a player that holds no stream any more.
+func (s playerState) over() bool { return s == stateClose || s == stateStop || s == stateNone }
 
 // Pause holds the player paused; ECP has one Play key for both, so it presses it only when the player is playing.
 func (s *session) Pause(ctx context.Context) error { return s.hold(ctx, true) }
@@ -96,9 +111,9 @@ func (s *session) hold(ctx context.Context, paused bool) error {
 	}
 	state := player.State
 	switch {
-	case paused && state == statePause, !paused && playing(state):
+	case paused && state == statePause, !paused && state.playing():
 		return nil
-	case paused && playing(state), !paused && state == statePause:
+	case paused && state.playing(), !paused && state == statePause:
 		return s.keypress(ctx, "Play")
 	}
 	return fmt.Errorf("roku player is %q, with nothing to pause or resume", state)
@@ -133,11 +148,11 @@ const startupTimeout = 30 * time.Second
 const mediaPlayerQuery = "/query/media-player"
 
 type mediaPlayer struct {
-	State        string `xml:"state,attr"`
-	Error        bool   `xml:"error,attr"`
-	ErrorMessage string `xml:"error-message"`
-	ErrorCode    string `xml:"error-code"`
-	Position     string `xml:"position"`
+	State        playerState `xml:"state,attr"`
+	Error        bool        `xml:"error,attr"`
+	ErrorMessage string      `xml:"error-message"`
+	ErrorCode    string      `xml:"error-code"`
+	Position     string      `xml:"position"`
 	Plugin       struct {
 		ID string `xml:"id,attr"`
 	} `xml:"plugin"`
@@ -169,7 +184,7 @@ func (s *session) player(ctx context.Context) (mediaPlayer, error) {
 	}
 	// Another channel holding the player means castor's closed, whatever that channel's own playback reports.
 	if player.heldByAnother(s.appID) {
-		return mediaPlayer{State: "close"}, nil
+		return mediaPlayer{State: stateClose}, nil
 	}
 	if player.Error {
 		return player, &device.PlaybackError{Err: fmt.Errorf("roku playback failed (code %s): %s", player.ErrorCode, player.ErrorMessage)}
@@ -188,7 +203,7 @@ func (s *session) Position(ctx context.Context) (device.Playhead, error) {
 	}
 	ms, unit := strings.CutSuffix(strings.TrimSpace(player.Position), " ms")
 	at, err := strconv.ParseUint(ms, 10, 63)
-	if !unit || err != nil || over(player.State) {
+	if !unit || err != nil || player.State.over() {
 		return device.Playhead{}, device.ErrNoPosition
 	}
 	return device.Playhead{At: time.Duration(at) * time.Millisecond, Paused: player.State == statePause}, nil
@@ -204,11 +219,11 @@ func (s *session) AwaitEnd(ctx context.Context) error {
 			return false, err
 		}
 		state := player.State
-		active = active || state == "play" || state == statePause
+		active = active || state.holdsStream()
 		if !active && time.Since(started) >= startupTimeout {
 			return false, &device.PlaybackError{Err: fmt.Errorf("roku did not start playback within %s (state %q)", startupTimeout, state)}
 		}
-		return active && over(state), nil
+		return active && state.over(), nil
 	})
 }
 
