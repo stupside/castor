@@ -22,8 +22,9 @@ import (
 // heavy serves a minute of constant-bitrate H.264/AAC, a keyframe every second, which a lighter cast must weigh well under.
 func serveHeavy(t *testing.T, ffmpegPath string) fixtureOrigin {
 	t.Helper()
+	// Noise keeps the picture heavy after a re-encode too: padded bits alone leave a lighter encode nothing to hold it back from reading the whole source.
 	path := generateFixture(t, ffmpegPath, "heavy.mp4", 60, []string{
-		"-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-profile:v", "baseline",
+		"-vf", "noise=alls=40:allf=t", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-profile:v", "baseline",
 		"-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "1000k", "-x264-params", "nal-hrd=cbr:force-cfr=1",
 		"-g", "15", "-keyint_min", "15", "-sc_threshold", "0",
 		"-c:a", "aac", "-ac", "2", "-shortest", "-movflags", "+faststart",
