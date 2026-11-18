@@ -266,7 +266,7 @@ func realCast(dev Device, ffmpegPath, ffprobePath string) Cast {
 		Outputs:    testOutputs(),
 		FFmpegPath: ffmpegPath,
 		Binary:     ffmpeg.Inspect(ffmpegPath),
-		Encoders:   ffmpeg.Encoders(ffmpegPath, nil),
+		Encoders:   ffmpeg.Encoders(ffmpegPath, nil, ffmpeg.PresetVeryfast),
 		Probes:     probe.FFprobe(ffprobePath),
 		Timelines:  direct{},
 		InputArgs:  formats.InputArgs,

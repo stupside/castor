@@ -86,6 +86,9 @@ servers:
     # network:
     #   interface: "eth0" # pin the LAN interface if automatic selection fails
     # ffmpeg:
+    #   # How hard the software encoders work (default veryfast). Take superfast or ultrafast where
+    #   # the cores cannot keep a live cast ahead of the picture, as on a phone.
+    #   software_preset: superfast
     #   # Hardware encoders this host's ffmpeg has, tried first; MediaCodec is only ever used from
     #   # here. Each is proven by a test encode before a cast uses it.
     #   hardware_encoders: [h264_mediacodec, hevc_mediacodec]

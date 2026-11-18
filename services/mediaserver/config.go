@@ -19,6 +19,7 @@ type FFmpegConfig struct {
 	Path             string            `yaml:"path" validate:"required"`
 	ProbePath        string            `yaml:"probe_path" validate:"required"`
 	HardwareEncoders []ffmpeg.Declared `yaml:"hardware_encoders"`
+	SoftwarePreset   ffmpeg.Preset     `yaml:"software_preset" validate:"required"`
 }
 
 // ResolverConfig is how found streams are ranked.
@@ -47,7 +48,7 @@ type NetworkConfig struct {
 
 func defaults() Config {
 	c := Config{}
-	c.Servers.Media.FFmpeg = FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe"}
+	c.Servers.Media.FFmpeg = FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe", SoftwarePreset: ffmpeg.PresetVeryfast}
 	c.Servers.Media.Listen = ":8410"
 	c.Servers.Media.Resolver = ResolverConfig{ProbeMaxConcurrency: 2}
 	return c

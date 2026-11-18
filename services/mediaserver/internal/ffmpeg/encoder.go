@@ -22,6 +22,7 @@ type Encoder struct {
 	Filters  []string    // appended to the -vf chain: e.g. the GPU upload
 	Flags    []string    // encoder-specific -c:v flags: preset, pix_fmt, GOP
 
+	TakesPreset        bool // reads the host's software Preset as -preset
 	AverageRate        bool // honors -b:v alone, no VBV ceiling
 	GOPKeyframes       bool // places keyframes by -g alone, ignoring forced ones
 	SingleIDROutOfBand bool // with the decoder config out of band, only its first frame is an IDR
@@ -42,18 +43,36 @@ func (e Encoder) Level(level string) string {
 
 const vaapiRenderNode = "/dev/dri/renderD128"
 
+// Preset is how much effort the software encoders spend on a picture, in x264's names: a host whose cores cannot hold
+// veryfast ahead of a live read takes a lighter one. Slower presets are not offered, since a live read cannot wait for them.
+type Preset string
+
+const (
+	PresetUltrafast Preset = "ultrafast"
+	PresetSuperfast Preset = "superfast"
+	PresetVeryfast  Preset = "veryfast"
+)
+
+func (p *Preset) UnmarshalText(name []byte) error {
+	switch Preset(name) {
+	case PresetUltrafast, PresetSuperfast, PresetVeryfast:
+		*p = Preset(name)
+		return nil
+	}
+	return fmt.Errorf("%q is not a software preset castor offers: ultrafast, superfast or veryfast", name)
+}
+
 // pix_fmt is fixed on CPU encoders; VA-API converts on the GPU instead.
 var (
-	// veryfast keeps the software encoders ahead of realtime in the live pipeline.
-	softwareFlags     = []string{"-preset", "veryfast", "-pix_fmt", "yuv420p"}
+	softwareFlags     = []string{"-pix_fmt", "yuv420p"}
 	videotoolboxFlags = []string{"-pix_fmt", "yuv420p", "-g", "600"}
 	vaapiFilters      = []string{"format=nv12", "hwupload"}
 	mediacodecFlags   = []string{"-pix_fmt", "nv12", "-bitrate_mode", "vbr"}
 )
 
 var (
-	libx264 = Encoder{Name: "libx264", Codec: media.CodecH264, Flags: softwareFlags}
-	libx265 = Encoder{Name: "libx265", Codec: media.CodecHEVC, Flags: slices.Concat(softwareFlags, []string{"-x265-params", "log-level=error"})}
+	libx264 = Encoder{Name: "libx264", Codec: media.CodecH264, TakesPreset: true, Flags: softwareFlags}
+	libx265 = Encoder{Name: "libx265", Codec: media.CodecHEVC, TakesPreset: true, Flags: slices.Concat(softwareFlags, []string{"-x265-params", "log-level=error"})}
 
 	// VideoToolbox can emit SEI that its FFmpeg wrapper cannot parse when it
 	// merges embedded A53 captions. Drop that caption side data on re-encode
@@ -95,9 +114,15 @@ func (d *Declared) UnmarshalText(name []byte) error {
 	return nil
 }
 
-// candidates is the declared encoders, then encoders plus VA-API on every other render node this host has.
-func candidates(declared []Encoder) []Encoder {
+// candidates is the declared encoders, then encoders plus VA-API on every other render node this host has, the ones that
+// take a preset taking preset.
+func candidates(declared []Encoder, preset Preset) []Encoder {
 	out := slices.Concat(declared, encoders)
+	for i := range out {
+		if out[i].TakesPreset {
+			out[i].Flags = slices.Concat([]string{"-preset", string(preset)}, out[i].Flags)
+		}
+	}
 	nodes, _ := filepath.Glob("/dev/dri/renderD*")
 	for _, node := range nodes {
 		if node == vaapiRenderNode {
@@ -118,8 +143,9 @@ func vaapiEncoder(name string, codec media.Codec, node string) Encoder {
 }
 
 // Encoders is the best working encoder per codec on ffmpegPath, declared ones first and hardware first unless software; each is proven once.
-func Encoders(ffmpegPath string, declared []Declared) func(ctx context.Context, codec media.Codec, software bool) (Encoder, bool) {
-	proven := &provenEncoders{ffmpegPath: ffmpegPath, slots: map[string]*proof{}}
+// The software encoders work at preset.
+func Encoders(ffmpegPath string, declared []Declared, preset Preset) func(ctx context.Context, codec media.Codec, software bool) (Encoder, bool) {
+	proven := &provenEncoders{ffmpegPath: ffmpegPath, preset: preset, slots: map[string]*proof{}}
 	for _, d := range declared {
 		proven.declared = append(proven.declared, Encoder(d))
 	}
@@ -129,6 +155,7 @@ func Encoders(ffmpegPath string, declared []Declared) func(ctx context.Context, 
 type provenEncoders struct {
 	ffmpegPath string
 	declared   []Encoder
+	preset     Preset
 
 	mu    sync.Mutex
 	slots map[string]*proof
@@ -142,7 +169,7 @@ type proof struct {
 }
 
 func (p *provenEncoders) best(ctx context.Context, codec media.Codec, software bool) (Encoder, bool) {
-	all := candidates(p.declared)
+	all := candidates(p.declared, p.preset)
 	passes := []bool{true, false}
 	if software {
 		passes = passes[1:]

@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"context"
 	"os/exec"
+	"slices"
 	"testing"
 
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -37,7 +38,7 @@ func TestASoftwareAskNeverGetsAHardwareEncoder(t *testing.T) {
 		t.Skip("no true binary")
 	}
 	// Every test encode passes, so hardware would win wherever it is allowed.
-	best := Encoders(bin, nil)
+	best := Encoders(bin, nil, PresetVeryfast)
 	if e, _ := best(t.Context(), media.CodecH264, false); !e.Hardware {
 		t.Fatalf("an ask allowing hardware got %s, want a hardware encoder", e.Name)
 	}
@@ -52,10 +53,36 @@ func TestADeclaredEncoderIsTriedFirst(t *testing.T) {
 		t.Skip("no true binary")
 	}
 	// Every test encode passes, so the first candidate wins.
-	if e, _ := Encoders(bin, []Declared{Declared(h264MediaCodec)})(t.Context(), media.CodecH264, false); e.Name != "h264_mediacodec" {
+	if e, _ := Encoders(bin, []Declared{Declared(h264MediaCodec)}, PresetVeryfast)(t.Context(), media.CodecH264, false); e.Name != "h264_mediacodec" {
 		t.Errorf("with h264_mediacodec declared, got %s", e.Name)
 	}
-	if e, _ := Encoders(bin, nil)(t.Context(), media.CodecH264, false); e.Name == "h264_mediacodec" {
+	if e, _ := Encoders(bin, nil, PresetVeryfast)(t.Context(), media.CodecH264, false); e.Name == "h264_mediacodec" {
 		t.Error("an encoder nobody declared was tried")
+	}
+}
+
+func TestTheHostsPresetReachesOnlyTheEncodersThatTakeOne(t *testing.T) {
+	flag := func(list []Encoder, name, flag string) string {
+		e := list[slices.IndexFunc(list, func(e Encoder) bool { return e.Name == name })]
+		at := slices.Index(e.Flags, flag)
+		if at < 0 {
+			return ""
+		}
+		return e.Flags[at+1]
+	}
+	got := candidates(nil, PresetSuperfast)
+	for _, name := range []string{"libx264", "libx265"} {
+		if preset := flag(got, name, "-preset"); preset != "superfast" {
+			t.Errorf("%s encodes at %q, want superfast", name, preset)
+		}
+	}
+	if pix := flag(got, "libx264", "-pix_fmt"); pix != "yuv420p" {
+		t.Errorf("libx264 lost its own flags: pix_fmt %q", pix)
+	}
+	if preset := flag(got, "h264_nvenc", "-preset"); preset != "p4" {
+		t.Errorf("a hardware encoder took the host's preset: %q", preset)
+	}
+	if preset := flag(encoders, "libx264", "-preset"); preset != "" {
+		t.Errorf("the shared table was edited: libx264 is at %q", preset)
 	}
 }

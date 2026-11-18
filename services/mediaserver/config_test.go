@@ -10,17 +10,18 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/stupside/castor/internal/settings"
+	"github.com/stupside/castor/services/mediaserver/internal/ffmpeg"
 )
 
 func TestDesktopToolPathsStillUseInstalledNames(t *testing.T) {
-	want := FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe"}
+	want := FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe", SoftwarePreset: ffmpeg.PresetVeryfast}
 	if got := defaults().Servers.Media.FFmpeg; !reflect.DeepEqual(got, want) {
 		t.Fatalf("default tool paths = %#v, want %#v", got, want)
 	}
 }
 
 func TestConfiguredToolPaths(t *testing.T) {
-	want := FFmpegConfig{Path: "/opt/castor/ffmpeg", ProbePath: "/opt/castor/ffprobe"}
+	want := FFmpegConfig{Path: "/opt/castor/ffmpeg", ProbePath: "/opt/castor/ffprobe", SoftwarePreset: ffmpeg.PresetVeryfast}
 	t.Setenv("CASTOR_SERVERS__MEDIA__FFMPEG__PATH", want.Path)
 	t.Setenv("CASTOR_SERVERS__MEDIA__FFMPEG__PROBE_PATH", want.ProbePath)
 	cmd := &cli.Command{Flags: []cli.Flag{settings.Flag}}
@@ -69,6 +70,42 @@ func TestTheHostDeclaresItsHardwareEncodersByName(t *testing.T) {
 			}
 			if !reflect.DeepEqual(names, tt.want) {
 				t.Errorf("declared %s, got %v", tt.declared, names)
+			}
+			return nil
+		}
+		if err := cmd.Run(t.Context(), []string{"media"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestTheHostPicksItsSoftwarePresetFromAFixedList(t *testing.T) {
+	for _, tt := range []struct {
+		preset  string
+		want    ffmpeg.Preset
+		refused bool
+	}{
+		{"superfast", ffmpeg.PresetSuperfast, false},
+		{"ultrafast", ffmpeg.PresetUltrafast, false},
+		{"veryfast", ffmpeg.PresetVeryfast, false},
+		{"fast", "", true},
+		{"placebo", "", true},
+	} {
+		t.Setenv("CASTOR_SERVERS__MEDIA__FFMPEG__SOFTWARE_PRESET", tt.preset)
+		cmd := &cli.Command{Flags: []cli.Flag{settings.Flag}}
+		cmd.Action = func(_ context.Context, cmd *cli.Command) error {
+			got, err := settings.Load(cmd, defaults())
+			if tt.refused {
+				if err == nil {
+					t.Errorf("%s was accepted", tt.preset)
+				}
+				return nil
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Servers.Media.FFmpeg.SoftwarePreset != tt.want {
+				t.Errorf("preset %s, got %s", tt.preset, got.Servers.Media.FFmpeg.SoftwarePreset)
 			}
 			return nil
 		}
