@@ -226,54 +226,49 @@ func (t transportState) active() bool {
 // idle is a renderer holding no stream.
 func (t transportState) idle() bool { return t == stateStopped || t == stateNoMedia }
 
-// transportWatch holds the one thing that ends a cast from the device's side.
-type transportWatch struct {
-	active bool
-	idle   int
-}
-
-// observe reports whether the cast is over: the device stopped after playing, or never played at all.
-func (w *transportWatch) observe(state transportState) bool {
+// phase is what a transport state says of the stream the renderer was handed.
+func (t transportState) phase() device.Phase {
 	switch {
-	case state.active():
-		w.active = true
-		w.idle = 0
-	case state.idle():
-		w.idle++
-		return w.active || w.refused()
-	default:
-		w.idle = 0
+	case t.active():
+		return device.Holding
+	case t.idle():
+		return device.Idle
 	}
-	return false
+	return device.Settling
 }
 
-func (w *transportWatch) refused() bool { return !w.active && w.idle >= idlePolls }
+// transportStatusError is AVTransport's TransportStatus of a renderer that failed.
+const transportStatusError = "ERROR_OCCURRED"
 
 // AwaitEnd polls AVTransport because UPnP families share no dependable event subscription.
 func (s *session) AwaitEnd(ctx context.Context) error {
 	return awaitTransportEnd(ctx, s.name(), s.transportInfo)
 }
 
-// awaitTransportEnd folds the AVTransport state machine over the shared poll loop.
+// awaitTransportEnd runs AVTransport's polls through the playback lifecycle every polled family shares.
 func awaitTransportEnd(ctx context.Context, name string, poll func(context.Context) (transportInfo, error)) error {
-	var watch transportWatch
-	err := device.AwaitPolledEnd(ctx, name, transportQuery,
-		func(ctx context.Context) (bool, error) {
-			info, err := poll(ctx)
-			if err != nil {
-				return false, err
-			}
-			over := watch.observe(info.CurrentTransportState)
-			// A status read before the end may be left from an earlier playback.
-			if over && info.CurrentTransportStatus == "ERROR_OCCURRED" {
-				return false, &device.PlaybackError{Err: fmt.Errorf("the device went %s with transport status %s", info.CurrentTransportState, info.CurrentTransportStatus)}
-			}
-			return over, nil
-		})
-	if err == nil && watch.refused() {
-		return fmt.Errorf("the device refused the stream: it stayed stopped for %d polls without playing", idlePolls)
+	return device.AwaitPlayback(ctx, familyType, name, transportQuery, transportPoll(poll))
+}
+
+// transportPoll is AVTransport as a polled device.
+type transportPoll func(context.Context) (transportInfo, error)
+
+func (p transportPoll) Read(ctx context.Context) (device.Reading, error) {
+	info, err := p(ctx)
+	if err != nil {
+		return device.Reading{}, err
 	}
-	return err
+	reading := device.Reading{Phase: info.CurrentTransportState.phase(), Observed: string(info.CurrentTransportState)}
+	if info.CurrentTransportStatus == transportStatusError {
+		reading.Fault = &device.PlaybackError{Err: fmt.Errorf("the device went %s with transport status %s", info.CurrentTransportState, info.CurrentTransportStatus)}
+	}
+	return reading, nil
+}
+
+func (transportPoll) Patience() device.Patience { return device.IdlePolls(idlePolls) }
+
+func (transportPoll) Refusal(device.Reading) error {
+	return fmt.Errorf("the device refused the stream: it stayed stopped for %d polls without playing", idlePolls)
 }
 
 type transportInfo struct {

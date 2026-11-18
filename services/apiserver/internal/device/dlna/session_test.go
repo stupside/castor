@@ -129,26 +129,20 @@ func TestAPlayTimeoutNeedsConfirmationOfTheRequestedStream(t *testing.T) {
 	}
 }
 
-func TestTheTransportStateEndsTheCastOnlyOncePlaybackBegan(t *testing.T) {
-	for _, tt := range []struct {
-		name   string
-		states []transportState
-		want   bool
-	}{
-		{"stop before playback is ignored", []transportState{"STOPPED", "TRANSITIONING", "STOPPED"}, false},
-		{"stop after playing ends", []transportState{"PLAYING", "STOPPED"}, true},
-		{"pause remains active", []transportState{"PLAYING", "PAUSED_PLAYBACK"}, false},
+func TestATransportStateIsWhatTheRendererHolds(t *testing.T) {
+	for state, want := range map[transportState]device.Phase{
+		"PLAYING":          device.Holding,
+		"PAUSED_PLAYBACK":  device.Holding,
+		"RECORDING":        device.Holding,
+		"STOPPED":          device.Idle,
+		"NO_MEDIA_PRESENT": device.Idle,
+		"TRANSITIONING":    device.Settling,
+		"PAUSED_RECORDING": device.Settling,
+		"":                 device.Settling,
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			var watch transportWatch
-			got := false
-			for _, state := range tt.states {
-				got = watch.observe(state)
-			}
-			if got != tt.want {
-				t.Errorf("observe(%v) = %v, want %v", tt.states, got, tt.want)
-			}
-		})
+		if got := state.phase(); got != want {
+			t.Errorf("%q is %v, want %v", state, got, want)
+		}
 	}
 }
 
