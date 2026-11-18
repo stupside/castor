@@ -29,12 +29,14 @@ type session struct {
 	sinks map[mediav1.Container]sinkEntry
 	// played is the stream castor last handed the renderer, nil before any.
 	played atomic.Pointer[handed]
-	// ticked is the stream whose playhead was seen moving, before which its 0:00:00 says nothing.
-	ticked atomic.Pointer[handed]
 }
 
-// handed is one stream castor handed the renderer, and the one castor handed before it.
-type handed struct{ uri, before string }
+// handed is one stream castor handed the renderer, the one castor handed before it, and whether its playhead was seen moving.
+type handed struct {
+	uri, before string
+	// moved is set once the playhead was seen moving, before which its 0:00:00 says nothing.
+	moved atomic.Bool
+}
 
 func (s *session) Capabilities() *mediav1.Capabilities { return s.caps }
 

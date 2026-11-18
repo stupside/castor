@@ -25,7 +25,7 @@ func (s *session) Position(ctx context.Context) (device.Playhead, error) {
 	}
 	at, err := parseClock(response.RelTime)
 	// Many renderers answer NOT_IMPLEMENTED, or a 0:00:00 that never moves, while they play.
-	if err != nil || at == 0 && s.ticked.Load() != asked {
+	if err != nil || at == 0 && asked != nil && !asked.moved.Load() {
 		return device.Playhead{}, device.ErrNoPosition
 	}
 	info, err := s.transportInfo(ctx)
@@ -36,7 +36,9 @@ func (s *session) Position(ctx context.Context) (device.Playhead, error) {
 	if info.CurrentTransportState.idle() || s.played.Load() != asked {
 		return device.Playhead{}, device.ErrNoPosition
 	}
-	s.ticked.Store(asked)
+	if asked != nil {
+		asked.moved.Store(true)
+	}
 	return device.Playhead{At: at, Paused: info.CurrentTransportState == statePaused}, nil
 }
 
