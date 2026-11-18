@@ -34,7 +34,7 @@ func (Family) Type() device.Type { return familyType }
 var _ device.Family = Family{}
 
 func (Family) Connect(ctx context.Context, info device.Info) (device.Device, error) {
-	dev := &session{name: cmp.Or(info.Name, info.Address), ending: newEnding()}
+	dev := &session{name: cmp.Or(info.Name, info.Address)}
 	dialCtx, cancel := context.WithTimeout(ctx, answerWithin)
 	defer cancel()
 	ch, err := dial(dialCtx, device.WithPort(info.Address, strconv.Itoa(castPort)), dev.watchMessage)

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -41,7 +42,7 @@ func running(requestID int) any {
 func receiverSaying(t *testing.T, status func(requestID int) any, loadAnswers func(requestID int, load mediaItem) []any) *session {
 	t.Helper()
 	near, far := net.Pipe()
-	dev := &session{ending: newEnding()}
+	dev := &session{}
 	dev.ch = newChannel(near, dev.watchMessage)
 	var receiver *channel
 	receiver = newChannel(far, func(_ messageHeader, payload []byte) {
@@ -372,7 +373,7 @@ func TestAPlayAbandonedForANewerOneLeavesTheNewerOneWatched(t *testing.T) {
 	}
 	dev.watchMu.Lock()
 	defer dev.watchMu.Unlock()
-	if !dev.watch.armed || dev.watch.content != current.String() {
+	if dev.watch == nil || dev.watch.content != current.String() {
 		t.Errorf("after the abandoned Play failed the watch is %+v, want it still on the newer Play's media", dev.watch)
 	}
 }
@@ -418,7 +419,7 @@ func TestAnEarlierLoadsCancellationLeavesTheNewerCastPlaying(t *testing.T) {
 
 func TestAPlayOnADroppedConnectionIsGone(t *testing.T) {
 	near, far := net.Pipe()
-	dev := &session{name: "Living Room", ending: newEnding()}
+	dev := &session{name: "Living Room"}
 	dev.ch = newChannel(near, dev.watchMessage)
 	t.Cleanup(func() { _ = dev.Close() })
 	_ = far.Close()
@@ -585,4 +586,87 @@ func TestRequestTimeoutRetainsDeadlineIdentity(t *testing.T) {
 			t.Fatalf("request timeout lost deadline identity: %v", err)
 		}
 	})
+}
+
+// mediaCommand is a media command the receiver was sent, and who it was addressed to.
+type mediaCommand struct {
+	Type, Destination string
+	MediaSessionID    int
+	ActiveTrackIDs    []int
+}
+
+// receiverRecording is a device whose receiver runs the Default Media Receiver, answers a LOAD with what loaded says, and records every media command after it.
+// The receiver reads the envelopes itself, which say who a message is addressed to.
+func receiverRecording(t *testing.T, loaded func(requestID int, load mediaItem) []any) (*session, func() []mediaCommand) {
+	t.Helper()
+	near, far := net.Pipe()
+	dev := &session{}
+	dev.ch = newChannel(near, dev.watchMessage)
+	receiver := &channel{conn: far, writing: make(chan struct{}, 1), waiting: map[int]chan []byte{}, gone: make(chan struct{})}
+	var mu sync.Mutex
+	var heard []mediaCommand
+	go func() {
+		for {
+			msg, err := receiver.receive()
+			if err != nil {
+				return
+			}
+			var req struct {
+				Type           string    `json:"type"`
+				RequestID      int       `json:"requestId"`
+				MediaSessionID int       `json:"mediaSessionId"`
+				ActiveTrackIDs []int     `json:"activeTrackIds"`
+				Media          mediaItem `json:"media"`
+			}
+			if json.Unmarshal([]byte(msg.GetPayloadUtf8()), &req) != nil {
+				continue
+			}
+			var answers []any
+			switch req.Type {
+			case "GET_STATUS":
+				answers = []any{running(req.RequestID)}
+			case "LOAD":
+				answers = loaded(req.RequestID, req.Media)
+			case "CONNECT":
+			default:
+				mu.Lock()
+				heard = append(heard, mediaCommand{Type: req.Type, Destination: msg.GetDestinationId(), MediaSessionID: req.MediaSessionID, ActiveTrackIDs: req.ActiveTrackIDs})
+				mu.Unlock()
+				if req.Type == "PAUSE" {
+					answers = []any{mediaStatus(req.RequestID, "", "PAUSED", "")}
+				}
+			}
+			for _, a := range answers {
+				if receiver.send(t.Context(), senderID, nsMedia, a) != nil {
+					return
+				}
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		_ = dev.Close()
+		_ = far.Close()
+	})
+	return dev, func() []mediaCommand {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(heard)
+	}
+}
+
+func playingNothingYet(requestID int, load mediaItem) []any {
+	return []any{mediaStatus(requestID, load.ContentId, "BUFFERING", "")}
+}
+
+func TestAMediaCommandGoesToTheTransportThePlayLoadedOn(t *testing.T) {
+	dev, heard := receiverRecording(t, playingNothingYet)
+	if err := dev.Play(t.Context(), device.Playback{URL: &url.URL{Scheme: "http", Host: "media.test", Path: "/stream.mp4"}, Play: devicetest.Source(mediav1.Container_CONTAINER_MP4)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dev.Pause(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := heard(); len(got) != 1 || got[0].Type != "PAUSE" || got[0].Destination != "transport-1" {
+		t.Errorf("the receiver heard %+v, want one PAUSE addressed to the transport the Play loaded on", got)
+	}
 }

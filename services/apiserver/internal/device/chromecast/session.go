@@ -20,10 +20,8 @@ type session struct {
 	name string
 
 	watchMu sync.Mutex
-	watch   playback
-	ending  *ending
-	// transport is the media receiver the last Play loaded on.
-	transport string
+	// watch is the Play last handed, nil before any.
+	watch *playback
 }
 
 var _ device.Device = (*session)(nil)
@@ -51,12 +49,8 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 		return fmt.Errorf("starting chromecast playback: %w", err)
 	}
 	// Each Play is awaited to its own end, so a retry after a refused one starts clean on the same connection.
-	mine := newEnding()
-	s.watchMu.Lock()
-	s.watch.begin(stream)
-	s.ending = mine
-	s.transport = transport
-	s.watchMu.Unlock()
+	mine := newPlayback(ctx, stream, transport)
+	s.follow(mine)
 	load := &loadCommand{
 		Type: msgLoad, Autoplay: true,
 		Media: mediaItem{MediaItem: castmedia.MediaItem{ContentId: stream, ContentType: device.MIME(playback.Container()), StreamType: streamBuffered, Duration: float32(playback.Duration().Seconds())}},
@@ -81,9 +75,10 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 	if err != nil {
 		s.watchMu.Lock()
 		// A Play begun since owns the watch now; this one's failure is not its to clear or name.
-		if s.ending == mine {
-			err = s.watch.named(err)
-			s.watch.disarm()
+		if s.watch == mine {
+			err = mine.named(err)
+			mine.abandon()
+			s.watch = nil
 		}
 		s.watchMu.Unlock()
 		return fmt.Errorf("starting chromecast playback: %w", err)
@@ -164,7 +159,7 @@ func (s *session) Position(ctx context.Context) (device.Playhead, error) {
 	}
 	for _, status := range response.Status {
 		if status.MediaSessionID == mediaSession && status.CurrentTime != nil {
-			return device.Playhead{At: time.Duration(*status.CurrentTime * float64(time.Second)), Paused: status.PlayerState == "PAUSED"}, nil
+			return device.Playhead{At: time.Duration(*status.CurrentTime * float64(time.Second)), Paused: status.PlayerState == statePaused}, nil
 		}
 	}
 	return device.Playhead{}, device.ErrNoPosition
@@ -174,8 +169,12 @@ var errNoMediaSession = errors.New("the chromecast has reported no media session
 
 // mediaRequest sends msg to the media session the last Play opened, returning that session and the receiver's MEDIA_STATUS.
 func (s *session) mediaRequest(ctx context.Context, msg string) (int, []byte, error) {
+	var transport string
+	var mediaSession int
 	s.watchMu.Lock()
-	transport, mediaSession := s.transport, s.watch.mediaSession
+	if s.watch != nil {
+		transport, mediaSession = s.watch.transport, s.watch.mediaSession
+	}
 	s.watchMu.Unlock()
 	if mediaSession == 0 {
 		return 0, nil, errNoMediaSession
@@ -266,7 +265,11 @@ func defaultMediaTransport(status castmedia.ReceiverStatusResponse) (string, boo
 }
 
 func (s *session) Close() error {
-	return s.ch.Close()
+	err := s.ch.Close()
+	s.watchMu.Lock()
+	s.watch.abandon()
+	s.watchMu.Unlock()
+	return err
 }
 
 func (s *session) Capabilities() *mediav1.Capabilities {

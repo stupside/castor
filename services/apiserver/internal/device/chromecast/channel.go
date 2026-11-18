@@ -33,10 +33,20 @@ const (
 	msgMediaStatus = "MEDIA_STATUS"
 	msgPing        = "PING"
 	msgPong        = "PONG"
-	stateIdle      = "IDLE"
-	idleError      = "ERROR"
 	streamBuffered = "BUFFERED"
 	streamLive     = "LIVE"
+)
+
+// The states a receiver's player reports, and the reasons it gives for going idle.
+const (
+	stateBuffering  = "BUFFERING"
+	statePlaying    = "PLAYING"
+	statePaused     = "PAUSED"
+	stateIdle       = "IDLE"
+	idleError       = "ERROR"
+	idleFinished    = "FINISHED"
+	idleCancelled   = "CANCELLED"
+	idleInterrupted = "INTERRUPTED"
 )
 
 const (
