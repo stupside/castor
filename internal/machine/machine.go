@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/looplab/fsm"
 
@@ -79,6 +80,18 @@ func (m *Machine[S, E]) Fire(ctx context.Context, e E) error {
 		return fmt.Errorf("%s in %s: %w", e, m.State(), ErrRefused)
 	}
 	return err
+}
+
+// Take takes e where the state takes it and says whether it did, for a source that repeats what the machine has moved past.
+func (m *Machine[S, E]) Take(ctx context.Context, e E) bool {
+	if !m.Can(e) {
+		return false
+	}
+	if err := m.Fire(ctx, e); err != nil {
+		slog.WarnContext(ctx, "a state machine did not take an event its state takes", "state", m.State(), "event", e, "error", err)
+		return false
+	}
+	return true
 }
 
 func (m *Machine[S, E]) Is(s S) bool  { return m.fsm.Is(s.String()) }

@@ -58,3 +58,16 @@ func TestAnAfterNoEdgeTakesIsRefusedWhenTheMachineIsBuilt(t *testing.T) {
 	machine.New("door", closed, nil, []machine.Edge[doorState, doorEvent]{{On: opened, From: []doorState{closed}, To: open}},
 		map[doorEvent]func(context.Context){knocked: func(context.Context) {}})
 }
+
+func TestTakeMovesWhereTheStateTakesTheEventAndSaysWhetherItDid(t *testing.T) {
+	m := door(nil)
+	if !m.Take(t.Context(), opened) || m.State() != open {
+		t.Fatalf("opening a closed door: in %s, want it open", m.State())
+	}
+	if m.Take(t.Context(), opened) || m.State() != open {
+		t.Fatalf("opening an open door took it, or moved it to %s", m.State())
+	}
+	if !door(nil).Take(t.Context(), knocked) {
+		t.Fatal("a knock a closed door takes, though it stays closed, was not taken")
+	}
+}
