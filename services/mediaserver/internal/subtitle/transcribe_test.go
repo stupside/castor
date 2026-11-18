@@ -246,9 +246,29 @@ func TestAudioIsConfirmedUpToTheFirstWordStillPending(t *testing.T) {
 		{"nothing pending: all but the step just read", 10, nil, 117},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := confirmedTo(tt.frontier, 100, buf, tt.pending); got != tt.want {
+			if got := (&window{samples: buf, start: 100}).confirmedTo(tt.frontier, tt.pending); got != tt.want {
 				t.Errorf("confirmedTo = %.1f, want %.1f", got, tt.want)
 			}
 		})
+	}
+}
+
+// The recognizer gives "king" again, later than the frontier the first time it was committed at, so only what was said
+// is left to tell it is the same word.
+func TestAWordTheLastWindowCommittedIsNotCommittedAgainWhateverItsTimes(t *testing.T) {
+	var done committed
+	done.add([]Word{{Start: 1, End: 1.4, Text: "the"}, {Start: 1.5, End: 1.9, Text: "king"}})
+	r := recognitionFunc(func(context.Context, []float32, float64) ([]Word, error) {
+		return []Word{{Start: 2.1, End: 2.5, Text: "King,"}, {Start: 2.6, End: 3.0, Text: "rode"}}, nil
+	})
+	_, pending, err := confirm(t.Context(), r, window{samples: make([]float32, 4*SampleRate)}, nil, done, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 || pending[0].Text != "rode" {
+		t.Fatalf("pending = %v, want just the new word", pending)
+	}
+	if done.frontier != 1.9 || len(done.tail) != 2 {
+		t.Fatalf("committed ends at %.1f with %d words kept, want 1.9 and 2", done.frontier, len(done.tail))
 	}
 }

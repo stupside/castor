@@ -56,11 +56,9 @@ func Transcribe(ctx context.Context, pcm io.Reader, recognizer Recognizer, sink 
 	defer sink.Close()
 	step := make([]byte, stepSeconds*bytesPerSec)
 	var (
-		buf      []float32 // working audio window
-		bufStart float64   // absolute time of buf[0], in seconds
-		prev     []Word    // uncommitted tail of the previous hypothesis
-		tail     []Word    // last committed words, kept across trims to drop what a window repeats
-		frontier float64   // absolute end time of the last committed word
+		heard window    // the audio the recognizer hears
+		prev  []Word    // uncommitted tail of the previous hypothesis
+		done  committed // what the sink has been given
 	)
 	lastProgress := time.Now()
 
@@ -73,53 +71,95 @@ func Transcribe(ctx context.Context, pcm io.Reader, recognizer Recognizer, sink 
 		if err != nil {
 			return err
 		}
-		buf = appendPCM(buf, step[:n])
+		heard.add(step[:n])
 		var overdue []Word
 		if !atEOF {
-			overdue, prev = overdueBefore(prev, bufStart+float64(len(buf))/SampleRate-overdueSeconds)
-			if len(overdue) > 0 {
-				frontier = overdue[len(overdue)-1].End
-				tail = lastCommitted(tail, overdue)
-			}
+			overdue, prev = overdueBefore(prev, heard.end()-overdueSeconds)
+			done.add(overdue)
 			// Trimmed before recognizing, so the window never outgrows the recognizer's.
-			buf, bufStart = trimBuffer(buf, bufStart, confirmedTo(frontier, bufStart, buf, prev))
+			heard.trim(heard.confirmedTo(done.frontier, prev))
 			// Words of trimmed audio would never be agreed again, and would stall the commit.
-			prev = dropBefore(prev, bufStart)
+			prev = dropBefore(prev, heard.start)
 		}
 
 		var agreed []Word
 		// The recognizer needs at least 100ms, which only the final step can lack.
-		if len(buf) >= SampleRate/10 {
-			agreed, prev, err = confirm(ctx, recognizer, buf, bufStart, prev, tail, frontier, atEOF)
+		if len(heard.samples) >= SampleRate/10 {
+			agreed, prev, err = confirm(ctx, recognizer, heard, prev, done, atEOF)
 			if err != nil {
 				return err
 			}
-			if len(agreed) > 0 {
-				frontier = agreed[len(agreed)-1].End
-				tail = lastCommitted(tail, agreed)
-			}
+			done.add(agreed)
 		}
 
-		settled := settledTo(frontier, bufStart, buf, prev)
+		settled := heard.settledTo(done.frontier, prev)
 		if !atEOF && len(prev) == 0 {
 			// Silence also needs a successor window before it becomes immutable.
-			settled = max(frontier, settled-stepSeconds)
+			settled = max(done.frontier, settled-stepSeconds)
 		}
 		sink.Commit(slices.Concat(overdue, agreed), settled)
 
 		if atEOF {
-			slog.InfoContext(ctx, "transcription finished", "transcribed_seconds", int(frontier))
+			slog.InfoContext(ctx, "transcription finished", "transcribed_seconds", int(done.frontier))
 			return nil
 		}
 
 		if time.Since(lastProgress) >= 15*time.Second {
 			slog.InfoContext(ctx, "transcription progress",
-				"committed_seconds", int(frontier),
-				"buffered_seconds", int(float64(len(buf))/SampleRate),
+				"committed_seconds", int(done.frontier),
+				"buffered_seconds", int(float64(len(heard.samples))/SampleRate),
 			)
 			lastProgress = time.Now()
 		}
 	}
+}
+
+// window is the audio the recognizer hears: samples from start, in seconds.
+type window struct {
+	samples []float32
+	start   float64
+}
+
+func (w *window) add(pcm []byte) { w.samples = appendPCM(w.samples, pcm) }
+
+// end is the time the audio reaches.
+func (w *window) end() float64 { return w.start + float64(len(w.samples))/SampleRate }
+
+// trim drops old audio at the quietest point of what is confirmed.
+func (w *window) trim(confirmed float64) {
+	w.samples, w.start = trimBuffer(w.samples, w.start, confirmed)
+}
+
+// confirmedTo is how far the audio holds nothing still to commit: up to the first word still pending,
+// else everything the last window heard, which leaves out the step just read.
+func (w *window) confirmedTo(frontier float64, pending []Word) float64 {
+	if len(pending) > 0 {
+		return max(frontier, pending[0].Start)
+	}
+	return max(frontier, w.end()-stepSeconds)
+}
+
+// settledTo is how far the cues are settled: the frontier while a tail is pending, the audio's end otherwise.
+func (w *window) settledTo(frontier float64, pending []Word) float64 {
+	if len(pending) == 0 {
+		return w.end()
+	}
+	return frontier
+}
+
+// committed is what the sink has been given: where it ends, and the last few words, kept to drop what a later window repeats.
+type committed struct {
+	frontier float64
+	tail     []Word
+}
+
+func (c *committed) add(words []Word) {
+	if len(words) == 0 {
+		return
+	}
+	c.frontier = words[len(words)-1].End
+	c.tail = append(c.tail, words...)
+	c.tail = c.tail[max(0, len(c.tail)-repeatedWordsMax):]
 }
 
 func readStep(pcm io.Reader, step []byte) (int, bool, error) {
@@ -131,13 +171,13 @@ func readStep(pcm io.Reader, step []byte) (int, bool, error) {
 	return n, atEOF, nil
 }
 
-func confirm(ctx context.Context, r Recognizer, buf []float32, bufStart float64, prev, committed []Word, frontier float64, atEOF bool) (agreed, tail []Word, err error) {
-	words, err := r.Recognize(ctx, buf, bufStart)
+func confirm(ctx context.Context, r Recognizer, heard window, prev []Word, done committed, atEOF bool) (agreed, tail []Word, err error) {
+	words, err := r.Recognize(ctx, heard.samples, heard.start)
 	if err != nil {
 		return nil, prev, fmt.Errorf("recognizing speech: %w", err)
 	}
-	fresh := dropRepeated(dropBefore(collapseLoops(words), frontier), committed)
-	slog.DebugContext(ctx, "recognized a window", "from", bufStart, "heard", len(words), "new", len(fresh))
+	fresh := dropRepeated(dropBefore(collapseLoops(words), done.frontier), done.tail)
+	slog.DebugContext(ctx, "recognized a window", "from", heard.start, "heard", len(words), "new", len(fresh))
 	// The final window has no successor to agree with, so it is committed whole.
 	if atEOF {
 		return fresh, nil, nil
@@ -146,33 +186,10 @@ func confirm(ctx context.Context, r Recognizer, buf []float32, bufStart float64,
 	return agreed, fresh[len(agreed):], nil
 }
 
-// confirmedTo is how far the audio holds nothing still to commit: up to the first word still pending,
-// else everything the last window heard, which leaves out the step just read.
-func confirmedTo(frontier, bufStart float64, buf []float32, pending []Word) float64 {
-	if len(pending) > 0 {
-		return max(frontier, pending[0].Start)
-	}
-	return max(frontier, bufStart+float64(len(buf))/SampleRate-stepSeconds)
-}
-
-// lastCommitted is the committed words kept to drop what a later window repeats: tail, then words, the last few.
-func lastCommitted(tail, words []Word) []Word {
-	tail = append(tail, words...)
-	return tail[max(0, len(tail)-repeatedWordsMax):]
-}
-
 // overdueBefore splits pending at horizon: the words centred before it, and the rest.
 func overdueBefore(pending []Word, horizon float64) (overdue, rest []Word) {
 	rest = dropBefore(pending, horizon)
 	return pending[:len(pending)-len(rest)], rest
-}
-
-// settledTo is how far the cues are settled: the frontier while a tail is pending, the buffer's end otherwise.
-func settledTo(frontier, bufStart float64, buf []float32, tail []Word) float64 {
-	if len(tail) == 0 {
-		return bufStart + float64(len(buf))/SampleRate
-	}
-	return frontier
 }
 
 // dropBefore skips the words centred before cutoff, already committed or trimmed.
