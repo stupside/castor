@@ -386,7 +386,7 @@ func openFixture(t *testing.T, contentType, workDir string) delivery {
 	ffmpegPath, _ := requireFFmpegTools(t)
 	origin := serveFixture(t, ffmpegPath)
 	s := servingAttempt(t, ffmpegPath)
-	selected, err := testOutputs().Select(chromecastLike(contentType), nil)
+	selected, err := testOutputs().Select(chromecastLike(contentType), nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func (probingDevice) Resume(context.Context) error { return nil }
 
 func testEncoding(t *testing.T, opts encoding.EncodeOptions) encodePlan {
 	t.Helper()
-	selected, err := testOutputs().Select(chromecastLike(opts.Format.ContentType), nil)
+	selected, err := testOutputs().Select(chromecastLike(opts.Format.ContentType), nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

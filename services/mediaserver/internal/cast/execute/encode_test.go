@@ -105,3 +105,22 @@ func bufferedCast(t *testing.T, ffmpegPath, ffprobePath string) (*preparation, *
 	s := readingAttempt(t, realCast(&fakeDevice{}, ffmpegPath, ffprobePath), recovery.Attempt{})
 	return s, &buffered{reader: &pull{spool: sp, done: make(chan struct{})}}
 }
+
+func TestALiveCastIsOfferedSegmentedBeforeWhatTheDeviceListsFirst(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		live bool
+		want string
+	}{
+		{"live", true, media.HLS},
+		{"finite", false, media.MP4},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// The device lists MP4 first.
+			offered := testOutputs().Selections(chromecastLike(media.MP4, media.HLS), nil, tt.live)
+			if len(offered) != 2 || offered[0].Plan.Format().ContentType != tt.want {
+				t.Fatalf("offered %d deliveries, the first %v, want 2 and %s first", len(offered), offered[0].Plan.Format().ContentType, tt.want)
+			}
+		})
+	}
+}

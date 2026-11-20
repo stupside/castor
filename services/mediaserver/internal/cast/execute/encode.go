@@ -37,7 +37,7 @@ func (s *preparation) encode(f feed, burn burnRenderer) (encodePlan, error) {
 	if native && burn == nil {
 		captions = &output.Captions{Cues: f.buffered.transcript.Cues(), VideoOffset: *f.buffered.captionVideoOffset}
 	}
-	selections := s.Outputs.Selections(s.playbackCapabilities(), captions)
+	selections := s.Outputs.Selections(s.playbackCapabilities(), captions, f.live())
 	if len(selections) == 0 {
 		return encodePlan{}, fmt.Errorf("no delivery adapter accepts the requested playback envelopes")
 	}

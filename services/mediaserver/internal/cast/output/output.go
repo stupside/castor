@@ -3,6 +3,7 @@
 package output
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -93,18 +94,19 @@ type Selection struct {
 	Capabilities media.Capabilities
 }
 
-func (f Factory) Select(caps media.Capabilities, captions *Captions) (Selection, error) {
-	selections := f.Selections(caps, captions)
+func (f Factory) Select(caps media.Capabilities, captions *Captions, live bool) (Selection, error) {
+	selections := f.Selections(caps, captions, live)
 	if len(selections) > 0 {
 		return selections[0], nil
 	}
 	return Selection{}, fmt.Errorf("no delivery adapter accepts the requested playback envelopes")
 }
 
-// Selections returns adapter-supported envelopes in receiver preference order.
+// Selections returns adapter-supported envelopes in receiver preference order, a live delivery's segmented ones first:
+// a playlist lists only complete fragments, where a growing stream leaves a device waiting at its edge.
 // The codec planner can then try the next delivery when the host cannot encode
 // for the first one. Each selection retains only tuples for its transport.
-func (f Factory) Selections(caps media.Capabilities, captions *Captions) []Selection {
+func (f Factory) Selections(caps media.Capabilities, captions *Captions, live bool) []Selection {
 	var selections []Selection
 	seen := make(map[media.Transport]bool)
 	for _, envelope := range caps.Formats {
@@ -122,6 +124,15 @@ func (f Factory) Selections(caps media.Capabilities, captions *Captions) []Selec
 			seen[envelope.Transport] = true
 			break
 		}
+	}
+	if live {
+		segmentedFirst := func(s Selection) int {
+			if s.Plan.Format().Delivery == container.DeliverSegmented {
+				return 0
+			}
+			return 1
+		}
+		slices.SortStableFunc(selections, func(a, b Selection) int { return cmp.Compare(segmentedFirst(a), segmentedFirst(b)) })
 	}
 	return selections
 }
