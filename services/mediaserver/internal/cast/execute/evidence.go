@@ -24,6 +24,10 @@ func evidence(r ran, err error, cancelled bool) recovery.Evidence {
 		e.ReadIncomplete = p.lostMedia()
 		e.Copied = p.copying()
 		e.Lines = p.Evidence()
+		// A hardware encode that exited on its own is retried in software: its exit cannot tell the encoder from the source.
+		if p.tail().onHardware() && e.ReadErr != nil && e.ReadExit > 0 {
+			e.EncodeErr, e.Hardware = e.ReadErr, true
+		}
 	}
 
 	if refused, ok := errors.AsType[*playRefused](err); ok {

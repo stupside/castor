@@ -191,8 +191,8 @@ func encoderResult(ctx context.Context, proc *ffmpeg.Process, hardware, buffered
 		return nil
 	}
 	err = fmt.Errorf("encoder: %w", err)
-	// An ffmpeg reading the source exits on the source's failure as on its own.
-	if evidence.ExitStatus > 0 && (buffered || evidence.Signaled) {
+	// An ffmpeg reading the source exits on the source's failure as on its own, so only a hardware encode is retried on its exit.
+	if evidence.ExitStatus > 0 && (buffered || evidence.Signaled || hardware) {
 		// The cast's fault quotes the encoder's lines itself.
 		return &encoderFailed{err: err, hardware: hardware, lines: evidence.Lines}
 	}

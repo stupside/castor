@@ -268,7 +268,8 @@ func TestAnOutputTheReceiverRefusesIsTheEncodesOnlyWhereItEncodedWhatWasRefused(
 	}
 }
 
-func TestARemuxOfDeadLinksIsNotBlamedOnItsEncoder(t *testing.T) {
+// A hardware encode's exit over the source cannot be told from the source's, so each link has software make it again before it is given up.
+func TestARemuxOfDeadLinksIsMadeAgainInSoftwareOnEachBeforeItIsGivenUp(t *testing.T) {
 	t.Parallel()
 	requireFFmpegTools(t)
 	gone := httptest.NewServer(http.HandlerFunc(http.NotFound))
@@ -279,28 +280,31 @@ func TestARemuxOfDeadLinksIsNotBlamedOnItsEncoder(t *testing.T) {
 	}
 	dev := &fakeDevice{caps: media.Capabilities{SelfFetch: true, Formats: []media.FormatSupport{{Transport: media.TransportMPEGTS, Video: media.VideoSupport{Codec: media.CodecH264}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}}}}, drain: true}
 	actions, _, _, err := faultCast(t, dev, "h264_bogus", dead("/one.ts"), dead("/two.ts"))
-	if err == nil || !slices.Equal(actions, []recovery.Action{recovery.SwitchCandidate}) {
-		t.Fatalf("the cast ended on %v after revisions %v, want a refusal after one switch of link", err, actions)
+	want := []recovery.Action{recovery.SoftwareEncode, recovery.SwitchCandidate, recovery.SoftwareEncode}
+	if err == nil || !slices.Equal(actions, want) {
+		t.Fatalf("the cast ended on %v after revisions %v, want a refusal after %v", err, actions, want)
 	}
 }
 
-func TestAnExitIsTheEncodesOnlyWhereItCannotBeTheSources(t *testing.T) {
+func TestAnExitOverTheSourceIsTheEncodesOnlyBySignalOrOnHardware(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		script   string
+		hardware bool
 		buffered bool
 		own      bool
 	}{
-		{"an exit over castor's buffer", "exit 3", true, true},
-		{"an exit over the source", "exit 3", false, false},
-		{"a signal of its own over the source", "kill -SEGV $$", false, true},
+		{"an exit over castor's buffer", "exit 3", false, true, true},
+		{"an exit over the source", "exit 3", false, false, false},
+		{"an exit of a hardware encode over the source", "exit 3", true, false, true},
+		{"a signal of its own over the source", "kill -SEGV $$", false, false, true},
 	} {
 		proc, err := ffmpeg.Start(t.Context(), "/bin/sh", ffmpeg.Command{Args: []string{"-c", tt.script}}, ffmpeg.Options{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, _ = io.Copy(io.Discard, proc.Stdout)
-		if _, own := errors.AsType[*encoderFailed](encoderResult(t.Context(), proc, false, tt.buffered)); own != tt.own {
+		if _, own := errors.AsType[*encoderFailed](encoderResult(t.Context(), proc, tt.hardware, tt.buffered)); own != tt.own {
 			t.Errorf("%s: the encode's own failure %t, want %t", tt.name, own, tt.own)
 		}
 	}

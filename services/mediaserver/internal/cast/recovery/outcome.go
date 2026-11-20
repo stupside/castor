@@ -87,6 +87,7 @@ type Evidence struct {
 	Undelivered error
 
 	// EncodeErr is the delivery's encode failing on its own: its encoder exited, or made what the device refused.
+	// A hardware encode inside an ffmpeg that reads the source is taken to have failed when it exits, which software then settles.
 	EncodeErr error
 
 	// Hardware is the failed encode's picture made on hardware.

@@ -95,6 +95,11 @@ var classes = []classRule{{
 	when: func(e Evidence) bool { return e.TimelineErr != nil },
 	kind: unreachable,
 }, {
+	// A read or remux whose hardware encode exited had a link to read; software retries it before the link is given up.
+	why:  "the read's encoder failed",
+	when: func(e Evidence) bool { return e.EncodeErr != nil && e.Reached <= health.Reading && !e.ReadIncomplete },
+	kind: encodeFailed,
+}, {
 	// Media landed then died is deliberately not unreachable; that would send a working cast to recovery.
 	why: "the link delivered nothing",
 	when: func(e Evidence) bool {

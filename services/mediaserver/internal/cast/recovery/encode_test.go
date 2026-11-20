@@ -115,3 +115,25 @@ func TestARefusalQuotesTheEncoderAsItself(t *testing.T) {
 		t.Fatalf("refusal %v, want the encoder's own lines quoted as the encoder's", err)
 	}
 }
+
+func TestAReadWhoseHardwareEncodeExitedIsMadeAgainInSoftwareEvenWhereNothingLanded(t *testing.T) {
+	exited := errors.New("upstream pull: exit status 187")
+	read := Outcome{Err: exited, Evidence: Evidence{Reached: health.Reading, Verdict: health.Dead, ReadErr: exited, ReadExit: 187, EncodeErr: exited, Hardware: true}}
+	in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8", "https://other.example/two.m3u8"), Deadline: 30 * time.Second}
+	run := &scriptedRunner{outcomes: []Outcome{read, delivered}}
+	if err := Cast(t.Context(), in, run, &fakeProgram{}); err != nil || len(run.seen) != 2 {
+		t.Fatalf("Cast error = %v after %d attempts, want the second to deliver", err, len(run.seen))
+	}
+	if next := run.seen[1]; !next.Software || next.candidate != 0 {
+		t.Errorf("the second attempt is software %t on link %d, want software on the same link", next.Software, next.candidate)
+	}
+}
+
+func TestASourceThatEndedShortIsNotTakenForItsReadsHardwareEncode(t *testing.T) {
+	exited := errors.New("upstream pull: exit status 187")
+	landed := health.Vitals{Landed: 4 << 10, Samples: 2}
+	short := Evidence{Reached: health.Reading, Verdict: health.Dead, ReadErr: exited, ReadExit: 187, EncodeErr: exited, Hardware: true, ReadIncomplete: true, Vitals: landed}
+	if got := classFor(short).kind; got != sourceStalled {
+		t.Errorf("a read the source cut short is classified %s, want %s", got, sourceStalled)
+	}
+}
