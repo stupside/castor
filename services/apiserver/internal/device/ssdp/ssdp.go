@@ -31,8 +31,8 @@ func Search(ctx context.Context, target string, most time.Duration) ([]*http.Res
 	}
 	var addresses []string
 	for _, iface := range interfaces {
-		for _, address := range iface.Addresses {
-			if address.Is4() {
+		for _, held := range iface.Addresses {
+			if address := held.Addr(); address.Is4() {
 				addresses = append(addresses, address.String())
 			}
 		}

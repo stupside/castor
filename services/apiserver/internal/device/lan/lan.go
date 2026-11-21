@@ -12,7 +12,29 @@ import (
 // Interface is a network interface that reaches a LAN, with every address it holds.
 type Interface struct {
 	net.Interface
-	Addresses []netip.Addr
+	// Addresses each carry the length of the network the interface holds the address in.
+	Addresses []netip.Prefix
+}
+
+// OnLink is whether address is in a network the interface holds: a neighbour, where anything else is behind a gateway.
+func (i Interface) OnLink(address netip.Addr) bool {
+	return slices.ContainsFunc(i.Addresses, func(held netip.Prefix) bool { return held.Contains(address) })
+}
+
+// prefixOf is the address of network with the length of its mask, false for a mask that is not a prefix.
+func prefixOf(network *net.IPNet) (netip.Prefix, bool) {
+	address, ok := netip.AddrFromSlice(network.IP)
+	ones, bits := network.Mask.Size()
+	if !ok || bits == 0 {
+		return netip.Prefix{}, false
+	}
+	address = address.Unmap()
+	if address.Is4() && bits == 128 {
+		// A four-byte address held under a sixteen-byte mask.
+		ones -= 96
+	}
+	prefix := netip.PrefixFrom(address, ones)
+	return prefix, prefix.IsValid()
 }
 
 // Interfaces are those up and able to multicast with an address beyond link-local: not loopback, not a tunnel with no neighbours.
@@ -31,15 +53,15 @@ func Interfaces() ([]Interface, error) {
 			slog.Debug("reading an interface's addresses", "interface", iface.Name, "error", err)
 			continue
 		}
-		var addresses []netip.Addr
+		var addresses []netip.Prefix
 		for _, address := range found {
 			if network, ok := address.(*net.IPNet); ok {
-				if ip, ok := netip.AddrFromSlice(network.IP); ok {
-					addresses = append(addresses, ip.Unmap())
+				if prefix, ok := prefixOf(network); ok {
+					addresses = append(addresses, prefix)
 				}
 			}
 		}
-		if slices.ContainsFunc(addresses, func(a netip.Addr) bool { return !a.IsLinkLocalUnicast() }) {
+		if slices.ContainsFunc(addresses, func(a netip.Prefix) bool { return !a.Addr().IsLinkLocalUnicast() }) {
 			reached = append(reached, Interface{Interface: iface, Addresses: addresses})
 		}
 	}

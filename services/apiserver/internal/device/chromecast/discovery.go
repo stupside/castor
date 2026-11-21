@@ -35,7 +35,7 @@ func discoverOn(ctx context.Context, iface lan.Interface) []device.Info {
 	}
 	var devices []device.Info
 	for _, entry := range heard {
-		if info, ok := infoOnInterface(entry, iface.Name); ok {
+		if info, ok := infoOnInterface(entry, iface); ok {
 			devices = append(devices, info)
 		}
 	}
@@ -43,10 +43,10 @@ func discoverOn(ctx context.Context, iface lan.Interface) []device.Info {
 }
 
 // trafficOf is the IP families a resolver listens on for an interface: those it has an address in, as joining one it lacks fails.
-func trafficOf(addresses []netip.Addr) zeroconf.IPType {
+func trafficOf(addresses []netip.Prefix) zeroconf.IPType {
 	var traffic zeroconf.IPType
-	for _, address := range addresses {
-		if address.Is4() {
+	for _, held := range addresses {
+		if held.Addr().Is4() {
 			traffic |= zeroconf.IPv4
 		} else {
 			traffic |= zeroconf.IPv6
@@ -87,13 +87,13 @@ func browseInRounds(ctx context.Context, ask func(context.Context) (<-chan *zero
 }
 
 // infoOnInterface is the receiver an entry announces, reached through the interface it was heard on.
-func infoOnInterface(entry *zeroconf.ServiceEntry, zone string) (device.Info, bool) {
+func infoOnInterface(entry *zeroconf.ServiceEntry, iface lan.Interface) (device.Info, bool) {
 	txt := txtRecords(entry.Text)
 	// The resolver hands over an entry once it has an address, before its TXT record: a later round hears it whole.
 	if txt["id"] == "" {
 		return device.Info{}, false
 	}
-	host, ok := receiverHost(entry, zone)
+	host, ok := receiverHost(entry, iface)
 	if !ok {
 		return device.Info{}, false
 	}
@@ -105,18 +105,36 @@ func infoOnInterface(entry *zeroconf.ServiceEntry, zone string) (device.Info, bo
 	}, true
 }
 
-// receiverHost prefers an IPv4 address, then a routable IPv6 one, then a link-local one scoped to the interface it was heard on.
-func receiverHost(entry *zeroconf.ServiceEntry, zone string) (string, bool) {
-	if len(entry.AddrIPv4) > 0 {
-		return entry.AddrIPv4[0].String(), true
-	}
-	for _, address := range entry.AddrIPv6 {
-		if !address.IsLinkLocalUnicast() {
-			return address.String(), true
+// receiverHost is the address to reach an entry at: a neighbour's before one behind a gateway, IPv4 before IPv6, link-local last.
+func receiverHost(entry *zeroconf.ServiceEntry, iface lan.Interface) (string, bool) {
+	var onLink4, onLink6, behind4, behind6 string
+	for _, ip := range entry.AddrIPv4 {
+		address, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			continue
+		}
+		address = address.Unmap()
+		if iface.OnLink(address) {
+			onLink4 = cmp.Or(onLink4, address.String())
+		} else {
+			behind4 = cmp.Or(behind4, address.String())
 		}
 	}
-	if zone != "" && len(entry.AddrIPv6) > 0 {
-		return entry.AddrIPv6[0].String() + "%" + zone, true
+	for _, ip := range entry.AddrIPv6 {
+		if ip.IsLinkLocalUnicast() {
+			continue
+		}
+		if address, ok := netip.AddrFromSlice(ip); ok && iface.OnLink(address) {
+			onLink6 = cmp.Or(onLink6, ip.String())
+		} else {
+			behind6 = cmp.Or(behind6, ip.String())
+		}
+	}
+	if host := cmp.Or(onLink4, onLink6, behind4, behind6); host != "" {
+		return host, true
+	}
+	if iface.Name != "" && len(entry.AddrIPv6) > 0 {
+		return entry.AddrIPv6[0].String() + "%" + iface.Name, true
 	}
 	return "", false
 }
