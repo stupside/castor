@@ -257,6 +257,22 @@ func TestCastSwitchesToTheNextLinkOnItsOwnLadder(t *testing.T) {
 	}
 }
 
+func TestARefusalAfterARevisionStatesWhatPromptedTheRevision(t *testing.T) {
+	in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8"), Deadline: 30 * time.Second}
+	refusal := errors.New("the chromecast did not answer within 20s")
+	stalled := judged(health.Stalled, health.Reading, health.Vitals{Landed: 33088})
+	refused := Outcome{Err: refusal, Evidence: Evidence{Reached: health.Opening, PlayErr: refusal}}
+	run := &scriptedRunner{outcomes: []Outcome{stalled, refused}}
+
+	err := Cast(t.Context(), in, run, &fakeProgram{})
+	if f := mustFault(t, err); f.kind != deviceRefused {
+		t.Fatalf("ended on %s, want the device's refusal the second attempt met", f.kind)
+	}
+	if want := "already tried: " + string(relaxRead.action) + " after the source stopped delivering"; !strings.Contains(err.Error(), want) {
+		t.Errorf("the refusal %q does not say the source stalled first: want %q", err, want)
+	}
+}
+
 func TestCastRelaxesAStalledReadBeforeAbandoningTheLink(t *testing.T) {
 	in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8", "https://other.example/two.m3u8"), Deadline: 30 * time.Second}
 	stalled := judged(health.Stalled, health.Reading, health.Vitals{Landed: 33088})
@@ -488,11 +504,12 @@ func TestTheRefusalNamesWhatWasTried(t *testing.T) {
 
 	err := Cast(t.Context(), in, run, prog)
 	f := mustFault(t, err)
-	if f.kind != unreachable || !slices.Equal(f.tried, []string{string(switchCandidate.action)}) || f.attempt.candidate != 1 {
+	asked := revised{action: switchCandidate.action, why: "the link delivered nothing"}
+	if f.kind != unreachable || !slices.Equal(f.tried, []revised{asked}) || f.attempt.candidate != 1 {
 		t.Errorf("refused %s on candidate %d having tried %v, want %s on candidate 1 having tried [%s]",
-			f.kind, f.attempt.candidate, f.tried, unreachable, switchCandidate.action)
+			f.kind, f.attempt.candidate, f.tried, unreachable, asked)
 	}
-	for _, want := range []string{"already tried: " + string(switchCandidate.action)} {
+	for _, want := range []string{"already tried: " + asked.String()} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the refusal %q does not carry %q", err, want)
 		}
