@@ -27,6 +27,8 @@ go test -short ./...
 
 Omit `-short` for real-time end-to-end tests: fake sites/devices, real streams, embedded and three-process services. These require Chrome, ffmpeg, and ffprobe and are not run in CI.
 
+They run in real time, so keep the machine otherwise idle.
+
 ## Running the stack with Tilt
 
 [Tilt](https://tilt.dev) runs the native stack with live reload. Also install Node 24+ and Yarn; set all three service tokens in `.env` as in `docker-compose.yml`.

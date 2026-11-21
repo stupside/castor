@@ -8,10 +8,13 @@ import (
 	"context"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 
 	"github.com/stupside/castor/e2e/judge"
 	"github.com/stupside/castor/e2e/origin"
@@ -54,8 +57,15 @@ const (
 	handOff = 10 * time.Second
 )
 
+// casting holds the casts in flight to half the cores: each runs several processes in real time, and a host too loaded to keep up with an origin loses media where it restarts.
+var casting = semaphore.NewWeighted(int64(max(1, runtime.NumCPU()/2)))
+
 // cast runs one case under one layout and judges what the receiver played.
 func cast(t *testing.T, tools receiver.Tools, p plan, layout topology) {
+	if err := casting.Acquire(t.Context(), 1); err != nil {
+		t.Fatal(err)
+	}
+	defer casting.Release(1)
 	src := origin.Start(t, tools.FFmpeg, p.stream, p.behaviours)
 	session := receiver.NewSession(t, receiver.Setup{Tools: tools, Players: players, Viewer: p.viewer})
 	endpoint, err := p.device.Start(t, session)
