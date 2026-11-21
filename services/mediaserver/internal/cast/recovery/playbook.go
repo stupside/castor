@@ -47,11 +47,11 @@ type revision struct {
 
 // revise is the first strategy in the playbook that offers an attempt not run yet.
 func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, resolver SourceResolver) revision {
-	if !revisable(o, f.kind) {
+	if !revisable(f) {
 		return revision{}
 	}
 
-	pos := f.resumeAt()
+	pos, _ := f.resumeAt()
 	facts := change{intent: in, attempt: f.attempt, outcome: o, resolver: resolver}
 	for _, s := range playbook[f.kind] {
 		next, ok := s.apply(ctx, facts)
@@ -70,17 +70,16 @@ func revise(ctx context.Context, in Intent, o Outcome, f *fault, led *ledger, re
 	return revision{}
 }
 
-// resumeAt is where the viewer got to: a cast that played is taken up there.
-func (f *fault) resumeAt() time.Duration {
+// resumeAt is where a cast that played is taken up, and whether that is known: the viewer's place, or a live program's edge.
+func (f *fault) resumeAt() (time.Duration, bool) {
 	switch {
 	case f.attempt.Live():
-		// A live program has no position to go back to, only its edge.
-		return 0
+		return 0, true
 	case f.evidence.Reached >= health.Playing:
-		at, _ := f.evidence.Vitals.Reached()
-		return f.evidence.Began + at
+		at, placed := f.evidence.Vitals.Reached()
+		return f.evidence.Began + at, placed
 	}
-	return f.attempt.Program.Start
+	return f.attempt.Program.Start, true
 }
 
 // fallBack returns a climb whose better link failed before playing to the attempt it left.
@@ -94,17 +93,18 @@ func fallBack(left *Attempt, f *fault, led *ledger) revision {
 }
 
 // revisable is an attempt that failed before playing and can change; once playing, one whose kind resumes from a known place.
-func revisable(o Outcome, k kind) bool {
-	if o.Evidence.Reached >= health.Playing {
-		_, placed := o.Evidence.Vitals.Reached()
-		switch k {
+func revisable(f *fault) bool {
+	e := f.evidence
+	if e.Reached >= health.Playing {
+		switch f.kind {
 		case starved, sourceStalled, outranked, encodeFailed:
-			return placed
+			_, known := f.resumeAt()
+			return known
 		}
 		return false
 	}
-	if judged, ok := errors.AsType[*health.Fault](o.Err); ok {
+	if judged, ok := errors.AsType[*health.Fault](f.err); ok {
 		return judged.Revise
 	}
-	return o.Evidence.PlayErr != nil || o.Evidence.TimelineErr != nil || o.Evidence.EncodeErr != nil
+	return e.PlayErr != nil || e.TimelineErr != nil || e.EncodeErr != nil
 }

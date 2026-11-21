@@ -8,6 +8,7 @@ import (
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
+	"github.com/stupside/castor/services/mediaserver/internal/source"
 )
 
 var errExited = errors.New("encoder: signal: segmentation fault")
@@ -83,6 +84,22 @@ func TestAnEncodeThatFailedWhilePlayingWhereNobodyKnowsTheViewerEndsTheCast(t *t
 	run := &scriptedRunner{outcomes: []Outcome{unwatched, delivered}}
 	if err := Cast(t.Context(), in, run, &fakeProgram{}); err == nil || len(run.seen) != 1 {
 		t.Fatalf("Cast error = %v after %d attempts, want a refusal rather than a cast started over", err, len(run.seen))
+	}
+}
+
+func TestALiveEncodeThatFailedWhilePlayingWhereNobodyKnowsTheViewerIsMadeAgainAtItsEdge(t *testing.T) {
+	in := Intent{Turns: unheard{}, Candidates: candidates(t, "https://cdn.example/one.m3u8", "https://other.example/two.m3u8"), Deadline: 30 * time.Second}
+	live := &fakeProgram{answers: map[string]published{
+		in.Candidates[0].URL.String(): {origin: source.Origin{Segmented: true, Live: true}},
+		in.Candidates[1].URL.String(): {origin: source.Origin{Segmented: true, Live: true}},
+	}}
+	unwatched := Outcome{Err: errExited, Evidence: Evidence{Reached: health.Playing, EncodeErr: errExited, Hardware: true}}
+	run := &scriptedRunner{outcomes: []Outcome{unwatched, delivered}}
+	if err := Cast(t.Context(), in, run, live); err != nil || len(run.seen) != 2 {
+		t.Fatalf("Cast error = %v after %d attempts, want the second to deliver", err, len(run.seen))
+	}
+	if next := run.seen[1]; !next.Software || next.candidate != 0 || next.Program.Start != 0 {
+		t.Errorf("second attempt: software %t on candidate %d from %s, want software on the same link at the edge", next.Software, next.candidate, next.Program.Start)
 	}
 }
 

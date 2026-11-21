@@ -106,7 +106,8 @@ func Cast(ctx context.Context, in Intent, run Runner, resolver SourceResolver) e
 			wait = 0
 		case f.kind == outranked:
 			wait = min(2*wait, climbMost)
-			if back, ok := f.attempt.at(f.resumeAt()); ok {
+			pos, _ := f.resumeAt()
+			if back, ok := f.attempt.at(pos); ok {
 				left = &back
 			}
 		}
