@@ -108,6 +108,8 @@ Language beats picture: a worse picture in your language wins over a better one 
 
 ### Following the TV's speed
 
+A TV handed a continuous stream is followed this way. A TV handed a playlist is fetched by fragment, so castor does not measure its speed or hold it.
+
 - Castor reads the source once into a buffer on disk. Encoders run about 10 seconds ahead of the TV, so a change reaches it within seconds.
 - Every 5 seconds it asks the TV where it is, and measures how fast it played over the last 30 seconds. A TV that reports no position is judged by how many bytes it takes.
 - **Too slow** (under 0.9× real time): the stream drops to 0.75 of what the TV took, never under 1 Mbit/s. A TV that keeps up is never lightened.
@@ -131,6 +133,8 @@ A DLNA TV can also seek by itself when castor serves it a single MPEG-TS stream,
 ### Recovering, and climbing back
 
 - **A link fails:** castor tries the cheapest fix first (a slower read, another decoder, serving instead of a direct fetch) and the next link last, resuming where the viewer was.
+- **Where the viewer was:** castor takes it from its watch of the playing cast. A delivery with no watch, such as a playlist, asks the device once where it got to when the cast fails, unless the device is gone. A live program has no place to go back to, so it is taken up again at its edge, whether or not a position is known. A finished program with no known position is not started over: the cast ends.
+- **When castor gives up:** the error names each fix already tried and what prompted it, so a refusal that follows a stalled source still says the source stalled first.
 - **It fell to a worse link:** after 10 minutes of good playback it retries the best one. If that fails, it goes back down and waits 20, then 40 minutes.
 
 ### Limits
@@ -141,6 +145,7 @@ A DLNA TV can also seek by itself when castor serves it a single MPEG-TS stream,
 - A source with a single quality can only be made lighter by encoding.
 - The disk buffer grows with the video, so the temporary directory needs that much free space.
 - A bigger buffer does not make the TV's link faster; it only smooths short dips.
+- A live cast over HLS starts once the TV can be handed three fragments, which at four seconds each is about twelve seconds after the cast begins. Two-second fragments halve that, but a Chromecast then rebuffered every three seconds, so they are not used.
 
 ## Media contracts
 
@@ -169,6 +174,7 @@ API runs where it can reach the TVs, scraping where Chrome is installed, and med
 - A standalone API server needs `servers.media.url` and its token. It reaches scraping at `servers.scraping.url`, or `http://localhost:8412` when unset.
 - Clients set `servers.api.url` and `servers.api.token`.
 - Standalone servers listen on all interfaces, so use HTTPS outside a trusted network.
+- The API names the server behind a failed call. A server that refuses its token says which setting to check, one that rejects a request says so, and one cut off mid-stream is reported as gone, so a killed media server is never blamed on a token.
 
 The API is all a client needs, through [Connect contracts](proto/castor/v1):
 
