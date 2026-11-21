@@ -24,11 +24,11 @@ type Client struct {
 
 // New reaches the media server at baseURL through client, which carries whatever credentials it asks.
 func New(client *http.Client, baseURL string) *Client {
-	valid := transport.Options()
+	valid, named := transport.Options(), transport.Peering(transport.Peer{Name: "the media server", TokenKey: "servers.media.token"})
 	return &Client{
-		Casts:   mediav1connect.NewCastServiceClient(client, baseURL, valid),
-		devices: mediav1connect.NewDeviceServiceClient(client, baseURL, valid),
-		streams: mediav1connect.NewStreamServiceClient(client, baseURL, valid),
+		Casts:   mediav1connect.NewCastServiceClient(client, baseURL, valid, named),
+		devices: mediav1connect.NewDeviceServiceClient(client, baseURL, valid, named),
+		streams: mediav1connect.NewStreamServiceClient(client, baseURL, valid, named),
 	}
 }
 

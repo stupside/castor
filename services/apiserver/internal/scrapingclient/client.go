@@ -16,8 +16,8 @@ type Client struct {
 }
 
 func New(client *http.Client, url string) *Client {
-	valid := transport.Options()
-	return &Client{service: scrapingv1connect.NewScrapingServiceClient(client, url, valid)}
+	valid, named := transport.Options(), transport.Peering(transport.Peer{Name: "the scraping server", TokenKey: "servers.scraping.token"})
+	return &Client{service: scrapingv1connect.NewScrapingServiceClient(client, url, valid, named)}
 }
 func (c *Client) ResolvePages(ctx context.Context, urls []string) ([]*castorv1.StreamCandidate, error) {
 	response, err := c.service.Resolve(ctx, &scrapingv1.ResolveRequest{Urls: urls})

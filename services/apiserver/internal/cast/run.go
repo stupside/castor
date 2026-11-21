@@ -50,7 +50,7 @@ func (s *Service) play(ctx context.Context, c *cast, target device.Info, asked *
 	if failure, ok := errors.AsType[*castFailure](err); ok {
 		return failedResult(failure.code, err)
 	}
-	return failedResult(castorv1.FailureCode_FAILURE_CODE_INTERNAL, fromMedia(err))
+	return failedResult(castorv1.FailureCode_FAILURE_CODE_INTERNAL, err)
 }
 
 type castFailure struct {

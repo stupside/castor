@@ -168,7 +168,7 @@ func (s *Service) Resolve(ctx context.Context, req *castorv1.ResolveRequest) (*c
 	}
 	ranked, err := s.media.Rank(working, source, s.asked(req.GetPreferences()))
 	if err != nil {
-		return nil, s.resolutions.Answer(working, fromMedia(err))
+		return nil, s.resolutions.Answer(working, err)
 	}
 	return &castorv1.ResolveResponse{Ranked: ranked}, nil
 }
@@ -186,22 +186,9 @@ func (s *Service) resolve(ctx context.Context, source *castorv1.Source) (*mediav
 	}
 	streams, err := s.scraping.ResolvePages(ctx, source.GetPages().GetUrls())
 	if err != nil {
-		switch connect.CodeOf(err) {
-		case connect.CodeUnauthenticated, connect.CodePermissionDenied, connect.CodeInvalidArgument:
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("scrapingserver refused the API server (check servers.scraping.token): %w", err))
-		}
 		return nil, err
 	}
 	return &mediav1.Source{Source: &mediav1.Source_Streams{Streams: &castorv1.Source_ResolvedStreams{Streams: streams}}}, nil
-}
-
-// fromMedia is err from the media server as this API answers it: the media server refusing this server is this server's fault, not the caller's.
-func fromMedia(err error) error {
-	switch connect.CodeOf(err) {
-	case connect.CodeUnauthenticated, connect.CodePermissionDenied, connect.CodeInvalidArgument:
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("the media server refused this API server (check servers.media.token): %w", err))
-	}
-	return err
 }
 
 func (s *Service) Stop(_ context.Context, req *castorv1.StopRequest) (*castorv1.StopResponse, error) {
@@ -239,7 +226,7 @@ func (s *Service) forward[Req interface{ GetCastId() string }, Res any](ctx cont
 	case connect.CodeOf(err) == connect.CodeNotFound:
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("cast %q is not playing on its device yet", c.id))
 	case err != nil:
-		return nil, fromMedia(err)
+		return nil, err
 	}
 	return res, nil
 }
