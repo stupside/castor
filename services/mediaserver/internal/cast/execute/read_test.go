@@ -3,10 +3,12 @@ package execute
 import (
 	"context"
 	"io"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/source"
@@ -15,8 +17,9 @@ import (
 
 // fakeTranscript is a burn-in without whisper; production needs a transcription model and cgo.
 type fakeTranscript struct {
-	cues subtitle.Cues
-	lead *fakeLead
+	cues     subtitle.Cues
+	lead     *fakeLead
+	language string
 
 	// linger is how long Run keeps going once its feed ends, as a transcription flushing its last cues does.
 	linger time.Duration
@@ -43,6 +46,8 @@ func (b *fakeTranscript) Run(_ context.Context, pcm io.ReadCloser) {
 func (b *fakeTranscript) SampleRate() int { return 16000 }
 
 func (b *fakeTranscript) Cues() *subtitle.Cues { return &b.cues }
+
+func (b *fakeTranscript) Language() string { return b.language }
 
 func (b *fakeTranscript) LatestEnd() float64 {
 	b.leadAsks.Add(1)
@@ -242,4 +247,24 @@ func testPreparation(parent context.Context, c Cast, a recovery.Attempt) *prepar
 	scope := &releases{ctx: ctx}
 	scope.interrupt(func() { cancel(nil) })
 	return newPreparation(ctx, c, a, scope, make(chan error, 1))
+}
+
+func TestTheGeneratedCaptionsAreInTheLanguageTheTranscriptIsIn(t *testing.T) {
+	offset := time.Second
+	transcript := &fakeTranscript{language: "fr"}
+	for _, tt := range []struct {
+		name string
+		b    *buffered
+		want *output.Captions
+	}{
+		{"a read with no transcription", &buffered{}, nil},
+		{"a transcription with no clock to time it against", &buffered{transcript: transcript}, nil},
+		{"a transcription timed against the video", &buffered{transcript: transcript, captionVideoOffset: &offset}, &output.Captions{Cues: transcript.Cues(), VideoOffset: offset, Language: "fr"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.b.captions(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("captions %+v, want %+v", got, tt.want)
+			}
+		})
+	}
 }

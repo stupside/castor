@@ -30,6 +30,8 @@ type captionDelivery struct {
 	playlist    string
 	cues        *subtitle.Cues
 	videoOffset time.Duration
+	// language is named in the master so a receiver can label the track.
+	language string
 
 	mu sync.Mutex
 	// master and captions are empty until the writer publishes its first fragment.

@@ -41,7 +41,7 @@ func captionWriter(t *testing.T, cues *subtitle.Cues, videoOffset time.Duration)
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { root.Close() })
-	return &captionDelivery{root: root, playlist: "stream.m3u8", cues: cues, videoOffset: videoOffset, vtt: map[string]string{}}, dir
+	return &captionDelivery{root: root, playlist: "stream.m3u8", cues: cues, videoOffset: videoOffset, language: "en", vtt: map[string]string{}}, dir
 }
 
 func TestCaptionPublisherBackpressuresAtUnsettledFragment(t *testing.T) {

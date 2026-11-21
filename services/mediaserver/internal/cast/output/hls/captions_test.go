@@ -106,6 +106,20 @@ func TestCaptionRenditionsWaitForCommittedCues(t *testing.T) {
 	}
 }
 
+func TestTheMasterNamesTheLanguageTheCaptionsAreIn(t *testing.T) {
+	cues := &subtitle.Cues{}
+	cues.Commit([]subtitle.Word{{Start: 1, End: 2, Text: "Bonjour."}}, 12)
+	cues.Close()
+	c, _ := captionWriter(t, cues, 0)
+	c.language = "fr"
+	if err := c.write(t.Context(), bytes.NewReader(captionSource(t))); err != nil {
+		t.Fatal(err)
+	}
+	if master := captionRequest(t, c, "master.m3u8").Body.String(); !strings.Contains(master, `LANGUAGE="fr",NAME="Transcription"`) {
+		t.Fatalf("the track is not labelled with its language: %s", master)
+	}
+}
+
 func TestACueAcrossAFragmentBoundaryPlaysWithBoth(t *testing.T) {
 	data := captionSource(t)
 	cues := &subtitle.Cues{}

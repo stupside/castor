@@ -71,6 +71,9 @@ func (b *Transcript) transcribe(ctx context.Context, pcm io.Reader) error {
 	return subtitle.Transcribe(ctx, pcm, worker, b.cues)
 }
 
+// Language is the code transcribed in.
+func (b *Transcript) Language() string { return b.config.Language }
+
 // Cues supplies timed captions independently of the selected renderer.
 func (b *Transcript) Cues() *subtitle.Cues { return b.cues }
 

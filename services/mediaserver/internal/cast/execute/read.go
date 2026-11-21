@@ -10,6 +10,7 @@ import (
 
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/encoding/codec"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
@@ -23,6 +24,14 @@ type buffered struct {
 	captionVideoOffset *time.Duration
 	// live is a read of an edge that arrives at 1x, which no pause gets ahead of.
 	live bool
+}
+
+// captions is the generated captions a delivery may carry, nil where there are none to carry.
+func (b *buffered) captions() *output.Captions {
+	if b == nil || b.transcript == nil || b.captionVideoOffset == nil {
+		return nil
+	}
+	return &output.Captions{Cues: b.transcript.Cues(), VideoOffset: *b.captionVideoOffset, Language: b.transcript.Language()}
 }
 
 // read buffers program under its own context, so releasing it stops the read and its transcription before the work dir goes.

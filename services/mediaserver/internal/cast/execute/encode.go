@@ -35,7 +35,7 @@ func (s *preparation) encode(f feed, burn burnRenderer) (encodePlan, error) {
 	_, native := s.nativeOutput(f)
 	var captions *output.Captions
 	if native && burn == nil {
-		captions = &output.Captions{Cues: f.buffered.transcript.Cues(), VideoOffset: *f.buffered.captionVideoOffset}
+		captions = f.buffered.captions()
 	}
 	selections := s.Outputs.Selections(s.playbackCapabilities(), captions, f.live())
 	if len(selections) == 0 {

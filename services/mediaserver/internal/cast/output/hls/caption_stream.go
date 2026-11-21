@@ -209,7 +209,7 @@ func (c *captionDelivery) publish(segments []captionFragment, closed bool, codec
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.master = fmt.Sprintf("#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"captions\",NAME=\"Transcription\",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI=\"%s\"\n#EXT-X-STREAM-INF:BANDWIDTH=%d,CODECS=\"%s\",SUBTITLES=\"captions\"\n%s\n", captionPlaylist, bandwidth, codecs, c.playlist)
+	c.master = fmt.Sprintf("#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"captions\",LANGUAGE=\"%s\",NAME=\"Transcription\",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI=\"%s\"\n#EXT-X-STREAM-INF:BANDWIDTH=%d,CODECS=\"%s\",SUBTITLES=\"captions\"\n%s\n", c.language, captionPlaylist, bandwidth, codecs, c.playlist)
 	c.captions = captions.String()
 	return nil
 }

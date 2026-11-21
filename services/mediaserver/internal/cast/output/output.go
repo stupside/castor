@@ -24,6 +24,8 @@ import (
 type Captions struct {
 	Cues        *subtitle.Cues
 	VideoOffset time.Duration
+	// Language is the tag the cues are in.
+	Language string
 }
 
 // Output is a serving view of artifacts. Close releases owned storage; the

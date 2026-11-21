@@ -163,6 +163,8 @@ type Transcript interface {
 	SampleRate() int
 	Run(ctx context.Context, pcm io.ReadCloser)
 	Cues() *subtitle.Cues
+	// Language is the tag the cues are in.
+	Language() string
 }
 
 // burnRenderer draws committed cues into video for receivers without native delivery.

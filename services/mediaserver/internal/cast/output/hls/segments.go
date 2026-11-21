@@ -28,7 +28,7 @@ func newSegments(o output.Opening, dir string, captions *output.Captions) (*Segm
 		return nil, err
 	}
 	if captions != nil {
-		store.captions = &captionDelivery{root: store.root, playlist: o.Format.Tuning.Output, cues: captions.Cues, videoOffset: captions.VideoOffset, vtt: map[string]string{}}
+		store.captions = &captionDelivery{root: store.root, playlist: o.Format.Tuning.Output, cues: captions.Cues, videoOffset: captions.VideoOffset, language: captions.Language, vtt: map[string]string{}}
 	}
 	return &Segments{o: o, store: store, lastRequest: time.Now()}, nil
 }

@@ -108,11 +108,10 @@ func (s *preparation) playbackCapabilities() media.Capabilities {
 // nativeOutput asks the installed delivery adapters to carry generated cues.
 // Source clock availability is a media fact; protocol eligibility belongs to adapters.
 func (s *preparation) nativeOutput(f feed) (output.Selection, bool) {
-	if f.buffered == nil || f.buffered.transcript == nil || f.buffered.captionVideoOffset == nil {
+	generated := f.buffered.captions()
+	if generated == nil {
 		return output.Selection{}, false
 	}
-	selected, err := s.Outputs.Select(s.playbackCapabilities(), &output.Captions{
-		Cues: f.buffered.transcript.Cues(), VideoOffset: *f.buffered.captionVideoOffset,
-	}, f.live())
+	selected, err := s.Outputs.Select(s.playbackCapabilities(), generated, f.live())
 	return selected, err == nil
 }
