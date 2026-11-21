@@ -6,6 +6,7 @@ for a do
 	shift
 	case $a in
 	h264_crash) signal=SEGV a=libx264 ;;
+	h264_crash_late) signal=SEGV after=10 a=libx264 ;;
 	h264_hang) signal=STOP a=libx264 ;;
 	h264_mute) signal=STOP after=0 a=libx264 ;;
 	h264_paced) a=libx264 ;;

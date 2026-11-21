@@ -110,6 +110,12 @@ func (h Vitals) Reached() (time.Duration, bool) {
 	return h.at(), h.playing
 }
 
+// WithHead is h with the device's word that it played to at, which places the viewer for a cast no watch kept a reading of.
+func (h Vitals) WithHead(at time.Duration) Vitals {
+	h.head, h.headKnown, h.playing = at, true, true
+	return h
+}
+
 // Intake is the rate the device took the cast at, in bits per second, zero where the span was not covered.
 func (h Vitals) Intake() media.Bitrate {
 	if !h.intakeKnown {

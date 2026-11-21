@@ -63,6 +63,7 @@ func (s *Segments) Wait(ctx context.Context, produced <-chan struct{}) error {
 }
 func (s *Segments) Close() error { return s.store.Close() }
 
+// Audience is nil: a playlist is fetched by fragment.
 func (*Segments) Audience() health.Audience { return nil }
 func (s *Segments) Settled(made media.Progress) error {
 	return health.NoneFetched(s.Served(), made)

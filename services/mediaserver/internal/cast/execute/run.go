@@ -27,7 +27,11 @@ func (c Cast) Run(parent context.Context, a recovery.Attempt) (result recovery.O
 		return recovery.Outcome{Err: err, Evidence: evidence(ran{}, err, parent.Err() != nil)}
 	}
 	r, err := newCoordinator(parent, c, a).run()
-	return recovery.Outcome{Err: err, Evidence: evidence(r, err, parent.Err() != nil)}
+	out := recovery.Outcome{Err: err, Evidence: evidence(r, err, parent.Err() != nil)}
+	if err != nil {
+		out.Evidence = withPlace(parent, c.Device, a, out.Evidence)
+	}
+	return out
 }
 
 // ran is how far an attempt got, where its playback began, and the read it started on the way (nil where it read nothing).
@@ -523,17 +527,38 @@ func (c *coordinator) drain() {
 
 // leftToPlay is what the device has yet to play of d, and whether it is paused.
 func (c *coordinator) leftToPlay(ctx context.Context, d *delivery) (left time.Duration, held, known bool) {
-	head, ok := c.device.(health.Playhead)
-	if !ok {
-		return drainMost, false, false
-	}
-	asking, cancel := context.WithTimeout(ctx, askFor)
-	defer cancel()
-	at, held, known := head.Position(asking)
+	at, held, known := askPosition(ctx, c.device)
 	if !known {
 		return drainMost, false, false
 	}
 	return min(drainMost, max(0, d.output.Progress().Position-at)), held, true
+}
+
+// withPlace asks the device where it got to when its encode failed in a delivery no watch placed the viewer in.
+func withPlace(ctx context.Context, dev Device, a recovery.Attempt, e recovery.Evidence) recovery.Evidence {
+	// A live program resumes at its edge, and a gone device has no place to say.
+	if ctx.Err() != nil || e.EncodeErr == nil || e.Reached < health.Playing || e.DeviceGone != nil || a.Live() {
+		return e
+	}
+	if _, placed := e.Vitals.Reached(); placed {
+		return e
+	}
+	// A device that has played says more than nothing; one that says nothing has not been watched.
+	if at, _, known := askPosition(ctx, dev); known && at > 0 {
+		e.Vitals = e.Vitals.WithHead(at)
+	}
+	return e
+}
+
+// askPosition is where dev says it plays, within askFor; known is false for a device with no playhead.
+func askPosition(ctx context.Context, dev Device) (at time.Duration, held, known bool) {
+	head, ok := dev.(health.Playhead)
+	if !ok {
+		return 0, false, false
+	}
+	asking, cancel := context.WithTimeout(ctx, askFor)
+	defer cancel()
+	return head.Position(asking)
 }
 
 // hand points the device at p.

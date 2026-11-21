@@ -197,6 +197,64 @@ func TestAHardwareEncoderThatFailsOnRealInputIsReplacedBySoftware(t *testing.T) 
 	}
 }
 
+// playheadDevice plays what it is handed without fetching it, says where it got to, and stays until the attempt fails; its second play ends at once.
+type playheadDevice struct {
+	caps  media.Capabilities
+	at    time.Duration
+	mu    sync.Mutex
+	plays int
+}
+
+func (d *playheadDevice) Play(context.Context, Playback) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.plays++
+	return nil
+}
+
+func (d *playheadDevice) AwaitEnd(ctx context.Context) error {
+	d.mu.Lock()
+	again := d.plays > 1
+	d.mu.Unlock()
+	if again {
+		return nil
+	}
+	<-ctx.Done()
+	return context.Cause(ctx)
+}
+
+func (d *playheadDevice) Position(context.Context) (time.Duration, bool, bool) {
+	return d.at, false, true
+}
+func (d *playheadDevice) Capabilities() media.Capabilities { return d.caps }
+func (*playheadDevice) Pause(context.Context) error        { return nil }
+func (*playheadDevice) Resume(context.Context) error       { return nil }
+
+// A playlist has no watch to keep where the viewer got to, so a failed attempt asks the device, and the retry resumes from its answer.
+func TestAHardwareEncodeThatDiedWhilePlayingAPlaylistIsMadeAgainInSoftwareFromWhereTheDeviceGot(t *testing.T) {
+	t.Parallel()
+	ffmpegPath, _ := requireFFmpegTools(t)
+	stream := sourceOf(t, generateFixture(t, ffmpegPath, "movie.ts", 60, []string{"-vf", "noise=alls=40:allf=t", "-c:v", "mpeg4", "-c:a", "aac", "-ac", "2", "-shortest", "-f", "mpegts"}))
+	dev := &playheadDevice{caps: chromecastLike(media.HLS), at: 25 * time.Second}
+
+	actions, ran, outcomes, err := faultCast(t, dev, "h264_crash_late", stream)
+	if err != nil {
+		t.Fatalf("the cast failed instead of going on in software: %v", err)
+	}
+	if len(outcomes) < 2 || outcomes[0].Evidence.Reached < health.Playing {
+		t.Fatalf("the first attempt did not die while playing: %d attempts, %+v", len(outcomes), outcomes[0].Evidence)
+	}
+	if at, placed := outcomes[0].Evidence.Vitals.Reached(); !placed || at != 25*time.Second {
+		t.Errorf("the first attempt places the viewer at %s (%t), want where the device said, 25s", at, placed)
+	}
+	if !slices.Equal(actions, []recovery.Action{recovery.SoftwareEncode}) {
+		t.Errorf("revisions %v, want one software encode", actions)
+	}
+	if next := ran[1]; !next.Software || next.Program.Start != 25*time.Second {
+		t.Errorf("the retry: software %t from %s, want software from 25s", next.Software, next.Program.Start)
+	}
+}
+
 // An encoder failing on its own leaves its lines to the cast's fault, which quotes them beside its error, never in it too.
 func TestAnEncodersOwnFailureLeavesItsLinesToTheFault(t *testing.T) {
 	t.Parallel()

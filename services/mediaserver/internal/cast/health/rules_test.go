@@ -234,4 +234,7 @@ func TestWhereTheViewerGotToIsTheDevicesWordElseTheClockFromWhereItAsked(t *test
 	if _, ok := (Vitals{began: 20 * time.Minute, played: time.Minute}).Reached(); ok {
 		t.Error("a reading taken before any device played says where its viewer got to")
 	}
+	if got, ok := (Vitals{Landed: 4 << 20}).WithHead(95 * time.Second).Reached(); !ok || got != 95*time.Second {
+		t.Errorf("a reading given the device's word says %v (%t), want the viewer at 1m35s", got, ok)
+	}
 }
