@@ -1,10 +1,9 @@
 package whisper
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -64,7 +63,7 @@ func writeFrame(w io.Writer, value any) error {
 	if err := binary.Write(w, binary.BigEndian, uint32(len(payload))); err != nil {
 		return err
 	}
-	_, err = io.Copy(w, bytes.NewReader(payload))
+	_, err = w.Write(payload)
 	return err
 }
 func readFrame(r io.Reader, value any) error {
