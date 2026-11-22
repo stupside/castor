@@ -182,6 +182,55 @@ func (d *heldDevice) Resume(context.Context) error {
 	return nil
 }
 
+// askingDevice asks for the stream from elsewhere once seekAt has passed.
+type askingDevice struct {
+	*heldDevice
+	seekAt time.Time
+	to     time.Duration
+}
+
+func (d *askingDevice) Began() time.Duration {
+	if time.Now().Before(d.seekAt) {
+		return 0
+	}
+	return d.to
+}
+
+// The reading that finds the device asked for the stream from elsewhere sees a read that has made nothing yet, which is no reason to hold the device.
+func TestADeviceThatSoughtIsNotHeldOnTheReadingThatFindsItsNewReadEmpty(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		to := 29 * time.Minute
+		seek := &askingDevice{heldDevice: &heldDevice{}, seekAt: start.Add(30*time.Second + 50*time.Millisecond), to: to}
+		// The new read has made a second when the watch first sees it, and the rest of the minute 100ms later.
+		producer := &pacedProducer{done: make(chan struct{}), start: start, made: func(d time.Duration) time.Duration {
+			switch since := d - 30*time.Second - 50*time.Millisecond; {
+			case since < 0:
+				return d + readCushion
+			case since < 250*time.Millisecond:
+				return to + time.Second
+			default:
+				return to + time.Minute
+			}
+		}}
+		ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
+		defer cancel()
+		go func() {
+			<-ctx.Done()
+			close(producer.done)
+		}()
+		err := watchFixture(ctx, Monitor{Subject: "the playing cast", Phase: Playing, Producer: producer, Telemetry: producer, Audience: seek, Holdable: true}, seek.heldDevice)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Watch = %v, want it still watching a cast that sought", err)
+		}
+		seek.mu.Lock()
+		defer seek.mu.Unlock()
+		if len(seek.holds) != 0 {
+			t.Errorf("held %d times, want the device left playing while its new read landed within a poll", len(seek.holds))
+		}
+	})
+}
+
 // A read that falls behind a playing device has the device held, and released once it is the cushion ahead again.
 func TestADeviceOutrunningItsReadIsHeldThenReleased(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

@@ -42,6 +42,7 @@ func TestVerdicts(t *testing.T) {
 		{"a silent producer while an unholdable device has media is not stalled", Playing, Vitals{Landed: 8 << 20, handed: 4 << 20, sinceGrowth: past, Position: 45 * time.Minute, played: 15 * time.Minute}, healthy},
 		{"a silent producer once an unholdable device played it out is stalled", Playing, Vitals{Landed: 8 << 20, handed: 4 << 20, sinceGrowth: past, Position: 15 * time.Minute, played: 16 * time.Minute}, Stalled},
 		{"a holdable device about to outrun its read is lean", Playing, Vitals{holdable: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 10*time.Minute - lowWater + time.Second}, Lean},
+		{"the first reading of a read the device asked for again is not held, whatever it has made", Playing, Vitals{holdable: true, restarted: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 10*time.Minute - lowWater + time.Second}, healthy},
 		{"a holdable device with the cushion ahead is healthy", Playing, Vitals{holdable: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 9 * time.Minute}, healthy},
 		{"a holdable device that fetched nothing yet is not held", Playing, Vitals{holdable: true, Landed: 8 << 20, Position: 10 * time.Minute, played: 10 * time.Minute}, healthy},
 		{"a holdable device outrunning a finished read is left to play out", Playing, Vitals{holdable: true, ended: true, Landed: 8 << 20, handed: 4 << 20, Position: 10 * time.Minute, played: 10 * time.Minute}, healthy},

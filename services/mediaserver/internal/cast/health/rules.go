@@ -89,7 +89,7 @@ var rules = []rule{{
 	name:   "lean",
 	phases: []Phase{Playing},
 	when: func(h Vitals) bool {
-		return h.holdable && !h.paused && !h.viewerHeld && !h.ended && h.handed > 0 && h.ahead() < lowWater
+		return h.holdable && !h.paused && !h.viewerHeld && !h.ended && !h.restarted && h.handed > 0 && h.ahead() < lowWater
 	},
 	kind: Lean,
 }, {

@@ -51,6 +51,9 @@ type Vitals struct {
 	handed     int64
 	sinceFetch time.Duration
 
+	// restarted is the first reading after the device asked for the stream from elsewhere, when its new read has made nothing to judge it by.
+	restarted bool
+
 	// weight is the bytes one second of this delivery has weighed lately; zero while unmeasured.
 	weight float64
 

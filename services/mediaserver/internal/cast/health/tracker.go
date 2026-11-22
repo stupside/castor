@@ -138,6 +138,7 @@ func (t *tracker) read(ctx context.Context) (Vitals, error) {
 		// A device that asked for the stream again was handed it afresh, even from where it was.
 		if began := a.Began(); began != t.began || handed < t.handed {
 			t.restarted(ctx, now, began)
+			h.restarted = true
 		}
 		t.handed = handed
 		h.handed = handed
