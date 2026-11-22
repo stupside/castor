@@ -37,6 +37,18 @@ func early(t *mpd.SegmentTemplateType, length time.Duration) time.Duration {
 	return length
 }
 
+// templating is what the two ways a SegmentTemplate names its segments share: its clock, where its numbers begin, and how one segment is addressed.
+type templating struct {
+	addressed
+	t         *mpd.SegmentTemplateType
+	e         edge
+	timescale int64
+	first     int64
+	offset    int64
+	periodEnd int64
+	init      *timeline.Map
+}
+
 func (a addressed) templated(t *mpd.SegmentTemplateType, e edge) ([]timeline.Segment, error) {
 	for _, template := range []string{t.Media, t.Initialization} {
 		if len(template)+len(a.rep.Id) > 4096 {
@@ -72,17 +84,7 @@ func (a addressed) templated(t *mpd.SegmentTemplateType, e edge) ([]timeline.Seg
 			return nil, err
 		}
 	}
-	add := func(out []timeline.Segment, number, at, d int64, place timeline.Place) ([]timeline.Segment, error) {
-		if err := a.budget.take(1); err != nil {
-			return nil, err
-		}
-		u, err := a.base.Parse(a.expand(t.Media, number, at))
-		if err != nil {
-			return nil, err
-		}
-		return append(out, timeline.Segment{URI: u.String(), Duration: ticks(d, timescale), Map: init, Place: place}), nil
-	}
-	tick := func(d time.Duration) int64 { return int64(d.Seconds() * float64(timescale)) }
+	x := templating{addressed: a, t: t, e: e, timescale: timescale, first: first, offset: offset, periodEnd: math.MaxInt64, init: init}
 	if e.live {
 		for _, elapsed := range []time.Duration{a.elapsed(e), e.depth} {
 			if math.Abs(elapsed.Seconds()*float64(timescale)) > float64(math.MaxInt64/4) {
@@ -90,118 +92,141 @@ func (a addressed) templated(t *mpd.SegmentTemplateType, e edge) ([]timeline.Seg
 			}
 		}
 	}
-	periodEnd := int64(math.MaxInt64)
 	if a.period.duration > 0 {
 		if a.period.duration.Seconds()*float64(timescale) > float64(math.MaxInt64/4) {
 			return nil, fmt.Errorf("DASH period exceeds timeline range")
 		}
-		periodEnd = offset + tick(a.period.duration)
+		x.periodEnd = offset + x.tick(a.period.duration)
 	}
-
-	var out []timeline.Segment
-	var err error
 	if t.SegmentTimeline != nil {
-		// Live, a segment exists once it has been produced, and stays only as long as the time-shift buffer keeps it.
-		kept := int64(math.MinInt64)
-		if e.live {
-			kept = offset + tick(a.elapsed(e)-e.depth)
-		}
-		number, at := first, int64(0)
-		entries := t.SegmentTimeline.S
-		for i, s := range entries {
-			if err := a.budget.check(0); err != nil {
-				return nil, err
-			}
-			if s.T != nil {
-				if *s.T > math.MaxInt64/4 {
-					return nil, fmt.Errorf("DASH timestamp exceeds timeline range")
-				}
-				at = int64(*s.T)
-			}
-			d := int64(s.D)
-			if d <= 0 || d > math.MaxInt64/4 {
-				return nil, fmt.Errorf("representation %q lists a segment of duration %d", a.rep.Id, d)
-			}
-			if i+1 < len(entries) && entries[i+1].T != nil && *entries[i+1].T > math.MaxInt64/4 {
-				return nil, fmt.Errorf("DASH timestamp exceeds timeline range")
-			}
-			repeats := int64(s.R)
-			if repeats < 0 {
-				// An open repeat runs to the next entry, or to the Period's end, or live, to the last segment produced.
-				switch {
-				case i+1 < len(entries) && entries[i+1].T != nil:
-					repeats = max(0, (int64(*entries[i+1].T)-at+d-1)/d-1)
-				case e.live:
-					produced := min(periodEnd, offset+tick(a.elapsed(e)+early(t, ticks(d, timescale))))
-					repeats = max(-1, (produced-at)/d-1)
-				case periodEnd != math.MaxInt64:
-					repeats = max(0, (periodEnd-at+d-1)/d-1)
-				default:
-					return nil, fmt.Errorf("representation %q repeats a segment without end", a.rep.Id)
-				}
-			}
-			// Skip expired repeats arithmetically: a long-running timeline must not walk its entire history at every reload.
-			if repeats == math.MaxInt64 {
-				return nil, errExpansionLimit
-			}
-			count := repeats + 1
-			if at < 0 || count > (math.MaxInt64-at)/d || number < 0 || count > math.MaxInt64-number {
-				return nil, fmt.Errorf("DASH timeline arithmetic overflow")
-			}
-			skip := int64(0)
-			if kept >= at+d {
-				skip = min(count, (kept-at)/d)
-			}
-			until := count
-			if periodEnd != math.MaxInt64 {
-				until = min(until, max(0, (periodEnd-at+d-1)/d))
-			}
-			if e.live {
-				produced := offset + tick(a.elapsed(e)+early(t, ticks(d, timescale)))
-				until = min(until, max(0, (produced-at)/d))
-			}
-			if err := a.budget.check(max(0, until-skip)); err != nil {
-				return nil, err
-			}
-			for n := skip; n < until; n++ {
-				start := at + n*d
-				if out, err = add(out, number+n, start, d, a.place(start, start+d)); err != nil {
-					return nil, err
-				}
-			}
-			number, at = number+count, at+count*d
-		}
-		return out, nil
+		return x.timelined()
 	}
+	return x.numbered()
+}
 
-	d := value(t.Duration, 0)
-	length := ticks(d, timescale)
-	if d <= 0 || length <= 0 {
-		return nil, fmt.Errorf("representation %q names segments by neither a timeline nor a duration", a.rep.Id)
-	}
-	from, count := int64(0), int64(math.MaxInt64)
-	if a.period.duration > 0 {
-		count = int64(math.Ceil(float64(a.period.duration) / float64(length)))
-	}
-	if e.live {
-		elapsed := a.elapsed(e)
-		count = min(count, int64((elapsed+early(t, length))/length))
-		from = max(0, int64((elapsed-e.depth)/length))
-	}
-	if count == math.MaxInt64 {
-		return nil, fmt.Errorf("representation %q numbers segments without end", a.rep.Id)
-	}
-	if err := a.budget.check(max(0, count-from)); err != nil {
+// add is out with the segment number that starts at at and lasts d ticks.
+func (x templating) add(out []timeline.Segment, number, at, d int64, place timeline.Place) ([]timeline.Segment, error) {
+	if err := x.budget.take(1); err != nil {
 		return nil, err
 	}
-	if offset < 0 || first < 0 || count > (math.MaxInt64-offset)/d || count > math.MaxInt64-first {
+	u, err := x.base.Parse(x.expand(x.t.Media, number, at))
+	if err != nil {
+		return nil, err
+	}
+	return append(out, timeline.Segment{URI: u.String(), Duration: ticks(d, x.timescale), Map: x.init, Place: place}), nil
+}
+
+func (x templating) tick(d time.Duration) int64 { return int64(d.Seconds() * float64(x.timescale)) }
+
+// timelined is the segments a SegmentTimeline lists.
+func (x templating) timelined() ([]timeline.Segment, error) {
+	var out []timeline.Segment
+	var err error
+	// Live, a segment exists once it has been produced, and stays only as long as the time-shift buffer keeps it.
+	kept := int64(math.MinInt64)
+	if x.e.live {
+		kept = x.offset + x.tick(x.elapsed(x.e)-x.e.depth)
+	}
+	number, at := x.first, int64(0)
+	entries := x.t.SegmentTimeline.S
+	for i, s := range entries {
+		if err := x.budget.check(0); err != nil {
+			return nil, err
+		}
+		if s.T != nil {
+			if *s.T > math.MaxInt64/4 {
+				return nil, fmt.Errorf("DASH timestamp exceeds timeline range")
+			}
+			at = int64(*s.T)
+		}
+		d := int64(s.D)
+		if d <= 0 || d > math.MaxInt64/4 {
+			return nil, fmt.Errorf("representation %q lists a segment of duration %d", x.rep.Id, d)
+		}
+		if i+1 < len(entries) && entries[i+1].T != nil && *entries[i+1].T > math.MaxInt64/4 {
+			return nil, fmt.Errorf("DASH timestamp exceeds timeline range")
+		}
+		repeats := int64(s.R)
+		if repeats < 0 {
+			// An open repeat runs to the next entry, or to the Period's end, or live, to the last segment produced.
+			switch {
+			case i+1 < len(entries) && entries[i+1].T != nil:
+				repeats = max(0, (int64(*entries[i+1].T)-at+d-1)/d-1)
+			case x.e.live:
+				produced := min(x.periodEnd, x.offset+x.tick(x.elapsed(x.e)+early(x.t, ticks(d, x.timescale))))
+				repeats = max(-1, (produced-at)/d-1)
+			case x.periodEnd != math.MaxInt64:
+				repeats = max(0, (x.periodEnd-at+d-1)/d-1)
+			default:
+				return nil, fmt.Errorf("representation %q repeats a segment without end", x.rep.Id)
+			}
+		}
+		// Skip expired repeats arithmetically: a long-running timeline must not walk its entire history at every reload.
+		if repeats == math.MaxInt64 {
+			return nil, errExpansionLimit
+		}
+		count := repeats + 1
+		if at < 0 || count > (math.MaxInt64-at)/d || number < 0 || count > math.MaxInt64-number {
+			return nil, fmt.Errorf("DASH timeline arithmetic overflow")
+		}
+		skip := int64(0)
+		if kept >= at+d {
+			skip = min(count, (kept-at)/d)
+		}
+		until := count
+		if x.periodEnd != math.MaxInt64 {
+			until = min(until, max(0, (x.periodEnd-at+d-1)/d))
+		}
+		if x.e.live {
+			produced := x.offset + x.tick(x.elapsed(x.e)+early(x.t, ticks(d, x.timescale)))
+			until = min(until, max(0, (produced-at)/d))
+		}
+		if err := x.budget.check(max(0, until-skip)); err != nil {
+			return nil, err
+		}
+		for n := skip; n < until; n++ {
+			start := at + n*d
+			if out, err = x.add(out, number+n, start, d, x.place(start, start+d)); err != nil {
+				return nil, err
+			}
+		}
+		number, at = number+count, at+count*d
+	}
+	return out, nil
+}
+
+// numbered is the segments a SegmentTemplate names by number, each lasting its duration.
+func (x templating) numbered() ([]timeline.Segment, error) {
+	var out []timeline.Segment
+	var err error
+	d := value(x.t.Duration, 0)
+	length := ticks(d, x.timescale)
+	if d <= 0 || length <= 0 {
+		return nil, fmt.Errorf("representation %q names segments by neither a timeline nor a duration", x.rep.Id)
+	}
+	from, count := int64(0), int64(math.MaxInt64)
+	if x.period.duration > 0 {
+		count = int64(math.Ceil(float64(x.period.duration) / float64(length)))
+	}
+	if x.e.live {
+		elapsed := x.elapsed(x.e)
+		count = min(count, int64((elapsed+early(x.t, length))/length))
+		from = max(0, int64((elapsed-x.e.depth)/length))
+	}
+	if count == math.MaxInt64 {
+		return nil, fmt.Errorf("representation %q numbers segments without end", x.rep.Id)
+	}
+	if err := x.budget.check(max(0, count-from)); err != nil {
+		return nil, err
+	}
+	if x.offset < 0 || x.first < 0 || count > (math.MaxInt64-x.offset)/d || count > math.MaxInt64-x.first {
 		return nil, fmt.Errorf("DASH duration arithmetic overflow")
 	}
 	for n := from; n < count; n++ {
-		number := first + n
+		number := x.first + n
 		// The last segment of a Period stops where the Period does.
-		span := min(d, periodEnd-offset-n*d)
-		if out, err = add(out, number, offset+n*d, span, a.place(number, number+1)); err != nil {
+		span := min(d, x.periodEnd-x.offset-n*d)
+		if out, err = x.add(out, number, x.offset+n*d, span, x.place(number, number+1)); err != nil {
 			return nil, err
 		}
 	}

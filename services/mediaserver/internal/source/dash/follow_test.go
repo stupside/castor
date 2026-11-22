@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -288,4 +289,25 @@ func TestAnIdReusedAcrossPeriodsIsReadAsTheOneChosen(t *testing.T) {
 </MPD>`
 	w := window(t, map[string]string{"/live/manifest.mpd": body}, media.TrackVideo, "0", time.Time{})
 	same(t, uris(w), []string{"https://cdn.example/live/ad/0/1.m4s", "https://cdn.example/live/f/0/1.m4s", "https://cdn.example/live/ad2/y/1.m4s"})
+}
+
+func TestTheLastNumberedSegmentOfAPeriodStopsWhereThePeriodDoes(t *testing.T) {
+	const body = mpdOpen + `type="static"><Period duration="PT5S"><AdaptationSet contentType="video">
+  <SegmentTemplate timescale="1" duration="2" media="$Number$.m4s"/>
+  <Representation id="v" height="360"/></AdaptationSet></Period></MPD>`
+	w := window(t, map[string]string{"/live/manifest.mpd": body}, media.TrackVideo, "v", time.Time{})
+	if len(w.Segments) != 3 || w.Segments[1].Duration != 2*time.Second || w.Segments[2].Duration != time.Second {
+		t.Errorf("segment durations = %v, want 2s, 2s and the 1s the period has left", w.Segments)
+	}
+}
+
+func TestATemplateLongerThanTheURLBudgetIsRefused(t *testing.T) {
+	body := mpdOpen + `type="static"><Period duration="PT4S"><AdaptationSet contentType="video">
+  <SegmentTemplate timescale="1" duration="2" media="` + strings.Repeat("a", 4100) + `$Number$.m4s"/>
+  <Representation id="v" height="360"/></AdaptationSet></Period></MPD>`
+	in := media.Input{ID: media.PrimaryInputID, URL: sourcetest.URL(t, "https://cdn.example/live/manifest.mpd"), Representation: "v", ContentType: media.DASH}
+	f := Format{}.Timeline(&sourcetest.Document{Body: body, Status: http.StatusOK}, in, media.TrackVideo)
+	if _, err := f.Source.Window(t.Context()); err == nil || !strings.Contains(err.Error(), "URL budget") {
+		t.Errorf("Window = %v, want the template refused for its length", err)
+	}
 }
