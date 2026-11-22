@@ -214,6 +214,15 @@ func TestAWedgeIsBlamedOnTheEncoderMakingTheDeliveryWhenItWedged(t *testing.T) {
 	}
 }
 
+// The playing watch asks the device where it plays, which is how a link that cannot carry the cast is told from a read that cannot keep up.
+func TestThePlayingWatchReadsTheDevicesPlayhead(t *testing.T) {
+	dev := &fakeDevice{}
+	read := feed{buffered: &buffered{reader: &pull{}}}
+	if m := playingMonitor(read, delivery{output: &adjustable{}}, nil, 6_000_000, 0, dev); m.Playhead != health.Playhead(dev) {
+		t.Errorf("monitored with playhead %v, want the device's", m.Playhead)
+	}
+}
+
 // A watch begun again after a seek is told the rate its delivery was changed to, not the cast's own ceiling.
 func TestThePlayingWatchStartsFromTheRateTheDeliveryIsMadeAt(t *testing.T) {
 	lighter := &adjustable{ceiling: 3_000_000}

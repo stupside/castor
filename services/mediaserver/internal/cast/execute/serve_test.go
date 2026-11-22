@@ -115,6 +115,7 @@ func (m *fakeMechanism) Artifact() output.Artifact {
 
 // observedDevice is a device whose playback lifecycle a case states.
 type observedDevice struct {
+	noPlayhead
 	wait func(context.Context) error
 }
 
@@ -407,7 +408,7 @@ func openFixture(t *testing.T, contentType, workDir string) delivery {
 }
 
 // probingDevice accepts the URL, probes it like a real firmware, and never takes a byte.
-type probingDevice struct{}
+type probingDevice struct{ noPlayhead }
 
 func (probingDevice) Play(ctx context.Context, p Playback) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, p.URL.String(), nil)

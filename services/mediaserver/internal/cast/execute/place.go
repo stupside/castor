@@ -24,13 +24,9 @@ func withPlace(ctx context.Context, dev Device, a recovery.Attempt, e recovery.E
 	return e
 }
 
-// askPosition is where dev says it plays, within askFor; known is false for a device with no playhead.
+// askPosition is where dev says it plays, within askFor; known is false for a device that cannot say.
 func askPosition(ctx context.Context, dev Device) (at time.Duration, held, known bool) {
-	head, ok := dev.(health.Playhead)
-	if !ok {
-		return 0, false, false
-	}
 	asking, cancel := context.WithTimeout(ctx, askFor)
 	defer cancel()
-	return head.Position(asking)
+	return dev.Position(asking)
 }

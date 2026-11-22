@@ -67,6 +67,9 @@ type Cast struct {
 
 // Device is what a cast plays on, connected for the whole cast by whoever lent it, who also closes it.
 type Device interface {
+	// Playhead is where the device says it plays; a device that cannot say answers with ok false.
+	health.Playhead
+
 	Play(ctx context.Context, p Playback) error
 
 	AwaitEnd(ctx context.Context) error

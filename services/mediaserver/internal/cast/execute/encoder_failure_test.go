@@ -28,6 +28,7 @@ import (
 
 // fetchingDevice fetches what it was handed in the background and ends once it took it all.
 type fetchingDevice struct {
+	noPlayhead
 	caps media.Capabilities
 	// slow reads the first play slowly; held stops reading it for a while, as a pause does.
 	slow, held bool

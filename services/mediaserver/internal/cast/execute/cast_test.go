@@ -32,7 +32,13 @@ import (
 )
 
 // fakeDevice plays what it is handed, kept in handed; if drain is set, it fetches the served stream and keeps it in served.
+// noPlayhead is a device that cannot say where it plays.
+type noPlayhead struct{}
+
+func (noPlayhead) Position(context.Context) (time.Duration, bool, bool) { return 0, false, false }
+
 type fakeDevice struct {
+	noPlayhead
 	caps   media.Capabilities
 	drain  bool
 	refuse error
