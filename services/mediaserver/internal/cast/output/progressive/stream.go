@@ -6,16 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
-	"math"
 	"net/http"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/stupside/castor/internal/telemetry"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/output/storage"
@@ -101,72 +96,6 @@ func (s *Stream) snapshot() (int64, bool) {
 	return size, final
 }
 
-// tailAt reads the current run from offset, across into its successor.
-func (s *Stream) tailAt(ctx context.Context, offset int64) (*joinedTail, error) {
-	r := s.run.Load()
-	t := &joinedTail{s: s, run: r, ctx: ctx, pos: offset}
-	if r.next != nil && offset >= r.next.at {
-		t.switched = true
-		cur, err := r.next.spool.TailAt(ctx, offset-r.next.at)
-		t.cur = cur
-		return t, err
-	}
-	cur, err := r.spool.TailAt(ctx, offset)
-	t.cur = cur
-	return t, err
-}
-
-// joinedTail fails with errRestarted once a seek replaces its run.
-type joinedTail struct {
-	s        *Stream
-	run      *run
-	ctx      context.Context
-	cur      io.ReadCloser
-	pos      int64
-	switched bool
-}
-
-func (t *joinedTail) current() (*run, bool) {
-	r := t.s.run.Load()
-	return r, r.gen == t.run.gen
-}
-
-func (t *joinedTail) Read(p []byte) (int, error) {
-	r, ok := t.current()
-	if !ok {
-		return 0, errRestarted
-	}
-	if next := r.next; next != nil && !t.switched {
-		if t.pos >= next.at {
-			if err := t.carryOn(next); err != nil {
-				return 0, err
-			}
-		} else {
-			p = p[:min(int64(len(p)), next.at-t.pos)]
-		}
-	}
-	n, err := t.cur.Read(p)
-	t.pos += int64(n)
-	if _, ok := t.current(); !ok && err != nil {
-		return n, errRestarted
-	}
-	return n, err
-}
-
-func (t *joinedTail) carryOn(next *successor) error {
-	_ = t.cur.Close()
-	cur, err := next.spool.TailAt(t.ctx, t.pos-next.at)
-	t.cur, t.switched = cur, true
-	return err
-}
-
-func (t *joinedTail) Close() error {
-	if t.cur == nil {
-		return nil
-	}
-	return t.cur.Close()
-}
-
 func NewStream(o output.Opening, dir string) (*Stream, error) {
 	openSpool := storage.NewSpool
 	if o.Live {
@@ -198,6 +127,7 @@ func (s *Stream) Write(ctx context.Context, producer io.Reader) error {
 }
 
 func (s *Stream) Path() string { return "stream" + s.o.Format.Extension }
+
 func (s *Stream) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /"+s.Path(), s.handleStream)
@@ -230,307 +160,6 @@ func (s *Stream) Wait(ctx context.Context, produced <-chan struct{}) error {
 	return errors.Join(err, s.Err())
 }
 
-// served is the stretch of the stream one response carries, and the status that states it.
-type served struct {
-	// code is 200 (the whole stream from byte 0), 206 or 416 (a start past a known end).
-	code int
-	// start is the first byte this response carries, end the last one inclusive.
-	start int64
-	end   int64
-	total int64
-}
-
-func (s *Stream) resume(rangeHeader string) (served, string) {
-	if s.run.Load().spool.Live() {
-		return s.resumeLive(rangeHeader), ""
-	}
-	whole := served{code: http.StatusOK, start: 0, end: -1, total: -1}
-	if rangeHeader == "" {
-		return whole, ""
-	}
-	start, end, ok := byteRange(rangeHeader)
-	if !ok {
-		return whole, "the Range header is not a single bytes=first-last range"
-	}
-	if start == 0 && end < 0 {
-		// The ordinary replay: the client is asking for exactly the bytes it is about to be given.
-		return whole, ""
-	}
-	refuse := func(why string) (served, string) {
-		if start == 0 {
-			return whole, ""
-		}
-		return whole, why
-	}
-	if s.rangesDeclined() {
-		return refuse("this delivery's own response headers declare Accept-Ranges: none")
-	}
-	total, final := s.snapshot()
-	switch {
-	case !final:
-		return refuse("the producer is still running, and a player takes a 206 ending at the bytes made so far for the stream's end")
-	case start >= total:
-		return served{code: http.StatusRequestedRangeNotSatisfiable, total: total}, ""
-	case end >= 0:
-		return served{code: http.StatusPartialContent, start: start, end: min(end, total-1), total: total}, ""
-	default:
-		return served{code: http.StatusPartialContent, start: start, end: total - 1, total: total}, ""
-	}
-}
-
-// byteRange parses the one form a resume takes: a single "bytes=first-last", with the last byte optional.
-func byteRange(header string) (start, end int64, ok bool) {
-	spec, found := strings.CutPrefix(strings.TrimSpace(header), "bytes=")
-	if !found || strings.Contains(spec, ",") {
-		return 0, 0, false
-	}
-	first, last, found := strings.Cut(spec, "-")
-	if !found {
-		return 0, 0, false
-	}
-	start, err := strconv.ParseInt(strings.TrimSpace(first), 10, 64)
-	if err != nil || start < 0 {
-		return 0, 0, false
-	}
-	if strings.TrimSpace(last) == "" {
-		return start, -1, true
-	}
-	end, err = strconv.ParseInt(strings.TrimSpace(last), 10, 64)
-	if err != nil || end < start {
-		return 0, 0, false
-	}
-	return start, end, true
-}
-
-func (s *Stream) rangesDeclined() bool {
-	for k, v := range s.o.Headers {
-		if http.CanonicalHeaderKey(k) == "Accept-Ranges" {
-			return strings.EqualFold(strings.TrimSpace(v), "none")
-		}
-	}
-	return false
-}
-
-// disconnected records a client that stopped being written to: it left, or the cast ended.
-func disconnected(ctx context.Context, r *http.Request, err error, held int64) {
-	telemetry.StreamClientEnded(ctx, telemetry.OutcomeDisconnected)
-	slog.InfoContext(ctx, "stream client disconnected", "from", r.RemoteAddr, "bytes_sent", held, "error", err)
-}
-
-func (s *Stream) handleStream(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	s.writeHeaders(w)
-	if r.Method == http.MethodHead {
-		slog.InfoContext(ctx, "stream HEAD", "from", r.RemoteAddr, "user_agent", r.UserAgent())
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	// A client is counted from its request, so a seek that takes a while does not leave the stream looking abandoned.
-	reachedEOF, gen := false, -1
-	left := s.audience.joined()
-	defer func() { left(gen, reachedEOF) }()
-
-	var sv served
-	if asked := r.Header.Get(timeSeekHeader); asked != "" {
-		var ok bool
-		if sv, ok = s.seekTo(ctx, w, r, asked); !ok {
-			return
-		}
-	} else {
-		var ok bool
-		if sv, ok = s.admit(ctx, w, r); !ok {
-			return
-		}
-	}
-
-	tail, err := s.tailAt(ctx, sv.start)
-	if err != nil {
-		if errors.Is(err, storage.ErrSpoolExpired) {
-			http.Error(w, err.Error(), http.StatusGone)
-		} else {
-			http.Error(w, "stream unavailable", http.StatusServiceUnavailable)
-		}
-		return
-	}
-	defer tail.Close()
-	gen = tail.run.gen
-
-	if err := s.respond(w, sv); err != nil {
-		disconnected(ctx, r, err, sv.start)
-		return
-	}
-	reachedEOF = s.send(ctx, w, r, sv, tail, gen)
-}
-
-func (s *Stream) writeHeaders(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", s.o.Format.ContentType)
-	for k, v := range s.o.Headers {
-		w.Header().Set(k, v)
-	}
-}
-
-// timeSeekHeader is how a DLNA renderer asks for a stream from a position in time.
-const timeSeekHeader = "TimeSeekRange.dlna.org"
-
-// seekTo has the stream begin again at the position asked, for this request and every one after it.
-func (s *Stream) seekTo(ctx context.Context, w http.ResponseWriter, r *http.Request, asked string) (served, bool) {
-	at, ok := nptStart(asked)
-	slog.InfoContext(ctx, "stream seek", "from", r.RemoteAddr, "user_agent", r.UserAgent(), "asked", asked, "at", at)
-	switch {
-	case s.seek == nil:
-		http.Error(w, "this stream is served from its start only", http.StatusNotAcceptable)
-		return served{}, false
-	case !ok || at >= s.runtime:
-		http.Error(w, "the position asked for is not in the stream", http.StatusRequestedRangeNotSatisfiable)
-		return served{}, false
-	}
-	if err := s.seek(ctx, at); err != nil {
-		slog.WarnContext(ctx, "the stream could not be made from the position asked for", "at", at, "error", err)
-		http.Error(w, "the stream could not be made from there", http.StatusServiceUnavailable)
-		return served{}, false
-	}
-	// The stream begins at the keyframe the source has there, which the answer states.
-	w.Header().Set(timeSeekHeader, "npt="+nptSeconds(s.Began())+"-"+nptSeconds(s.runtime)+"/"+nptSeconds(s.runtime))
-	return served{code: http.StatusOK, start: 0, end: -1, total: -1}, true
-}
-
-// nptStart is the start of a TimeSeekRange npt range, in seconds (12.5) or as H:MM:SS(.f).
-func nptStart(header string) (time.Duration, bool) {
-	spec, found := strings.CutPrefix(strings.TrimSpace(header), "npt=")
-	start, _, ranged := strings.Cut(spec, "-")
-	if !found || !ranged {
-		return 0, false
-	}
-	parts := strings.Split(strings.TrimSpace(start), ":")
-	if len(parts) > 3 {
-		return 0, false
-	}
-	var seconds float64
-	for _, part := range parts {
-		v, err := strconv.ParseFloat(part, 64)
-		if err != nil || v < 0 || math.IsInf(v, 0) || math.IsNaN(v) {
-			return 0, false
-		}
-		seconds = seconds*60 + v
-	}
-	// Anything past a year is no position in a cast, and would overflow a duration.
-	if seconds > (365 * 24 * time.Hour).Seconds() {
-		return 0, false
-	}
-	return time.Duration(seconds * float64(time.Second)), true
-}
-
-func nptSeconds(d time.Duration) string { return strconv.FormatFloat(d.Seconds(), 'f', 3, 64) }
-
-func (s *Stream) admit(ctx context.Context, w http.ResponseWriter, r *http.Request) (served, bool) {
-	asked := r.Header.Get("Range")
-	sv, refused := s.resume(asked)
-	slog.InfoContext(ctx, "stream GET",
-		"from", r.RemoteAddr,
-		"user_agent", r.UserAgent(),
-		"range", asked,
-		"status", sv.code,
-		"first_byte", sv.start,
-	)
-	if refused != "" {
-		slog.WarnContext(ctx, "a client asked to continue the stream and is being replayed from the beginning instead",
-			"from", r.RemoteAddr, "user_agent", r.UserAgent(), "range", asked, "reason", refused)
-	}
-	if sv.code == http.StatusGone {
-		first, end := s.run.Load().spool.Retained()
-		w.Header().Set("X-Castor-Retained-Bytes", fmt.Sprintf("%d-%d", first, end))
-		http.Error(w, storage.ErrSpoolExpired.Error(), sv.code)
-		return sv, false
-	}
-	if sv.code == http.StatusRequestedRangeNotSatisfiable {
-		if sv.total >= 0 {
-			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", sv.total))
-		}
-		http.Error(w, "requested range not satisfiable", sv.code)
-		return sv, false
-	}
-	return sv, true
-}
-
-func (s *Stream) respond(w http.ResponseWriter, sv served) error {
-	if sv.code == http.StatusPartialContent {
-		total := "*"
-		if sv.total >= 0 {
-			total = strconv.FormatInt(sv.total, 10)
-		}
-		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%s", sv.start, sv.end, total))
-		w.Header().Set("Content-Length", strconv.FormatInt(sv.end-sv.start+1, 10))
-	}
-	w.WriteHeader(sv.code)
-	return http.NewResponseController(w).Flush()
-}
-
-// send credits the audience only while gen is the current run.
-func (s *Stream) send(ctx context.Context, w http.ResponseWriter, r *http.Request, sv served, tail io.Reader, gen int) (reachedEOF bool) {
-	// remaining is how many bytes this response still owes, and -1 when it owes the rest of the stream.
-	remaining := int64(-1)
-	if sv.end >= 0 {
-		remaining = sv.end - sv.start + 1
-	}
-
-	control := http.NewResponseController(w)
-	buf := make([]byte, sendChunkSize)
-	var sent int64
-	defer func() { telemetry.StreamSent(ctx, sent) }()
-	// No write deadline: a device its viewer paused stops reading for as long as it likes, and only the cast's watch judges a quiet device.
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		want := buf
-		if remaining >= 0 {
-			want = buf[:min(int64(len(buf)), remaining)]
-		}
-		n, readErr := tail.Read(want)
-		if n > 0 {
-			if _, err := w.Write(want[:n]); err != nil {
-				disconnected(ctx, r, err, sv.start+sent)
-				return
-			}
-			if err := control.Flush(); err != nil {
-				disconnected(ctx, r, err, sv.start+sent)
-				return
-			}
-			sent += int64(n)
-			if remaining >= 0 {
-				remaining -= int64(n)
-			}
-			// A resumed connection is credited with the prefix it already had.
-			s.audience.record(gen, sv.start+sent, time.Now())
-		}
-		if remaining == 0 {
-			// The stretch asked for is delivered.
-			reachedEOF = sv.total >= 0 && sv.end == sv.total-1
-			slog.InfoContext(ctx, "stream range delivered",
-				"from", r.RemoteAddr, "bytes_sent", sent, "first_byte", sv.start, "last_byte", sv.end)
-			return
-		}
-		if readErr != nil {
-			if errors.Is(readErr, errRestarted) {
-				slog.InfoContext(ctx, "stream client left behind by a seek", "from", r.RemoteAddr, "bytes_sent", sent)
-				return
-			}
-			if readErr == io.EOF {
-				reachedEOF = true
-				slog.InfoContext(ctx, "stream fully delivered", "from", r.RemoteAddr, "bytes_sent", sent)
-			} else {
-				slog.InfoContext(ctx, "stream read ended", "from", r.RemoteAddr, "bytes_sent", sent, "error", readErr)
-				if errors.Is(readErr, storage.ErrSpoolExpired) {
-					panic(http.ErrAbortHandler)
-				}
-			}
-			return
-		}
-	}
-}
-
 // Err is the producer failure retained by this delivery.
 func (s *Stream) Err() error {
 	r := s.run.Load()
@@ -542,6 +171,7 @@ func (s *Stream) Err() error {
 }
 
 func (s *Stream) Audience() health.Audience { return s }
+
 func (s *Stream) Settled(made media.Progress) error {
 	if err := s.Err(); err != nil {
 		return err
