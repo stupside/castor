@@ -8,6 +8,7 @@ import (
 
 	castmedia "github.com/vishen/go-chromecast/cast"
 
+	"github.com/stupside/castor/internal/machine"
 	"github.com/stupside/castor/services/apiserver/internal/device"
 )
 
@@ -20,13 +21,28 @@ var (
 type captionsState uint8
 
 const (
-	// noOwnCaptions is a playlist that lists no caption track of its own.
-	noOwnCaptions captionsState = iota
 	// captionsListed is a track the receiver has not been asked to show.
-	captionsListed
+	captionsListed captionsState = iota
 	// captionsAsked is a track the receiver was asked to show, once, so a viewer who turns it off keeps it off.
 	captionsAsked
 )
+
+func (s captionsState) String() string {
+	return [...]string{captionsListed: "listed", captionsAsked: "asked"}[s]
+}
+
+type captionsEvent uint8
+
+const captionsShown captionsEvent = iota
+
+func (captionsEvent) String() string { return "shown" }
+
+// ownCaptions is the track of a playlist that lists captions of its own.
+func ownCaptions() *machine.Machine[captionsState, captionsEvent] {
+	return machine.New("chromecast captions", captionsListed, []captionsState{captionsAsked}, []machine.Edge[captionsState, captionsEvent]{
+		{On: captionsShown, From: []captionsState{captionsListed}, To: captionsAsked},
+	}, nil)
+}
 
 // playback follows the one Play the device was last handed, from its LOAD to its end. What the receiver says becomes
 // the facts of the device.Lifecycle every family shares; what is the Cast protocol's own stays here: which media
@@ -40,7 +56,8 @@ type playback struct {
 	mediaSession int
 	// receiverCode is the detailed code of the last error the receiver sent, zero when it sent none.
 	receiverCode int
-	captions     captionsState
+	// captions is the playlist's own caption track, nil for a playlist that lists none.
+	captions *machine.Machine[captionsState, captionsEvent]
 
 	life   *device.Lifecycle
 	ending *device.Ending
@@ -50,14 +67,14 @@ type playback struct {
 
 // newPlayback starts following a Play of content loaded on transport, whose playlist lists captions of its own or not.
 func newPlayback(ctx context.Context, content, transport string, listsCaptions bool) *playback {
-	captions := noOwnCaptions
-	if listsCaptions {
-		captions = captionsListed
-	}
-	return &playback{
-		content: content, transport: transport, captions: captions,
+	p := &playback{
+		content: content, transport: transport,
 		life: device.NewLifecycle(familyType), ending: device.NewEnding(), identity: context.WithoutCancel(ctx),
 	}
+	if listsCaptions {
+		p.captions = ownCaptions()
+	}
+	return p
 }
 
 // abandon ends the trace of a Play its session is done with before it ended; a session with no Play has none to end.
@@ -143,12 +160,11 @@ func (p *playback) observe(status castmedia.Media) {
 
 // showCaptions is the command that shows the playlist's own caption track once the receiver reports it.
 func (p *playback) showCaptions(tracks []track) (editTracksInfo, bool) {
-	if p.captions != captionsListed {
+	if p.captions == nil || !p.captions.Is(captionsListed) {
 		return editTracksInfo{}, false
 	}
 	for _, t := range tracks {
-		if t.Type == trackText {
-			p.captions = captionsAsked
+		if t.Type == trackText && p.captions.Take(p.identity, captionsShown) {
 			return editTracksInfo{Type: msgEditTracks, MediaSessionID: p.mediaSession, ActiveTrackIDs: []int{t.TrackID}}, true
 		}
 	}
