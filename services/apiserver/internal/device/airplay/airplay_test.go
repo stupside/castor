@@ -14,6 +14,8 @@ import (
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/services/apiserver/internal/device"
+	"github.com/stupside/castor/services/apiserver/internal/device/devicetest"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func TestFeaturesReadTheLowWordWithoutItsLeadingZeros(t *testing.T) {
@@ -171,6 +173,9 @@ func TestAPlayingItemReportsWhereItIs(t *testing.T) {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(3 * time.Second)
+	if device.ControlsOf(dev).Seek {
+		t.Fatal("a prepared playlist advertised original-file seeking")
+	}
 	for {
 		h, err := dev.Position(t.Context())
 		if err == nil && h.At > 0 {
@@ -190,6 +195,58 @@ func TestAPlayingItemReportsWhereItIs(t *testing.T) {
 	rates := r.sent("setRate")
 	if last, _ := number(rates[len(rates)-1]["rate"]); last != 0 {
 		t.Errorf("pause set rate %v", last)
+	}
+}
+
+func TestVideoV2SeeksWithinThePausedOriginalAndConfirmsThePosition(t *testing.T) {
+	r := newFakeReceiver(t, lgFeatures, lgStatus)
+	r.script = []map[string]any{{"type": "playbackState", "name": "paused"}}
+	r.lastInfo = map[string]any{"playbackState": "paused", "rate": 0, "position": map[string]any{"value": 0, "timescale": 1, "flags": 1}}
+	dev := connect(t, pairedFamily(t, r), r)
+	u, _ := url.Parse("http://castor.example/movie.mp4")
+	play := devicetest.Source(mediav1.Container_CONTAINER_MP4)
+	play.GetSource().Duration = durationpb.New(time.Minute)
+	if err := dev.Play(t.Context(), device.Playback{URL: u, Play: play}); err != nil {
+		t.Fatal(err)
+	}
+	if !device.ControlsOf(dev).Seek {
+		t.Fatal("the original file should be seekable")
+	}
+	at := 24500 * time.Millisecond
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	if err := device.Seek(ctx, dev, at); err == nil {
+		t.Fatal("acknowledged a seek while the receiver still reported zero")
+	}
+	seeks := r.sent("seek")
+	if len(seeks) != 1 {
+		t.Fatalf("seek commands = %d, want 1", len(seeks))
+	}
+	if got, ok := mediaTime(seeks[0]["time"]); !ok || got != at {
+		t.Fatalf("AirPlay seek time = %v, %t; want %v", got, ok, at)
+	}
+	queued := r.sent("insertPlayQueueItem")
+	if len(queued) != 1 || nested(seeks[0], "item", "uuid") != nested(queued[0], "item", "uuid") ||
+		seeks[0]["kind"] != "request" || seeks[0]["messageID"] == nil {
+		t.Fatalf("seek must be a request for the queued item: %v", seeks[0])
+	}
+	r.mu.Lock()
+	r.lastInfo = map[string]any{"playbackState": "paused", "rate": 0, "position": map[string]any{"value": 24500, "timescale": 1000, "flags": 1}}
+	r.mu.Unlock()
+	if err := device.Seek(t.Context(), dev, at); err != nil {
+		t.Fatal(err)
+	}
+	h, err := dev.Position(t.Context())
+	if err != nil || !h.Paused || h.At != at || len(r.sent("insertPlayQueueItem")) != 1 || len(r.sent("setRate")) != 1 {
+		t.Fatalf("seek did not preserve the paused item: position %+v, err %v", h, err)
+	}
+	r.mu.Lock()
+	r.lastInfo = map[string]any{"playbackState": "loading"}
+	r.mu.Unlock()
+	ctx, stop := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer stop()
+	if err := device.Seek(ctx, dev, at); err == nil {
+		t.Fatal("a cached position confirmed a seek while the receiver was loading")
 	}
 }
 

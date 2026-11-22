@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
@@ -146,18 +148,22 @@ func (s *ap2) close() {
 
 // videoV2 is one item queued on a third-party receiver's remote control stream.
 type videoV2 struct {
-	s      *ap2
-	stream uint64
-	item   string
-	head   *playhead
+	s            *ap2
+	stream       uint64
+	item         string
+	head         *playhead
+	fileDuration time.Duration
 
 	mu      sync.Mutex
-	asked   uint64
-	waiting map[uint64]chan struct{}
+	asked   atomic.Uint64
+	waiting map[uint64]chan map[string]any
 }
 
 func playV2(ctx context.Context, l *link, secret []byte, receiverID string, playback device.Playback, asFile bool) (*videoV2, error) {
-	v := &videoV2{item: newUUID(), head: newPlayhead(), waiting: map[uint64]chan struct{}{}}
+	v := &videoV2{item: newUUID(), head: newPlayhead(), waiting: make(map[uint64]chan map[string]any)}
+	if playback.Play.GetSource().GetContainer() == mediav1.Container_CONTAINER_MP4 {
+		v.fileDuration = playback.Duration()
+	}
 	s, err := startAP2(ctx, l, secret, func(c map[string]any) { v.head.v2Command(v.item, c, v.answered) })
 	if err != nil {
 		return nil, err
@@ -263,11 +269,11 @@ func (v *videoV2) command(ctx context.Context, command map[string]any) error {
 	return ok(resp, fmt.Sprint(command["type"]))
 }
 
-func (v *videoV2) answered(id uint64) {
+func (v *videoV2) answered(id uint64, info map[string]any) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if ch, ok := v.waiting[id]; ok {
-		close(ch)
+		ch <- info
 		delete(v.waiting, id)
 	}
 }
@@ -276,27 +282,67 @@ func (v *videoV2) answered(id uint64) {
 const infoWait = time.Second
 
 func (v *videoV2) position(ctx context.Context) (device.Playhead, error) {
+	v.playbackInfo(ctx)
+	return v.head.position()
+}
+
+// playbackInfo returns the reply to this request. Position can also use the
+// last reported time, while a seek must be confirmed by a fresh report.
+func (v *videoV2) playbackInfo(ctx context.Context) map[string]any {
+	id := v.asked.Add(1)
+	reply := make(chan map[string]any, 1)
 	v.mu.Lock()
-	v.asked++
-	id := v.asked
-	reply := make(chan struct{})
 	v.waiting[id] = reply
 	v.mu.Unlock()
+	defer func() {
+		v.mu.Lock()
+		delete(v.waiting, id)
+		v.mu.Unlock()
+	}()
 	if err := v.command(ctx, map[string]any{"type": "playbackInfo", "kind": "request", "messageID": id}); err == nil {
 		select {
-		case <-reply:
+		case info := <-reply:
+			return info
 		case <-time.After(infoWait):
 		case <-ctx.Done():
 		}
 	}
-	v.mu.Lock()
-	delete(v.waiting, id)
-	v.mu.Unlock()
-	return v.head.position()
+	return nil
 }
 
 func (v *videoV2) setRate(ctx context.Context, rate float64) error {
 	return v.command(ctx, map[string]any{"type": "setRate", "rate": rate})
+}
+
+// A successful POST only acknowledges receipt. Confirm the queued file reached the
+// requested time before the caller discards its option to prepare a new stream.
+func (v *videoV2) seek(ctx context.Context, at time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	target := map[string]any{"flags": 1, "value": at.Milliseconds(), "epoch": 0, "timescale": 1000}
+	if err := v.command(ctx, map[string]any{
+		"type": "seek", "kind": "request", "messageID": v.asked.Add(1),
+		"item": map[string]any{"uuid": v.item}, "time": target,
+	}); err != nil {
+		return err
+	}
+	for {
+		info := v.playbackInfo(ctx)
+		current, ok := mediaTime(info["position"])
+		state, _ := info["playbackState"].(string)
+		if ok && (state == "playing" || state == "paused") && current >= at-2*time.Second && current <= at+2*time.Second {
+			duration, _ := mediaTime(info["duration"])
+			slog.DebugContext(ctx, "AirPlay file seek confirmed", "asked", at, "at", current, "state", state, "duration", duration)
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("the AirPlay receiver did not reach %s: %w", at, context.Cause(ctx))
+		case <-v.head.end.done:
+			return errors.New("AirPlay playback ended during seek")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 
 func (v *videoV2) ending() *ending { return v.head.end }

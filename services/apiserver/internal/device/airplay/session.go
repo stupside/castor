@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	"github.com/stupside/castor/services/apiserver/internal/device"
@@ -183,6 +184,24 @@ func (s *session) AwaitEnd(ctx context.Context) error {
 
 func (s *session) Pause(ctx context.Context) error  { return s.rate(ctx, 0, "pausing") }
 func (s *session) Resume(ctx context.Context) error { return s.rate(ctx, 1, "resuming") }
+
+func (s *session) Controls() device.Controls {
+	p, _ := s.playing()
+	v, ok := p.(*videoV2)
+	return device.Controls{Pause: true, Seek: ok && v.fileDuration > 0}
+}
+
+func (s *session) Seek(ctx context.Context, at time.Duration) error {
+	p, err := s.playing()
+	if err != nil {
+		return err
+	}
+	v, ok := p.(*videoV2)
+	if !ok || v.fileDuration <= 0 || at < 0 || at > v.fileDuration {
+		return device.ErrUnsupportedControl
+	}
+	return v.seek(ctx, at)
+}
 
 func (s *session) rate(ctx context.Context, rate float64, doing string) error {
 	p, err := s.playing()

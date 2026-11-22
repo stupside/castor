@@ -210,7 +210,7 @@ func (p *playhead) v2Report(info map[string]any) {
 }
 
 // v2Command follows one command the receiver sent castor about the queued item.
-func (p *playhead) v2Command(item string, c map[string]any, answered func(uint64)) {
+func (p *playhead) v2Command(item string, c map[string]any, answered func(uint64, map[string]any)) {
 	kind, _ := c["type"].(string)
 	name, _ := c["name"].(string)
 	if !forItem(c, item) {
@@ -230,11 +230,12 @@ func (p *playhead) v2Command(item string, c map[string]any, answered func(uint64
 			p.played("the receiver stopped before playing the media")
 		}
 	case "playbackInfo":
-		if info, ok := c["info"].(map[string]any); ok {
+		info, ok := c["info"].(map[string]any)
+		if ok {
 			p.v2Report(info)
 		}
 		if id, ok := number(c["messageID"]); ok {
-			answered(uint64(id))
+			answered(uint64(id), info)
 		}
 	case "notification":
 		switch name {
