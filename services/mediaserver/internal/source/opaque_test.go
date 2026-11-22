@@ -23,20 +23,26 @@ func TestDirectFileAudioPreferencesSelectTheTrackAndPreventHandoff(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	observed := media.Observe(program, *stream.Probe)
-	stream.Observation = &observed
 	for _, tc := range []struct {
-		preferences []string
-		index       int
-		language    string
-		codec       media.Codec
-		handoff     bool
+		preferences  []string
+		defaultIndex int
+		index        int
+		language     string
+		codec        media.Codec
+		handoff      bool
 	}{
-		{[]string{"fr", "en"}, 1, "fra", media.CodecAC3, false},
-		{[]string{"de", "en"}, 0, "en", media.CodecAAC, false},
-		{[]string{"de"}, 0, "en", media.CodecAAC, true},
-		{nil, 0, "en", media.CodecAAC, true},
+		{[]string{"fr", "en"}, 0, 1, "fra", media.CodecAC3, false},
+		{[]string{"de", "en"}, 0, 0, "en", media.CodecAAC, false},
+		{[]string{"de"}, 0, 0, "en", media.CodecAAC, true},
+		{nil, 0, 0, "en", media.CodecAAC, true},
+		{nil, 1, 1, "fra", media.CodecAC3, true},
+		{[]string{"en"}, 1, 0, "en", media.CodecAAC, false},
 	} {
+		for i := range stream.Probe.AudioTracks {
+			stream.Probe.AudioTracks[i].Default = i == tc.defaultIndex
+		}
+		observed := media.Observe(program, *stream.Probe)
+		stream.Observation = &observed
 		resolver := NewResolver(nil, 1080, tc.preferences, nil)
 		got, err := resolver.Resolve(t.Context(), stream, Rendition{}, 0)
 		if err != nil {

@@ -233,8 +233,15 @@ func (p Program) SelfFetchable() bool {
 	if p.NeedsTrackSelection {
 		return false
 	}
-	if slices.ContainsFunc(p.Tracks, func(track TrackRef) bool { return track.Index != 0 }) {
-		return false
+	for _, track := range p.Tracks {
+		if track.Index == 0 {
+			continue
+		}
+		// A container can select a later audio track when it marks that track as default.
+		info, measured := p.Measurement()
+		if track.Kind != TrackAudio || !measured || track.Index != DefaultAudioIndex(info.AudioTracks) {
+			return false
+		}
 	}
 	input := p.Inputs[0]
 	return len(input.Headers) == 0 && !input.RequiresRelaxedInput

@@ -47,12 +47,7 @@ func selectAudioTrack(tracks []media.AudioTrack, languages []string) (index int,
 			}
 		}
 	}
-	for i, track := range tracks {
-		if track.Default {
-			return i, false
-		}
-	}
-	return 0, false
+	return media.DefaultAudioIndex(tracks), false
 }
 
 func (opaque) Timeline(Client, media.Input, media.TrackKind) timeline.Reading {
