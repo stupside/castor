@@ -7,7 +7,7 @@ type Kind string
 const (
 	// Handoff: the device fetches the source itself.
 	Handoff Kind = "handoff"
-	// Forward: castor forwards the source file unchanged to a device that cannot fetch it itself.
+	// Forward: castor forwards the source file unchanged to a device that cannot fetch its URL.
 	Forward Kind = "forward"
 	// Remux: castor reads the source and serves what it produced.
 	Remux Kind = "remux"
@@ -18,7 +18,7 @@ const (
 // For is the kind of cast shape s calls for; a remux answers a device that rejects the source or whose headers do not match.
 func For(s Shape) Kind {
 	switch {
-	case !s.Device.SelfFetch && s.forwards():
+	case s.forwards():
 		return Forward
 	case !s.Device.SelfFetch:
 		return ReadOnce

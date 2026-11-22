@@ -56,6 +56,11 @@ func (s Shape) forwards() bool {
 	if !ok || !s.PreserveSource || s.Delivery == DeliveryServe {
 		return false
 	}
+	// A self-fetching device can reach a remote source directly. Byte ranges for
+	// a loopback source must go through Castor's listener.
+	if s.Device.SelfFetch && primary.HasRemoteHost() {
+		return false
+	}
 	probe, measured := s.Program.Measurement()
 	return s.Program.Forwardable() && measured &&
 		s.Device.AcceptsOriginal(primary.ContentType, probe, s.PreserveSource) && s.withinCeiling(probe)

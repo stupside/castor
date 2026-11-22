@@ -3,6 +3,7 @@ package media
 import (
 	"fmt"
 	"maps"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strings"
@@ -231,7 +232,21 @@ func (p Program) SelfFetchable() bool {
 		return false
 	}
 	input := p.Inputs[0]
-	return len(input.Headers) == 0 && !input.RequiresRelaxedInput
+	return len(input.Headers) == 0 && !input.RequiresRelaxedInput && input.HasRemoteHost()
+}
+
+// HasRemoteHost reports whether the URL names a host other than the local listener.
+func (i Input) HasRemoteHost() bool {
+	if i.URL == nil {
+		return false
+	}
+	host := strings.TrimSuffix(strings.ToLower(i.URL.Hostname()), ".")
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return false
+	}
+	ip, err := netip.ParseAddr(host)
+	ip = ip.Unmap()
+	return err != nil || !ip.IsLoopback() && !ip.IsUnspecified()
 }
 
 // Forwardable reports whether castor can forward the program's one finished file byte for byte, its headers and all, for the device to seek within.
@@ -249,7 +264,17 @@ func (p Program) whole() bool {
 	if len(p.Inputs) != 1 || p.Start != 0 || p.NeedsTrackSelection {
 		return false
 	}
-	return !slices.ContainsFunc(p.Tracks, func(track TrackRef) bool { return track.Index != 0 })
+	for _, track := range p.Tracks {
+		if track.Index == 0 {
+			continue
+		}
+		// The file itself can select a later audio track when the container marks it as default.
+		info, measured := p.Measurement()
+		if track.Kind != TrackAudio || !measured || track.Index != DefaultAudioIndex(info.AudioTracks) {
+			return false
+		}
+	}
+	return true
 }
 
 // Clone returns a deep enough copy for independent planning (URL, header, offset copies).
