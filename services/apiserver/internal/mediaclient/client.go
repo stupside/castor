@@ -17,7 +17,7 @@ import (
 
 // Client is the media server's services, as the API server uses them.
 type Client struct {
-	Casts   mediav1connect.CastServiceClient
+	casts   mediav1connect.CastServiceClient
 	devices mediav1connect.DeviceServiceClient
 	streams mediav1connect.StreamServiceClient
 }
@@ -26,7 +26,7 @@ type Client struct {
 func New(client *http.Client, baseURL string) *Client {
 	valid, named := transport.Options(), transport.Peering(transport.Peer{Name: "the media server", TokenKey: "servers.media.token"})
 	return &Client{
-		Casts:   mediav1connect.NewCastServiceClient(client, baseURL, valid, named),
+		casts:   mediav1connect.NewCastServiceClient(client, baseURL, valid, named),
 		devices: mediav1connect.NewDeviceServiceClient(client, baseURL, valid, named),
 		streams: mediav1connect.NewStreamServiceClient(client, baseURL, valid, named),
 	}
@@ -38,7 +38,7 @@ func (c *Client) Start(ctx context.Context, id string, source *mediav1.Source, a
 	if start > 0 {
 		req.Start = durationpb.New(start)
 	}
-	_, err := c.Casts.Start(ctx, req)
+	_, err := c.casts.Start(ctx, req)
 	return err
 }
 
@@ -51,9 +51,24 @@ func (c *Client) Rank(ctx context.Context, source *mediav1.Source, asked *mediav
 	return ranked.GetRanked(), nil
 }
 
+// Pause holds the device of a cast that plays on its picture until Resume.
+func (c *Client) Pause(ctx context.Context, req *castorv1.PauseRequest) (*castorv1.PauseResponse, error) {
+	return c.casts.Pause(ctx, req)
+}
+
+// Resume plays on a cast held by Pause.
+func (c *Client) Resume(ctx context.Context, req *castorv1.ResumeRequest) (*castorv1.ResumeResponse, error) {
+	return c.casts.Resume(ctx, req)
+}
+
+// Seek has a cast that plays carry on from the position asked.
+func (c *Client) Seek(ctx context.Context, req *castorv1.SeekRequest) (*castorv1.SeekResponse, error) {
+	return c.casts.Seek(ctx, req)
+}
+
 // Watch follows cast id to its end, handing status every status, and returns how it ended.
 func (c *Client) Watch(ctx context.Context, id string, status func(*castorv1.CastStatus)) (*castorv1.Ended, error) {
-	stream, err := c.Casts.Watch(ctx, &castorv1.WatchRequest{CastId: id})
+	stream, err := c.casts.Watch(ctx, &castorv1.WatchRequest{CastId: id})
 	if err != nil {
 		return nil, err
 	}

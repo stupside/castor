@@ -149,6 +149,25 @@ func TestListedCastsAndDefaultsDoNotExposeTheServicesSnapshots(t *testing.T) {
 	}
 }
 
+// notPlaying is a media server that does not know the cast yet.
+type notPlaying struct{ Media }
+
+func (notPlaying) Pause(context.Context, *castorv1.PauseRequest) (*castorv1.PauseResponse, error) {
+	return nil, connect.NewError(connect.CodeNotFound, errors.New("no such cast"))
+}
+
+func TestAPauseBeforeTheMediaServerKnowsTheCastIsAFailedPrecondition(t *testing.T) {
+	s := New(nil, nil, notPlaying{}, nil)
+	defer s.Drain(t.Context())
+	c := newCast("cast-1", &castorv1.Device{Name: "Bedroom"}, &castorv1.CastRequest{}, func(error) {})
+	done := make(chan struct{})
+	close(done)
+	s.casts.Add(c.id, c, done)
+	if _, err := s.Pause(t.Context(), &castorv1.PauseRequest{CastId: c.id}); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("Pause = %v, want a failed precondition while the cast is not playing on its device yet", err)
+	}
+}
+
 type busyDevice struct{ interruptedTarget }
 
 func (busyDevice) Connect(context.Context, device.Info) (device.Device, error) {

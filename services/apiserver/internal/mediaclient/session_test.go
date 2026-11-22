@@ -30,7 +30,7 @@ func TestStopReconciliationHasOneBoundedBudget(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		lost := errors.New("stop response lost")
 		remote := &unavailableCast{err: lost}
-		client := &Client{Casts: remote}
+		client := &Client{casts: remote}
 		ctx, cancel := context.WithTimeout(t.Context(), stopGrace)
 		defer cancel()
 		start := time.Now()
@@ -51,7 +51,7 @@ func TestRemoteCompletionDuringJoinSurvivesStopTimeout(t *testing.T) {
 		watched := make(chan watchResult, 1)
 		ended := &castorv1.Ended{Result: &castorv1.Ended_Stopped{Stopped: &emptypb.Empty{}}}
 		s := &session{
-			client: &Client{Casts: &unavailableCast{err: errors.New("stop response lost")}},
+			client: &Client{casts: &unavailableCast{err: errors.New("stop response lost")}},
 			id:     "cast", ctx: ctx, cancel: cancel, machine: newSessionMachine(), watching: watched,
 		}
 		s.move(remoteStarted)
@@ -85,7 +85,7 @@ func TestAStopGraceThatRanOutIsReportedOnce(t *testing.T) {
 		defer cancel()
 		watched := make(chan watchResult, 1)
 		s := &session{
-			client: &Client{Casts: &unavailableCast{err: errors.New("stop response lost")}},
+			client: &Client{casts: &unavailableCast{err: errors.New("stop response lost")}},
 			id:     "cast", ctx: ctx, cancel: cancel, machine: newSessionMachine(), watching: watched,
 			failure: errors.New("the device went away"),
 		}

@@ -21,7 +21,6 @@ import (
 	"github.com/stupside/castor/internal/registry"
 	"github.com/stupside/castor/internal/telemetry"
 	"github.com/stupside/castor/services/apiserver/internal/device"
-	"github.com/stupside/castor/services/apiserver/internal/mediaclient"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -40,6 +39,15 @@ type Devices interface {
 	Connect(ctx context.Context, target device.Info) (device.Device, error)
 }
 
+// Media is the media server a cast plays through: the cast it runs on a lent device, the streams it ranks, and the control of a cast that plays.
+type Media interface {
+	Run(ctx context.Context, id string, source *mediav1.Source, asked *mediav1.PlaybackSettings, lent device.Device, info *castorv1.MediaInfo, start time.Duration, status func(*castorv1.CastStatus)) (*castorv1.Ended, error)
+	Rank(ctx context.Context, source *mediav1.Source, asked *mediav1.PlaybackSettings) ([]*castorv1.RankedStream, error)
+	Pause(context.Context, *castorv1.PauseRequest) (*castorv1.PauseResponse, error)
+	Resume(context.Context, *castorv1.ResumeRequest) (*castorv1.ResumeResponse, error)
+	Seek(context.Context, *castorv1.SeekRequest) (*castorv1.SeekResponse, error)
+}
+
 type Resolver interface {
 	ResolvePages(context.Context, []string) ([]*castorv1.StreamCandidate, error)
 }
@@ -50,7 +58,7 @@ type Service struct {
 	resolutions *admission.Gate
 	ctx         context.Context
 	shut        context.CancelCauseFunc
-	media       *mediaclient.Client
+	media       Media
 	scraping    Resolver
 	defaults    *mediav1.PlaybackSettings
 	devices     Devices
@@ -58,7 +66,7 @@ type Service struct {
 }
 
 // New casts on devices through media, every cast asking defaults unless its request says otherwise.
-func New(defaults *mediav1.PlaybackSettings, devices Devices, media *mediaclient.Client, scraping Resolver) *Service {
+func New(defaults *mediav1.PlaybackSettings, devices Devices, media Media, scraping Resolver) *Service {
 	// Casts outlive the request that started them, and end only once the server shuts down.
 	running, shut := context.WithCancelCause(context.Background())
 	return &Service{watchers: semaphore.NewWeighted(256), resolutions: admission.New(running, resolutionCapacity), ctx: running, shut: shut, media: media, scraping: scraping, defaults: proto.CloneOf(defaults), devices: devices, casts: registry.New[*cast](linger)}
@@ -196,15 +204,15 @@ func (s *Service) Stop(_ context.Context, req *castorv1.StopRequest) (*castorv1.
 }
 
 func (s *Service) Pause(ctx context.Context, req *castorv1.PauseRequest) (*castorv1.PauseResponse, error) {
-	return s.forward(ctx, req, s.media.Casts.Pause)
+	return s.forward(ctx, req, s.media.Pause)
 }
 
 func (s *Service) Resume(ctx context.Context, req *castorv1.ResumeRequest) (*castorv1.ResumeResponse, error) {
-	return s.forward(ctx, req, s.media.Casts.Resume)
+	return s.forward(ctx, req, s.media.Resume)
 }
 
 func (s *Service) Seek(ctx context.Context, req *castorv1.SeekRequest) (*castorv1.SeekResponse, error) {
-	return s.forward(ctx, req, s.media.Casts.Seek)
+	return s.forward(ctx, req, s.media.Seek)
 }
 
 // forward has the media server, which knows a cast once it plays, run call on it.
