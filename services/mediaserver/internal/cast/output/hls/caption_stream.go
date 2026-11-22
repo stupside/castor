@@ -47,29 +47,10 @@ func (c *captionDelivery) write(ctx context.Context, producer io.Reader) error {
 	defer root.Remove("init.tmp")
 	defer root.Remove("playlist.tmp")
 
-	init, err := root.OpenFile("init.tmp", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
+	if err := c.readInit(producer); err != nil {
 		return err
 	}
-	for _, name := range []string{"ftyp", "moov"} {
-		header, err := mp4.DecodeHeader(producer)
-		if err == nil && header.Name != name {
-			err = fmt.Errorf("expected %s, received %s", name, header.Name)
-		}
-		if err == nil {
-			err = copyCaptionBox(root, init, producer, header)
-		}
-		if err != nil {
-			init.Close()
-			return fmt.Errorf("reading caption media initialization: %w", err)
-		}
-	}
-	if err := init.Close(); err != nil {
-		return err
-	}
-	if err := root.Rename("init.tmp", initSection); err != nil {
-		return err
-	}
+	var err error
 	var segments []captionFragment
 	var retired []retiredCaptionFragment
 	var origin float64
@@ -103,21 +84,7 @@ func (c *captionDelivery) write(ctx context.Context, producer io.Reader) error {
 		if header.Name != "moof" {
 			return fmt.Errorf("expected moof, received %s", header.Name)
 		}
-		fragment, err := root.OpenFile("fragment.tmp", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-		if err != nil {
-			return err
-		}
-		err = copyCaptionBox(root, fragment, producer, header)
-		if err == nil {
-			header, err = mp4.DecodeHeader(producer)
-			if err == nil && header.Name != "mdat" {
-				err = fmt.Errorf("expected mdat, received %s", header.Name)
-			}
-			if err == nil {
-				err = copyCaptionBox(root, fragment, producer, header)
-			}
-		}
-		if err = errors.Join(err, fragment.Close()); err != nil {
+		if err := c.readFragment(producer, header); err != nil {
 			return err
 		}
 		timing, err := captionMedia(root, initSection, "fragment.tmp")
@@ -137,23 +104,8 @@ func (c *captionDelivery) write(ctx context.Context, producer io.Reader) error {
 		if math.Round(duration) > captionTargetDuration {
 			return fmt.Errorf("caption fragment duration %.3fs exceeds stable HLS target %ds", duration, captionTargetDuration)
 		}
-		// The fragment's captions are frozen the moment the transcript settles past its end.
-		var snapshot subtitle.Snapshot
-		ticker := time.NewTicker(50 * time.Millisecond)
-		for {
-			snapshot = c.cues.Snapshot(timing.Start-origin, timing.End-origin)
-			if snapshot.Complete || snapshot.SettledTo+0.000001 >= timing.End-origin {
-				break
-			}
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return ctx.Err()
-			case <-ticker.C:
-			}
-		}
-		ticker.Stop()
-		if err := ctx.Err(); err != nil {
+		snapshot, err := c.awaitSettled(ctx, timing.Start-origin, timing.End-origin)
+		if err != nil {
 			return err
 		}
 		name := fmt.Sprintf(segmentNames, sequence)
@@ -187,6 +139,67 @@ func (c *captionDelivery) write(ctx context.Context, producer io.Reader) error {
 		}
 		if err := c.publish(segments, false, codecs, bandwidth); err != nil {
 			return err
+		}
+	}
+}
+
+// readInit copies the encoder's ftyp and moov boxes into the initialization section.
+func (c *captionDelivery) readInit(producer io.Reader) error {
+	init, err := c.root.OpenFile("init.tmp", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"ftyp", "moov"} {
+		header, err := mp4.DecodeHeader(producer)
+		if err == nil && header.Name != name {
+			err = fmt.Errorf("expected %s, received %s", name, header.Name)
+		}
+		if err == nil {
+			err = copyCaptionBox(c.root, init, producer, header)
+		}
+		if err != nil {
+			init.Close()
+			return fmt.Errorf("reading caption media initialization: %w", err)
+		}
+	}
+	if err := init.Close(); err != nil {
+		return err
+	}
+	return c.root.Rename("init.tmp", initSection)
+}
+
+// readFragment copies one fragment, the moof already read as header and the mdat after it, into fragment.tmp.
+func (c *captionDelivery) readFragment(producer io.Reader, header mp4.BoxHeader) error {
+	fragment, err := c.root.OpenFile("fragment.tmp", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	err = copyCaptionBox(c.root, fragment, producer, header)
+	if err == nil {
+		header, err = mp4.DecodeHeader(producer)
+		if err == nil && header.Name != "mdat" {
+			err = fmt.Errorf("expected mdat, received %s", header.Name)
+		}
+		if err == nil {
+			err = copyCaptionBox(c.root, fragment, producer, header)
+		}
+	}
+	return errors.Join(err, fragment.Close())
+}
+
+// awaitSettled is the captions of a fragment from start to end, frozen the moment the transcript settles past its end.
+func (c *captionDelivery) awaitSettled(ctx context.Context, start, end float64) (subtitle.Snapshot, error) {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		snapshot := c.cues.Snapshot(start, end)
+		if snapshot.Complete || snapshot.SettledTo+0.000001 >= end {
+			return snapshot, ctx.Err()
+		}
+		select {
+		case <-ctx.Done():
+			return snapshot, ctx.Err()
+		case <-ticker.C:
 		}
 	}
 }
