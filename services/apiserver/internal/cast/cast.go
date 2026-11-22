@@ -42,7 +42,7 @@ func newCast(id string, device *castorv1.Device, req *castorv1.CastRequest, stop
 	}
 }
 
-// show publishes a new status snapshot until the owner publishes completion.
+// show publishes a new status snapshot until the cast has ended.
 func (c *cast) show(status *castorv1.CastStatus) {
 	c.now.Update(func(v view) (view, bool) {
 		if v.ended != nil {
@@ -50,4 +50,20 @@ func (c *cast) show(status *castorv1.CastStatus) {
 		}
 		return view{status: proto.CloneOf(status)}, true
 	})
+}
+
+// end publishes how the cast ended, once; the last status stays what it was.
+func (c *cast) end(ended *castorv1.Ended) {
+	c.now.Update(func(v view) (view, bool) {
+		if v.ended != nil {
+			return v, false
+		}
+		return view{status: v.status, ended: ended}, true
+	})
+}
+
+// over reports whether the cast has ended.
+func (c *cast) over() bool {
+	v, _ := c.now.Load()
+	return v.ended != nil
 }

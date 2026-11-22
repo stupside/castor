@@ -107,12 +107,7 @@ func (s *Service) Cast(ctx context.Context, req *castorv1.CastRequest) (*castorv
 		defer stop(nil)
 		defer awake.Hold()()
 		ended := s.play(run, c, target, asked)
-		c.now.Update(func(v view) (view, bool) {
-			if v.ended != nil {
-				return v, false
-			}
-			return view{status: v.status, ended: ended}, true
-		})
+		c.end(ended)
 		slog.InfoContext(run, "cast ended", "device", cmp.Or(c.device.GetName(), c.device.GetAddress()), "result", result(ended))
 	}()
 	return &castorv1.CastResponse{CastId: c.id}, nil
@@ -218,7 +213,7 @@ func (s *Service) forward[Req interface{ GetCastId() string }, Res any](ctx cont
 	if err != nil {
 		return nil, err
 	}
-	if v, _ := c.now.Load(); v.ended != nil {
+	if c.over() {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("cast %q has ended", c.id))
 	}
 	res, err := call(ctx, req)
@@ -234,7 +229,7 @@ func (s *Service) forward[Req interface{ GetCastId() string }, Res any](ctx cont
 func (s *Service) ListCasts(context.Context, *castorv1.ListCastsRequest) (*castorv1.ListCastsResponse, error) {
 	var playing []*cast
 	for c := range s.casts.All() {
-		if v, _ := c.now.Load(); v.ended == nil {
+		if !c.over() {
 			playing = append(playing, c)
 		}
 	}
