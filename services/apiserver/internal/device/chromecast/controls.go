@@ -83,6 +83,7 @@ func (s *session) Seek(ctx context.Context, at time.Duration) error {
 	defer cancel()
 	s.watchMu.Lock()
 	transport, mediaSession, content := s.transport, s.watch.mediaSession, s.watch.content
+	checkPlayback := s.watch.finiteMP4Source && s.watch.playerState == "PLAYING" && s.watch.commands&1 != 0
 	s.watchMu.Unlock()
 	if mediaSession == 0 {
 		return errNoMediaSession
@@ -98,27 +99,57 @@ func (s *session) Seek(ctx context.Context, at time.Duration) error {
 	if err != nil {
 		return fmt.Errorf("seeking chromecast playback: %w", err)
 	}
+	// Keep follow-up commands on the session that received the SEEK, even if a new LOAD starts.
+	command := func(kind string) ([]byte, error) {
+		answer, err := s.ch.request(ctx, transport, nsMedia, &castmedia.MediaHeader{Type: kind, MediaSessionId: mediaSession})
+		if err == nil {
+			err = loadVerdict(answer, content)
+		}
+		return answer, err
+	}
 	// An accepted SEEK is not proof the decoder reached it. Unseekable growing
 	// MP4s acknowledge the command but restart at zero; do not queue more of those.
+	var bufferingSince time.Time
+	var lastAt time.Duration
+	var atTarget, recovered bool
 	for {
-		head, err := playhead(reply, mediaSession)
-		if err != nil {
-			return err
+		status, err := positionStatus(reply, mediaSession)
+		if err != nil || status.CurrentTime == nil {
+			return device.ErrNoPosition
 		}
-		if delta := head.At - at; delta >= -2*time.Second && delta <= 2*time.Second {
-			slog.DebugContext(ctx, "chromecast seek confirmed", "asked", at, "at", head.At, "paused", head.Paused)
+		current := time.Duration(*status.CurrentTime * float64(time.Second))
+		near := current >= at-2*time.Second && current <= at+2*time.Second
+		if near && (!checkPlayback || status.PlayerState == "PAUSED" && !recovered || status.IdleReason == "FINISHED" ||
+			status.PlayerState == "PLAYING" && atTarget && current > lastAt) {
+			slog.DebugContext(ctx, "chromecast seek confirmed", "asked", at, "at", current, "state", status.PlayerState)
 			return nil
 		}
+		// A Cast receiver can echo the new MP4 position and stay BUFFERING there.
+		// Cycle pause/play once only if its clock is stationary at the requested point.
+		if checkPlayback && !recovered && near && status.PlayerState == "BUFFERING" {
+			if bufferingSince.IsZero() || current != lastAt {
+				bufferingSince = time.Now()
+			} else if time.Since(bufferingSince) >= time.Second {
+				slog.DebugContext(ctx, "resuming MP4 buffered at the seek position", "at", current)
+				if _, err := command(msgPause); err != nil {
+					return err
+				}
+				if _, err := command(msgPlay); err != nil {
+					return err
+				}
+				recovered = true
+			}
+		} else {
+			bufferingSince = time.Time{}
+		}
+		atTarget, lastAt = near, current
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("the receiver did not reach %s (last position %s); this position may not be available yet: %w", at, head.At, context.Cause(ctx))
+			return fmt.Errorf("the receiver did not reach %s (last position %s); this position may not be available yet: %w", at, current, context.Cause(ctx))
 		case <-time.After(100 * time.Millisecond):
 		}
-		_, reply, err = s.mediaRequest(ctx, msgGetStatus)
+		reply, err = command(msgGetStatus)
 		if err != nil {
-			return err
-		}
-		if err := loadVerdict(reply, content); err != nil {
 			return err
 		}
 	}

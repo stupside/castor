@@ -79,31 +79,19 @@ func (s *session) watchMessage(payload []byte) {
 
 // playback follows the one Play the device was last handed, from its load to its end.
 type playback struct {
-	armed        bool
-	content      string
-	mediaSession int
-	active       bool
-	commands     uint64
-	errorCode    int // the detailed code of the receiver's last ERROR message, 0 when it sent none
+	armed           bool
+	content         string
+	mediaSession    int
+	active          bool
+	playerState     string
+	finiteMP4Source bool
+	commands        uint64
+	errorCode       int // the detailed code of the receiver's last ERROR message, 0 when it sent none
 }
 
-func (w *playback) begin(content string) {
-	w.armed = true
-	w.content = content
-	w.mediaSession = 0
-	w.active = false
-	w.commands = 0
-	w.errorCode = 0
-}
+func (w *playback) begin(content string) { *w = playback{armed: true, content: content} }
 
-func (w *playback) disarm() {
-	w.armed = false
-	w.content = ""
-	w.mediaSession = 0
-	w.active = false
-	w.commands = 0
-	w.errorCode = 0
-}
+func (w *playback) disarm() { *w = playback{} }
 
 // named adds the receiver's own error code, when it sent one, to the error a playback ends with.
 func (w *playback) named(err error) error {
@@ -129,6 +117,7 @@ func (w *playback) observe(status castmedia.Media) (bool, error) {
 		return false, nil
 	}
 
+	w.playerState = status.PlayerState
 	switch status.PlayerState {
 	case "BUFFERING", "PLAYING", "PAUSED":
 		w.active = true

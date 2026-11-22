@@ -54,6 +54,7 @@ func (s *session) play(ctx context.Context, playback device.Playback) error {
 	mine := newEnding()
 	s.watchMu.Lock()
 	s.watch.begin(stream)
+	s.watch.finiteMP4Source = playback.Play.GetSource().GetContainer() == mediav1.Container_CONTAINER_MP4 && playback.Duration() > 0
 	s.ending = mine
 	s.transport = transport
 	s.watchMu.Unlock()

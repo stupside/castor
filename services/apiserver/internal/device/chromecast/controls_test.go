@@ -226,15 +226,16 @@ func TestServedHLSDeclaresFMP4WithoutOverridingSourcePlaylists(t *testing.T) {
 	}
 }
 
-func TestChromecastSeekUsesTheCurrentSessionAndPreservesPause(t *testing.T) {
-	for _, resets := range []bool{false, true} {
-		t.Run(fmt.Sprint("receiver_restarts=", resets), func(t *testing.T) {
+func TestChromecastSeekUsesTheCurrentSessionAndPreservesPlayback(t *testing.T) {
+	for _, mode := range []string{"paused", "restarts at zero", "playing", "buffers until resumed"} {
+		t.Run(mode, func(t *testing.T) {
 			near, far := net.Pipe()
 			dev := &session{ending: newEnding()}
 			dev.ch = newChannel(near, dev.watchMessage)
 			var receiver *channel
 			var content string
 			state, position := "PLAYING", float32(0)
+			var pauses, resumes atomic.Int32
 			type sought struct {
 				at      float64
 				session int
@@ -261,13 +262,22 @@ func TestChromecastSeekUsesTheCurrentSessionAndPreservesPause(t *testing.T) {
 				case "LOAD":
 					content = req.Media.ContentId
 				case "PAUSE":
+					pauses.Add(1)
 					state = "PAUSED"
 				case "PLAY":
+					resumes.Add(1)
 					state = "PLAYING"
+				case msgGetStatus:
+					if state == "PLAYING" {
+						position += 0.25
+					}
 				case "SEEK":
 					position = float32(req.CurrentTime)
-					if resets {
+					switch mode {
+					case "restarts at zero":
 						position = 0
+					case "buffers until resumed":
+						state = "BUFFERING"
 					}
 					seeks <- sought{req.CurrentTime, req.Session, req.Resume}
 				}
@@ -289,19 +299,26 @@ func TestChromecastSeekUsesTheCurrentSessionAndPreservesPause(t *testing.T) {
 			})
 			t.Cleanup(func() { _ = dev.Close(); _ = receiver.Close() })
 			u, _ := url.Parse("http://media.test/movie.mp4")
-			if err := dev.Play(t.Context(), device.Playback{URL: u, Play: devicetest.Source(mediav1.Container_CONTAINER_MP4)}); err != nil {
+			play := devicetest.Source(mediav1.Container_CONTAINER_MP4)
+			play.GetSource().Duration = durationpb.New(time.Minute)
+			if err := dev.Play(t.Context(), device.Playback{URL: u, Play: play}); err != nil {
 				t.Fatal(err)
 			}
 			if controls := dev.Controls(); !controls.Pause || !controls.Seek {
 				t.Fatalf("receiver controls not observed: %+v", controls)
 			}
-			if err := dev.Pause(t.Context()); err != nil {
-				t.Fatal(err)
+			paused := mode == "paused" || mode == "restarts at zero"
+			timeout := 3 * time.Second
+			if paused {
+				if err := dev.Pause(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				timeout = 350 * time.Millisecond
 			}
-			ctx, cancel := context.WithTimeout(t.Context(), 350*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), timeout)
 			defer cancel()
 			err := dev.Seek(ctx, 40*time.Second)
-			if resets {
+			if mode == "restarts at zero" {
 				if err == nil {
 					t.Fatal("acknowledged a successful seek while the receiver restarted at zero")
 				}
@@ -315,8 +332,18 @@ func TestChromecastSeekUsesTheCurrentSessionAndPreservesPause(t *testing.T) {
 				t.Fatalf("SEEK=%+v; want current session, 40 seconds and unchanged pause", got)
 			}
 			head, err := dev.Position(t.Context())
-			if err != nil || head.At != 40*time.Second || !head.Paused {
-				t.Fatalf("paused playhead=%+v, %v", head, err)
+			if err != nil || head.At < 40*time.Second || head.Paused != paused || !paused && head.At == 40*time.Second {
+				t.Fatalf("playhead=%+v, %v", head, err)
+			}
+			wantPauses, wantResumes := int32(0), int32(0)
+			if paused || mode == "buffers until resumed" {
+				wantPauses = 1
+			}
+			if mode == "buffers until resumed" {
+				wantResumes = 1
+			}
+			if pauses.Load() != wantPauses || resumes.Load() != wantResumes {
+				t.Fatalf("pause/play commands=%d/%d, want %d/%d", pauses.Load(), resumes.Load(), wantPauses, wantResumes)
 			}
 		})
 	}
