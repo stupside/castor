@@ -57,6 +57,35 @@ func TestTheCompositionADeviceGets(t *testing.T) {
 	}
 }
 
+func TestAReceiverThatFetchesForItselfCanSeekInALocalFile(t *testing.T) {
+	device := media.Capabilities{SelfFetch: true, Formats: []media.FormatSupport{{
+		Transport: media.TransportMP4,
+		Video:     media.VideoSupport{Codec: media.CodecH264},
+		Audio:     media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2},
+	}}}
+	for _, tc := range []struct {
+		name, host string
+		native     bool
+		delivery   DeliveryPreference
+		want       Kind
+	}{
+		{"local original", "127.0.0.1", true, DeliveryAuto, Forward},
+		{"remote original", "cdn.example", true, DeliveryAuto, Handoff},
+		{"optimized local file", "127.0.0.1", false, DeliveryAuto, Remux},
+		{"local original refused", "127.0.0.1", true, DeliveryServe, Remux},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			program := measured(t, media.MP4, false)
+			probe, _ := program.Measurement()
+			program.Inputs[0].URL.Host = tc.host
+			program.SetMeasurement(probe)
+			if got := For(Shape{Device: device, Program: program, Delivery: tc.delivery, PreserveSource: tc.native}); got != tc.want {
+				t.Errorf("composed %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // measured is a header-free H.264/AAC program in contentType, measured as such.
 func measured(t *testing.T, contentType string, wrapped bool) media.Program {
 	t.Helper()

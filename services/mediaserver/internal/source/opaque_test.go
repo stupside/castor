@@ -3,6 +3,7 @@ package source
 import (
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
@@ -12,6 +13,7 @@ func TestDirectFileAudioPreferencesSelectTheTrackAndPreventHandoff(t *testing.T)
 		URL:         &url.URL{Scheme: "https", Host: "origin.example", Path: "/film.mp4"},
 		ContentType: media.MP4,
 		Probe: &media.ProbeInfo{
+			Duration:   time.Minute,
 			AudioCodec: media.CodecAAC,
 			AudioTracks: []media.AudioTrack{
 				{Language: "en", Codec: media.CodecAAC, Channels: 2, Bitrate: 128_000, Default: true},
@@ -23,20 +25,26 @@ func TestDirectFileAudioPreferencesSelectTheTrackAndPreventHandoff(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	observed := media.Observe(program, *stream.Probe)
-	stream.Observation = &observed
 	for _, tc := range []struct {
-		preferences []string
-		index       int
-		language    string
-		codec       media.Codec
-		handoff     bool
+		preferences  []string
+		defaultIndex int
+		index        int
+		language     string
+		codec        media.Codec
+		handoff      bool
 	}{
-		{[]string{"fr", "en"}, 1, "fra", media.CodecAC3, false},
-		{[]string{"de", "en"}, 0, "en", media.CodecAAC, false},
-		{[]string{"de"}, 0, "en", media.CodecAAC, true},
-		{nil, 0, "en", media.CodecAAC, true},
+		{[]string{"fr", "en"}, 0, 1, "fra", media.CodecAC3, false},
+		{[]string{"de", "en"}, 0, 0, "en", media.CodecAAC, false},
+		{[]string{"de"}, 0, 0, "en", media.CodecAAC, true},
+		{nil, 0, 0, "en", media.CodecAAC, true},
+		{nil, 1, 1, "fra", media.CodecAC3, true},
+		{[]string{"en"}, 1, 0, "en", media.CodecAAC, false},
 	} {
+		for i := range stream.Probe.AudioTracks {
+			stream.Probe.AudioTracks[i].Default = i == tc.defaultIndex
+		}
+		observed := media.Observe(program, *stream.Probe)
+		stream.Observation = &observed
 		resolver := NewResolver(nil, 1080, tc.preferences, nil)
 		got, err := resolver.Resolve(t.Context(), stream, Rendition{}, 0)
 		if err != nil {
@@ -47,6 +55,9 @@ func TestDirectFileAudioPreferencesSelectTheTrackAndPreventHandoff(t *testing.T)
 		heard := stream.Probe.AudioTracks[tc.index]
 		if !ok || !hasMeasurement || track.Index != tc.index || got.Rendition.AudioLanguage != tc.language || measured.AudioCodec != tc.codec || measured.AudioBitrate != heard.Bitrate || got.Program.SelfFetchable() != tc.handoff {
 			t.Errorf("preferences %v: track=%+v rendition=%+v measurement=%+v handoff=%v", tc.preferences, track, got.Rendition, measured, got.Program.SelfFetchable())
+		}
+		if got.Program.Forwardable() != tc.handoff {
+			t.Errorf("default track %d, preferences %v: forwardable = %v, want %v", tc.defaultIndex, tc.preferences, got.Program.Forwardable(), tc.handoff)
 		}
 	}
 }
