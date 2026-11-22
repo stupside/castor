@@ -64,6 +64,16 @@ type AudioTrack struct {
 	Default    bool
 }
 
+// DefaultAudioIndex is the first audio track marked as default, or track zero when none is marked.
+func DefaultAudioIndex(tracks []AudioTrack) int {
+	for i, track := range tracks {
+		if track.Default {
+			return i
+		}
+	}
+	return 0
+}
+
 // TakeVideo is p with every picture fact taken from m; a new video field is carried here or nowhere.
 func (p ProbeInfo) TakeVideo(m ProbeInfo) ProbeInfo {
 	p.VideoPresent = m.VideoPresent
