@@ -9,6 +9,7 @@ import (
 	"time"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/machine"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/stupside/castor/gen/castor/media/v1/mediav1connect"
@@ -99,4 +100,12 @@ func TestAStopGraceThatRanOutIsReportedOnce(t *testing.T) {
 			t.Errorf("finish = %q, want the grace that ran out named once", err)
 		}
 	})
+}
+
+func TestAnEventTheSessionRefusesStopsItTheWayAFailureDoes(t *testing.T) {
+	s := &session{ctx: t.Context(), machine: newSessionMachine()}
+	s.move(stopSettled)
+	if !errors.Is(s.failure, machine.ErrRefused) || !s.machine.Is(sessionStopping) {
+		t.Errorf("session in %s with failure %v, want it stopping on the refusal", s.machine.State(), s.failure)
+	}
 }

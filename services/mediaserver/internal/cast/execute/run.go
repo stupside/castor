@@ -270,15 +270,9 @@ func (c *coordinator) run() (ran, error) {
 	return c.finish()
 }
 
+// move is an event the attempt takes; one its state refuses is an orchestration failure that stops it the machine's own way.
 func (c *coordinator) move(event attemptEvent) {
-	if err := c.machine.Fire(c.ctx, event); err != nil {
-		c.cause = errors.Join(c.cause, err)
-		// A rejected transition is an orchestration failure; it still uses the
-		// machine's normal stopping path, never SetState.
-		if c.machine.Can(attemptFailed) {
-			c.cause = errors.Join(c.cause, c.machine.Fire(c.ctx, attemptFailed))
-		}
-	}
+	c.cause = errors.Join(c.cause, c.machine.FireOrFail(c.ctx, event, attemptFailed))
 }
 
 func (c *coordinator) loop() {

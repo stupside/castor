@@ -535,3 +535,12 @@ func TestCancelledAttemptDoesNotSelectPreparationServices(t *testing.T) {
 		t.Fatalf("selected=%v error=%v", selected, err)
 	}
 }
+
+func TestAnEventTheAttemptRefusesStopsItTheWayAFailureDoes(t *testing.T) {
+	c := &coordinator{ctx: t.Context()}
+	c.machine = c.attemptMachine()
+	c.move(cleanupFinished)
+	if !errors.Is(c.cause, machine.ErrRefused) || !c.machine.Is(stopping) {
+		t.Errorf("attempt in %s with cause %v, want it stopping on the refusal", c.machine.State(), c.cause)
+	}
+}

@@ -121,12 +121,7 @@ func (c *Client) Run(parent context.Context, id string, source *mediav1.Source, 
 }
 
 func (s *session) move(event sessionEvent) {
-	if err := s.machine.Fire(s.ctx, event); err != nil {
-		s.failure = errors.Join(s.failure, err)
-		if s.machine.Can(sessionFailed) {
-			s.failure = errors.Join(s.failure, s.machine.Fire(s.ctx, sessionFailed))
-		}
-	}
+	s.failure = errors.Join(s.failure, s.machine.FireOrFail(s.ctx, event, sessionFailed))
 }
 
 func (s *session) observe(parent context.Context, lent device.Device, info *castorv1.MediaInfo, status func(*castorv1.CastStatus)) {
