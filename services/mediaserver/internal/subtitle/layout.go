@@ -66,13 +66,9 @@ func breakScore(words []Word, at int) int {
 	first, second := joinWords(words[:at]), joinWords(words[at:])
 	a, b := columns(first), columns(second)
 	mean := (a + b) / 2
-	score := 100*(max(0, a-cueLineColumns)+max(0, b-cueLineColumns)) + abs(a-mean) + abs(b-mean)
+	score := 100*(max(0, a-cueLineColumns)+max(0, b-cueLineColumns)) + max(a-mean, mean-a) + max(b-mean, mean-b)
 	if !clauseEnd(first) {
 		score += lineBreakWeakPenalty
 	}
 	return score
-}
-
-func abs(n int) int {
-	return max(n, -n)
 }
