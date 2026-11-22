@@ -3,11 +3,12 @@ package cast
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strings"
 	"time"
 
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/internal/awake"
+	"github.com/stupside/castor/internal/settings"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/lend"
 )
@@ -86,22 +87,8 @@ func (c *cast) Revising(action recovery.Action, why string) {
 	})
 }
 
-// recoveryAction translates the engine's actions at the contract edge.
+// recoveryAction translates the engine's actions at the contract edge: switch-candidate is RECOVERY_ACTION_SWITCH_CANDIDATE.
 func recoveryAction(action recovery.Action) castorv1.RecoveryAction {
-	switch action {
-	case recovery.SwitchCandidate:
-		return castorv1.RecoveryAction_RECOVERY_ACTION_SWITCH_CANDIDATE
-	case recovery.DecodeAxis:
-		return castorv1.RecoveryAction_RECOVERY_ACTION_DECODE_AXIS
-	case recovery.RelaxRead:
-		return castorv1.RecoveryAction_RECOVERY_ACTION_RELAX_READ
-	case recovery.ServeInstead:
-		return castorv1.RecoveryAction_RECOVERY_ACTION_SERVE_INSTEAD
-	case recovery.Stay:
-		return castorv1.RecoveryAction_RECOVERY_ACTION_STAY
-	case recovery.SoftwareEncode:
-		return castorv1.RecoveryAction_RECOVERY_ACTION_SOFTWARE_ENCODE
-	default:
-		panic(fmt.Sprintf("unknown recovery action %q", action))
-	}
+	kind, _ := settings.ParseEnum[castorv1.RecoveryAction](strings.ReplaceAll(string(action), "-", "_"))
+	return kind
 }
