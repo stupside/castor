@@ -10,6 +10,7 @@ import (
 
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
+	"github.com/stupside/castor/internal/machine"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/execute"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
@@ -29,6 +30,44 @@ const (
 	deviceRemote
 )
 
+// deviceState is what the lent device is doing, as the last stream handed and the last hold left it.
+type deviceState uint8
+
+const (
+	// noStream is a device that took no stream yet, or was moved off the one it took.
+	noStream deviceState = iota
+	playing
+	// held is a device paused by at least one holder.
+	held
+)
+
+func (s deviceState) String() string {
+	return [...]string{noStream: "no-stream", playing: "playing", held: "held"}[s]
+}
+
+type deviceEvent uint8
+
+const (
+	streamHanded deviceEvent = iota
+	streamLeft
+	holdBegun
+	holdEnded
+)
+
+func (e deviceEvent) String() string {
+	return [...]string{streamHanded: "stream-handed", streamLeft: "stream-left", holdBegun: "hold-begun", holdEnded: "hold-ended"}[e]
+}
+
+// lentDevice is the lifecycle of a lent device: held exactly while someone holds it, and never without a stream.
+func lentDevice() *machine.Machine[deviceState, deviceEvent] {
+	return machine.New("lent device", noStream, nil, []machine.Edge[deviceState, deviceEvent]{
+		{On: streamHanded, From: []deviceState{noStream, playing, held}, To: playing},
+		{On: streamLeft, From: []deviceState{playing, held}, To: noStream},
+		{On: holdBegun, From: []deviceState{playing, held}, To: held},
+		{On: holdEnded, From: []deviceState{held}, To: playing},
+	}, nil)
+}
+
 // Device is the lent device as the engine sees it: its lender holds it for the whole cast and plays what it is asked.
 type Device struct {
 	line  *Line
@@ -37,11 +76,12 @@ type Device struct {
 	heard func(*castorv1.Playhead)
 
 	// mu is held across pause and resume presses, so the viewer's and castor's never interleave.
-	mu      sync.Mutex
+	mu sync.Mutex
+	// moves is held exactly while holders is not empty; only handStream, leaveStream and hold change either.
+	moves   *machine.Machine[deviceState, deviceEvent]
 	holders Holder
 	// changes counts each stream handed and each press; what the device said when asked before one is dropped.
 	changes         int
-	playing         bool
 	begins, runtime time.Duration
 	at              time.Duration
 	// askedAt is the last time anyone asked where the device plays, saidAt the last it answered.
@@ -52,7 +92,7 @@ var _ execute.Device = (*Device)(nil)
 
 // NewDevice plays on the device at the end of line, telling heard where it plays in the whole media.
 func NewDevice(line *Line, caps media.Capabilities, left func(), heard func(*castorv1.Playhead)) *Device {
-	return &Device{line: line, caps: caps, left: left, heard: heard}
+	return &Device{line: line, caps: caps, left: left, heard: heard, moves: lentDevice()}
 }
 
 // Play points the device at a stream, which plays whatever pause came before.
@@ -67,7 +107,8 @@ func (d *Device) Play(ctx context.Context, p execute.Playback) error {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.playing, d.holders, d.changes = true, 0, d.changes+1
+	d.handStream(ctx)
+	d.changes++
 	d.begins, d.runtime, d.saidAt = p.Begins, p.Stream.Length(), time.Time{}
 	return nil
 }
@@ -130,8 +171,33 @@ func (d *Device) AwaitEnd(ctx context.Context) error {
 func (d *Device) Reload() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.playing, d.changes = false, d.changes+1
+	d.leaveStream()
+	d.changes++
 }
+
+// handStream is a stream handed, which plays whatever pause came before.
+func (d *Device) handStream(ctx context.Context) {
+	d.holders = 0
+	d.moves.Take(ctx, streamHanded)
+}
+
+// leaveStream is the device moved off its stream, which no one holds any longer.
+func (d *Device) leaveStream() {
+	d.holders = 0
+	d.moves.Take(context.Background(), streamLeft)
+}
+
+// hold is who holds the device now, paused while anyone does.
+func (d *Device) hold(ctx context.Context, holders Holder) {
+	d.holders = holders
+	if holders != 0 {
+		d.moves.Take(ctx, holdBegun)
+		return
+	}
+	d.moves.Take(ctx, holdEnded)
+}
+
+func (d *Device) streaming() bool { return !d.moves.Is(noStream) }
 
 // Pause and Resume are castor's hold while its read gets ahead.
 func (d *Device) Pause(ctx context.Context) error  { return d.Hold(ctx, Castor, true) }
@@ -141,7 +207,7 @@ func (d *Device) Resume(ctx context.Context) error { return d.Hold(ctx, Castor, 
 func (d *Device) Hold(ctx context.Context, by Holder, held bool) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if !d.playing {
+	if !d.streaming() {
 		return ErrNotPlaying
 	}
 	holders := d.holders &^ by
@@ -158,7 +224,7 @@ func (d *Device) Hold(ctx context.Context, by Holder, held bool) error {
 		}
 		d.changes++
 	}
-	d.holders = holders
+	d.hold(ctx, holders)
 	d.publish()
 	return nil
 }
@@ -184,22 +250,23 @@ func (d *Device) Position(ctx context.Context) (at time.Duration, paused, ok boo
 	at, paused = p.GetAt().AsDuration(), p.GetPaused()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.changes != changes || !d.playing {
+	if d.changes != changes || !d.streaming() {
 		return 0, false, false
 	}
 	d.at, d.saidAt = at, time.Now()
 	switch {
 	case !paused && d.holders&deviceRemote != 0:
 		// The viewer played on from the device's own remote, ending their pause; castor's, which no press made, is pressed now.
-		d.holders &^= deviceRemote | Viewer
-		if d.holders != 0 && d.done(ctx, press(true)) == nil {
+		holders := d.holders &^ (deviceRemote | Viewer)
+		if holders != 0 && d.done(ctx, press(true)) == nil {
 			d.changes++
 			paused = true
 		} else {
-			d.holders = 0
+			holders = 0
 		}
+		d.hold(ctx, holders)
 	case d.holders == 0 && paused:
-		d.holders = deviceRemote
+		d.hold(ctx, deviceRemote)
 	}
 	d.publish()
 	return at, paused, true
@@ -209,6 +276,7 @@ func (d *Device) Position(ctx context.Context) (at time.Duration, paused, ok boo
 func (d *Device) Follow(ctx context.Context) {
 	tick := time.NewTicker(health.HeadEvery)
 	defer tick.Stop()
+	defer d.moves.End(context.WithoutCancel(ctx))
 	for {
 		select {
 		case <-ctx.Done():
@@ -216,7 +284,7 @@ func (d *Device) Follow(ctx context.Context) {
 		case <-tick.C:
 		}
 		d.mu.Lock()
-		due := d.playing && time.Since(d.askedAt) >= health.HeadEvery
+		due := d.streaming() && time.Since(d.askedAt) >= health.HeadEvery
 		d.mu.Unlock()
 		if due {
 			asking, cancel := context.WithTimeout(ctx, health.HeadEvery)
@@ -228,10 +296,10 @@ func (d *Device) Follow(ctx context.Context) {
 
 // publish tells heard where the device plays in the whole media, once it said.
 func (d *Device) publish() {
-	if !d.playing || d.saidAt.IsZero() {
+	if !d.streaming() || d.saidAt.IsZero() {
 		return
 	}
-	head := &castorv1.Playhead{Position: durationpb.New(d.begins + d.at), Paused: d.holders != 0}
+	head := &castorv1.Playhead{Position: durationpb.New(d.begins + d.at), Paused: d.moves.Is(held)}
 	if d.runtime > 0 {
 		head.Duration = durationpb.New(d.begins + d.runtime)
 	}
