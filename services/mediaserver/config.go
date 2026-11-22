@@ -40,11 +40,6 @@ func (d *DeclaredEncoder) UnmarshalText(name []byte) error {
 	return fmt.Errorf("%q is not a hardware encoder castor knows", name)
 }
 
-// ResolverConfig is how found streams are ranked.
-type ResolverConfig struct {
-	rank.Config `yaml:",inline"`
-}
-
 // ServerConfig is where `castor media-server` listens, where devices reach it, and the token its API asks for.
 type ServerConfig struct {
 	transport.Endpoint `yaml:",inline"`
@@ -55,7 +50,7 @@ type ServerConfig struct {
 	FFmpeg FFmpegConfig `yaml:"ffmpeg" validate:"required"`
 	// Whisper configures transcription performed by this media server.
 	Whisper  whisper.Config `yaml:"whisper"`
-	Resolver ResolverConfig `yaml:"resolver" validate:"required"`
+	Resolver rank.Config    `yaml:"resolver" validate:"required"`
 	Network  NetworkConfig  `yaml:"network"`
 }
 
@@ -68,6 +63,6 @@ func defaults() Config {
 	c := Config{}
 	c.Servers.Media.FFmpeg = FFmpegConfig{Path: "ffmpeg", ProbePath: "ffprobe", SoftwarePreset: software.Veryfast}
 	c.Servers.Media.Listen = ":8410"
-	c.Servers.Media.Resolver = ResolverConfig{ProbeMaxConcurrency: 2}
+	c.Servers.Media.Resolver = rank.Config{ProbeMaxConcurrency: 2}
 	return c
 }

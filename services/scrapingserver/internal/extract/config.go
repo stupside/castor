@@ -2,10 +2,10 @@ package extract
 
 import "time"
 
-// Config is everything an Extractor needs.
+// Config is everything an Extractor needs, and the browser and capture sections of the scraping server's configuration.
 type Config struct {
-	Browser BrowserConfig
-	Capture CaptureConfig
+	Browser BrowserConfig `yaml:"browser" validate:"required"`
+	Capture CaptureConfig `yaml:"capture" validate:"required"`
 }
 
 type BrowserConfig struct {
