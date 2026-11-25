@@ -69,6 +69,8 @@ enum Delivery {
   DELIVERY_AUTO = 1;
   // DELIVERY_SERVE never passes the source through: the media server serves the device.
   DELIVERY_SERVE = 2;
+  // Try the origin URL before forwarding a compatible native file.
+  DELIVERY_PREFER_DIRECT = 3;
 }
 
 message RankedStream {

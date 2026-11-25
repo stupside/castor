@@ -28,6 +28,7 @@ func evidence(r ran, err error, cancelled bool) recovery.Evidence {
 
 	if refused, ok := errors.AsType[*playRefused](err); ok {
 		e.PlayErr, e.Handoff = refused.err, refused.source
+		e.Direct = refused.direct
 	}
 	if unread, ok := errors.AsType[*timelineUnreadable](err); ok {
 		e.TimelineErr = unread.err

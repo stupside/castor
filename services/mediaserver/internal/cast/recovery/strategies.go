@@ -139,14 +139,24 @@ var relaxRead = strategy{
 	},
 }
 
-// serveInstead serves a device that refused to fetch the source itself.
+// serveInstead offers a local URL after a receiver refuses the origin.
 var serveInstead = strategy{
 	action: ServeInstead,
 	apply: func(_ context.Context, c change) (Attempt, bool) {
 		a := c.attempt
 		// A device already served would refuse the next attempt's identical serve.
-		if a.Delivery == compose.DeliveryServe || !c.outcome.Evidence.Handoff {
+		if a.Delivery == compose.DeliveryServe || a.Delivery == compose.DeliveryForward || !c.outcome.Evidence.Handoff {
 			return a, false
+		}
+		if c.outcome.Evidence.Direct && (a.Delivery == compose.DeliveryPreferDirect || a.Delivery == compose.DeliveryRedirect) {
+			// Some DLNA renderers refuse HTTPS during setup but follow an HTTPS redirect during playback.
+			in, ok := a.Program.PrimaryInput()
+			if a.Delivery == compose.DeliveryPreferDirect && ok && in.URL.Scheme == "https" {
+				a.Delivery = compose.DeliveryRedirect
+			} else {
+				a.Delivery = compose.DeliveryForward
+			}
+			return a, true
 		}
 		a.Delivery = compose.DeliveryServe
 		return a, true

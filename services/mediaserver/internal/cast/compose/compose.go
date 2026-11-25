@@ -7,6 +7,8 @@ type Kind string
 const (
 	// Handoff: the device fetches the source itself.
 	Handoff Kind = "handoff"
+	// Redirect: castor answers the renderer's metadata request and redirects playback to the origin.
+	Redirect Kind = "redirect"
 	// Forward: castor forwards the source file unchanged to a device that cannot fetch its URL.
 	Forward Kind = "forward"
 	// Remux: castor reads the source and serves what it produced.
@@ -18,16 +20,19 @@ const (
 // For is the kind of cast shape s calls for; a remux answers a device that rejects the source or whose headers do not match.
 func For(s Shape) Kind {
 	switch {
+	case s.handoff():
+		if s.Delivery == DeliveryRedirect {
+			return Redirect
+		}
+		return Handoff
 	case s.forwards():
 		return Forward
 	case !s.Device.SelfFetch:
 		return ReadOnce
-	case s.handoff():
-		return Handoff
 	default:
 		return Remux
 	}
 }
 
 // Original is a kind whose device plays the source's own bytes, every track and signal the file carries.
-func (k Kind) Original() bool { return k == Handoff || k == Forward }
+func (k Kind) Original() bool { return k == Handoff || k == Redirect || k == Forward }

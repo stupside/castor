@@ -2261,9 +2261,11 @@ func (x *DeviceCommand_Cancel) GetCommandId() string {
 
 // Source is fetched from its own server, which alone knows how it seeks.
 type DeviceCommand_Play_Source struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Container     Container              `protobuf:"varint,1,opt,name=container,proto3,enum=castor.media.v1.Container" json:"container,omitempty"`
-	Duration      *durationpb.Duration   `protobuf:"bytes,2,opt,name=duration,proto3" json:"duration,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Container Container              `protobuf:"varint,1,opt,name=container,proto3,enum=castor.media.v1.Container" json:"container,omitempty"`
+	Duration  *durationpb.Duration   `protobuf:"bytes,2,opt,name=duration,proto3" json:"duration,omitempty"`
+	// The renderer fetches the file at the origin, possibly after a redirect.
+	Direct        bool `protobuf:"varint,3,opt,name=direct,proto3" json:"direct,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2310,6 +2312,13 @@ func (x *DeviceCommand_Play_Source) GetDuration() *durationpb.Duration {
 		return x.Duration
 	}
 	return nil
+}
+
+func (x *DeviceCommand_Play_Source) GetDirect() bool {
+	if x != nil {
+		return x.Direct
+	}
+	return false
 }
 
 type DeviceCommand_Play_Progressive struct {
@@ -2646,7 +2655,7 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\fAudioSupport\x12=\n" +
 	"\x05codec\x18\x01 \x01(\x0e2\x1b.castor.media.v1.AudioCodecB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x05codec\x12!\n" +
-	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\x84\x10\n" +
+	"\fmax_channels\x18\x02 \x01(\rR\vmaxChannels\"\x9c\x10\n" +
 	"\rDeviceCommand\x129\n" +
 	"\x04call\x18\x01 \x01(\v2#.castor.media.v1.DeviceCommand.CallH\x00R\x04call\x12?\n" +
 	"\x06cancel\x18\x02 \x01(\v2%.castor.media.v1.DeviceCommand.CancelH\x00R\x06cancel\x1a\xb7\x03\n" +
@@ -2658,18 +2667,19 @@ const file_castor_media_v1_device_proto_rawDesc = "" +
 	"\x06resume\x18\x05 \x01(\v2%.castor.media.v1.DeviceCommand.ResumeH\x00R\x06resume\x12E\n" +
 	"\bposition\x18\x06 \x01(\v2'.castor.media.v1.DeviceCommand.PositionH\x00R\bposition\x129\n" +
 	"\x04seek\x18\a \x01(\v2#.castor.media.v1.DeviceCommand.SeekH\x00R\x04seekB\x12\n" +
-	"\toperation\x12\x05\xbaH\x02\b\x01\x1a\xbc\b\n" +
+	"\toperation\x12\x05\xbaH\x02\b\x01\x1a\xd4\b\n" +
 	"\x04Play\x12)\n" +
 	"\x03url\x18\x01 \x01(\tB\x17\xbaH\x14r\x12(\x80@2\n" +
 	"^https?://\x88\x01\x01R\x03url\x12B\n" +
 	"\bcaptions\x18\x03 \x03(\v2&.castor.media.v1.DeviceCommand.CaptionR\bcaptions\x12D\n" +
 	"\x06source\x18\x06 \x01(\v2*.castor.media.v1.DeviceCommand.Play.SourceH\x00R\x06source\x12S\n" +
 	"\vprogressive\x18\a \x01(\v2/.castor.media.v1.DeviceCommand.Play.ProgressiveH\x00R\vprogressive\x12J\n" +
-	"\bplaylist\x18\b \x01(\v2,.castor.media.v1.DeviceCommand.Play.PlaylistH\x00R\bplaylist\x1a\x8f\x01\n" +
+	"\bplaylist\x18\b \x01(\v2,.castor.media.v1.DeviceCommand.Play.PlaylistH\x00R\bplaylist\x1a\xa7\x01\n" +
 	"\x06Source\x12D\n" +
 	"\tcontainer\x18\x01 \x01(\x0e2\x1a.castor.media.v1.ContainerB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\tcontainer\x12?\n" +
-	"\bduration\x18\x02 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\bduration\x1a\x9c\x01\n" +
+	"\bduration\x18\x02 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\bduration\x12\x16\n" +
+	"\x06direct\x18\x03 \x01(\bR\x06direct\x1a\x9c\x01\n" +
 	"\vProgressive\x12F\n" +
 	"\tcontainer\x18\x01 \x01(\x0e2\x1a.castor.media.v1.ContainerB\f\xbaH\t\x82\x01\x06\x10\x01 \x00 \x03R\tcontainer\x12E\n" +
 	"\aruntime\x18\x02 \x01(\v2+.castor.media.v1.DeviceCommand.Play.RuntimeR\aruntime\x1a\xdc\x01\n" +

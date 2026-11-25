@@ -65,7 +65,10 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	if err != nil {
 		return fmt.Errorf("building DIDL-Lite metadata: %w", err)
 	}
-	slog.DebugContext(ctx, "DIDL metadata", "xml", metadata)
+	direct := playback.Play.GetSource().GetDirect()
+	if !direct {
+		slog.DebugContext(ctx, "DIDL metadata", "xml", metadata)
+	}
 
 	setURI := &struct {
 		InstanceID         string
@@ -96,6 +99,9 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 	}); err != nil {
 		// A renderer may start playing without acknowledging Play before its deadline.
 		// Do not tear down that stream, or resend Play, if its state confirms the handover.
+		if direct && ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+			return s.awaitDirectStart(ctx, playback.URL)
+		}
 		if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) && s.playingStream(ctx, playback.URL) {
 			slog.InfoContext(ctx, "device confirmed playback after Play timed out", "device", s.name())
 			return nil
@@ -103,7 +109,35 @@ func (s *session) Play(ctx context.Context, playback device.Playback) error {
 		err = errors.Join(err, context.Cause(ctx))
 		return fmt.Errorf("starting playback: %w", err)
 	}
+	if direct {
+		return s.awaitDirectStart(ctx, playback.URL)
+	}
 	return nil
+}
+
+// An acknowledgement is not proof that the renderer can download the origin.
+func (s *session) awaitDirectStart(ctx context.Context, streamURL *url.URL) error {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	polls := time.NewTicker(500 * time.Millisecond)
+	defer polls.Stop()
+	for {
+		info, err := s.transportInfo(ctx)
+		started := info.CurrentTransportState == statePlaying || info.CurrentTransportState == statePaused
+		if err == nil && (started || info.CurrentTransportStatus == transportStatusError) {
+			if uri, err := s.currentURI(ctx); err == nil && ctx.Err() == nil && uri == streamURL.String() {
+				if info.CurrentTransportStatus == transportStatusError {
+					return errors.New("the renderer could not play the origin URL")
+				}
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for the renderer to play the origin URL: %w", context.Cause(ctx))
+		case <-polls.C:
+		}
+	}
 }
 
 // playingStream confirms both playback and the resource, since an older stream playing is not success.
@@ -114,10 +148,15 @@ func (s *session) playingStream(ctx context.Context, streamURL *url.URL) bool {
 	if err != nil || info.CurrentTransportState != statePlaying {
 		return false
 	}
+	current, err := s.currentURI(ctx)
+	return err == nil && current == streamURL.String() && ctx.Err() == nil
+}
+
+func (s *session) currentURI(ctx context.Context) (string, error) {
 	var response struct{ CurrentURI string }
-	err = s.transport.SOAPClient.PerformActionCtx(ctx, s.transport.Service.ServiceType,
+	err := s.transport.SOAPClient.PerformActionCtx(ctx, s.transport.Service.ServiceType,
 		"GetMediaInfo", &struct{ InstanceID string }{"0"}, &response)
-	return err == nil && response.CurrentURI == streamURL.String() && ctx.Err() == nil
+	return response.CurrentURI, err
 }
 
 // shownCaption is the one caption a renderer is told of: the default, else the first.
@@ -253,7 +292,7 @@ func awaitTransportEnd(ctx context.Context, name string, poll func(context.Conte
 			}
 			over := watch.observe(info.CurrentTransportState)
 			// A status read before the end may be left from an earlier playback.
-			if over && info.CurrentTransportStatus == "ERROR_OCCURRED" {
+			if over && info.CurrentTransportStatus == transportStatusError {
 				return false, &device.PlaybackError{Err: fmt.Errorf("the device went %s with transport status %s", info.CurrentTransportState, info.CurrentTransportStatus)}
 			}
 			return over, nil
@@ -263,6 +302,8 @@ func awaitTransportEnd(ctx context.Context, name string, poll func(context.Conte
 	}
 	return err
 }
+
+const transportStatusError = "ERROR_OCCURRED"
 
 type transportInfo struct {
 	CurrentTransportState  transportState

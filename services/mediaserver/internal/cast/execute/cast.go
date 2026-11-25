@@ -100,6 +100,7 @@ type Stream interface {
 
 // Source is the source itself, fetched from its own server, which alone knows how it seeks.
 type Source struct {
+	Direct      bool
 	ContentType string
 	// Runtime is zero where the source declared none.
 	Runtime time.Duration

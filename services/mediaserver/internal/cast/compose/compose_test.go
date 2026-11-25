@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -42,6 +43,11 @@ func TestTheCompositionADeviceGets(t *testing.T) {
 		preference DeliveryPreference
 		want       Kind
 	}{
+		{"direct delivery of a compatible original", pushOnly, media.MP4, true, DeliveryPreferDirect, Handoff},
+		{"redirect after a refused HTTPS original", pushOnly, media.MP4, true, DeliveryRedirect, Redirect},
+		{"relay after a refused redirect", pushOnly, media.MP4, true, DeliveryForward, Forward},
+		{"direct preference on a self-fetching device", selfFetching, media.MP4, true, DeliveryPreferDirect, Handoff},
+		{"direct preference needs original tracks", pushOnly, media.MP4, false, DeliveryPreferDirect, ReadOnce},
 		{"a Native cast on a push-only device that plays the source gets its own bytes", pushOnly, media.MP4, true, DeliveryAuto, Forward},
 		{"an optimized cast stays served, so castor keeps pacing it", pushOnly, media.MP4, false, DeliveryAuto, ReadOnce},
 		{"a push-only device is served once it refused the source", pushOnly, media.MP4, true, DeliveryServe, ReadOnce},
@@ -81,6 +87,30 @@ func TestAReceiverThatFetchesForItselfCanSeekInALocalFile(t *testing.T) {
 			program.SetMeasurement(probe)
 			if got := For(Shape{Device: device, Program: program, Delivery: tc.delivery, PreserveSource: tc.native}); got != tc.want {
 				t.Errorf("composed %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDirectDeliveryKeepsSourcesThatRequireCastorOnTheRelay(t *testing.T) {
+	device := media.Capabilities{Formats: []media.FormatSupport{{Transport: media.TransportMP4, Video: media.VideoSupport{Codec: media.CodecH264}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}}}}
+	for _, tc := range []struct {
+		name   string
+		change func(*media.Input)
+	}{
+		{"required header", func(in *media.Input) { in.Headers = http.Header{"Referer": {"https://player.example/"}} }},
+		{"URL credentials", func(in *media.Input) { in.URL.User = url.User("viewer") }},
+		{"loopback", func(in *media.Input) { in.URL.Host = "127.0.0.1" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := measured(t, media.MP4, false)
+			probe, _ := p.Measurement()
+			tc.change(&p.Inputs[0])
+			p.SetMeasurement(probe)
+			for _, mode := range []DeliveryPreference{DeliveryPreferDirect, DeliveryRedirect} {
+				if got := For(Shape{Device: device, Program: p, Delivery: mode, PreserveSource: true}); got != Forward {
+					t.Errorf("composition for %s = %s, want forward", mode, got)
+				}
 			}
 		})
 	}

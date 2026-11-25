@@ -46,8 +46,12 @@ func FromCandidate(c *castorv1.StreamCandidate) (*source.Stream, error) {
 
 // FromDelivery is the delivery a cast asked for.
 func FromDelivery(d castorv1.Delivery) compose.DeliveryPreference {
-	if d == castorv1.Delivery_DELIVERY_SERVE {
+	switch d {
+	case castorv1.Delivery_DELIVERY_SERVE:
 		return compose.DeliveryServe
+	case castorv1.Delivery_DELIVERY_PREFER_DIRECT:
+		return compose.DeliveryPreferDirect
+	default:
+		return compose.DeliveryAuto
 	}
-	return compose.DeliveryAuto
 }

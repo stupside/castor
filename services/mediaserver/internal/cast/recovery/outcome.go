@@ -78,8 +78,10 @@ type Evidence struct {
 	// PlayErr is the device's own refusal of the URL it was handed.
 	PlayErr error
 
-	// Handoff is a device pointed at the source itself rather than at what castor serves.
+	// Handoff is an original source, including a byte-for-byte forward.
 	Handoff bool
+	// Direct means the receiver was asked to fetch the original from the origin.
+	Direct bool
 
 	// TimelineErr is a source whose timeline castor must keep and could not read when the read was set up.
 	TimelineErr error

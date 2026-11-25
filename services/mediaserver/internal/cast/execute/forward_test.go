@@ -3,6 +3,8 @@ package execute
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stupside/castor/services/mediaserver/internal/cast/compose"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/recovery"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 	"github.com/stupside/castor/services/mediaserver/internal/source"
 )
@@ -140,5 +144,62 @@ func TestNativeForwardsTheSourceFileToARendererThatNamesItsContainer(t *testing.
 				t.Errorf("the origin saw Referer %q: castor must fetch with the source's own headers", referer)
 			}
 		})
+	}
+}
+
+type redirectReader struct {
+	*handedDevice
+	origin string
+}
+
+func (d *redirectReader) AwaitEnd(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, d.handed.URL.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Range", "bytes=8-15")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != d.origin {
+		return fmt.Errorf("got %s with Location %q", resp.Status, resp.Header.Get("Location"))
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if len(body) != 0 {
+		return fmt.Errorf("redirect carried %d bytes", len(body))
+	}
+	return nil
+}
+
+func TestRefusedOriginalAndRedirectBothReachTheDeviceAsDirectSources(t *testing.T) {
+	origin := &url.URL{Scheme: "https", Host: "origin.example", Path: "/video", RawQuery: "part=one%2Btwo"}
+	probe := &media.ProbeInfo{VideoPresent: true, VideoCodec: media.CodecH264, VideoHeight: 240, VideoBitDepth: 8, AudioPresent: true, AudioCodec: media.CodecAAC, AudioChannels: 2}
+	program := programFromStream(t, &source.Stream{URL: origin, ContentType: media.MP4, Probe: probe})
+	caps := chromecastLike(media.MP4)
+	caps.SelfFetch = false
+	refusal := errors.New("renderer refused the origin")
+	dev := &redirectReader{handedDevice: &handedDevice{fakeDevice: &fakeDevice{caps: caps, refuse: refusal}}, origin: origin.String()}
+	cast := Cast{Device: dev, PreserveSource: true, Publisher: loopback{}}
+	attempt := recovery.Attempt{Try: 1, Program: program, Delivery: compose.DeliveryPreferDirect, Fetch: sourceFetchPlan(t, program, testReadDeadline)}
+	ctx, cancel := context.WithTimeout(t.Context(), castTimeout)
+	defer cancel()
+	out := cast.Run(ctx, attempt)
+	if !errors.Is(out.Err, refusal) || !out.Evidence.Direct || dev.handed.URL.String() != origin.String() {
+		t.Fatalf("direct origin: got %v, evidence %+v, URL %v", out.Err, out.Evidence, dev.handed.URL)
+	}
+	dev.refuse = nil
+	attempt.Try++
+	attempt.Delivery = compose.DeliveryRedirect
+	if out := cast.Run(ctx, attempt); out.Err != nil {
+		t.Fatal(out.Err)
+	}
+	if src, ok := dev.handed.Stream.(Source); !ok || !src.Direct || dev.handed.URL.Host == origin.Host {
+		t.Fatalf("redirect handoff: %+v", dev.handed)
 	}
 }

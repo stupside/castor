@@ -285,6 +285,8 @@ message DeviceCommand {
         not_in: [0]
       }];
       google.protobuf.Duration duration = 2 [(buf.validate.field).duration.gt = {}];
+      // The renderer fetches the file at the origin, possibly after a redirect.
+      bool direct = 3;
     }
 
     message Progressive {

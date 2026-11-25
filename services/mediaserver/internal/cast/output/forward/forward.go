@@ -36,14 +36,33 @@ func Transport() http.RoundTripper {
 // Handler answers GET and HEAD at one path with what source answers for the same byte range.
 // served are the device's own response headers; the origin's range support and length override them.
 func Handler(client *http.Client, source *url.URL, headers http.Header, contentType string, served map[string]string) http.Handler {
+	return handler(client, source, headers, contentType, served, false)
+}
+
+// Redirect answers HEAD with the origin's file metadata. GET goes to the fixed origin URL, including for byte ranges.
+func Redirect(client *http.Client, source *url.URL, contentType string, served map[string]string) http.Handler {
+	return handler(client, source, nil, contentType, served, true)
+}
+
+func handler(client *http.Client, source *url.URL, headers http.Header, contentType string, served map[string]string, redirect bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set("Allow", "GET, HEAD")
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		// Some origins refuse HEAD; a GET whose body is dropped answers the same question.
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, source.String(), nil)
+		// The full forward also works with origins that refuse HEAD, by dropping a GET body.
+		method := http.MethodGet
+		if redirect {
+			if r.Method == http.MethodGet {
+				w.Header().Set("Cache-Control", "no-store")
+				w.Header().Set("Location", source.String())
+				w.WriteHeader(http.StatusFound)
+				return
+			}
+			method = http.MethodHead
+		}
+		req, err := http.NewRequestWithContext(r.Context(), method, source.String(), nil)
 		if err != nil {
 			http.Error(w, "invalid source", http.StatusInternalServerError)
 			return

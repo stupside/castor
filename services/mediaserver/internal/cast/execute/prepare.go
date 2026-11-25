@@ -60,6 +60,7 @@ type presentation struct {
 	contentType string
 	segments    string
 	source      bool
+	direct      bool
 	// runtime is what is left of the program from where the attempt begins, zero where the source declared none.
 	runtime   time.Duration
 	readiness presentationReadiness
@@ -101,12 +102,14 @@ func (s *preparation) inspectPresentation() (p inspectedPresentation, err error)
 	p.captions = s.shownCaptions()
 	switch p.kind {
 	case compose.Handoff:
+		p.direct = !s.playbackCapabilities().SelfFetch
 		primary, _ := s.attempt.Program.PrimaryInput()
 		p.target, p.contentType, p.source = primary.URL, primary.ContentType, true
 		return p, nil
-	case compose.Forward:
+	case compose.Forward, compose.Redirect:
+		p.direct = p.kind == compose.Redirect
 		primary, _ := s.attempt.Program.PrimaryInput()
-		target, err := s.forwardSource(primary)
+		target, err := s.forwardSource(primary, p.direct)
 		if err != nil {
 			return p, err
 		}
@@ -221,11 +224,18 @@ func (s *preparation) compose() compose.Kind {
 }
 
 // forwardSource publishes in's file for the device to read through castor, until the attempt releases it.
-func (s *preparation) forwardSource(in media.Input) (*url.URL, error) {
+func (s *preparation) forwardSource(in media.Input, redirect bool) (*url.URL, error) {
 	served := s.playbackCapabilities().Served(in.ContentType)
 	name := forward.Name(in.ContentType)
 	mux := http.NewServeMux()
-	mux.Handle("GET /"+name, forward.Handler(&http.Client{Transport: forward.Transport()}, in.URL, in.Headers, in.ContentType, served))
+	client := &http.Client{Transport: forward.Transport()}
+	var handler http.Handler
+	if redirect {
+		handler = forward.Redirect(client, in.URL, in.ContentType, served)
+	} else {
+		handler = forward.Handler(client, in.URL, in.Headers, in.ContentType, served)
+	}
+	mux.Handle("GET /"+name, handler)
 	pub, err := s.Publisher.Publish(s.ctx, mux)
 	if err != nil {
 		return nil, fmt.Errorf("publishing the forwarded source: %w", err)

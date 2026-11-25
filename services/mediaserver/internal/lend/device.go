@@ -91,7 +91,7 @@ func played(p execute.Playback) *mediav1.DeviceCommand_Play {
 	}
 	switch s := p.Stream.(type) {
 	case execute.Source:
-		play.Stream = &mediav1.DeviceCommand_Play_Source_{Source: &mediav1.DeviceCommand_Play_Source{Container: wire.Container(s.ContentType), Duration: runtime(s.Runtime)}}
+		play.Stream = &mediav1.DeviceCommand_Play_Source_{Source: &mediav1.DeviceCommand_Play_Source{Container: wire.Container(s.ContentType), Duration: runtime(s.Runtime), Direct: s.Direct}}
 	case execute.Served:
 		served := &mediav1.DeviceCommand_Play_Progressive{Container: wire.Container(s.ContentType)}
 		if r := s.Runtime; r != nil {

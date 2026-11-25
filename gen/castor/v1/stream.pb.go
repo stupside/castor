@@ -79,6 +79,8 @@ const (
 	Delivery_DELIVERY_AUTO Delivery = 1
 	// DELIVERY_SERVE never passes the source through: the media server serves the device.
 	Delivery_DELIVERY_SERVE Delivery = 2
+	// Try the origin URL before forwarding a compatible native file.
+	Delivery_DELIVERY_PREFER_DIRECT Delivery = 3
 )
 
 // Enum value maps for Delivery.
@@ -87,11 +89,13 @@ var (
 		0: "DELIVERY_UNSPECIFIED",
 		1: "DELIVERY_AUTO",
 		2: "DELIVERY_SERVE",
+		3: "DELIVERY_PREFER_DIRECT",
 	}
 	Delivery_value = map[string]int32{
-		"DELIVERY_UNSPECIFIED": 0,
-		"DELIVERY_AUTO":        1,
-		"DELIVERY_SERVE":       2,
+		"DELIVERY_UNSPECIFIED":   0,
+		"DELIVERY_AUTO":          1,
+		"DELIVERY_SERVE":         2,
+		"DELIVERY_PREFER_DIRECT": 3,
 	}
 )
 
@@ -412,11 +416,12 @@ const file_castor_v1_stream_proto_rawDesc = "" +
 	"\x06Ladder\x12\x16\n" +
 	"\x12LADDER_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13LADDER_MULTIVARIANT\x10\x01\x12\x0f\n" +
-	"\vLADDER_SOLE\x10\x02*K\n" +
+	"\vLADDER_SOLE\x10\x02*g\n" +
 	"\bDelivery\x12\x18\n" +
 	"\x14DELIVERY_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rDELIVERY_AUTO\x10\x01\x12\x12\n" +
-	"\x0eDELIVERY_SERVE\x10\x02B\x94\x01\n" +
+	"\x0eDELIVERY_SERVE\x10\x02\x12\x1a\n" +
+	"\x16DELIVERY_PREFER_DIRECT\x10\x03B\x94\x01\n" +
 	"\rcom.castor.v1B\vStreamProtoP\x01Z1github.com/stupside/castor/gen/castor/v1;castorv1\xa2\x02\x03CXX\xaa\x02\tCastor.V1\xca\x02\tCastor\\V1\xe2\x02\x15Castor\\V1\\GPBMetadata\xea\x02\n" +
 	"Castor::V1b\x06proto3"
 

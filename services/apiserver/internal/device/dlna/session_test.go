@@ -31,10 +31,16 @@ func TestAPlayTimeoutNeedsConfirmationOfTheRequestedStream(t *testing.T) {
 	for _, tt := range []struct {
 		name, state, uri string
 		play, query      string
+		status           string
+		direct           bool
 		cancelAt         string
 		want             bool
 	}{
 		{name: "acknowledged", want: true},
+		{name: "direct acknowledged and playing", direct: true, state: "PLAYING", uri: target, want: true},
+		{name: "direct acknowledged but origin refused", direct: true, state: "STOPPED", uri: target, status: "ERROR_OCCURRED"},
+		{name: "direct acknowledged but still buffering", direct: true, state: "TRANSITIONING", uri: target},
+		{name: "direct acknowledged but playing another file", direct: true, state: "PLAYING", uri: target + "-old"},
 		{name: "playing despite timeout", play: "timeout", state: "PLAYING", uri: target, want: true},
 		{name: "still stopped", play: "timeout", state: "STOPPED", uri: target},
 		{name: "still buffering", play: "timeout", state: "TRANSITIONING", uri: target},
@@ -79,7 +85,7 @@ func TestAPlayTimeoutNeedsConfirmationOfTheRequestedStream(t *testing.T) {
 					var body string
 					switch action {
 					case "GetTransportInfo":
-						body = "<CurrentTransportState>" + tt.state + "</CurrentTransportState>"
+						body = "<CurrentTransportState>" + tt.state + "</CurrentTransportState><CurrentTransportStatus>" + tt.status + "</CurrentTransportStatus>"
 					case "GetMediaInfo":
 						body = "<CurrentURI>" + tt.uri + "</CurrentURI>"
 					}
@@ -94,7 +100,9 @@ func TestAPlayTimeoutNeedsConfirmationOfTheRequestedStream(t *testing.T) {
 				}, sinks: sinks}
 				u, _ := url.Parse(target)
 				started := time.Now()
-				err := s.Play(ctx, device.Playback{URL: u, Play: devicetest.Source(mediav1.Container_CONTAINER_MPEGTS)})
+				playback := devicetest.Source(mediav1.Container_CONTAINER_MPEGTS)
+				playback.GetSource().Direct = tt.direct
+				err := s.Play(ctx, device.Playback{URL: u, Play: playback})
 				if (err == nil) != tt.want {
 					t.Fatalf("Play() = %v, want success %v; actions %v", err, tt.want, actions)
 				}
@@ -121,7 +129,7 @@ func TestAPlayTimeoutNeedsConfirmationOfTheRequestedStream(t *testing.T) {
 				if plays != 1 {
 					t.Errorf("sent Play %d times, want once", plays)
 				}
-				if (tt.play == "" || tt.play == "refused" || tt.play == "fault" || tt.cancelAt == "Play") && queries != 0 {
+				if !tt.direct && (tt.play == "" || tt.play == "refused" || tt.play == "fault" || tt.cancelAt == "Play") && queries != 0 {
 					t.Errorf("queried %d times without an ambiguous timeout", queries)
 				}
 			})

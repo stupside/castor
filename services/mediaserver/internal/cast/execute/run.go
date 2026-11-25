@@ -544,16 +544,17 @@ func (c *coordinator) leftToPlay(ctx context.Context, d *delivery) (left time.Du
 func hand(ctx context.Context, dev Device, p Playback) (err error) {
 	ctx, finish := telemetry.Start(ctx, telemetry.Play)
 	defer func() { finish(err) }()
-	_, source := p.Stream.(Source)
+	original, source := p.Stream.(Source)
 	slog.InfoContext(ctx, "starting playback", "host", p.URL.Host, "stream", p.Stream)
 	if err := dev.Play(ctx, p); err != nil {
-		return &playRefused{err: err, source: source}
+		return &playRefused{err: err, source: source, direct: original.Direct}
 	}
 	return nil
 }
 
 // playRefused is the device's own refusal of the URL it was handed.
 type playRefused struct {
+	direct bool
 	err    error
 	source bool
 }

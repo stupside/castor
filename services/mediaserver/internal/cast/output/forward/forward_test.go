@@ -84,3 +84,28 @@ func TestNameKeepsTheExtensionRenderersSniff(t *testing.T) {
 		t.Fatal("unexpected forwarded source names")
 	}
 }
+
+func TestRedirectAnswersHeadAndHandsTheSignedURLToTheRenderer(t *testing.T) {
+	origin := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodHead {
+			t.Errorf("origin got %s from the helper, want only HEAD", r.Method)
+		}
+		w.Header().Set("Content-Length", "12345")
+		w.Header().Set("Accept-Ranges", "bytes")
+	}))
+	defer origin.Close()
+	source, _ := url.Parse(origin.URL + "/file?token=test&filename=a%2Bb.mp4")
+	redirect := Redirect(origin.Client(), source, "video/mp4", nil)
+	head := httptest.NewRecorder()
+	redirect.ServeHTTP(head, httptest.NewRequest(http.MethodHead, "/source.mp4", nil))
+	if head.Code != http.StatusOK || head.Header().Get("Content-Length") != "12345" || head.Header().Get("Content-Type") != "video/mp4" || head.Header().Get("Accept-Ranges") != "bytes" || head.Body.Len() != 0 {
+		t.Fatalf("HEAD: status %d, headers %v, body length %d", head.Code, head.Header(), head.Body.Len())
+	}
+	request := httptest.NewRequest(http.MethodGet, "/source.mp4?url=ignored", nil)
+	request.Header.Set("Range", "bytes=10-20")
+	get := httptest.NewRecorder()
+	redirect.ServeHTTP(get, request)
+	if get.Code != http.StatusFound || get.Header().Get("Location") != source.String() || get.Header().Get("Cache-Control") != "no-store" || get.Body.Len() != 0 {
+		t.Fatalf("GET: status %d, headers %v, body length %d", get.Code, get.Header(), get.Body.Len())
+	}
+}
