@@ -285,6 +285,11 @@ func TestInspectionCancellationJoinsOriginBeforeReturning(t *testing.T) {
 				if err == nil {
 					_ = resp.Body.Close()
 				}
+				// The loopback response can beat cancellation to the inspector. Make
+				// that outcome deterministic while still exercising the origin join.
+				if ctx.Err() != nil {
+					err = nil
+				}
 				return media.ProbeInfo{}, media.ReachUnproven, err
 			})
 		})
