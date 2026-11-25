@@ -114,6 +114,10 @@ func (r Republisher) Probe(ctx context.Context, program media.Program, inspect f
 	}
 	defer func() {
 		err = errors.Join(err, reading.close())
+		// A loopback response can reach the inspector before it observes cancellation.
+		if cause := context.Cause(ctx); cause != nil && !errors.Is(err, cause) {
+			err = errors.Join(err, cause)
+		}
 		for _, feed := range reading.feeds {
 			info.SourceUnwrapped = info.SourceUnwrapped || feed.unwrapped.Load()
 		}
