@@ -11,7 +11,7 @@ func TestNarrowedRenditionDoesNotBorrowMasterObservation(t *testing.T) {
 	stream := &Stream{
 		URL:         &url.URL{Scheme: "https", Host: "origin.example", Path: "/master.m3u8"},
 		ContentType: media.HLS,
-		Probe:       &media.ProbeInfo{SourceUnwrapped: true},
+		Probe:       &media.ProbeInfo{SourceSegments: media.HLSExtraSegmentTIKTIKPX},
 	}
 	published, err := ProgramFor(stream)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestResolutionReusesOnlyTheObservedRendition(t *testing.T) {
 		t.Fatal(err)
 	}
 	selected.Inputs[0].URL.Path = "/chosen.m3u8"
-	info := media.ProbeInfo{VideoCodec: media.CodecH264, VideoHeight: 720, SourceUnwrapped: true}
+	info := media.ProbeInfo{VideoCodec: media.CodecH264, VideoHeight: 720, SourceSegments: media.HLSExtraSegmentTIKTIKPX}
 	observed := media.Observe(selected, info)
 	stream.Observation, stream.Probe = &observed, &info
 	master, err := ProgramFor(stream)
@@ -60,7 +60,7 @@ func TestResolutionReusesOnlyTheObservedRendition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, ok := resolved.Measurement(); !ok || !got.SourceUnwrapped || got.VideoHeight != 720 {
+	if got, ok := resolved.Measurement(); !ok || got.SourceSegments != media.HLSExtraSegmentTIKTIKPX || got.VideoHeight != 720 {
 		t.Fatalf("matching selection lost its observation: %+v, observed=%t", got, ok)
 	}
 	selected.Inputs[0].URL.Path = "/replacement.m3u8"

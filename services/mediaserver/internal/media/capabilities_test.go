@@ -74,19 +74,27 @@ func TestAudioOnlyCapabilities(t *testing.T) {
 func TestWrappedHLSRequiresOneCompatibleEnvelope(t *testing.T) {
 	device := Capabilities{Formats: []FormatSupport{
 		{Transport: TransportHLS, Video: VideoSupport{Codec: CodecH264}},
-		{Transport: TransportHLS, Video: VideoSupport{Codec: CodecHEVC}, ExtraSegments: []HLSExtraSegmentFormat{HLSExtraSegmentTIKTIKPX}},
+		{Transport: TransportHLS, Video: VideoSupport{Codec: CodecHEVC}, ExtraSegments: HLSExtraSegmentTIKTIKPX},
 	}}
 	plain := ProbeInfo{VideoCodec: CodecH264, VideoBitDepth: 8}
 	if !device.CanPlaySourceIn(HLS, plain) {
 		t.Fatal("ordinary HLS rejected")
 	}
-	plain.SourceUnwrapped = true
+	plain.SourceSegments = HLSExtraSegmentTIKTIKPX
 	if device.CanPlaySourceIn(HLS, plain) {
 		t.Fatal("combined incompatible HLS envelopes")
 	}
-	wrappedHEVC := ProbeInfo{VideoCodec: CodecHEVC, VideoBitDepth: 8, SourceUnwrapped: true}
+	wrappedHEVC := ProbeInfo{VideoCodec: CodecHEVC, VideoBitDepth: 8, SourceSegments: HLSExtraSegmentTIKTIKPX}
 	if !device.CanPlaySourceIn(HLS, wrappedHEVC) {
 		t.Fatal("wrapped HLS rejected by a compatible envelope")
+	}
+	wrappedHEVC.SourceSegments |= HLSExtraSegmentPNGText
+	if device.CanPlaySourceIn(HLS, wrappedHEVC) {
+		t.Fatal("handed off mixed segments to a receiver that only supports TIKTIKPX")
+	}
+	device.Formats[1].ExtraSegments |= HLSExtraSegmentPNGText
+	if !device.CanPlaySourceIn(HLS, wrappedHEVC) {
+		t.Fatal("receiver supports every observed segment format")
 	}
 }
 

@@ -14,6 +14,8 @@ import (
 	"image/png"
 	"testing"
 
+	"github.com/stupside/castor/services/mediaserver/internal/media"
+
 	"github.com/stupside/castor/services/mediaserver/internal/source/timeline"
 )
 
@@ -33,7 +35,11 @@ func compressed(t *testing.T, body []byte) []byte {
 func pixelEnvelope(t *testing.T, payload []byte, alpha uint8) []byte {
 	t.Helper()
 	rgb := append([]byte("TIKTIKPX"), binary.BigEndian.AppendUint32(nil, uint32(len(payload)))...)
-	rgb = append(rgb, payload...)
+	return pixelPNG(t, append(rgb, payload...), alpha)
+}
+
+func pixelPNG(t *testing.T, rgb []byte, alpha uint8) []byte {
+	t.Helper()
 	img := image.NewNRGBA(image.Rect(0, 0, 7, (len(rgb)+20)/21))
 	for i := range img.Pix {
 		img.Pix[i] = 0xff
@@ -55,14 +61,14 @@ func TestPixelSegments(t *testing.T) {
 	ts := bytes.Repeat(append([]byte{0x47}, make([]byte, 187)...), 4)
 	for _, alpha := range []uint8{255, 128, 0} {
 		body := pixelEnvelope(t, compressed(t, ts), alpha)
-		got, wrapped, err := unwrapPixels(body)
-		if err != nil || !wrapped || !bytes.Equal(got, ts) {
+		got, wrapped, err := unwrapSegment(body)
+		if err != nil || wrapped != media.HLSExtraSegmentTIKTIKPX || !bytes.Equal(got, ts) {
 			t.Fatalf("alpha %d: %v, decoded %d bytes", alpha, err, len(got))
 		}
 	}
 	t.Run("ordinary media", func(t *testing.T) {
-		got, wrapped, err := unwrapPixels(ts)
-		if err != nil || wrapped || !bytes.Equal(got, ts) {
+		got, wrapped, err := unwrapSegment(ts)
+		if err != nil || wrapped != 0 || !bytes.Equal(got, ts) {
 			t.Fatalf("changed plain TS: %v", err)
 		}
 	})
@@ -73,8 +79,8 @@ func TestPixelSegments(t *testing.T) {
 		if err := png.Encode(&b, img); err != nil {
 			t.Fatal(err)
 		}
-		got, wrapped, err := unwrapPixels(b.Bytes())
-		if err != nil || wrapped || !bytes.Equal(got, b.Bytes()) {
+		got, wrapped, err := unwrapSegment(b.Bytes())
+		if err != nil || wrapped != 0 || !bytes.Equal(got, b.Bytes()) {
 			t.Fatalf("changed image: %v", err)
 		}
 	})
@@ -100,10 +106,47 @@ func TestPixelSegments(t *testing.T) {
 	cases["pixel allocation limit"] = huge
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, _, err := unwrapPixels(body); err == nil {
+			if _, _, err := unwrapSegment(body); err == nil {
 				t.Fatal("accepted malformed envelope")
 			}
 		})
+	}
+}
+
+func TestPixelEnvelopeAtDifferentOffsets(t *testing.T) {
+	ts := bytes.Repeat(append([]byte{0x47}, make([]byte, 187)...), 4)
+	payload := compressed(t, ts)
+	header := binary.BigEndian.AppendUint32([]byte("TIKTIKPX"), uint32(len(payload)))
+	envelope := append(header, payload...)
+	// The fixture is seven RGB pixels (21 bytes) wide.
+	for _, offset := range []int{0, 1, 2, 20, 8 * 21, 16 * 21, 32 * 21, 65537} {
+		t.Run(fmt.Sprintf("byte_%d", offset), func(t *testing.T) {
+			rgb := append(bytes.Repeat([]byte{0x42}, offset), envelope...)
+			got, wrapped, err := unwrapSegment(pixelPNG(t, rgb, 128))
+			if err != nil || wrapped != media.HLSExtraSegmentTIKTIKPX || !bytes.Equal(got, ts) {
+				t.Fatalf("wrapped=%v, error=%v, got %d bytes", wrapped, err, len(got))
+			}
+		})
+	}
+	// A mention of the format in the prefix is not a framed gzip payload.
+	rgb := append([]byte("TIKTIKPX in the prefix"), envelope...)
+	if got, wrapped, err := unwrapSegment(pixelPNG(t, rgb, 255)); err != nil || wrapped != media.HLSExtraSegmentTIKTIKPX || !bytes.Equal(got, ts) {
+		t.Fatal("missed envelope after an unframed signature")
+	}
+
+	prefix := bytes.Repeat([]byte{0x42}, 20)
+	rgb = append(prefix, envelope...)
+	binary.BigEndian.PutUint32(rgb[len(prefix)+8:], ^uint32(0))
+	if _, _, err := unwrapSegment(pixelPNG(t, rgb, 255)); err == nil {
+		t.Fatal("accepted truncated payload after leading rows")
+	}
+	rgb[len(prefix)] = 'X'
+	ordinary := pixelPNG(t, rgb, 255)
+	if got, wrapped, err := unwrapSegment(ordinary); err != nil || wrapped != 0 || !bytes.Equal(got, ordinary) {
+		t.Fatal("changed PNG without an envelope signature")
+	}
+	if _, _, err := unwrapSegment(pixelPNG(t, append(make([]byte, 13), "TIKTIKPX"...), 255)); err == nil {
+		t.Fatal("accepted signature without a length")
 	}
 }
 
@@ -121,7 +164,7 @@ func TestEncryptedPixelSegmentIsUnwrappedAfterDecryption(t *testing.T) {
 	cipher.NewCBCEncrypter(block, iv).CryptBlocks(sealed, padded)
 	got, unwrapped, err := (Decoder{}).Segment(t.Context(), timeline.Segment{URI: "segment", Key: timeline.Key{Method: aes128, URI: "key", IV: fmt.Sprintf("0x%x", iv)}}, sealed,
 		func(_ context.Context, uri string) ([]byte, error) { return secret, nil })
-	if err != nil || !bytes.Equal(got, ts) || !unwrapped {
+	if err != nil || !bytes.Equal(got, ts) || unwrapped != media.HLSExtraSegmentTIKTIKPX {
 		t.Fatalf("decrypted envelope: %v, decoded %d bytes", err, len(got))
 	}
 }

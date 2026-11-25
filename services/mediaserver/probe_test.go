@@ -75,6 +75,11 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 			_, _ = w.Write([]byte("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nplain.ts\n#EXTINF:1,\nsegment.png\n#EXT-X-ENDLIST\n"))
 		case "/plain.ts":
 			_, _ = w.Write(ts)
+		case "/trailer.m3u8":
+			_, _ = w.Write([]byte("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\ntrailer.ts\n#EXT-X-ENDLIST\n"))
+		case "/trailer.ts":
+			_, _ = w.Write(ordinary.Bytes())
+			_, _ = w.Write(ts)
 		case "/hidden.m3u8":
 			_, _ = w.Write([]byte("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nsegment.ts\n#EXT-X-ENDLIST\n"))
 		case "/video.m3u8":
@@ -94,7 +99,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 	client := web.New(fetchTimeout)
 	resolver := source.NewResolver(client, 0, nil, formats)
 	timelines := follow.New(client, formats, follow.Repackager("ffmpeg"))
-	for _, path := range []string{"/master.m3u8", "/video.m3u8", "/hidden.m3u8", "/opaque", "/plain.m3u8", "/mixed.m3u8"} {
+	for _, path := range []string{"/master.m3u8", "/video.m3u8", "/hidden.m3u8", "/opaque", "/plain.m3u8", "/mixed.m3u8", "/trailer.m3u8"} {
 		t.Run(path, func(t *testing.T) {
 			u, _ := url.Parse(server.URL + path)
 			stream := &source.Stream{URL: u, ContentType: media.HLS}
@@ -111,9 +116,15 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 				t.Fatalf("probe: %+v, reach=%v, err=%v", info, reach, err)
 			}
 			if path != "/mixed.m3u8" {
-				wantWrapped := path != "/plain.m3u8"
-				if info.SourceUnwrapped != wantWrapped {
-					t.Fatalf("observed wrapped source = %t, want %t", info.SourceUnwrapped, wantWrapped)
+				want := media.HLSExtraSegmentTIKTIKPX
+				switch path {
+				case "/plain.m3u8":
+					want = 0
+				case "/trailer.m3u8":
+					want = media.HLSExtraSegmentPNGTrailer
+				}
+				if info.SourceSegments != want {
+					t.Fatalf("observed source segments = %d, want %d", info.SourceSegments, want)
 				}
 			}
 			stream.Probe = &info
@@ -125,7 +136,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 			}
 			if path == "/plain.m3u8" || path == "/hidden.m3u8" {
 				measured, ok := resolved.Program.Measurement()
-				if !ok || measured.SourceUnwrapped != info.SourceUnwrapped {
+				if !ok || measured.SourceSegments != info.SourceSegments {
 					t.Fatalf("source envelope lost during resolution: %+v, measured=%t", measured, ok)
 				}
 			}
@@ -176,7 +187,7 @@ func TestWrappedSegmentsAreMeasuredAndReadAsVideo(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if info, ok := resolved.Program.Measurement(); !ok || !info.SourceUnwrapped {
+			if info, ok := resolved.Program.Measurement(); !ok || info.SourceSegments == 0 {
 				t.Fatalf("HLS observation lost after ranking: %+v, %t", info, ok)
 			}
 		})

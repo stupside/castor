@@ -109,7 +109,7 @@ func FromCapabilities(c *mediav1.Capabilities) media.Capabilities {
 			for _, segment := range hls.GetExtraSegmentFormats() {
 				switch segment {
 				case mediav1.HLSSupport_EXTRA_SEGMENT_FORMAT_TIKTIKPX:
-					envelope.ExtraSegments = append(envelope.ExtraSegments, media.HLSExtraSegmentTIKTIKPX)
+					envelope.ExtraSegments |= media.HLSExtraSegmentTIKTIKPX
 				}
 			}
 		}

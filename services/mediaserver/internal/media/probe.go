@@ -9,10 +9,10 @@ import (
 
 type ProbeInfo struct {
 	ContentType string
-	// SourceUnwrapped reports that probing had to decode a nonstandard HLS segment envelope.
-	SourceUnwrapped bool
-	BitRate         int64         // the container's own top-level rate, 0 where ffprobe reports none
-	Duration        time.Duration // the declared runtime, 0 for a live edge and where none is reported
+	// SourceSegments contains the nonstandard HLS envelopes observed while probing.
+	SourceSegments HLSExtraSegmentFormat
+	BitRate        int64         // the container's own top-level rate, 0 where ffprobe reports none
+	Duration       time.Duration // the declared runtime, 0 for a live edge and where none is reported
 
 	// Presence records selected stream descriptors even when their codec or
 	// dimensions are unknown. Missing parameters do not establish absence.

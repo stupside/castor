@@ -26,7 +26,7 @@ func TestCapabilitiesPreserveAtomicTransportAndTracks(t *testing.T) {
 	if got.Formats[1].Video.Codec != "" || got.Formats[1].Audio.Codec != media.CodecAC3 || got.Formats[2].Audio.Codec != "" || got.Formats[2].Video.Codec != media.CodecHEVC {
 		t.Fatalf("single-track variants widened: %+v", got)
 	}
-	if len(got.Formats[1].ExtraSegments) != 0 || len(got.Formats[2].ExtraSegments) != 1 || got.Formats[2].ExtraSegments[0] != media.HLSExtraSegmentTIKTIKPX {
+	if got.Formats[1].ExtraSegments != 0 || got.Formats[2].ExtraSegments != media.HLSExtraSegmentTIKTIKPX {
 		t.Fatalf("HLS segment support lost: %+v", got.Formats)
 	}
 	if len(FromCapabilities(nil).Formats) != 0 {

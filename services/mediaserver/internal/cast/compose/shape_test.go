@@ -14,23 +14,23 @@ func TestAHandoffOnlyWhenEverythingChecks(t *testing.T) {
 		{Transport: media.TransportHLS, Video: media.VideoSupport{Codec: media.CodecH264}, Audio: media.AudioSupport{Codec: media.CodecAAC, MaxChannels: 2}},
 	}}
 	for _, tt := range []struct {
-		name          string
-		contentType   string
-		headers       http.Header
-		unmeasured    bool
-		declaredOnly  bool
-		height        int
-		maxHeight     media.HeightCap
-		ceiling, rate media.Bitrate
-		wrappedHLS    bool
-		sourceWrapped bool
-		want          bool
+		name           string
+		contentType    string
+		headers        http.Header
+		unmeasured     bool
+		declaredOnly   bool
+		height         int
+		maxHeight      media.HeightCap
+		ceiling, rate  media.Bitrate
+		wrappedHLS     bool
+		sourceSegments media.HLSExtraSegmentFormat
+		want           bool
 	}{
 		{name: "a header-free measured file at the ceiling passes through", contentType: media.MP4, height: 1080, maxHeight: 1080, want: true},
 		{name: "ordinary HLS passes through", contentType: media.HLS, height: 1080, maxHeight: 1080, want: true},
-		{name: "observed wrapped HLS stays local", contentType: media.HLS, height: 1080, maxHeight: 1080, sourceWrapped: true},
+		{name: "observed wrapped HLS stays local", contentType: media.HLS, height: 1080, maxHeight: 1080, sourceSegments: media.HLSExtraSegmentTIKTIKPX},
 		{name: "a device supporting wrapped segments can fetch HLS directly", contentType: media.HLS, height: 1080, maxHeight: 1080, wrappedHLS: true, want: true},
-		{name: "a device supporting wrapped segments can fetch observed wrapped HLS", contentType: media.HLS, height: 1080, maxHeight: 1080, wrappedHLS: true, sourceWrapped: true, want: true},
+		{name: "a device supporting wrapped segments can fetch observed wrapped HLS", contentType: media.HLS, height: 1080, maxHeight: 1080, wrappedHLS: true, sourceSegments: media.HLSExtraSegmentTIKTIKPX, want: true},
 		{name: "an unmeasured program is not assumed decodable", contentType: media.MP4, unmeasured: true},
 		{name: "a manifest declaration cannot authorize handoff", contentType: media.HLS, height: 1080, maxHeight: 1080, declaredOnly: true},
 		{name: "a header-gated source is served", contentType: media.MP4, headers: http.Header{"Referer": {"https://player.example/"}}},
@@ -59,12 +59,12 @@ func TestAHandoffOnlyWhenEverythingChecks(t *testing.T) {
 			if tt.declaredOnly {
 				program.SetDeclaration(media.Declaration{VideoCodec: media.CodecH264, VideoBitDepth: 8, VideoHeight: 1080, AudioCodec: media.CodecAAC})
 			} else if !tt.unmeasured {
-				program.SetMeasurement(media.ProbeInfo{VideoCodec: media.CodecH264, VideoBitDepth: 8, AudioCodec: media.CodecAAC, AudioChannels: 2, SourceUnwrapped: tt.sourceWrapped})
+				program.SetMeasurement(media.ProbeInfo{VideoCodec: media.CodecH264, VideoBitDepth: 8, AudioCodec: media.CodecAAC, AudioChannels: 2, SourceSegments: tt.sourceSegments})
 			}
 			device := caps
 			device.Formats = append([]media.FormatSupport(nil), caps.Formats...)
 			if tt.wrappedHLS {
-				device.Formats[1].ExtraSegments = []media.HLSExtraSegmentFormat{media.HLSExtraSegmentTIKTIKPX}
+				device.Formats[1].ExtraSegments = media.HLSExtraSegmentTIKTIKPX
 			}
 			shape := Shape{Device: device, Program: program, Height: tt.height, MaxHeight: tt.maxHeight, MaxBitrate: tt.ceiling, Rate: tt.rate}
 			if got := shape.handoff(); got != tt.want {

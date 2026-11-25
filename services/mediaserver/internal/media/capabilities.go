@@ -130,30 +130,25 @@ type FormatSupport struct {
 	Video         VideoSupport
 	Audio         AudioSupport
 	Captions      []CaptionFormat
-	ExtraSegments []HLSExtraSegmentFormat
+	ExtraSegments HLSExtraSegmentFormat
 	ServedHeaders map[string]string
 }
 
-type HLSExtraSegmentFormat uint8
+// HLSExtraSegmentFormat is a bit set, since a playlist can mix segment envelopes.
+type HLSExtraSegmentFormat uint32
 
 const (
-	HLSExtraSegmentTIKTIKPX HLSExtraSegmentFormat = iota + 1
+	HLSExtraSegmentTIKTIKPX HLSExtraSegmentFormat = 1 << iota
+	HLSExtraSegmentKWP1
+	HLSExtraSegmentPNGText
+	HLSExtraSegmentPNGTrailer
+	HLSExtraSegmentWebPExif
+	HLSExtraSegmentRawMarker
+	HLSExtraSegmentGzipMarker
 )
 
-// canPlayHLSWith checks that one playback envelope accepts the tracks and
-// all of the supplied nonstandard segment formats.
-func (c Capabilities) canPlayHLSWith(p ProbeInfo, segments ...HLSExtraSegmentFormat) bool {
-	return slices.ContainsFunc(c.Formats, func(f FormatSupport) bool {
-		if f.Transport.ContentType() != HLS || !f.accepts(p, c.Deinterlaces) {
-			return false
-		}
-		for _, segment := range segments {
-			if !slices.Contains(f.ExtraSegments, segment) {
-				return false
-			}
-		}
-		return true
-	})
+func (f FormatSupport) acceptsSourceSegments(container string, p ProbeInfo) bool {
+	return container != HLS || p.SourceSegments&^f.ExtraSegments == 0
 }
 
 // CanPlaySourceIn checks the source's observed HLS segment envelope as well as
@@ -163,10 +158,9 @@ func (c Capabilities) CanPlaySourceIn(container string, p ProbeInfo) bool {
 	if p.VideoHDR {
 		return false
 	}
-	if container == HLS && p.SourceUnwrapped {
-		return c.canPlayHLSWith(p, HLSExtraSegmentTIKTIKPX)
-	}
-	return c.CanPlayIn(container, p)
+	return slices.ContainsFunc(c.Formats, func(f FormatSupport) bool {
+		return f.Transport.ContentType() == container && f.accepts(p, c.Deinterlaces) && f.acceptsSourceSegments(container, p)
+	})
 }
 
 func (c Capabilities) CanPlayIn(container string, p ProbeInfo) bool {
