@@ -274,23 +274,30 @@ func (d *Device) Position(ctx context.Context) (at time.Duration, paused, ok boo
 
 // Follow asks the device where it plays whenever nothing else has for a while, until ctx ends.
 func (d *Device) Follow(ctx context.Context) {
-	tick := time.NewTicker(health.HeadEvery)
-	defer tick.Stop()
+	timer := time.NewTimer(health.HeadEvery)
+	defer timer.Stop()
 	defer d.moves.End(context.WithoutCancel(ctx))
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-tick.C:
+		case <-timer.C:
 		}
+		wait := health.HeadEvery
 		d.mu.Lock()
-		due := d.streaming() && time.Since(d.askedAt) >= health.HeadEvery
-		d.mu.Unlock()
-		if due {
-			asking, cancel := context.WithTimeout(ctx, health.HeadEvery)
-			d.Position(asking)
-			cancel()
+		if d.streaming() {
+			wait = time.Until(d.askedAt.Add(health.HeadEvery))
 		}
+		d.mu.Unlock()
+		if wait > 0 {
+			timer.Reset(wait)
+			continue
+		}
+		timer.Reset(health.HeadEvery)
+
+		asking, cancel := context.WithTimeout(ctx, health.HeadEvery)
+		d.Position(asking)
+		cancel()
 	}
 }
 

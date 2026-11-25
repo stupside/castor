@@ -2,6 +2,7 @@ package lend
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"net/url"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	mediav1 "github.com/stupside/castor/gen/castor/media/v1"
 	castorv1 "github.com/stupside/castor/gen/castor/v1"
 	"github.com/stupside/castor/services/mediaserver/internal/cast/execute"
+	"github.com/stupside/castor/services/mediaserver/internal/cast/health"
 	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
@@ -121,6 +123,39 @@ func TestThePlayheadIsInTheWholeMediaNotTheStreamHanded(t *testing.T) {
 		}
 		if head := r.heads[0]; head.GetPosition().AsDuration() != 90*time.Second || head.GetDuration().AsDuration() != 91*time.Minute || !head.GetPaused() {
 			t.Errorf("playhead %v, want 1m30s into 1h31m, paused by the viewer", head)
+		}
+	})
+}
+
+func TestFollowPollsOneIntervalAfterAnIndependentReading(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := &remote{}
+		d := r.device(t, 30*time.Second)
+		published := func() int {
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			return len(r.heads)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		if err := d.Play(ctx, fromAMinuteIn); err != nil {
+			t.Fatal(err)
+		}
+		go d.Follow(ctx)
+		synctest.Wait()
+		time.Sleep(health.HeadEvery / 2)
+		if _, _, ok := d.Position(ctx); !ok {
+			t.Fatal("independent position reading failed")
+		}
+		time.Sleep(health.HeadEvery / 2)
+		synctest.Wait()
+		if got := published(); got != 1 {
+			t.Fatalf("position reports before the interval elapsed = %d, want 1", got)
+		}
+		time.Sleep(health.HeadEvery / 2)
+		synctest.Wait()
+		if got := published(); got != 2 {
+			t.Fatalf("position reports one interval after the independent reading = %d, want 2", got)
 		}
 	})
 }
