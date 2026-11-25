@@ -28,8 +28,8 @@ func (f *feed) read(ctx context.Context, s timeline.Segment) ([]byte, error) {
 		return b, err
 	}
 	body, wrapped, err := f.decoder.Segment(ctx, s, b, f.keyBytes)
-	if wrapped {
-		f.unwrapped.Store(true)
+	if wrapped != 0 {
+		f.unwrapped.Or(uint32(wrapped))
 	}
 	return body, err
 }

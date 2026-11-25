@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stupside/castor/services/mediaserver/internal/media"
+
 	"github.com/stupside/castor/services/mediaserver/internal/source/timeline"
 )
 
@@ -11,12 +13,12 @@ type markedDecoder struct{}
 
 func (markedDecoder) ConsumesKey(key timeline.Key) bool { return key.Method == "marked" }
 
-func (markedDecoder) Segment(ctx context.Context, _ timeline.Segment, body []byte, keys timeline.KeyReader) ([]byte, bool, error) {
+func (markedDecoder) Segment(ctx context.Context, _ timeline.Segment, body []byte, keys timeline.KeyReader) ([]byte, media.HLSExtraSegmentFormat, error) {
 	key, err := keys(ctx, "key")
 	if err != nil {
-		return nil, false, err
+		return nil, 0, err
 	}
-	return append(body, key...), true, nil
+	return append(body, key...), media.HLSExtraSegmentTIKTIKPX, nil
 }
 
 func (markedDecoder) Map(ctx context.Context, _ timeline.Map, body []byte, keys timeline.KeyReader) ([]byte, error) {
@@ -32,8 +34,8 @@ func TestRelayUsesFormatDecoderAndSharesItsKeyRead(t *testing.T) {
 	f := newFeed(t.Context(), "primary", timeline.Reading{Source: origin, Decoder: markedDecoder{}}, nil)
 	segment := timeline.Segment{URI: "segment", Key: timeline.Key{Method: "marked", URI: "key"}}
 	got, err := f.read(t.Context(), segment)
-	if err != nil || string(got) != "mediasecret" || !f.unwrapped.Load() {
-		t.Fatalf("segment = %q, observed = %t, error = %v", got, f.unwrapped.Load(), err)
+	if err != nil || string(got) != "mediasecret" || f.unwrapped.Load() != uint32(media.HLSExtraSegmentTIKTIKPX) {
+		t.Fatalf("segment = %q, observed = %d, error = %v", got, f.unwrapped.Load(), err)
 	}
 	init, err := f.initBytes(t.Context(), timeline.Map{URI: "init", Key: segment.Key})
 	if err != nil || string(init) != "headersecret" {

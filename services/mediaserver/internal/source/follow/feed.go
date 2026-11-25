@@ -18,8 +18,8 @@ import (
 
 // feed is one source's ledger, merged each time its playlist is asked for; castor reads every resource it lists.
 type feed struct {
-	// unwrapped records a segment decoded during this reading.
-	unwrapped atomic.Bool
+	// unwrapped combines the segment formats decoded during this reading.
+	unwrapped atomic.Uint32
 	name      string
 	source    timeline.Source
 	decoder   timeline.Decoder

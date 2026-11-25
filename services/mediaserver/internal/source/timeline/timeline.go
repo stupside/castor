@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
 // Segment is one piece of media as the origin lists it, every reference absolute.
@@ -73,9 +75,9 @@ type Source interface {
 type KeyReader func(context.Context, string) ([]byte, error)
 
 // Decoder handles the origin format's resource encoding. Implementations must be safe
-// for concurrent segment reads. The bool reports a source envelope removed from a segment.
+// for concurrent segment reads. Segment reports the source envelope it removed.
 type Decoder interface {
-	Segment(context.Context, Segment, []byte, KeyReader) ([]byte, bool, error)
+	Segment(context.Context, Segment, []byte, KeyReader) ([]byte, media.HLSExtraSegmentFormat, error)
 	Map(context.Context, Map, []byte, KeyReader) ([]byte, error)
 	ConsumesKey(Key) bool
 }
@@ -92,8 +94,8 @@ type Reading struct {
 // IdentityDecoder passes resources through when a format has no resource envelope.
 type IdentityDecoder struct{}
 
-func (IdentityDecoder) Segment(_ context.Context, _ Segment, body []byte, _ KeyReader) ([]byte, bool, error) {
-	return body, false, nil
+func (IdentityDecoder) Segment(_ context.Context, _ Segment, body []byte, _ KeyReader) ([]byte, media.HLSExtraSegmentFormat, error) {
+	return body, 0, nil
 }
 
 func (IdentityDecoder) Map(_ context.Context, _ Map, body []byte, _ KeyReader) ([]byte, error) {

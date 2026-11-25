@@ -4,24 +4,26 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/stupside/castor/services/mediaserver/internal/media"
+
 	"github.com/stupside/castor/services/mediaserver/internal/source/timeline"
 )
 
-// Decoder interprets HLS resource encryption and the TIKTIKPX segment envelope.
+// Decoder interprets HLS resource encryption and nonstandard MPEG-TS segment envelopes.
 // It holds no state; the relay supplies its bounded and cached key reader.
 type Decoder struct{}
 
 func (Decoder) ConsumesKey(key timeline.Key) bool { return decryptable(key) }
 
-func (d Decoder) Segment(ctx context.Context, segment timeline.Segment, body []byte, keys timeline.KeyReader) ([]byte, bool, error) {
+func (d Decoder) Segment(ctx context.Context, segment timeline.Segment, body []byte, keys timeline.KeyReader) ([]byte, media.HLSExtraSegmentFormat, error) {
 	if d.ConsumesKey(segment.Key) {
 		var err error
 		body, err = decrypt(ctx, body, segment.Key, keys)
 		if err != nil {
-			return nil, false, err
+			return nil, 0, err
 		}
 	}
-	return unwrapPixels(body)
+	return unwrapSegment(body)
 }
 
 func (d Decoder) Map(ctx context.Context, section timeline.Map, body []byte, keys timeline.KeyReader) ([]byte, error) {

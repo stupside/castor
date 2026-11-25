@@ -2,80 +2,112 @@ package hls
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/binary"
 	"fmt"
-	"image/color"
+	"image"
 	"image/png"
-	"io"
+
+	"github.com/stupside/castor/services/mediaserver/internal/media"
 )
 
-const pixelLimit = 32 << 20
-
-// unwrapPixels reads the TIKTIKPX envelope: RGB bytes hold a magic, a big-endian
-// gzip length, and gzipped MPEG-TS. Alpha and trailing pixel padding carry no data.
-func unwrapPixels(body []byte) ([]byte, bool, error) {
-	if !bytes.HasPrefix(body, []byte("\x89PNG\r\n\x1a\n")) {
-		return body, false, nil
-	}
+// unwrapPNG checks structural metadata before decoding the image's pixel channels.
+func unwrapPNG(body []byte) ([]byte, media.HLSExtraSegmentFormat, error) {
 	cfg, err := png.DecodeConfig(bytes.NewReader(body))
 	if err != nil {
-		return nil, false, fmt.Errorf("reading PNG segment: %w", err)
-	}
-	// These are the standard decoder's 8-bit RGB and RGBA models.
-	if cfg.ColorModel != color.RGBAModel && cfg.ColorModel != color.NRGBAModel {
-		return body, false, nil
+		return nil, 0, fmt.Errorf("reading PNG segment: %w", err)
 	}
 	// Bound the decoder's four-byte pixels before allocating the image.
 	pixels := uint64(cfg.Width) * uint64(cfg.Height)
 	if pixels > pixelLimit/4 {
-		return nil, false, fmt.Errorf("PNG segment exceeds %d decoded bytes", pixelLimit)
+		return nil, 0, fmt.Errorf("PNG segment exceeds %d decoded bytes", pixelLimit)
 	}
-	if pixels < 4 {
-		return body, false, nil
+	chunks, err := readPNGChunks(body)
+	if err != nil {
+		return nil, 0, err
+	}
+	if validTS(chunks.trailer) {
+		return chunks.trailer, media.HLSExtraSegmentPNGTrailer, nil
+	}
+	if len(chunks.trailer) != 0 {
+		if ts, format, err := unwrapMarked(chunks.trailer); format != 0 || err != nil {
+			return ts, format, err
+		}
+	}
+	if len(chunks.parts) != 0 {
+		return chunks.textSegment()
+	}
+	if body[24] != 8 { // IHDR bit depth
+		return body, 0, nil
 	}
 	img, err := png.Decode(bytes.NewReader(body))
 	if err != nil {
-		return nil, false, fmt.Errorf("decoding PNG segment: %w", err)
+		return nil, 0, fmt.Errorf("decoding PNG segment: %w", err)
 	}
-	// Extract only the header and declared payload, without copying pixel padding.
-	rgb := make([]byte, 0, 12)
-	want := 12
-	for y := 0; y < cfg.Height && len(rgb) < want; y++ {
-		for x := 0; x < cfg.Width && len(rgb) < want; x++ {
-			c := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
-			rgb = append(rgb, c.R, c.G, c.B)
-			if len(rgb) == 12 {
-				if string(rgb[:8]) != "TIKTIKPX" {
-					return body, false, nil
-				}
-				n := uint64(binary.BigEndian.Uint32(rgb[8:12]))
-				if n == 0 || n > pixels*3-12 {
-					return nil, false, fmt.Errorf("invalid PNG segment payload length %d", n)
-				}
-				want += int(n)
-			}
+	// Go's decoder owns these tightly packed pixels. Discard alpha in place;
+	// grayscale+alpha is expanded to four channels by image/png.
+	var rgb []byte
+	switch img := img.(type) {
+	case *image.Gray:
+		rgb = img.Pix
+	case *image.RGBA:
+		rgb = colorBytes(img.Pix, 3)
+	case *image.NRGBA:
+		channels := 3
+		if body[25] == 4 || body[25] == 0 { // grayscale with alpha or transparency
+			channels = 1
+		}
+		rgb = colorBytes(img.Pix, channels)
+	default:
+		return body, 0, nil
+	}
+	if chunks.hasLength {
+		if uint64(chunks.length) > uint64(len(rgb)) {
+			return nil, 0, fmt.Errorf("invalid kwLn pixel payload length")
+		}
+		rgb = rgb[:chunks.length]
+	}
+	if data, ok := bytes.CutPrefix(rgb, []byte("KWP1")); ok {
+		if len(data) < 4 || uint64(binary.BigEndian.Uint32(data)) > uint64(len(data)-4) {
+			return nil, 0, fmt.Errorf("invalid KWP1 segment length")
+		}
+		return checkedTS(data[4:4+int(binary.BigEndian.Uint32(data))], media.HLSExtraSegmentKWP1)
+	}
+	if chunks.hasLength {
+		return checkedTS(rgb, media.HLSExtraSegmentKWP1)
+	}
+	// Pixel encoders can also fill the final row after the last whole TS packet.
+	// Accept only a fully synchronized stream with uniform pixel padding.
+	if len(rgb) >= 3*tsPacketSize && rgb[0] == 0x47 {
+		end := 0
+		for end+tsPacketSize <= len(rgb) && rgb[end] == 0x47 {
+			end += tsPacketSize
+		}
+		padding := rgb[end:]
+		if len(padding) < len(rgb)/cfg.Height && (len(bytes.Trim(padding, "\x00")) == 0 || len(bytes.Trim(padding, "\xff")) == 0) && validTS(rgb[:end]) {
+			return rgb[:end], media.HLSExtraSegmentKWP1, nil
 		}
 	}
-	z, err := gzip.NewReader(bytes.NewReader(rgb[12:want]))
-	if err != nil {
-		return nil, false, fmt.Errorf("opening PNG segment payload: %w", err)
+	magic := []byte("TIKTIKPX")
+	_, header, found := bytes.Cut(rgb, magic)
+	if !found {
+		return body, 0, nil
 	}
-	defer z.Close()
-	ts, err := io.ReadAll(io.LimitReader(z, pixelLimit+1))
-	if err != nil {
-		return nil, false, fmt.Errorf("expanding PNG segment payload: %w", err)
-	}
-	if len(ts) > pixelLimit {
-		return nil, false, fmt.Errorf("PNG segment payload exceeds %d bytes", pixelLimit)
-	}
-	if len(ts) < 3*188 || len(ts)%188 != 0 {
-		return nil, false, fmt.Errorf("PNG segment payload is not packet-aligned MPEG-TS")
-	}
-	for i := 0; i < len(ts); i += 188 {
-		if ts[i] != 0x47 {
-			return nil, false, fmt.Errorf("PNG segment payload loses MPEG-TS sync at byte %d", i)
+	for found && len(header) >= 4 {
+		length := binary.BigEndian.Uint32(header)
+		data := header[4:]
+		if length <= uint32(len(data)) && bytes.HasPrefix(data[:length], []byte{0x1f, 0x8b, 0x08}) {
+			return inflateTS(data[:length], media.HLSExtraSegmentTIKTIKPX)
 		}
+		// Skip an unframed marker in the prefix. Inflate only a framed payload.
+		_, header, found = bytes.Cut(header, magic)
 	}
-	return ts, true, nil
+	return nil, 0, fmt.Errorf("invalid TIKTIKPX segment header")
+}
+
+func colorBytes(pix []byte, channels int) []byte {
+	out := pix[:0]
+	for i := 0; i < len(pix); i += 4 {
+		out = append(out, pix[i:i+channels]...)
+	}
+	return out
 }
